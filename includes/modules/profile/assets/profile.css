@@ -1,0 +1,107 @@
+/* ============================================================
+   Profile Module CSS
+   Modal and form patterns inherited from core.css.
+   Only profile-specific layout lives here.
+   ============================================================ */
+
+.metis-profile {
+    display: grid;
+    gap: 16px;
+}
+
+.metis-profile .mw-input,
+.metis-profile .mw-select,
+.metis-profile textarea.mw-input {
+    width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+}
+
+/* ── Profile tab system ──────────────────────────────────── */
+
+.metis-profile-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.metis-profile-tab-btn {
+    border: 1px solid var(--mw-border);
+    background: #eef2fb !important;
+    color: #2a3350 !important;
+    font-weight: 600;
+}
+.metis-profile-tab-btn.is-active { background: var(--mw-primary) !important; color: #fff !important; }
+
+.metis-profile-tab-panel { display: none; }
+.metis-profile-tab-panel.is-active { display: block; }
+
+/* ── Profile card ────────────────────────────────────────── */
+
+.metis-profile-card { display: grid; gap: 10px; align-content: start; }
+
+.metis-profile-avatar-wrap {
+    width: 90px; height: 90px;
+    border-radius: 999px; overflow: hidden; background: #eef1f8;
+}
+.metis-profile-avatar { width: 100%; height: 100%; object-fit: cover; }
+
+.metis-profile-section-title { margin: 0 0 8px; color: #3f53b8; }
+
+/* ── Detail grid (card layout) ────────────────────────────── */
+
+.metis-contact-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.metis-contact-card {
+    background: #fff; border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius); box-shadow: var(--mw-shadow);
+    padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+}
+.metis-contact-card h3 { margin: 0 0 6px; color: var(--mw-primary-dark); }
+.metis-contact-card > div { min-width: 0; }
+.metis-contact-card > div strong { white-space: nowrap; }
+
+/* ── Security / passkeys ─────────────────────────────────── */
+
+.metis-profile-checkboxes { display: flex; flex-wrap: wrap; gap: 16px; }
+.metis-profile-security-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.metis-profile-security-state   { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+
+.metis-profile-passkey-list { display: grid; gap: 8px; }
+.metis-profile-passkey-item { border: 1px solid #d7dbe7; border-radius: 10px; padding: 10px; background: #f8f9fd; }
+
+/* ── Notification grid ───────────────────────────────────── */
+
+.metis-profile-notification-grid { display: grid; gap: 8px; }
+.metis-profile-notification-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) auto auto;
+    gap: 12px; align-items: center;
+    padding: 8px 10px; border: 1px solid #dde2ef; border-radius: 10px; background: #f8f9fd;
+}
+.metis-profile-notification-title { font-weight: 600; }
+
+/* Modal override */
+.metis-profile-modal-inner { max-width: 720px; }
+
+/* ── Static lists ────────────────────────────────────────── */
+
+.metis-profile-static-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.metis-profile-static-row  { font-size: 1.02rem; line-height: 1.35; }
+.metis-profile-static-row span { color: #1f2636; }
+
+/* Avatar canvas */
+#metis-profile-avatar-canvas {
+    width: 240px; height: 240px;
+    border-radius: 10px; border: 1px solid #cfd5e5; background: #f3f5fb;
+}
+
+.metis-people-check { display: inline-flex; align-items: center; gap: 8px; }
+.metis-people-mini-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+
+@media (max-width: 1000px) {
+    .metis-contact-detail-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+    .metis-contact-field-half,
+    .metis-contact-field-third { grid-column: span 12; }
+}

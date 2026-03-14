@@ -1,0 +1,343 @@
+/* ============================================================
+   Portal Module CSS
+   Tile grid, settings cards, and shared layout patterns
+   are all inherited from core.css.
+   ============================================================ */
+
+.mw-panel { padding: 20px; background: white; border-radius: 8px; }
+
+.metis-portal-dashboard-intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 18px;
+    border: 1px solid var(--mw-border);
+}
+
+.metis-portal-dashboard-subtitle {
+    margin: 0;
+    max-width: 720px;
+}
+
+.metis-portal-dashboard-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.metis-portal-dashboard-stat {
+    min-width: 110px;
+    padding: 12px 14px;
+    border-radius: var(--mw-radius);
+    border: 1px solid var(--mw-border);
+    background: linear-gradient(180deg, #ffffff 0%, #f6f8ff 100%);
+}
+
+.metis-portal-dashboard-stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--mw-primary);
+    line-height: 1;
+}
+
+.metis-portal-dashboard-stat-label {
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--mw-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.metis-portal-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.metis-portal-dashboard-card {
+    height: auto;
+    min-height: 240px;
+    gap: 16px;
+    justify-content: flex-start;
+}
+
+.metis-portal-dashboard-card-top {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 150px;
+}
+
+.metis-portal-dashboard-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.metis-portal-dashboard-card-icon {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: #eef3ff;
+    color: var(--mw-primary);
+    border: 1px solid #dce4fb;
+}
+
+.metis-portal-dashboard-card-icon svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.metis-portal-dashboard-card-title {
+    margin-bottom: 2px;
+}
+
+.metis-portal-dashboard-card-desc {
+    margin: 0;
+}
+
+.metis-portal-dashboard-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.metis-portal-dashboard-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.metis-portal-dashboard-metric {
+    padding: 12px;
+    border: 1px solid var(--mw-border);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
+.metis-portal-dashboard-metric-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--mw-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.metis-portal-dashboard-metric-value {
+    margin-top: 6px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--mw-text);
+    line-height: 1.1;
+}
+
+.metis-portal-dashboard-metric-note {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--mw-text-muted);
+    line-height: 1.4;
+}
+
+.metis-portal-dashboard-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+}
+
+/* ── Settings cards ──────────────────────────────────────── */
+
+.mw-settings-card {
+    background: var(--mw-surface);
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius-lg);
+    margin-top: 16px;
+    overflow: hidden;
+}
+
+.mw-settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px;
+    background: var(--mw-header-bg);
+    border-bottom: 1px solid #d5d9f0;
+}
+
+.mw-settings-header h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mw-primary-dark);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.mw-settings-status {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--mw-radius-pill);
+}
+
+.mw-settings-status.is-ok {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.mw-settings-status.is-missing {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.mw-settings-body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ── Settings field rows ─────────────────────────────────── */
+
+.mw-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mw-field label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--mw-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.mw-help {
+    font-size: 12px;
+    color: var(--mw-text-muted);
+    margin: 2px 0 0;
+    line-height: 1.5;
+}
+
+/* ── Settings tabs ───────────────────────────────────────── */
+
+.metis-settings-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.metis-settings-tabs .metis-profile-tab-btn {
+    border: 1px solid var(--mw-border);
+    background: #eef2fb;
+    color: #2a3350;
+    font-weight: 600;
+}
+
+.metis-settings-tabs .metis-profile-tab-btn.is-active {
+    background: var(--mw-primary);
+    color: #fff;
+}
+
+.metis-settings-panel { display: none; }
+.metis-settings-panel.is-active { display: block; }
+
+/* ── Input width helper ──────────────────────────────────── */
+
+.mw-input-wide {
+    width: 100%;
+    max-width: 480px;
+    box-sizing: border-box;
+}
+
+.mw-settings-card .mw-input {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* ── Shortcode display ───────────────────────────────────── */
+
+.mw-shortcode-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--mw-bg); border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius); padding: 10px 14px; max-width: 480px;
+}
+
+.mw-shortcode {
+    font-size: 13px; color: var(--mw-text); flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: monospace;
+}
+
+.mw-settings-actions { padding: 8px 0 16px; }
+
+.metis-settings-repeatable {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.metis-settings-repeatable-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.metis-settings-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 200px) minmax(240px, 1fr) auto auto auto;
+    gap: 12px;
+    align-items: end;
+    padding: 14px;
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius);
+    background: #f8faff;
+}
+
+.metis-settings-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mw-text);
+}
+
+@media (max-width: 1000px) {
+    .metis-settings-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .metis-portal-dashboard-intro {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .metis-portal-dashboard-stats {
+        justify-content: flex-start;
+    }
+}
+
+/* ── Email usage page ────────────────────────────────────── */
+/* Reuses newsletter stat grid from core legacy aliases */
+
+@media (max-width: 900px) {
+    .metis-newsletter-stats { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .metis-portal-dashboard-grid { grid-template-columns: 1fr; }
+    .metis-portal-dashboard-metrics { grid-template-columns: 1fr; }
+    .metis-portal-dashboard-card-top { min-height: 0; }
+}

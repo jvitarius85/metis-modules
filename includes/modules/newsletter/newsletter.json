@@ -1,0 +1,71 @@
+{
+  "slug": "newsletter",
+  "label": "Newsletter",
+  "domain": "newsletter",
+  "default_view": "dashboard",
+  "menu_order": 1,
+  "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+  "icon": "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 16h5.5s1 3.5 5.5 3.5 5.5-3.5 5.5-3.5H27v8c0 1.5-1.5 3-3 3H8c-1.5 0-3-1.5-3-3v-8z M27 16l-1-3M5 19.5V16l1-3 M13.5 9h5M13.5 13h5 M9.5 13V5h13v8\"/></svg>",
+  
+  "menu": {
+    "type": "dropdown",
+    "items": {
+      "dashboard": "Dashboard",
+      "campaigns": "Campaigns",
+      "templates": "Templates",
+      "lists": "Lists",
+      "subscribers": "Subscribers"
+    }
+  },
+  "permissions": {
+    "view": ["board", "donor_admin", "newsletter_admin"],
+    "edit": ["board", "newsletter_admin"],
+    "create": ["board", "newsletter_admin"],
+    "delete": ["board", "newsletter_admin"]
+  },
+  "views": {
+    "dashboard": "dashboard.php",
+    "campaigns": "campaigns.php",
+    "templates": "templates.php",
+    "lists": "lists.php",
+    "subscribers": "subscribers.php"
+  },
+  "services": [
+    "services/document.php",
+    "services/audience.php",
+    "services/tracking.php",
+    "services/audit.php"
+  ],
+  "routes": [
+    {
+      "name": "newsletter.open",
+      "methods": ["GET"],
+      "pattern": "#^/metis/v1/newsletter/open/(?P<code>[A-Za-z0-9\\-_]+)\\.gif$#",
+      "handler": "metis_newsletter_handle_open_route"
+    },
+    {
+      "name": "newsletter.click",
+      "methods": ["GET"],
+      "pattern": "#^/metis/v1/newsletter/click/(?P<code>[A-Za-z0-9\\-_]+)$#",
+      "handler": "metis_newsletter_handle_click_route"
+    },
+    {
+      "name": "newsletter.unsubscribe",
+      "methods": ["GET"],
+      "pattern": "#^/metis/v1/newsletter/unsubscribe/(?P<code>[A-Za-z0-9\\-_]+)$#",
+      "handler": "metis_newsletter_handle_unsubscribe_route"
+    },
+    {
+      "name": "newsletter.manage",
+      "methods": ["GET"],
+      "pattern": "#^/metis/v1/newsletter/manage/(?P<code>[A-Za-z0-9\\-_]+)$#",
+      "handler": "metis_newsletter_handle_manage_route"
+    }
+  ],
+  "assets": {
+    "css": ["editor.css", "newsletter.css"],
+    "js": ["editor.js", "newsletter.js"],
+    "ajax": "newsletter.ajax.php"
+  },
+  "ajax_object": "metisNewsletterAjax"
+}

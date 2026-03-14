@@ -1,0 +1,35 @@
+{
+  "slug": "finance",
+  "label": "Finance",
+  "domain": "finance",
+  "default_view": "finance",
+  "menu_order": 6,
+  "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 20h18\"/><path d=\"M6 16V9\"/><path d=\"M12 16V5\"/><path d=\"M18 16v-3\"/><path d=\"M4 16h4\"/><path d=\"M10 16h4\"/><path d=\"M16 16h4\"/></svg>",
+  "menu": {
+    "type": "dropdown",
+    "items": {
+      "finance": "Overview",
+      "ledger": "Activity",
+      "reconciliations": "Reconcile",
+      "reports": "Insights"
+    }
+  },
+  "permissions": {
+    "view": ["board", "donor_admin", "donor_user", "newsletter_admin"],
+    "edit": ["donor_admin"],
+    "create": [],
+    "delete": []
+  },
+  "views": {
+    "finance": "finance.php",
+    "ledger": "ledger.php",
+    "reconciliations": "reconciliations.php",
+    "reports": "reports.php"
+  },
+  "assets": {
+    "css": ["finance.css"],
+    "js": ["finance.js"],
+    "ajax": null
+  }
+}
