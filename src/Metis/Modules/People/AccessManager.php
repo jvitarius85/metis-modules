@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace Metis\Modules\People;
 
+use Metis\Core\Application;
+use Metis\Core\ModuleLoader;
+
 final class AccessManager {
     private static bool $seeded = false;
 
@@ -68,60 +71,7 @@ final class AccessManager {
             );
         }
 
-        $modules = function_exists( 'metis_get_modules' ) ? \metis_get_modules() : [];
-        $default_actions = [ 'view', 'edit', 'create', 'delete' ];
-
-        foreach ( $modules as $slug => $module ) {
-            $slug = \sanitize_key( (string) $slug );
-            if ( $slug === '' ) {
-                continue;
-            }
-
-            foreach ( $default_actions as $action ) {
-                $perm_key = $slug . '.' . $action;
-                $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$perms_table} WHERE permission_key = %s LIMIT 1", $perm_key ) );
-                if ( $existing ) {
-                    continue;
-                }
-
-                $wpdb->insert(
-                    $perms_table,
-                    [
-                        'permission_key' => $perm_key,
-                        'module_slug' => $slug,
-                        'action_key' => $action,
-                        'permission_name' => ucfirst( $slug ) . ' ' . ucfirst( $action ),
-                    ],
-                    [ '%s', '%s', '%s', '%s' ]
-                );
-            }
-        }
-
-        $custom_permissions = [
-            [ 'permission_key' => 'people.workspace_manage', 'module_slug' => 'people', 'action_key' => 'workspace_manage', 'permission_name' => 'People Workspace Manage' ],
-        ];
-        foreach ( $custom_permissions as $perm ) {
-            $permission_key = (string) ( $perm['permission_key'] ?? '' );
-            if ( $permission_key === '' ) {
-                continue;
-            }
-
-            $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$perms_table} WHERE permission_key = %s LIMIT 1", $permission_key ) );
-            if ( $existing ) {
-                continue;
-            }
-
-            $wpdb->insert(
-                $perms_table,
-                [
-                    'permission_key' => $permission_key,
-                    'module_slug' => (string) ( $perm['module_slug'] ?? 'people' ),
-                    'action_key' => (string) ( $perm['action_key'] ?? 'workspace_manage' ),
-                    'permission_name' => (string) ( $perm['permission_name'] ?? $permission_key ),
-                ],
-                [ '%s', '%s', '%s', '%s' ]
-            );
-        }
+        self::syncDeclaredPermissions();
 
         $has_links = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$role_perms_table}" );
         if ( $has_links === 0 ) {
@@ -137,14 +87,26 @@ final class AccessManager {
                 $perm_ids[ (string) $row->permission_key ] = (int) $row->id;
             }
 
-            $policy = [
-                'administrator' => [ '*' ],
-                'donor_admin' => [ 'portal.view', 'donations.view', 'donations.edit', 'donations.create', 'contacts.view', 'contacts.edit', 'contacts.create', 'people.view' ],
-                'donor_user' => [ 'portal.view', 'donations.view', 'contacts.view' ],
-                'newsletter_admin' => [ 'portal.view', 'newsletter.view', 'newsletter.edit', 'newsletter.create', 'newsletter.delete', 'contacts.view' ],
-                'board' => [ 'portal.view', 'board.view', 'drive.view', 'drive.edit', 'drive.create', 'drive.delete', 'calendar.view', 'calendar.edit', 'calendar.create', 'calendar.delete', 'contacts.view', 'donations.view', 'people.view' ],
-                'workspace_manager' => [ 'people.view', 'people.edit', 'people.workspace_manage' ],
-            ];
+            $policy = [ 'administrator' => [ '*' ] ];
+            foreach ( self::declaredPermissions() as $permission ) {
+                $key = (string) ( $permission['key'] ?? '' );
+                if ( $key === '' ) {
+                    continue;
+                }
+
+                foreach ( (array) ( $permission['roles'] ?? [] ) as $role_key ) {
+                    $role_key = \sanitize_key( (string) $role_key );
+                    if ( $role_key === '' ) {
+                        continue;
+                    }
+
+                    if ( ! isset( $policy[ $role_key ] ) ) {
+                        $policy[ $role_key ] = [];
+                    }
+
+                    $policy[ $role_key ][] = $key;
+                }
+            }
 
             foreach ( $policy as $role_key => $allowed_perms ) {
                 if ( empty( $role_ids[ $role_key ] ) ) {
@@ -152,7 +114,7 @@ final class AccessManager {
                 }
 
                 $rid = (int) $role_ids[ $role_key ];
-                $keys_to_allow = in_array( '*', $allowed_perms, true ) ? array_keys( $perm_ids ) : $allowed_perms;
+                $keys_to_allow = in_array( '*', $allowed_perms, true ) ? array_keys( $perm_ids ) : array_values( array_unique( $allowed_perms ) );
 
                 foreach ( $keys_to_allow as $perm_key ) {
                     if ( empty( $perm_ids[ $perm_key ] ) ) {
@@ -172,48 +134,92 @@ final class AccessManager {
             }
         }
 
-        $workspace_perm_id = (int) $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT id FROM {$perms_table} WHERE permission_key = %s LIMIT 1",
-                'people.workspace_manage'
-            )
-        );
-        if ( $workspace_perm_id > 0 ) {
-            foreach ( [ 'administrator', 'workspace_manager' ] as $role_key ) {
-                $role_id = (int) $wpdb->get_var(
-                    $wpdb->prepare(
-                        "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = 'metis' LIMIT 1",
-                        $role_key
-                    )
-                );
-                if ( $role_id < 1 ) {
-                    continue;
-                }
+        self::$seeded = true;
+    }
 
-                $exists = (int) $wpdb->get_var(
-                    $wpdb->prepare(
-                        "SELECT id FROM {$role_perms_table} WHERE role_id = %d AND permission_id = %d LIMIT 1",
-                        $role_id,
-                        $workspace_perm_id
-                    )
-                );
-                if ( $exists > 0 ) {
-                    continue;
-                }
+    public static function syncDeclaredPermissions(): void {
+        SchemaManager::ensureSchema();
+        global $wpdb;
 
+        $perms_table = \Metis_Tables::get( 'people_permissions' );
+
+        foreach ( self::declaredPermissions() as $permission ) {
+            $permission_key = (string) ( $permission['key'] ?? '' );
+            if ( $permission_key === '' ) {
+                continue;
+            }
+
+            $record = [
+                'permission_key'  => $permission_key,
+                'module_slug'     => (string) ( $permission['module'] ?? '' ),
+                'action_key'      => (string) ( $permission['action'] ?? '' ),
+                'permission_name' => (string) ( $permission['name'] ?? $permission_key ),
+            ];
+
+            $existing = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, module_slug, action_key, permission_name FROM {$perms_table} WHERE permission_key = %s LIMIT 1",
+                    $permission_key
+                ),
+                ARRAY_A
+            );
+
+            if ( ! is_array( $existing ) ) {
                 $wpdb->insert(
-                    $role_perms_table,
-                    [
-                        'role_id' => $role_id,
-                        'permission_id' => $workspace_perm_id,
-                        'allow_access' => 1,
-                    ],
-                    [ '%d', '%d', '%d' ]
+                    $perms_table,
+                    $record,
+                    [ '%s', '%s', '%s', '%s' ]
                 );
+                continue;
+            }
+
+            $updates = [];
+            foreach ( [ 'module_slug', 'action_key', 'permission_name' ] as $field ) {
+                if ( (string) ( $existing[ $field ] ?? '' ) !== (string) $record[ $field ] ) {
+                    $updates[ $field ] = $record[ $field ];
+                }
+            }
+
+            if ( $updates === [] ) {
+                continue;
+            }
+
+            $wpdb->update(
+                $perms_table,
+                $updates,
+                [ 'id' => (int) $existing['id'] ],
+                array_fill( 0, count( $updates ), '%s' ),
+                [ '%d' ]
+            );
+        }
+    }
+
+    private static function declaredPermissions(): array {
+        if ( Application::has_service( 'modules' ) ) {
+            $modules = Application::service( 'modules' );
+            if ( method_exists( $modules, 'declaredPermissions' ) ) {
+                return (array) $modules->declaredPermissions();
             }
         }
 
-        self::$seeded = true;
+        $modules     = function_exists( 'metis_get_modules' ) ? \metis_get_modules() : [];
+        $permissions = [];
+
+        foreach ( $modules as $slug => $module ) {
+            $slug = \sanitize_key( (string) $slug );
+            if ( $slug === '' ) {
+                continue;
+            }
+
+            $normalized = ModuleLoader::normalizeManifestPermissions( $slug, (array) ( $module['config']['permissions'] ?? [] ) );
+            foreach ( (array) ( $normalized['definitions'] ?? [] ) as $definition ) {
+                if ( is_array( $definition ) ) {
+                    $permissions[] = $definition;
+                }
+            }
+        }
+
+        return $permissions;
     }
 
     public static function getOrCreateCurrentPerson(): ?array {
@@ -246,6 +252,7 @@ final class AccessManager {
         }
 
         $person = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE email = %s LIMIT 1", $email ), ARRAY_A );
+        $created = false;
         if ( $person ) {
             $update = [];
             $formats = [];
@@ -278,6 +285,7 @@ final class AccessManager {
             $payload['pid'] = \metis_generate_code( 'PPL', $people_table, 'pid' );
             $wpdb->insert( $people_table, $payload, [ '%s', '%s', '%s', '%s', '%s', '%s' ] );
             $person_id = (int) $wpdb->insert_id;
+            $created = $person_id > 0;
         }
 
         $role_keys = [];
@@ -306,7 +314,23 @@ final class AccessManager {
             $wpdb->insert( $user_roles_table, [ 'person_id' => $person_id, 'role_id' => $rid ], [ '%d', '%d' ] );
         }
 
-        return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", $person_id ), ARRAY_A );
+        $person = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", $person_id ), ARRAY_A );
+
+        if ( $created && is_array( $person ) && \Metis\Core\Application::has_service( 'events' ) ) {
+            \Metis\Core\Application::service( 'events' )->publish(
+                'user.created',
+                [
+                    'person_id' => $person_id,
+                    'pid'       => (string) ( $person['pid'] ?? '' ),
+                    'email'     => (string) ( $person['email'] ?? $email ),
+                    'display_name' => (string) ( $person['display_name'] ?? '' ),
+                    'auth_provider' => (string) ( $person['auth_provider'] ?? 'metis' ),
+                    'roles'     => $role_keys,
+                ]
+            );
+        }
+
+        return $person;
     }
 
     public static function can( string $domain, string $action = 'view' ): bool {
@@ -364,12 +388,9 @@ final class AccessManager {
             }
         }
 
-        $modules = function_exists( 'metis_get_modules' ) ? \metis_get_modules() : [];
-        $module_cfg = $modules[ $domain ]['config'] ?? [];
-        $allowed_roles = [];
-        if ( isset( $module_cfg['permissions'][ $action ] ) && is_array( $module_cfg['permissions'][ $action ] ) ) {
-            $allowed_roles = array_map( 'strval', $module_cfg['permissions'][ $action ] );
-        }
+        $modules       = function_exists( 'metis_get_modules' ) ? \metis_get_modules() : [];
+        $module_cfg    = $modules[ $domain ]['config'] ?? [];
+        $allowed_roles = ModuleLoader::rolesForPermission( $module_cfg, $action );
         if ( empty( $allowed_roles ) ) {
             return false;
         }

@@ -4,7 +4,8 @@ declare(strict_types=1);
 define('METIS_STANDALONE', true);
 define('METIS_PATH', dirname(__DIR__) . '/');
 
-require_once dirname(__DIR__) . '/includes/core/standalone_bootstrap.php';
+require_once dirname(__DIR__) . '/includes/core/bootstrap.php';
+metis_core_bootstrap('standalone_bootstrap');
 
 function assert_true(bool $condition, string $message = 'Assertion failed'): void {
     if (!$condition) {

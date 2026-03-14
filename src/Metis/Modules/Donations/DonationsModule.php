@@ -191,6 +191,22 @@ final class DonationsModule {
 
         \Metis_Logger::info( 'Deposit batch created', [ 'batch_code' => $batch_code, 'txn_count' => $summary->txn_count ] );
 
+        if ( \Metis\Core\Application::has_service( 'events' ) ) {
+            \Metis\Core\Application::service( 'events' )->publish(
+                'donation.batch.created',
+                [
+                    'batch_id'    => $batch_id,
+                    'batch_code'  => $batch_code,
+                    'txn_count'   => (int) $summary->txn_count,
+                    'gross'       => (float) ( $summary->gross ?: 0 ),
+                    'fees'        => (float) ( $summary->fees ?: 0 ),
+                    'net'         => (float) ( $summary->net ?: 0 ),
+                    'created_at'  => $now,
+                    'transaction_ids' => $tids,
+                ]
+            );
+        }
+
         return $batch_code;
     }
 

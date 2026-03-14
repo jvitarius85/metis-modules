@@ -19,6 +19,10 @@
     "dashboard": "dashboard.php",
     "meeting": "meeting.php"
   },
+  "help_topics": [
+    "board.dashboard",
+    "board.meeting"
+  ],
   "assets": {
     "css": ["board.css"],
     "js": ["board.js"],

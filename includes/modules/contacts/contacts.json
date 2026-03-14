@@ -19,6 +19,10 @@
     "dashboard": "dashboard.php",
     "contact": "contact.php"
   },
+  "help_topics": [
+    "contacts.dashboard",
+    "contacts.contact"
+  ],
   "services": [
     "includes/carddav.php"
   ],

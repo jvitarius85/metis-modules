@@ -155,6 +155,13 @@ final class Metis_Ajax_Controller_Registry {
 }
 
 function metis_ajax_registry(): Metis_Ajax_Controller_Registry {
+    if ( function_exists( 'metis_help_register_ajax_controllers' ) ) {
+        metis_help_register_ajax_controllers();
+    }
+    if ( function_exists( 'metis_walkthrough_register_ajax_controllers' ) ) {
+        metis_walkthrough_register_ajax_controllers();
+    }
+
     return Metis_Ajax_Controller_Registry::instance();
 }
 

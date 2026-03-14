@@ -43,6 +43,43 @@ final class Metis_Cron_Manager {
             ]
         );
 
+        self::register_task(
+            'release_update_check',
+            static function (): array {
+                if ( ! function_exists( 'metis_release_check_for_updates' ) ) {
+                    return [
+                        'status'  => 'skipped',
+                        'message' => 'Release manager is not available.',
+                    ];
+                }
+
+                return metis_release_check_for_updates( false, 'system_cron' );
+            },
+            [
+                'label'    => 'Release Update Check',
+                'interval' => 6 * HOUR_IN_SECONDS,
+                'lock_ttl' => 30 * MINUTE_IN_SECONDS,
+                'module'   => 'core',
+            ]
+        );
+
+        self::register_task(
+            'background_job_processing',
+            static function (): array {
+                if ( ! \Metis\Core\Application::has_service( 'jobs' ) ) {
+                    \metis_register_core_services();
+                }
+
+                return \metis_job_queue()->process( 25, 'system_cron' );
+            },
+            [
+                'label'    => 'Background Job Processing',
+                'interval' => 60,
+                'lock_ttl' => 10 * MINUTE_IN_SECONDS,
+                'module'   => 'core',
+            ]
+        );
+
         self::$booted = true;
     }
 

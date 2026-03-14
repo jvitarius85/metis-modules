@@ -7,14 +7,17 @@ if ( ! function_exists( 'metis_settings_sections' ) ) {
             'general' => 'General',
             'logging' => 'Logging',
             'customization' => 'Customization',
+            'accessibility' => 'Accessibility',
             'menu' => 'Menu',
             'profile' => 'Profile',
             'newsletter' => 'Newsletter',
             'workspace' => 'Workspace',
             'drive' => 'Drive',
+            'backup' => 'Backup',
             'calendar' => 'Calendar',
             'api' => 'API Keys',
             'scheduler' => 'Scheduler',
+            'help' => 'Help',
         ];
     }
 }
@@ -407,6 +410,21 @@ if ( ! function_exists( 'metis_settings_save_customization_section' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_save_accessibility_section' ) ) {
+    function metis_settings_save_accessibility_section( array &$errors, bool &$saved ): void {
+        $profiles = function_exists( 'metis_accessibility_profiles' ) ? metis_accessibility_profiles() : [ 'none' => [] ];
+        $default_profile = sanitize_key( (string) ( $_POST['accessibility_default_profile'] ?? 'none' ) );
+        if ( ! isset( $profiles[ $default_profile ] ) ) {
+            $default_profile = 'none';
+        }
+
+        Core_Settings_Service::set( 'accessibility_toolbar_enabled', ! empty( $_POST['accessibility_toolbar_enabled'] ) ? 1 : 0, true );
+        Core_Settings_Service::set( 'accessibility_allow_overrides', ! empty( $_POST['accessibility_allow_overrides'] ) ? 1 : 0, true );
+        Core_Settings_Service::set( 'accessibility_default_profile', $default_profile, true );
+        $saved = true;
+    }
+}
+
 if ( ! function_exists( 'metis_settings_save_logging_section' ) ) {
     function metis_settings_save_logging_section( array &$errors, bool &$saved ): void {
         $allowed_levels = [ 'INFO', 'WARN', 'ERROR' ];
@@ -570,6 +588,49 @@ if ( ! function_exists( 'metis_settings_save_calendar_section' ) ) {
         }
         Core_Settings_Service::set( 'workspace_default_calendar_id', $default_calendar, false );
         $saved = true;
+    }
+}
+
+if ( ! function_exists( 'metis_settings_save_backup_section' ) ) {
+    function metis_settings_save_backup_section( bool $is_system_admin, array &$errors, bool &$saved ): void {
+        if ( ! $is_system_admin ) {
+            $errors[] = 'Only system admins can manage backup settings.';
+            return;
+        }
+
+        $drive_options = [];
+        if ( function_exists( 'metis_drive_workspace_base_settings' ) && function_exists( 'metis_drive_list_shared_drives' ) ) {
+            $drive_cfg = metis_drive_workspace_base_settings();
+            if ( ! empty( $drive_cfg['ok'] ) ) {
+                $drive_list = metis_drive_list_shared_drives( $drive_cfg );
+                if ( ! empty( $drive_list['ok'] ) ) {
+                    foreach ( (array) ( $drive_list['drives'] ?? [] ) as $drive ) {
+                        $drive_id = trim( (string) ( $drive['id'] ?? '' ) );
+                        if ( $drive_id !== '' ) {
+                            $drive_options[] = $drive_id;
+                        }
+                    }
+                }
+            }
+        }
+
+        $backup_drive_id = sanitize_text_field( (string) metis_unslash( $_POST['backup_drive_id'] ?? '' ) );
+        if ( $backup_drive_id !== '' && ! in_array( $backup_drive_id, $drive_options, true ) ) {
+            $errors[] = 'Backup Drive must match one of the configured Drive settings.';
+        } else {
+            Core_Settings_Service::set( 'backup_drive_id', $backup_drive_id, false );
+            $saved = true;
+        }
+
+        $backup_retention_runs = (int) metis_unslash( $_POST['backup_retention_runs'] ?? 14 );
+        $backup_retention_runs = max( 1, min( 365, $backup_retention_runs ) );
+        Core_Settings_Service::set( 'backup_retention_runs', $backup_retention_runs, false );
+        $saved = true;
+
+        $backup_environment = sanitize_key( (string) metis_unslash( $_POST['backup_environment'] ?? '' ) );
+        Core_Settings_Service::set( 'backup_environment', $backup_environment, false );
+        $saved = true;
+
     }
 }
 
@@ -737,6 +798,46 @@ if ( ! function_exists( 'metis_settings_save_scheduler_section' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_save_help_section' ) ) {
+    function metis_settings_save_help_section( array &$errors, bool &$saved ): void {
+        $help_enabled = ! empty( $_POST['help_enabled'] ) ? 1 : 0;
+        $walkthrough_enabled = ! empty( $_POST['walkthrough_enabled'] ) ? 1 : 0;
+        $topic_overrides_raw = (string) metis_unslash( $_POST['help_topic_overrides_json'] ?? '{}' );
+        $custom_topics_raw = (string) metis_unslash( $_POST['help_custom_topics_json'] ?? '{}' );
+        $custom_walkthroughs_raw = (string) metis_unslash( $_POST['help_custom_walkthroughs_json'] ?? '{}' );
+
+        $topic_overrides = json_decode( $topic_overrides_raw !== '' ? $topic_overrides_raw : '{}', true );
+        if ( ! is_array( $topic_overrides ) ) {
+            $errors[] = 'Topic overrides must be valid JSON.';
+            $topic_overrides = [];
+        }
+
+        $custom_topics = json_decode( $custom_topics_raw !== '' ? $custom_topics_raw : '{}', true );
+        if ( ! is_array( $custom_topics ) ) {
+            $errors[] = 'Custom help topics must be valid JSON.';
+            $custom_topics = [];
+        }
+
+        $custom_walkthroughs = json_decode( $custom_walkthroughs_raw !== '' ? $custom_walkthroughs_raw : '{}', true );
+        if ( ! is_array( $custom_walkthroughs ) ) {
+            $errors[] = 'Custom walkthroughs must be valid JSON.';
+            $custom_walkthroughs = [];
+        }
+
+        if ( ! empty( $errors ) ) {
+            return;
+        }
+
+        Core_Settings_Service::set( 'help_enabled', $help_enabled );
+        Core_Settings_Service::set( 'walkthrough_enabled', $walkthrough_enabled );
+        Core_Settings_Service::set( 'help_topic_overrides', $topic_overrides, false );
+        Core_Settings_Service::set( 'help_custom_topics', $custom_topics, false );
+        Core_Settings_Service::set( 'help_custom_walkthroughs', $custom_walkthroughs, false );
+
+        $saved = true;
+    }
+}
+
 if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
     function metis_settings_bootstrap( string $section ): array {
         $sections = metis_settings_sections();
@@ -766,6 +867,9 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
                 case 'customization':
                     metis_settings_save_customization_section( $errors, $saved );
                     break;
+                case 'accessibility':
+                    metis_settings_save_accessibility_section( $errors, $saved );
+                    break;
                 case 'logging':
                     metis_settings_save_logging_section( $errors, $saved );
                     break;
@@ -784,6 +888,9 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
                 case 'drive':
                     metis_settings_save_drive_section( $is_system_admin, $errors, $saved );
                     break;
+                case 'backup':
+                    metis_settings_save_backup_section( $is_system_admin, $errors, $saved );
+                    break;
                 case 'calendar':
                     metis_settings_save_calendar_section( $is_system_admin, $errors, $saved );
                     break;
@@ -793,6 +900,9 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
                     break;
                 case 'scheduler':
                     metis_settings_save_scheduler_section( $is_system_admin, $errors, $saved );
+                    break;
+                case 'help':
+                    metis_settings_save_help_section( $errors, $saved );
                     break;
             }
         }
@@ -807,6 +917,13 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $portal_favicon_src = metis_settings_asset_src( $portal_favicon );
         $theme_color_fields = metis_settings_theme_color_fields();
         $theme_colors       = metis_settings_get_saved_theme_colors();
+        $accessibility_profiles = function_exists( 'metis_accessibility_profiles' ) ? metis_accessibility_profiles() : [ 'none' => [ 'label' => 'Standard' ] ];
+        $accessibility_toolbar_enabled = (int) Core_Settings_Service::get( 'accessibility_toolbar_enabled', 1 ) === 1;
+        $accessibility_allow_overrides = (int) Core_Settings_Service::get( 'accessibility_allow_overrides', 1 ) === 1;
+        $accessibility_default_profile = sanitize_key( (string) Core_Settings_Service::get( 'accessibility_default_profile', 'none' ) );
+        if ( ! isset( $accessibility_profiles[ $accessibility_default_profile ] ) ) {
+            $accessibility_default_profile = 'none';
+        }
         $logging_min_level  = strtoupper( (string) Core_Settings_Service::get( 'logging_min_level', 'INFO' ) );
         if ( ! in_array( $logging_min_level, [ 'INFO', 'WARN', 'ERROR' ], true ) ) {
             $logging_min_level = 'INFO';
@@ -819,6 +936,9 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $workspace_shared_drive_id     = Core_Settings_Service::get( 'workspace_shared_drive_id', '' );
         $workspace_default_calendar_id = Core_Settings_Service::get( 'workspace_default_calendar_id', '' );
         $workspace_drive_configs       = metis_settings_normalize_drive_rows( Core_Settings_Service::get( 'workspace_drive_configs', [] ) );
+        $backup_drive_id               = (string) Core_Settings_Service::get( 'backup_drive_id', '' );
+        $backup_retention_runs         = max( 1, (int) Core_Settings_Service::get( 'backup_retention_runs', 14 ) );
+        $backup_environment            = (string) Core_Settings_Service::get( 'backup_environment', '' );
         $workspace_calendar_configs    = metis_settings_normalize_calendar_rows( Core_Settings_Service::get( 'workspace_calendar_configs', [] ) );
         $workspace_service_account_json = Core_Settings_Service::get( 'workspace_service_account_json', '' );
         $workspace_service_account_present = is_string( $workspace_service_account_json ) && trim( $workspace_service_account_json ) !== '';
@@ -845,6 +965,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $system_cron_header = 'x-metis-cron-secret';
         $system_cron_tasks = Metis_Cron_Manager::registered_tasks();
         $integrity_baseline_status = Metis_Integrity_Manager::verify_baseline();
+        $release_status = function_exists( 'metis_release_status' ) ? metis_release_status( false ) : [];
         $system_cron_task_rows = [];
         foreach ( $system_cron_tasks as $task_slug => $task_config ) {
             $task_state = get_option( 'metis_cron_task_state_' . $task_slug, [] );
@@ -863,6 +984,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             ];
         }
         $system_cron_configured = $system_cron_secret_masked !== '';
+        $backup_runs = function_exists( 'metis_backup_list_runs' ) ? metis_backup_list_runs( 12 ) : [];
 
         $stripe_connected   = is_string( $stripe_secret ) && str_starts_with( $stripe_secret, 'sk_' );
         $webhook_configured = is_string( $webhook_secret ) && str_starts_with( $webhook_secret, 'whsec_' );
@@ -884,9 +1006,16 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
                 $workspace_shared_drive_error = (string) ( $drive_cfg['error'] ?? 'Drive workspace config is incomplete.' );
             }
         }
+        $backup_drive_options = $workspace_shared_drive_options;
+        $backup_drive_error = $workspace_shared_drive_error;
 
         $workspace_calendar_options = [];
         $workspace_calendar_error = '';
+        $help_enabled = (int) Core_Settings_Service::get( 'help_enabled', 1 ) === 1;
+        $walkthrough_enabled = (int) Core_Settings_Service::get( 'walkthrough_enabled', 1 ) === 1;
+        $help_topic_overrides = Core_Settings_Service::get( 'help_topic_overrides', [] );
+        $help_custom_topics = Core_Settings_Service::get( 'help_custom_topics', [] );
+        $help_custom_walkthroughs = Core_Settings_Service::get( 'help_custom_walkthroughs', [] );
         if ( $is_system_admin && $workspace_configured && function_exists( 'metis_calendar_workspace_base_settings' ) && function_exists( 'metis_calendar_list_calendars' ) ) {
             $calendar_cfg = metis_calendar_workspace_base_settings();
             if ( ! empty( $calendar_cfg['ok'] ) ) {
@@ -935,6 +1064,10 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'portal_favicon_src',
             'theme_color_fields',
             'theme_colors',
+            'accessibility_profiles',
+            'accessibility_toolbar_enabled',
+            'accessibility_allow_overrides',
+            'accessibility_default_profile',
             'logging_min_level',
             'logging_force_url_token',
             'menu_modules',
@@ -944,6 +1077,12 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'workspace_shared_drive_id',
             'workspace_default_calendar_id',
             'workspace_drive_configs',
+            'backup_drive_id',
+            'backup_retention_runs',
+            'backup_environment',
+            'backup_runs',
+            'backup_drive_options',
+            'backup_drive_error',
             'workspace_calendar_configs',
             'workspace_service_account_json',
             'workspace_service_account_present',
@@ -967,6 +1106,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'system_cron_task_rows',
             'system_cron_configured',
             'integrity_baseline_status',
+            'release_status',
             'stripe_secret',
             'webhook_secret',
             'stripe_connected',
@@ -975,7 +1115,12 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'workspace_shared_drive_options',
             'workspace_shared_drive_error',
             'workspace_calendar_options',
-            'workspace_calendar_error'
+            'workspace_calendar_error',
+            'help_enabled',
+            'walkthrough_enabled',
+            'help_topic_overrides',
+            'help_custom_topics',
+            'help_custom_walkthroughs'
         ) + [ 'allowed' => true ];
     }
 }

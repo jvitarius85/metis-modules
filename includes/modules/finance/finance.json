@@ -21,6 +21,12 @@
     "create": [],
     "delete": []
   },
+  "help_topics": [
+    "finance.finance",
+    "finance.ledger",
+    "finance.reconciliations",
+    "finance.reports"
+  ],
   "views": {
     "finance": "finance.php",
     "ledger": "ledger.php",

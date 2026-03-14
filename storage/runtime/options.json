@@ -1,22 +1,22 @@
 {
-    "metis_people_maintenance_last_run": 1773496967,
+    "metis_people_maintenance_last_run": 1773519532,
     "metis_board_workflow_defaults_v2": "1",
     "metis_last_route_signature": "|metis-webhooks",
     "metis_cron_task_state_integrity_scan": {
-        "last_started_at": "2026-03-14 13:40:49",
-        "last_request_id": "4e13b877-dda3-4533-b7a7-5de2f6340daa",
+        "last_started_at": "2026-03-14 19:42:52",
+        "last_request_id": "a09f194e-aac6-43b6-b948-8a27e2a3923a",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-03-14 13:40:49",
+        "last_finished_at": "2026-03-14 19:42:52",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_cache_cleanup": {
-        "last_started_at": "2026-03-14 13:40:49",
-        "last_request_id": "4e13b877-dda3-4533-b7a7-5de2f6340daa",
+        "last_started_at": "2026-03-14 19:42:52",
+        "last_request_id": "a09f194e-aac6-43b6-b948-8a27e2a3923a",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-03-14 13:40:49",
+        "last_finished_at": "2026-03-14 19:42:52",
         "last_status": "ok",
         "last_error": ""
     },
@@ -30,11 +30,11 @@
         "last_error": "Call to undefined function get_post_types()"
     },
     "metis_cron_task_state_calendar_listing_sync": {
-        "last_started_at": "2026-03-14 14:00:52",
-        "last_request_id": "7d22888e-5727-4506-b0cc-5ae8c13c4d0a",
+        "last_started_at": "2026-03-14 20:18:52",
+        "last_request_id": "dc3f55cd-ce32-4db7-af49-d51cf0a4797b",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-03-14 14:00:53",
+        "last_finished_at": "2026-03-14 20:18:54",
         "last_status": "ok",
         "last_error": ""
     },
@@ -48,76 +48,112 @@
         "last_error": ""
     },
     "metis_cron_task_state_newsletter_email_processing": {
-        "last_started_at": "2026-03-14 14:02:48",
-        "last_request_id": "28fac1a8-d8e8-4107-b2c9-1f129ce0c880",
+        "last_started_at": "2026-03-14 20:18:54",
+        "last_request_id": "dc3f55cd-ce32-4db7-af49-d51cf0a4797b",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-03-14 14:02:48",
+        "last_finished_at": "2026-03-14 20:18:54",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_newsletter_analytics_updates": {
-        "last_started_at": "2026-03-14 13:45:49",
-        "last_request_id": "d2bb99cc-7f52-4ebb-95f0-71b90b941b75",
+        "last_started_at": "2026-03-14 19:48:54",
+        "last_request_id": "a218df94-7951-40d8-a40b-c1290de3f550",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-03-14 13:45:49",
+        "last_finished_at": "2026-03-14 19:48:54",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_people_workspace_sync": {
-        "last_started_at": "2026-03-14 14:00:53",
-        "last_request_id": "7d22888e-5727-4506-b0cc-5ae8c13c4d0a",
+        "last_started_at": "2026-03-14 20:18:54",
+        "last_request_id": "dc3f55cd-ce32-4db7-af49-d51cf0a4797b",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-03-14 14:00:53",
+        "last_finished_at": "2026-03-14 20:18:54",
         "last_status": "ok",
         "last_error": ""
     },
-    "metis_drive_cache_version": 2026,
+    "metis_drive_cache_version": 3454,
     "metis_cron_task_state_drive_listing_sync_dd8b78cdbee7": {
-        "last_finished_at": "2026-03-14 13:34:05",
+        "last_finished_at": "2026-03-14 19:58:09",
         "last_status": "ok",
         "running": false,
-        "last_started_at": "2026-03-14 13:32:48",
-        "last_request_id": "8a78159f-fa09-48c8-834b-24eba13c4637",
+        "last_started_at": "2026-03-14 19:56:52",
+        "last_request_id": "ee706827-0330-42eb-a091-0f982e292c91",
         "last_trigger": "scheduled",
         "last_error": ""
     },
     "metis_cron_task_state_drive_listing_sync_43137b5e5e0d": {
-        "last_finished_at": "2026-03-14 13:33:50",
+        "last_finished_at": "2026-03-14 19:51:56",
         "last_status": "ok",
         "running": false,
-        "last_started_at": "2026-03-14 13:33:48",
-        "last_request_id": "e193a033-6c81-48a2-9a99-198bc832075e",
+        "last_started_at": "2026-03-14 19:51:53",
+        "last_request_id": "17d4dba6-5fee-48f3-a444-375f500c764d",
         "last_trigger": "scheduled",
         "last_error": ""
     },
     "metis_cron_task_state_drive_listing_sync_629d46dd7493": {
-        "last_finished_at": "2026-03-14 13:34:02",
+        "last_finished_at": "2026-03-14 19:58:04",
         "last_status": "ok",
         "running": false,
-        "last_started_at": "2026-03-14 13:33:50",
-        "last_request_id": "e193a033-6c81-48a2-9a99-198bc832075e",
+        "last_started_at": "2026-03-14 19:57:52",
+        "last_request_id": "0a5ed32d-f6c5-4cdb-9929-122d0d3db2eb",
         "last_trigger": "scheduled",
         "last_error": ""
     },
     "metis_cron_task_state_drive_listing_sync_484f1f63a9b6": {
-        "last_finished_at": "2026-03-14 13:36:54",
+        "last_finished_at": "2026-03-14 19:58:08",
         "last_status": "ok",
         "running": false,
-        "last_started_at": "2026-03-14 13:36:49",
-        "last_request_id": "177ed8c3-77fb-4a1c-a7fb-8741f71c4e43",
+        "last_started_at": "2026-03-14 19:58:04",
+        "last_request_id": "0a5ed32d-f6c5-4cdb-9929-122d0d3db2eb",
         "last_trigger": "scheduled",
         "last_error": ""
     },
     "metis_cron_task_state_drive_listing_sync_44e71ab7494e": {
-        "last_finished_at": "2026-03-14 13:40:52",
+        "last_finished_at": "2026-03-14 19:58:11",
         "last_status": "ok",
         "running": false,
-        "last_started_at": "2026-03-14 13:40:49",
-        "last_request_id": "4e13b877-dda3-4533-b7a7-5de2f6340daa",
+        "last_started_at": "2026-03-14 19:58:08",
+        "last_request_id": "0a5ed32d-f6c5-4cdb-9929-122d0d3db2eb",
         "last_trigger": "scheduled",
+        "last_error": ""
+    },
+    "metis_cron_task_state_background_job_processing": {
+        "last_started_at": "2026-03-14 20:18:52",
+        "last_request_id": "dc3f55cd-ce32-4db7-af49-d51cf0a4797b",
+        "last_trigger": "scheduled",
+        "running": false,
+        "last_finished_at": "2026-03-14 20:18:52",
+        "last_status": "ok",
+        "last_error": ""
+    },
+    "metis_cron_task_state_system_backup_snapshot": {
+        "last_started_at": "2026-03-14 15:00:51",
+        "last_request_id": "f37b3a5f-67ae-47cb-8bf5-06e8afcca33d",
+        "last_trigger": "scheduled",
+        "running": false,
+        "last_finished_at": "2026-03-14 15:00:51",
+        "last_status": "ok",
+        "last_error": ""
+    },
+    "metis_cron_task_state_release_update_check": {
+        "last_started_at": "2026-03-14 15:14:48",
+        "last_request_id": "5c42fa8e-b949-49b6-9655-36165fd4631e",
+        "last_trigger": "scheduled",
+        "running": false,
+        "last_finished_at": "2026-03-14 15:14:48",
+        "last_status": "ok",
+        "last_error": ""
+    },
+    "metis_cron_task_state_hermes_scheduled_diagnostics": {
+        "last_started_at": "2026-03-14 20:16:52",
+        "last_request_id": "bc977ec4-f448-4a5a-b2fc-a6d90d9e4f1c",
+        "last_trigger": "scheduled",
+        "running": false,
+        "last_finished_at": "2026-03-14 20:16:52",
+        "last_status": "ok",
         "last_error": ""
     }
 }

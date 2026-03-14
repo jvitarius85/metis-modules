@@ -97,11 +97,19 @@ class Metis_Tables {
         'calendar_events'       => 'metis_calendar_events',
         'calendar_sync_state'   => 'metis_calendar_sync_state',
 
+        // --- Backup ---
+        'backup_runs'           => 'metis_backup_runs',
+
         // --- Tags ---
         'tags'                  => 'metis_tags',
 
         // --- Reports ---
         'reports'               => 'metis_reports',
+        'hermes_sessions'       => 'metis_hermes_sessions',
+        'hermes_messages'       => 'metis_hermes_messages',
+        'hermes_actions'        => 'metis_hermes_actions',
+        'hermes_reports'        => 'metis_hermes_reports',
+        'hermes_memory'         => 'metis_hermes_memory',
 
         // --- Finance ---
         'finance_accounts'      => 'metis_finance_accounts',
@@ -112,11 +120,23 @@ class Metis_Tables {
         'finance_ledger'        => 'metis_finance_ledger',
         'finance_reconciliations' => 'metis_finance_reconciliations',
 
+        // --- Forms ---
+        'forms'                 => 'metis_forms',
+        'form_versions'         => 'metis_form_versions',
+        'form_submissions'      => 'metis_form_submissions',
+
+        // --- Grandy's Stash ---
+        'grandys_stash_catalog' => 'metis_grandys_stash_catalog',
+        'grandys_stash_items'   => 'metis_grandys_stash_items',
+        'grandys_stash_cases'   => 'metis_grandys_stash_cases',
+        'grandys_stash_distributions' => 'metis_grandys_stash_distributions',
+
         // --- System ---
         'settings'              => 'metis_settings',
         'auth_users'            => 'metis_auth_users',
         'code_registry'         => 'metis_code_registry',
         'webhook_events'        => 'metis_webhook_events',
+        'job_queue'            => 'metis_job_queue',
         'audit_activity'        => 'metis_audit_activity',
         'audit_security'        => 'metis_audit_security',
         'sync_state'            => 'metis_sync_state',

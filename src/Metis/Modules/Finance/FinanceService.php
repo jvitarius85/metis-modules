@@ -76,8 +76,32 @@ final class FinanceService {
             return new \WP_Error( 'finance_event_save_failed', 'Finance event could not be saved.' );
         }
 
+        $ledger_result = null;
         if ( $auto_post ) {
-            self::eventPost( $event_id );
+            $ledger_result = self::eventPost( $event_id );
+        }
+
+        if ( \Metis\Core\Application::has_service( 'events' ) ) {
+            $payload = [
+                'event_id'      => $event_id,
+                'event_type'    => $event_type,
+                'provider'      => $provider,
+                'reference_id'  => $reference_id,
+                'amount'        => $amount,
+                'currency'      => $payload['currency'],
+                'fund_id'       => $fund_id,
+                'campaign_id'   => $campaign_id,
+                'occurred_at'   => $payload['occurred_at'],
+                'metadata_json' => $metadata,
+                'is_new'        => $existing_id <= 0,
+                'auto_posted'   => $auto_post && ! ( $ledger_result instanceof \WP_Error ),
+            ];
+
+            \Metis\Core\Application::service( 'events' )->publish( 'finance.event.created', $payload );
+
+            if ( $event_type === 'stripe_charge' ) {
+                \Metis\Core\Application::service( 'events' )->publish( 'donation.received', $payload );
+            }
         }
 
         return $event_id;
@@ -90,6 +114,16 @@ final class FinanceService {
 
         $generated = LedgerService::generateLedger( [ 'event_id' => $event_id ] );
         LedgerService::syncReconciliations();
+
+        if ( ! ( $generated instanceof \WP_Error ) && \Metis\Core\Application::has_service( 'events' ) ) {
+            \Metis\Core\Application::service( 'events' )->publish(
+                'finance.event.posted',
+                [
+                    'event_id'       => $event_id,
+                    'ledger_entries' => $generated,
+                ]
+            );
+        }
 
         return $generated;
     }

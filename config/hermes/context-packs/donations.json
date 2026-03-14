@@ -1,0 +1,191 @@
+{
+  "type": "context_pack",
+  "key": "donations",
+  "version": 1,
+  "module_slug": "donations",
+  "title": "Donations Context Pack",
+  "description": "Structured knowledge for donors, transactions, batches, deposits, campaigns, and reconciliation evidence.",
+  "source_modules": [
+    "donations",
+    "finance",
+    "contacts"
+  ],
+  "objects": [
+    {
+      "key": "donor",
+      "name": "Donor",
+      "description": "A contact with giving history, campaign attribution, and receipting context.",
+      "identifiers": [
+        "contact_cid",
+        "donor_id",
+        "email"
+      ],
+      "important_fields": [
+        "lifetime_total",
+        "last_gift_at",
+        "household",
+        "receipting_preference"
+      ]
+    },
+    {
+      "key": "transaction",
+      "name": "Transaction",
+      "description": "Individual donation or refund event tied to a donor, campaign, and payment state.",
+      "identifiers": [
+        "transaction_id",
+        "gateway_reference",
+        "batch_id"
+      ],
+      "important_fields": [
+        "amount",
+        "status",
+        "transaction_date",
+        "campaign_id",
+        "deposit_id"
+      ]
+    },
+    {
+      "key": "deposit",
+      "name": "Deposit",
+      "description": "Bank-facing grouping used for settlement, reconciliation, and ledger matching.",
+      "identifiers": [
+        "deposit_id",
+        "deposit_code"
+      ],
+      "important_fields": [
+        "deposit_date",
+        "total_amount",
+        "status",
+        "settlement_reference"
+      ]
+    },
+    {
+      "key": "campaign",
+      "name": "Campaign",
+      "description": "Giving initiative used for attribution, fundraising pages, and performance reporting.",
+      "identifiers": [
+        "campaign_id",
+        "slug"
+      ],
+      "important_fields": [
+        "name",
+        "status",
+        "goal_amount",
+        "start_date",
+        "end_date"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from": "donor",
+      "to": "transaction",
+      "type": "has_many",
+      "description": "Donors accumulate giving history through one or more transactions."
+    },
+    {
+      "from": "transaction",
+      "to": "deposit",
+      "type": "belongs_to",
+      "description": "Settled gifts should roll into a single deposit or reconciliation grouping."
+    },
+    {
+      "from": "transaction",
+      "to": "campaign",
+      "type": "belongs_to",
+      "description": "Campaign attribution supports fundraising reporting and appeal analysis."
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "donations.view",
+      "allowed_roles": [
+        "donor_admin",
+        "donor_user"
+      ]
+    },
+    {
+      "action": "edit",
+      "permission_key": "donations.edit",
+      "allowed_roles": [
+        "donor_admin"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "donations.reconciliation_snapshot",
+      "category": "context",
+      "description": "Load transactions, deposits, batches, and campaign totals for a bounded period.",
+      "required_permission": "view"
+    },
+    {
+      "key": "donations.reconciliation_diagnostic",
+      "category": "diagnostic",
+      "description": "Check for orphaned transactions, unmatched deposits, refunds, and total variance.",
+      "required_permission": "view"
+    },
+    {
+      "key": "donations.adjustment_proposal",
+      "category": "action_proposal",
+      "description": "Prepare reclassification, deposit correction, or donor attribution adjustments for approval.",
+      "required_permission": "edit"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "deposit_total_variance",
+      "purpose": "Detect when transaction sums do not match deposit totals or settlement records.",
+      "evidence": [
+        "deposit amount",
+        "transaction sum",
+        "refund total"
+      ],
+      "severity": "high"
+    },
+    {
+      "key": "orphaned_transaction_scan",
+      "purpose": "Identify gifts without a donor, campaign, batch, or deposit link.",
+      "evidence": [
+        "missing contact_cid",
+        "null deposit_id",
+        "invalid campaign_id"
+      ],
+      "severity": "high"
+    }
+  ],
+  "common_operational_issues": [
+    {
+      "issue": "Monthly reconciliation fails because deposits do not align with transaction totals.",
+      "symptoms": [
+        "variance between bank and dashboard totals",
+        "unreconciled finance records"
+      ],
+      "likely_causes": [
+        "refund timing",
+        "missing offline entry",
+        "duplicate settlement import"
+      ],
+      "recommended_playbooks": [
+        "donation_reconciliation",
+        "system_health_diagnostics"
+      ]
+    },
+    {
+      "issue": "Fundraising campaign totals look incomplete.",
+      "symptoms": [
+        "campaign dashboard lower than finance report",
+        "transactions missing campaign link"
+      ],
+      "likely_causes": [
+        "form mapping errors",
+        "manual transaction entry without campaign assignment"
+      ],
+      "recommended_playbooks": [
+        "donation_reconciliation",
+        "content_publishing_workflows"
+      ]
+    }
+  ]
+}

@@ -26,6 +26,10 @@
     "dashboard": "dashboard.php",
     "email_usage": "email_usage.php"
   },
+  "help_topics": [
+    "portal.dashboard",
+    "portal.email_usage"
+  ],
 
   "assets": {
     "css": ["portal.css"],

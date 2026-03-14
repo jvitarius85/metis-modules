@@ -35,9 +35,45 @@ metis_add_action('wp_enqueue_scripts', function () {
         true
     );
 
+    metis_register_script(
+        'metis-help-panel',
+        METIS_URL . 'core/ui/components/help-panel.js',
+        [ 'metis-core' ],
+        METIS_VERSION,
+        true
+    );
+
+    metis_register_script(
+        'metis-help-search',
+        METIS_URL . 'core/ui/components/help-search.js',
+        [ 'metis-core', 'metis-help-panel' ],
+        METIS_VERSION,
+        true
+    );
+
+    metis_register_script(
+        'metis-walkthrough-ui',
+        METIS_URL . 'core/ui/walkthrough.ui.js',
+        [ 'metis-core' ],
+        METIS_VERSION,
+        true
+    );
+
+    metis_register_script(
+        'metis-help-ui',
+        METIS_URL . 'core/ui/help.ui.js',
+        [ 'metis-core', 'metis-help-panel', 'metis-help-search', 'metis-walkthrough-ui' ],
+        METIS_VERSION,
+        true
+    );
+
     metis_enqueue_script( 'jquery' );
     metis_enqueue_style('metis-core');
     metis_enqueue_script('metis-core');
+    metis_enqueue_script('metis-help-panel');
+    metis_enqueue_script('metis-help-search');
+    metis_enqueue_script('metis-walkthrough-ui');
+    metis_enqueue_script('metis-help-ui');
 
     if ( class_exists( 'Core_Settings_Service' ) ) {
         $theme_defaults = [
@@ -86,6 +122,97 @@ metis_add_action('wp_enqueue_scripts', function () {
         'nonce'    => metis_create_nonce( 'metis_core' ),
         'action_nonces' => metis_ajax_action_nonces(),
     ] );
+
+    $help_payload = [
+        'enabled' => true,
+        'walkthrough_enabled' => true,
+        'current_topic' => '',
+        'current_domain' => '',
+        'current_view' => '',
+        'docs_base_url' => rtrim( METIS_URL, '/' ),
+        'shortcut' => 'Shift+H',
+        'ajax_url' => metis_ajax_endpoint_url(),
+        'nonce' => metis_create_nonce( 'metis_core' ),
+        'action_nonces' => [
+            'metis_help_index' => metis_create_nonce( metis_ajax_nonce_action( 'metis_help_index' ) ),
+            'metis_help_topic' => metis_create_nonce( metis_ajax_nonce_action( 'metis_help_topic' ) ),
+            'metis_help_search' => metis_create_nonce( metis_ajax_nonce_action( 'metis_help_search' ) ),
+            'metis_walkthrough_get' => metis_create_nonce( metis_ajax_nonce_action( 'metis_walkthrough_get' ) ),
+            'metis_walkthrough_progress' => metis_create_nonce( metis_ajax_nonce_action( 'metis_walkthrough_progress' ) ),
+        ],
+    ];
+
+    if ( function_exists( 'metis_help_service' ) ) {
+        $help_service = metis_help_service();
+        if ( $help_service instanceof Metis_Help_Service ) {
+            $help_payload = array_merge(
+                $help_payload,
+                $help_service->bootstrap_payload(
+                    sanitize_key( (string) get_query_var( 'metis_domain' ) ),
+                    sanitize_key( (string) get_query_var( 'metis_view' ) )
+                )
+            );
+        }
+    }
+
+    metis_localize_script( 'metis-help-ui', 'metisHelp', $help_payload );
+
+    if ( function_exists( 'metis_get_module' ) && is_array( metis_get_module( 'hermes' ) ) && function_exists( 'metis_hermes_can_view' ) && metis_hermes_can_view() ) {
+        $hermes_style_handle  = 'metis-hermes-global';
+        $hermes_script_handle = 'metis-hermes-global';
+        $user_avatar_url = metis_module_asset_url( 'hermes', 'user.png' );
+
+        if ( function_exists( 'metis_profile_current_person' ) ) {
+            $person = metis_profile_current_person();
+            if ( is_array( $person ) && ! empty( $person['avatar_url'] ) ) {
+                $user_avatar_url = (string) $person['avatar_url'];
+            }
+        }
+
+        metis_enqueue_style(
+            $hermes_style_handle,
+            metis_module_asset_url( 'hermes', 'hermes.css' ),
+            [ 'metis-core' ],
+            METIS_VERSION
+        );
+
+        metis_enqueue_script(
+            $hermes_script_handle,
+            metis_module_asset_url( 'hermes', 'hermes.js' ),
+            [ 'metis-core' ],
+            METIS_VERSION,
+            true
+        );
+
+        metis_localize_script( $hermes_script_handle, 'metisHermesAjax', [
+            'ajax_url' => metis_ajax_endpoint_url(),
+            'nonce' => metis_create_nonce( metis_ajax_nonce_action( 'metis_hermes_query' ) ),
+            'action_nonces' => metis_ajax_action_nonces(),
+            'dashboard_url' => function_exists( 'metis_portal_url' ) ? metis_portal_url( 'hermes', 'dashboard' ) : '',
+            'avatar_url' => metis_module_asset_url( 'hermes', 'hermes.png' ),
+            'user_avatar_url' => $user_avatar_url,
+        ] );
+    }
+
+    if ( function_exists( 'metis_accessibility_settings' ) ) {
+        $accessibility = metis_accessibility_settings();
+        $profile_payload = [];
+
+        foreach ( (array) ( $accessibility['profiles'] ?? [] ) as $slug => $profile ) {
+            $profile_payload[ $slug ] = [
+                'label' => (string) ( $profile['label'] ?? ucfirst( str_replace( '-', ' ', (string) $slug ) ) ),
+                'preferences' => (array) ( $profile['preferences'] ?? [] ),
+            ];
+        }
+
+        metis_localize_script( 'metis-core', 'metisAccessibility', [
+            'toolbarEnabled' => ! empty( $accessibility['toolbar_enabled'] ),
+            'allowOverrides' => ! empty( $accessibility['allow_overrides'] ),
+            'defaultProfile' => (string) ( $accessibility['default_profile'] ?? 'none' ),
+            'storageKey' => (string) ( $accessibility['storage_key'] ?? 'metis-accessibility-preferences' ),
+            'profiles' => $profile_payload,
+        ] );
+    }
 
     // Module assets
 $domain = sanitize_key(get_query_var('metis_domain'));

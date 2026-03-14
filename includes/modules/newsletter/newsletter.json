@@ -30,6 +30,13 @@
     "lists": "lists.php",
     "subscribers": "subscribers.php"
   },
+  "help_topics": [
+    "newsletter.dashboard",
+    "newsletter.campaigns",
+    "newsletter.templates",
+    "newsletter.lists",
+    "newsletter.subscribers"
+  ],
   "services": [
     "services/document.php",
     "services/audience.php",

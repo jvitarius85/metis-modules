@@ -3,10 +3,11 @@ declare(strict_types=1);
 
 define( 'METIS_STANDALONE', true );
 define( 'METIS_PREFIX', 'metis' );
-define( 'METIS_VERSION', '1.5.1' );
+define( 'METIS_VERSION', '1.6.0' );
 define( 'METIS_PATH', __DIR__ . '/' );
 
-require_once __DIR__ . '/includes/core/standalone_bootstrap.php';
+require_once __DIR__ . '/includes/core/bootstrap.php';
+metis_core_bootstrap( 'standalone_bootstrap' );
 
 if ( ! defined( 'METIS_URL' ) ) {
     $base_path = rtrim( dirname( $_SERVER['SCRIPT_NAME'] ?? '/index.php' ), '/' );

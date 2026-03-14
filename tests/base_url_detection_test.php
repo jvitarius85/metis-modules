@@ -13,7 +13,8 @@ $GLOBALS['metis_runtime_config'] = [
     'base_path' => '/metis',
 ];
 
-require_once dirname(__DIR__) . '/includes/core/standalone_runtime.php';
+require_once dirname(__DIR__) . '/includes/core/bootstrap.php';
+metis_core_bootstrap('standalone_runtime');
 
 function assert_same(mixed $expected, mixed $actual, string $message = 'Values are not equal'): void {
     if ($expected !== $actual) {

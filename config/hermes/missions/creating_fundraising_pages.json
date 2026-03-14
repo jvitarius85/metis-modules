@@ -1,0 +1,55 @@
+{
+  "type": "mission",
+  "key": "creating_fundraising_pages",
+  "version": 1,
+  "title": "Creating Fundraising Pages",
+  "objective": "Coordinate content, forms, and donation attribution dependencies needed for a fundraising landing page.",
+  "required_context_packs": [
+    "cms_content",
+    "forms",
+    "donations"
+  ],
+  "default_playbooks": [
+    "content_publishing_workflows",
+    "donation_reconciliation",
+    "permission_diagnostics"
+  ],
+  "phases": [
+    {
+      "key": "dependency_design",
+      "playbooks": [
+        "content_publishing_workflows"
+      ],
+      "outputs": [
+        "landing page dependency map"
+      ]
+    },
+    {
+      "key": "attribution_validation",
+      "playbooks": [
+        "donation_reconciliation"
+      ],
+      "outputs": [
+        "campaign attribution readiness"
+      ]
+    },
+    {
+      "key": "publish_readiness",
+      "playbooks": [
+        "permission_diagnostics"
+      ],
+      "outputs": [
+        "approval path and blockers"
+      ]
+    }
+  ],
+  "approval_gates": [
+    "campaign activation",
+    "page publication"
+  ],
+  "success_criteria": [
+    "campaign and form mapped",
+    "dependencies ready",
+    "publish sequence approved"
+  ]
+}

@@ -20,7 +20,8 @@ $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
 
-require_once $root . '/includes/core/standalone_bootstrap.php';
+require_once $root . '/includes/core/bootstrap.php';
+metis_core_bootstrap( 'standalone_bootstrap' );
 
 function metis_integrity_cli_usage(): never {
     $script = 'php ' . METIS_PATH . 'tools/integrity.php';

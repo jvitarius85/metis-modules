@@ -66,6 +66,51 @@ metis_add_action( 'wp_ajax_metis_drive_sync_now', function () {
     ] );
 } );
 
+metis_add_action( 'wp_ajax_metis_backup_run_now', function () {
+    if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
+        metis_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_backup_run_now' ) ) {
+        metis_send_json_error( [ 'message' => 'Backup service is not available.' ], 500 );
+    }
+
+    $result = metis_backup_run_now( 'settings_backup_run_now' );
+    if ( empty( $result['ok'] ) ) {
+        metis_send_json_error( [ 'message' => (string) ( $result['error'] ?? 'Backup failed.' ), 'result' => $result ], 500 );
+    }
+
+    metis_send_json_success( [
+        'message' => sprintf( 'Backup %s completed.', (string) ( $result['run_uuid'] ?? '' ) ),
+        'result' => $result,
+    ] );
+} );
+
+metis_add_action( 'wp_ajax_metis_backup_restore_run', function () {
+    if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
+        metis_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_backup_restore_run' ) ) {
+        metis_send_json_error( [ 'message' => 'Backup restore service is not available.' ], 500 );
+    }
+
+    $run_uuid = sanitize_text_field( (string) ( $_POST['run_uuid'] ?? '' ) );
+    if ( $run_uuid === '' ) {
+        metis_send_json_error( [ 'message' => 'Backup run ID is required.' ], 400 );
+    }
+
+    $result = metis_backup_restore_run( $run_uuid );
+    if ( empty( $result['ok'] ) ) {
+        metis_send_json_error( [ 'message' => (string) ( $result['error'] ?? 'Restore failed.' ), 'result' => $result ], 500 );
+    }
+
+    metis_send_json_success( [
+        'message' => sprintf( 'Restore from %s completed.', $run_uuid ),
+        'result' => $result,
+    ] );
+} );
+
 metis_add_action( 'wp_ajax_metis_scheduler_run_task_now', function () {
     if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
         metis_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
@@ -105,6 +150,76 @@ metis_add_action( 'wp_ajax_metis_scheduler_build_integrity_baseline', function (
 
     metis_send_json_success( [
         'message' => 'Integrity baseline built successfully.',
+    ] );
+} );
+
+metis_add_action( 'wp_ajax_metis_release_check_updates', function () {
+    if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
+        metis_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_release_check_for_updates' ) ) {
+        metis_send_json_error( [ 'message' => 'Release manager is not available.' ], 500 );
+    }
+
+    $result = metis_release_check_for_updates( true, 'settings_refresh' );
+    if ( empty( $result['ok'] ) ) {
+        metis_send_json_error( [ 'message' => 'Release metadata could not be refreshed.', 'result' => $result ], 500 );
+    }
+
+    $latest = (array) ( $result['latest'] ?? [] );
+    $message = ! empty( $result['update_available'] ) && ! empty( $latest['tag'] )
+        ? sprintf( 'Trusted release %s is available.', (string) $latest['tag'] )
+        : 'Release metadata refreshed.';
+
+    metis_send_json_success( [
+        'message' => $message,
+        'result' => $result,
+    ] );
+} );
+
+metis_add_action( 'wp_ajax_metis_release_apply', function () {
+    if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
+        metis_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_release_apply' ) ) {
+        metis_send_json_error( [ 'message' => 'Release manager is not available.' ], 500 );
+    }
+
+    $tag = sanitize_text_field( (string) ( $_POST['tag'] ?? '' ) );
+    if ( $tag === '' ) {
+        metis_send_json_error( [ 'message' => 'A release tag is required.' ], 400 );
+    }
+
+    $result = metis_release_apply( $tag, 'settings_apply' );
+    if ( empty( $result['ok'] ) ) {
+        metis_send_json_error( [ 'message' => (string) ( $result['message'] ?? 'Release update failed.' ), 'result' => $result ], 500 );
+    }
+
+    metis_send_json_success( [
+        'message' => sprintf( 'Release %s applied.', $tag ),
+        'result' => $result,
+    ] );
+} );
+
+metis_add_action( 'wp_ajax_metis_release_rollback', function () {
+    if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
+        metis_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_release_rollback' ) ) {
+        metis_send_json_error( [ 'message' => 'Release manager is not available.' ], 500 );
+    }
+
+    $result = metis_release_rollback( 'settings_rollback' );
+    if ( empty( $result['ok'] ) ) {
+        metis_send_json_error( [ 'message' => (string) ( $result['message'] ?? 'Rollback failed.' ), 'result' => $result ], 500 );
+    }
+
+    metis_send_json_success( [
+        'message' => (string) ( $result['message'] ?? 'Rollback completed.' ),
+        'result' => $result,
     ] );
 } );
 

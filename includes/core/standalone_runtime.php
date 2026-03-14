@@ -551,23 +551,44 @@ function checked( mixed $checked, mixed $current = true, bool $display = true ):
     return $result;
 }
 
-function add_query_arg( array $args, string $url ): string {
-    $parts = parse_url( $url );
+function add_query_arg( string|array $args, mixed $value = null, string $url = '' ): string {
+    if ( is_array( $args ) ) {
+        $query_args = $args;
+        $target_url = is_string( $value ) ? $value : '';
+    } else {
+        $query_args = [ $args => $value ];
+        $target_url = $url;
+    }
+
+    if ( $target_url === '' ) {
+        $target_url = (string) ( $_SERVER['REQUEST_URI'] ?? '/' );
+    }
+
+    $parts = parse_url( $target_url );
     $query = [];
     if ( ! empty( $parts['query'] ) ) {
         parse_str( $parts['query'], $query );
     }
-    foreach ( $args as $key => $value ) {
+    foreach ( $query_args as $key => $value ) {
         $query[ (string) $key ] = $value;
     }
     $parts['query'] = http_build_query( $query );
-    $result = ( $parts['scheme'] ?? 'http' ) . '://' . ( $parts['host'] ?? 'localhost' );
+    if ( isset( $parts['scheme'], $parts['host'] ) ) {
+        $result = $parts['scheme'] . '://' . $parts['host'];
+    } elseif ( isset( $parts['host'] ) ) {
+        $result = '//' . $parts['host'];
+    } else {
+        $result = '';
+    }
     if ( isset( $parts['port'] ) ) {
         $result .= ':' . $parts['port'];
     }
     $result .= $parts['path'] ?? '';
     if ( $parts['query'] !== '' ) {
         $result .= '?' . $parts['query'];
+    }
+    if ( isset( $parts['fragment'] ) && $parts['fragment'] !== '' ) {
+        $result .= '#' . $parts['fragment'];
     }
     return $result;
 }

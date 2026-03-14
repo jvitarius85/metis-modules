@@ -1,0 +1,224 @@
+{
+  "type": "context_pack",
+  "key": "communications",
+  "version": 1,
+  "module_slug": "newsletter",
+  "title": "Communications Context Pack",
+  "description": "Structured knowledge for outbound campaigns, announcements, lists, templates, and delivery outcomes.",
+  "source_modules": [
+    "newsletter",
+    "board",
+    "contacts"
+  ],
+  "objects": [
+    {
+      "key": "campaign",
+      "name": "Campaign",
+      "description": "Email or announcement campaign prepared, queued, sent, and audited in the communications layer.",
+      "identifiers": [
+        "campaign_id",
+        "slug"
+      ],
+      "important_fields": [
+        "status",
+        "scheduled_at",
+        "subject",
+        "audience_size"
+      ]
+    },
+    {
+      "key": "template",
+      "name": "Template",
+      "description": "Reusable content layout used for newsletters and repeated announcements.",
+      "identifiers": [
+        "template_id",
+        "name"
+      ],
+      "important_fields": [
+        "revision_id",
+        "updated_at",
+        "channel"
+      ]
+    },
+    {
+      "key": "audience_list",
+      "name": "Audience List",
+      "description": "Named audience segment used to build campaign recipients.",
+      "identifiers": [
+        "list_id",
+        "name"
+      ],
+      "important_fields": [
+        "subscriber_count",
+        "segment_rules",
+        "default_send_from"
+      ]
+    },
+    {
+      "key": "delivery_event",
+      "name": "Delivery Event",
+      "description": "Open, click, bounce, unsubscribe, and suppression events attached to a message send.",
+      "identifiers": [
+        "message_id",
+        "event_id"
+      ],
+      "important_fields": [
+        "event_type",
+        "occurred_at",
+        "contact_cid"
+      ]
+    },
+    {
+      "key": "board_announcement",
+      "name": "Board Announcement",
+      "description": "Governance-related announcement authored in the board module and distributed through communications surfaces.",
+      "identifiers": [
+        "announcement_id",
+        "meeting_id"
+      ],
+      "important_fields": [
+        "title",
+        "status",
+        "audience_scope"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from": "template",
+      "to": "campaign",
+      "type": "templates",
+      "description": "Templates provide content structure for campaign drafts."
+    },
+    {
+      "from": "audience_list",
+      "to": "campaign",
+      "type": "targets",
+      "description": "Campaigns select one or more recipient lists."
+    },
+    {
+      "from": "campaign",
+      "to": "delivery_event",
+      "type": "emits_many",
+      "description": "Operational outcomes are visible through delivery and engagement events."
+    },
+    {
+      "from": "board_announcement",
+      "to": "campaign",
+      "type": "may_publish_as",
+      "description": "Board announcements can be translated into audience-bound outbound sends."
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "newsletter.view",
+      "allowed_roles": [
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "edit",
+      "permission_key": "newsletter.edit",
+      "allowed_roles": [
+        "board",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "create",
+      "permission_key": "newsletter.create",
+      "allowed_roles": [
+        "board",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "delete",
+      "permission_key": "newsletter.delete",
+      "allowed_roles": [
+        "board",
+        "newsletter_admin"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "communications.audience_preview",
+      "category": "context",
+      "description": "Load a campaign draft, included lists, exclusions, and expected audience size.",
+      "required_permission": "view"
+    },
+    {
+      "key": "communications.delivery_health",
+      "category": "diagnostic",
+      "description": "Inspect queue backlogs, message status, suppressions, and event integrity.",
+      "required_permission": "view"
+    },
+    {
+      "key": "communications.publish_proposal",
+      "category": "action_proposal",
+      "description": "Prepare a send, queue, or board announcement publish proposal for approval.",
+      "required_permission": "create"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "queue_backlog_detection",
+      "purpose": "Detect campaigns stuck in draft, queued, or partially sent states.",
+      "evidence": [
+        "campaign_status",
+        "queue_depth",
+        "message outcomes"
+      ],
+      "severity": "high"
+    },
+    {
+      "key": "audience_leakage_check",
+      "purpose": "Catch missing exclusions, unintended recipients, or board-only content leaking to broader lists.",
+      "evidence": [
+        "list overlap",
+        "segment rule mismatch",
+        "permission scope"
+      ],
+      "severity": "high"
+    }
+  ],
+  "common_operational_issues": [
+    {
+      "issue": "Announcement reaches the wrong audience or excludes expected contacts.",
+      "symptoms": [
+        "audience preview mismatch",
+        "complaints about missing notice"
+      ],
+      "likely_causes": [
+        "incorrect list selection",
+        "suppression leakage",
+        "board scope applied too broadly"
+      ],
+      "recommended_playbooks": [
+        "announcement_workflows",
+        "permission_diagnostics"
+      ]
+    },
+    {
+      "issue": "Campaign send stalls.",
+      "symptoms": [
+        "queued forever",
+        "partial delivery",
+        "missing events"
+      ],
+      "likely_causes": [
+        "queue worker lag",
+        "invalid attachment or template asset",
+        "suppression and audience expansion conflict"
+      ],
+      "recommended_playbooks": [
+        "system_health_diagnostics",
+        "announcement_workflows"
+      ]
+    }
+  ]
+}

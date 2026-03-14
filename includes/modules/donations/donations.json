@@ -43,6 +43,14 @@
     "view": ["donor_admin", "donor_user"],
     "edit": ["donor_admin"]
   },
+  "help_topics": [
+    "donations.dashboard",
+    "donations.donors",
+    "donations.transactions",
+    "donations.deposits",
+    "donations.reports",
+    "donations.campaigns"
+  ],
 
   "assets": {
     "css": ["donations.css"],

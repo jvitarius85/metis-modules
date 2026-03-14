@@ -1,0 +1,159 @@
+Item,Category,Sort Order
+Wheelchair - Manual,Wheelchair,1
+Wheelchair - Power,Wheelchair,2
+Wheelchair - Transport,Wheelchair,3
+Wheelchair - Lightweight,Wheelchair,4
+Wheelchair - Ultra Lightweight,Wheelchair,5
+Wheelchair - Tilt-in-Space,Wheelchair,6
+Wheelchair - Reclining,Wheelchair,7
+Wheelchair - Standing,Wheelchair,8
+Wheelchair - Bariatric,Wheelchair,9
+Wheelchair - Pediatric,Wheelchair,10
+Mobility Scooter - 3 Wheel,Mobility Scooter,11
+Mobility Scooter - 4 Wheel,Mobility Scooter,12
+Mobility Scooter - Heavy Duty,Mobility Scooter,13
+Mobility Scooter - Portable Travel,Mobility Scooter,14
+Mobility Scooter - Folding,Mobility Scooter,15
+Mobility Scooter - All Terrain,Mobility Scooter,16
+Walker - Standard,Walker,17
+Walker - Two Wheel,Walker,18
+Walker - Four Wheel Rollator,Walker,19
+Walker - Rollator Seat,Walker,20
+Walker - Bariatric,Walker,21
+Walker - Pediatric,Walker,22
+Walker - Upright,Walker,23
+Cane - Single Point,Cane,24
+Cane - Quad Small Base,Cane,25
+Cane - Quad Large Base,Cane,26
+Cane - Offset Handle,Cane,27
+Cane - Folding,Cane,28
+Crutches - Underarm Adult,Crutches,29
+Crutches - Underarm Youth,Crutches,30
+Crutches - Forearm Adult,Crutches,31
+Crutches - Forearm Pediatric,Crutches,32
+Crutches - Platform,Crutches,33
+Knee Scooter - Standard,Knee Scooter,34
+Knee Scooter - All Terrain,Knee Scooter,35
+Knee Scooter - Foldable,Knee Scooter,36
+Knee Scooter - Bariatric,Knee Scooter,37
+Transfer Device - Transfer Board,Transfer Equipment,38
+Transfer Device - Sliding Board,Transfer Equipment,39
+Transfer Device - Pivot Disc,Transfer Equipment,40
+Transfer Device - Transfer Belt,Transfer Equipment,41
+Patient Lift - Manual Hoyer,Patient Lift,42
+Patient Lift - Electric Hoyer,Patient Lift,43
+Patient Lift - Sit-to-Stand,Patient Lift,44
+Patient Lift - Ceiling Lift,Patient Lift,45
+Patient Lift - Portable,Patient Lift,46
+Wheelchair Ramp - Portable Folding,Wheelchair Ramp,47
+Wheelchair Ramp - Threshold,Wheelchair Ramp,48
+Wheelchair Ramp - Modular,Wheelchair Ramp,49
+Wheelchair Ramp - Vehicle,Wheelchair Ramp,50
+Stair Lift - Straight Rail,Stair Lift,51
+Stair Lift - Curved Rail,Stair Lift,52
+Stair Lift - Outdoor,Stair Lift,53
+Hospital Bed - Manual,Hospital Bed,54
+Hospital Bed - Semi Electric,Hospital Bed,55
+Hospital Bed - Full Electric,Hospital Bed,56
+Hospital Bed - Low Bed,Hospital Bed,57
+Hospital Bed - Bariatric,Hospital Bed,58
+Hospital Bed - Trendelenburg,Hospital Bed,59
+Bed Accessory - Half Bed Rail,Bed Accessory,60
+Bed Accessory - Full Bed Rail,Bed Accessory,61
+Bed Accessory - Trapeze Bar,Bed Accessory,62
+Bed Accessory - Bed Assist Handle,Bed Accessory,63
+Bed Accessory - Bed Ladder,Bed Accessory,64
+Overbed Table - Standard,Overbed Table,65
+Overbed Table - Tilt Top,Overbed Table,66
+Overbed Table - Split Top,Overbed Table,67
+Overbed Table - Bariatric,Overbed Table,68
+Pressure Mattress - Foam Pressure Relief,Pressure Mattress,69
+Pressure Mattress - Alternating Pressure,Pressure Mattress,70
+Pressure Mattress - Low Air Loss,Pressure Mattress,71
+Pressure Mattress - Air Fluidized,Pressure Mattress,72
+Positioning Cushion - Wedge Pillow,Positioning Cushion,73
+Positioning Cushion - Bolster Pillow,Positioning Cushion,74
+Positioning Cushion - Body Alignment,Positioning Cushion,75
+Positioning Cushion - Bed Positioner,Positioning Cushion,76
+Oxygen Concentrator - Stationary,Oxygen Concentrator,77
+Oxygen Concentrator - Portable,Oxygen Concentrator,78
+Oxygen Concentrator - High Flow,Oxygen Concentrator,79
+Oxygen Cylinder - M6 Cylinder,Oxygen Cylinder,80
+Oxygen Cylinder - E Cylinder,Oxygen Cylinder,81
+Oxygen Cylinder - H Cylinder,Oxygen Cylinder,82
+CPAP Machine - Standard,CPAP,83
+CPAP Machine - Auto,CPAP,84
+CPAP Machine - Travel,CPAP,85
+BiPAP Machine - Standard,BiPAP,86
+BiPAP Machine - Auto,BiPAP,87
+BiPAP Machine - ST,BiPAP,88
+Ventilator - Home,Ventilator,89
+Ventilator - Portable,Ventilator,90
+Ventilator - Transport,Ventilator,91
+Nebulizer - Compressor,Nebulizer,92
+Nebulizer - Portable,Nebulizer,93
+Nebulizer - Ultrasonic,Nebulizer,94
+Suction Machine - Portable,Suction Machine,95
+Suction Machine - Stationary,Suction Machine,96
+Pulse Oximeter - Finger,Respiratory Monitor,97
+Pulse Oximeter - Handheld,Respiratory Monitor,98
+Airway Device - Incentive Spirometer,Airway Therapy,99
+Airway Device - Peak Flow Meter,Airway Therapy,100
+Airway Device - Airway Clearance Vest,Airway Therapy,101
+Blood Glucose Monitor - Standard Meter,Diabetes Equipment,102
+Blood Glucose Monitor - Talking Meter,Diabetes Equipment,103
+Continuous Glucose Monitor - Receiver,Diabetes Equipment,104
+Continuous Glucose Monitor - Sensor System,Diabetes Equipment,105
+Insulin Pump - External,Diabetes Equipment,106
+Insulin Pump - Patch,Diabetes Equipment,107
+Insulin Pen - Durable,Diabetes Equipment,108
+Blood Pressure Monitor - Manual,Blood Pressure Monitor,109
+Blood Pressure Monitor - Automatic,Blood Pressure Monitor,110
+Blood Pressure Monitor - Wrist,Blood Pressure Monitor,111
+Cardiac Monitor - Holter,Cardiac Monitor,112
+Cardiac Monitor - Event,Cardiac Monitor,113
+EKG Monitor - Portable,Cardiac Monitor,114
+Medical Scale - Digital,Medical Scale,115
+Medical Scale - Bariatric,Medical Scale,116
+Medical Scale - Wheelchair,Medical Scale,117
+Thermometer - Digital Medical,Thermometer,118
+Thermometer - Infrared Medical,Thermometer,119
+Shower Chair - Standard,Bathroom Safety,120
+Shower Chair - Padded,Bathroom Safety,121
+Shower Chair - Bariatric,Bathroom Safety,122
+Bath Transfer Bench - Standard,Bathroom Safety,123
+Bath Transfer Bench - Sliding,Bathroom Safety,124
+Raised Toilet Seat - Standard,Bathroom Safety,125
+Raised Toilet Seat - Locking,Bathroom Safety,126
+Toilet Safety Frame - Standard,Bathroom Safety,127
+Bedside Commode - Standard,Bathroom Safety,128
+Bedside Commode - Drop Arm,Bathroom Safety,129
+Bedside Commode - Bariatric,Bathroom Safety,130
+Grab Bar - Wall Mounted,Bathroom Safety,131
+Grab Bar - Suction,Bathroom Safety,132
+Back Brace - Lumbar,Orthopedic Brace,133
+Back Brace - Thoracic,Orthopedic Brace,134
+Neck Brace - Soft Cervical Collar,Orthopedic Brace,135
+Neck Brace - Rigid Cervical Collar,Orthopedic Brace,136
+Knee Brace - Hinged,Orthopedic Brace,137
+Knee Brace - Compression,Orthopedic Brace,138
+Ankle Brace - Lace Up,Orthopedic Brace,139
+Ankle Brace - Walking Boot,Orthopedic Brace,140
+Wrist Brace - Stabilizer,Orthopedic Brace,141
+Wrist Brace - Carpal Tunnel,Orthopedic Brace,142
+TENS Unit - Standard,Therapy Equipment,143
+NMES Unit - Therapy,Therapy Equipment,144
+CPM Machine - Knee,Therapy Equipment,145
+Therapy Bike - Motorized,Therapy Equipment,146
+Cold Therapy Machine - Post Surgery,Cold Therapy,147
+Ice Therapy Unit - Circulating,Cold Therapy,148
+Dialysis Machine - Home Hemodialysis,Dialysis,149
+Dialysis Machine - Peritoneal Cycler,Dialysis,150
+Wound Therapy Pump - Negative Pressure,Wound Care,151
+Compression Pump - Lymphedema,Wound Care,152
+Infusion Pump - Ambulatory,Infusion Equipment,153
+Infusion Pump - PCA,Infusion Equipment,154
+Infusion Pump - Syringe,Infusion Equipment,155
+Infusion Pump - Elastomeric,Infusion Equipment,156
+IV Pole - Standard,Infusion Equipment,157
+IV Pole - Rolling,Infusion Equipment,158

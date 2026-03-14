@@ -1,0 +1,67 @@
+{
+  "type": "playbook",
+  "key": "donation_reconciliation",
+  "version": 1,
+  "title": "Donation Reconciliation",
+  "objective": "Reconcile donations, deposits, refunds, and campaign totals over a bounded period.",
+  "intent_signals": [
+    "reconcile donations",
+    "monthly variance",
+    "deposit mismatch",
+    "campaign totals wrong"
+  ],
+  "required_context_packs": [
+    "donations",
+    "reports",
+    "contacts"
+  ],
+  "optional_context_packs": [
+    "forms",
+    "cms_content"
+  ],
+  "steps": [
+    {
+      "key": "bound_time_window",
+      "phase": "intake",
+      "description": "Capture the reconciliation period, expected settlement sources, and whether campaign-level reconciliation is required."
+    },
+    {
+      "key": "load_financial_evidence",
+      "phase": "diagnostic",
+      "description": "Gather transactions, deposits, refunds, batches, and finance reconciliation summaries for the same window."
+    },
+    {
+      "key": "classify_variances",
+      "phase": "diagnostic",
+      "description": "Separate timing differences from true data issues such as orphaned transactions, bad attribution, or duplicate deposits."
+    },
+    {
+      "key": "map_downstream_dependencies",
+      "phase": "reason",
+      "description": "Check whether forms, campaigns, or fundraising pages contributed to the variance."
+    },
+    {
+      "key": "prepare_adjustment_plan",
+      "phase": "proposal",
+      "description": "Draft approved adjustment options and the evidence behind each one."
+    }
+  ],
+  "outputs": {
+    "finding_sections": [
+      "variance summary",
+      "root cause categories",
+      "affected transactions or deposits",
+      "proposed corrections"
+    ],
+    "proposal_types": [
+      "deposit correction",
+      "transaction reclassification",
+      "campaign attribution fix"
+    ]
+  },
+  "escalation_rules": [
+    "Treat unresolved financial variance as high severity.",
+    "Prefer aggregated evidence over row-by-row narrative when totals are available.",
+    "Escalate to system_health_diagnostics if settlement or reporting snapshots are stale."
+  ]
+}

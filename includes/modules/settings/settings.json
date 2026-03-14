@@ -17,34 +17,44 @@
     "create": [],
     "delete": []
   },
+  "help_topics": [
+    "settings.dashboard",
+    "settings.help"
+  ],
   "menu": {
     "type": "dropdown",
     "items": {
       "dashboard": "General",
       "logging": "Logging",
       "customization": "Customization",
+      "accessibility": "Accessibility",
       "menu": "Menu",
       "profile": "Profile",
       "newsletter": "Newsletter",
       "workspace": "Workspace",
       "drive": "Drive",
+      "backup": "Backup",
       "calendar": "Calendar",
       "api": "API Keys",
-      "scheduler": "Scheduler"
+      "scheduler": "Scheduler",
+      "help": "Help"
     }
   },
   "views": {
     "dashboard": "general.php",
     "logging": "logging.php",
     "customization": "customization.php",
+    "accessibility": "accessibility.php",
     "menu": "menu.php",
     "profile": "profile.php",
     "newsletter": "newsletter.php",
     "workspace": "workspace.php",
     "drive": "drive.php",
+    "backup": "backup.php",
     "calendar": "calendar.php",
     "api": "api.php",
-    "scheduler": "scheduler.php"
+    "scheduler": "scheduler.php",
+    "help": "help.php"
   },
   "assets": {
     "css": [

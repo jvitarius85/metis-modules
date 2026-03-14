@@ -14,6 +14,17 @@ final class CalendarModule {
         self::$booted = true;
         \Metis_Logger::info( 'Calendar bootstrap loaded' );
 
+        if ( \Metis\Core\Application::has_service( 'job_workers' ) ) {
+            \metis_job_workers()->register(
+                'calendar.sync',
+                static function ( array $payload ): array {
+                    $cfg = (array) ( $payload['cfg'] ?? [] );
+                    $force = ! empty( $payload['force'] );
+                    return self::syncWorker( $cfg, $force );
+                }
+            );
+        }
+
         if ( class_exists( 'Metis_Cron_Manager' ) ) {
             \Metis_Cron_Manager::register_task(
                 'calendar_listing_sync',
@@ -185,16 +196,29 @@ final class CalendarModule {
         }
         $scheduled[ $key ] = true;
 
+        if ( ! $force && ! SyncStore::syncNeedsRefresh( $calendar_id, SyncStore::backgroundSyncInterval() ) ) {
+            return;
+        }
+
+        if ( \Metis\Core\Application::has_service( 'jobs' ) ) {
+            \metis_job_queue()->enqueue(
+                'calendar.sync',
+                [
+                    'cfg'   => $cfg,
+                    'force' => $force,
+                ],
+                [
+                    'queue'        => 'calendar',
+                    'dedupe_key'   => 'calendar.sync:' . $calendar_id,
+                    'max_attempts' => 2,
+                    'priority'     => 30,
+                ]
+            );
+            return;
+        }
+
         register_shutdown_function(
             static function () use ( $cfg, $calendar_id, $force ): void {
-                if ( ! $force && ! SyncStore::syncNeedsRefresh( $calendar_id, SyncStore::backgroundSyncInterval() ) ) {
-                    return;
-                }
-
-                if ( function_exists( 'fastcgi_finish_request' ) ) {
-                    \fastcgi_finish_request();
-                }
-
                 self::syncWorker( $cfg, $force );
             }
         );

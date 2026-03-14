@@ -7,7 +7,17 @@
     "dashboard": "dashboard.php"
   },
   "permissions": {
-    "view": [],
-    "edit": []
+    "view": {
+      "key": "{{module_slug}}.view",
+      "action": "view",
+      "name": "{{ModuleName}} View",
+      "roles": []
+    },
+    "edit": {
+      "key": "{{module_slug}}.edit",
+      "action": "edit",
+      "name": "{{ModuleName}} Edit",
+      "roles": []
+    }
   }
 }

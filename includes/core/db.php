@@ -23,6 +23,7 @@ function metis_install_db(): void {
     $newsletter_subs   = Metis_Tables::get( 'newsletter_subs' );
     $settings          = Metis_Tables::get( 'settings' );
     $auth_users        = Metis_Tables::get( 'auth_users' );
+    $job_queue         = Metis_Tables::get( 'job_queue' );
     $sync_state        = Metis_Tables::get( 'sync_state' );
 
     $sql_contacts = "
@@ -108,6 +109,38 @@ function metis_install_db(): void {
         ) {$charset_collate};
     ";
 
+    $sql_job_queue = "
+        CREATE TABLE IF NOT EXISTS {$job_queue} (
+            id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            job_code       VARCHAR(16)     NOT NULL,
+            queue_name     VARCHAR(64)     NOT NULL DEFAULT 'default',
+            job_type       VARCHAR(191)    NOT NULL,
+            status         VARCHAR(24)     NOT NULL DEFAULT 'queued',
+            dedupe_key     VARCHAR(191)    DEFAULT NULL,
+            priority       SMALLINT UNSIGNED NOT NULL DEFAULT 50,
+            attempts       INT UNSIGNED    NOT NULL DEFAULT 0,
+            max_attempts   INT UNSIGNED    NOT NULL DEFAULT 3,
+            available_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reserved_at    DATETIME        DEFAULT NULL,
+            reserved_until DATETIME        DEFAULT NULL,
+            started_at     DATETIME        DEFAULT NULL,
+            completed_at   DATETIME        DEFAULT NULL,
+            failed_at      DATETIME        DEFAULT NULL,
+            last_error     TEXT            DEFAULT NULL,
+            payload_json   LONGTEXT        DEFAULT NULL,
+            result_json    LONGTEXT        DEFAULT NULL,
+            created_by     BIGINT UNSIGNED DEFAULT NULL,
+            created_at     DATETIME        DEFAULT CURRENT_TIMESTAMP,
+            updated_at     DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY job_code (job_code),
+            KEY queue_status_available (queue_name, status, available_at),
+            KEY job_type (job_type),
+            KEY dedupe_key (dedupe_key),
+            KEY reserved_until (reserved_until)
+        ) {$charset_collate};
+    ";
+
     $sql_contact_dav_tokens = "
         CREATE TABLE IF NOT EXISTS {$contact_dav_tokens} (
             id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -151,6 +184,7 @@ function metis_install_db(): void {
     dbDelta( $sql_newsletter_subs );
     dbDelta( $sql_settings );
     dbDelta( $sql_auth_users );
+    dbDelta( $sql_job_queue );
     dbDelta( $sql_sync_state );
 
     Metis_Logger::info( 'Core tables ensured' );

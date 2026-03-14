@@ -223,12 +223,18 @@ Metis.request = (function() {
         return json.data || {};
     }
 
+    function resolvedNonceFor(resolved, action) {
+        var nonces = resolved && resolved.action_nonces ? resolved.action_nonces : {};
+        if (action && nonces && nonces[action]) {
+            return String(nonces[action]);
+        }
+        return resolved.nonce;
+    }
+
     function post(config, action, payload, fallbackMessage) {
         var resolved = resolveConfig(config, fallbackMessage);
         var body = Metis.ajax.formData(action, payload || {});
-        if (!body.has('metis_action_nonce')) {
-            body.set('metis_action_nonce', Metis.ajax.nonceFor(action, resolved.nonce));
-        }
+        body.set('metis_action_nonce', resolvedNonceFor(resolved, action));
         if (!body.has('nonce')) {
             body.set('nonce', resolved.nonce);
         }
@@ -247,9 +253,7 @@ Metis.request = (function() {
         var resolved = resolveConfig(config, fallbackMessage);
         var body = formData instanceof FormData ? formData : new FormData();
         body.set('action', action);
-        if (!body.has('metis_action_nonce')) {
-            body.set('metis_action_nonce', Metis.ajax.nonceFor(action, resolved.nonce));
-        }
+        body.set('metis_action_nonce', resolvedNonceFor(resolved, action));
         if (!body.has('nonce')) {
             body.set('nonce', resolved.nonce);
         }
@@ -566,6 +570,189 @@ Metis.modal = (function() {
 }());
 
 /* ============================================================
+   ACCESSIBILITY PREFERENCES
+   ============================================================ */
+
+Metis.accessibility = (function() {
+
+    var toggles = ['contrast', 'large_text', 'readable_font', 'reduced_motion', 'underline_links', 'nav_labels'];
+
+    function config() {
+        return window.metisAccessibility || {
+            toolbarEnabled: false,
+            allowOverrides: false,
+            defaultProfile: 'none',
+            storageKey: 'metis-accessibility-preferences',
+            profiles: {}
+        };
+    }
+
+    function truthy(value) {
+        return value === true || value === 1 || value === '1' || value === 'true';
+    }
+
+    function profilePreferences(profile) {
+        var profiles = config().profiles || {};
+        var entry = profiles[String(profile || '')] || null;
+        return entry && typeof entry === 'object' && entry.preferences ? entry.preferences : {};
+    }
+
+    function normalize(prefs) {
+        var resolved = { profile: String((prefs && prefs.profile) || config().defaultProfile || 'none') };
+        var profilePrefs = profilePreferences(resolved.profile);
+        toggles.forEach(function(key) {
+            resolved[key] = truthy(profilePrefs[key]) || truthy(prefs && prefs[key]);
+        });
+        return resolved;
+    }
+
+    function apply(prefs) {
+        var resolved = normalize(prefs);
+        toggles.forEach(function(key) {
+            document.documentElement.setAttribute('data-mw-' + key.replace(/_/g, '-'), resolved[key] ? 'true' : 'false');
+        });
+        document.documentElement.setAttribute('data-mw-profile', resolved.profile);
+        return resolved;
+    }
+
+    function load() {
+        var resolved = { profile: config().defaultProfile || 'none' };
+        if (!config().allowOverrides) {
+            return apply(resolved);
+        }
+        try {
+            var raw = window.localStorage.getItem(String(config().storageKey || ''));
+            if (raw) {
+                resolved = Object.assign(resolved, JSON.parse(raw) || {});
+            }
+        } catch (e) {}
+        return apply(resolved);
+    }
+
+    function save(prefs) {
+        var resolved = apply(prefs);
+        if (!config().allowOverrides) {
+            return resolved;
+        }
+        try {
+            window.localStorage.setItem(String(config().storageKey || ''), JSON.stringify(resolved));
+        } catch (e) {}
+        return resolved;
+    }
+
+    function reset() {
+        try {
+            window.localStorage.removeItem(String(config().storageKey || ''));
+        } catch (e) {}
+        return apply({ profile: config().defaultProfile || 'none' });
+    }
+
+    function syncForm(panel, prefs) {
+        if (!panel) return;
+        var profile = panel.querySelector('[data-accessibility-profile]');
+        if (profile) {
+            profile.value = String(prefs.profile || 'none');
+        }
+        toggles.forEach(function(key) {
+            var input = panel.querySelector('[data-accessibility-pref="' + key + '"]');
+            if (input) {
+                input.checked = !!prefs[key];
+            }
+        });
+    }
+
+    function profileChanged(panel, value) {
+        var next = { profile: String(value || 'none') };
+        var profilePrefs = profilePreferences(next.profile);
+        toggles.forEach(function(key) {
+            next[key] = truthy(profilePrefs[key]);
+        });
+        var saved = save(next);
+        syncForm(panel, saved);
+    }
+
+    function init() {
+        var current = load();
+        var toggle = document.getElementById('mw-accessibility-toggle');
+        var panel = document.getElementById('mw-accessibility-panel');
+        if (!toggle || !panel || !config().toolbarEnabled || !config().allowOverrides) {
+            return;
+        }
+
+        syncForm(panel, current);
+
+        function closePanel() {
+            panel.hidden = true;
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+
+        function openPanel() {
+            panel.hidden = false;
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+
+        toggle.addEventListener('click', function() {
+            if (panel.hidden) {
+                openPanel();
+            } else {
+                closePanel();
+            }
+        });
+
+        panel.querySelectorAll('[data-accessibility-close]').forEach(function(button) {
+            button.addEventListener('click', closePanel);
+        });
+
+        var profile = panel.querySelector('[data-accessibility-profile]');
+        if (profile) {
+            profile.addEventListener('change', function() {
+                profileChanged(panel, profile.value);
+            });
+        }
+
+        toggles.forEach(function(key) {
+            var input = panel.querySelector('[data-accessibility-pref="' + key + '"]');
+            if (!input) return;
+            input.addEventListener('change', function() {
+                var prefs = { profile: profile ? profile.value : (document.documentElement.getAttribute('data-mw-profile') || 'none') };
+                toggles.forEach(function(name) {
+                    var checkbox = panel.querySelector('[data-accessibility-pref="' + name + '"]');
+                    prefs[name] = !!(checkbox && checkbox.checked);
+                });
+                save(prefs);
+            });
+        });
+
+        var resetButton = panel.querySelector('[data-accessibility-reset]');
+        if (resetButton) {
+            resetButton.addEventListener('click', function() {
+                syncForm(panel, reset());
+            });
+        }
+
+        document.addEventListener('click', function(event) {
+            if (!panel.hidden && !event.target.closest('.mw-accessibility')) {
+                closePanel();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && !panel.hidden) {
+                closePanel();
+            }
+        });
+    }
+
+    return {
+        init: init,
+        load: load,
+        save: save,
+        reset: reset
+    };
+
+}());
+
+/* ============================================================
    SIDEBAR NAV
    ============================================================ */
 
@@ -594,26 +781,41 @@ Metis.nav = (function() {
             });
         }
 
-        /* Dropdown groups — JS-driven hover.
-           The submenu floats outside the sidebar so we can't rely on CSS :hover
-           or simple mouseenter/leave. Instead we poll whether the mouse is
-           over the group OR its submenu using elementFromPoint, and close
-           only when it leaves both zones. */
+        function closeGroup(group) {
+            group.classList.remove('is-open');
+            var trigger = group.querySelector('.mw-sidebar-group-trigger');
+            if (trigger) {
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function openGroup(group) {
+            sidebar.querySelectorAll('.mw-sidebar-group.is-open').forEach(function(openGroupEl) {
+                if (openGroupEl !== group) {
+                    closeGroup(openGroupEl);
+                }
+            });
+            group.classList.add('is-open');
+            var trigger = group.querySelector('.mw-sidebar-group-trigger');
+            if (trigger) {
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+        }
+
         sidebar.querySelectorAll('.mw-sidebar-group').forEach(function(group) {
+            var trigger = group.querySelector('.mw-sidebar-group-trigger');
             var submenu  = group.querySelector('.mw-sidebar-submenu');
             var closeTimer = null;
+            if (!trigger || !submenu) return;
 
             function isOverGroupOrMenu(x, y) {
                 var el = document.elementFromPoint(x, y);
                 return el && (group.contains(el) || (submenu && submenu.contains(el)));
             }
 
-            function openGroup() {
+            function hoverOpen() {
                 clearTimeout(closeTimer);
-                sidebar.querySelectorAll('.mw-sidebar-group.is-open').forEach(function(g) {
-                    if (g !== group) g.classList.remove('is-open');
-                });
-                group.classList.add('is-open');
+                openGroup(group);
             }
 
             function onMouseMove(e) {
@@ -622,7 +824,7 @@ Metis.nav = (function() {
                 if (!isOverGroupOrMenu(e.clientX, e.clientY)) {
                     closeTimer = setTimeout(function() {
                         if (!isOverGroupOrMenu(lastX, lastY)) {
-                            group.classList.remove('is-open');
+                            closeGroup(group);
                         }
                     }, 120);
                 }
@@ -632,7 +834,7 @@ Metis.nav = (function() {
             document.addEventListener('mousemove', function(e) { lastX = e.clientX; lastY = e.clientY; });
 
             group.addEventListener('mouseenter', function() {
-                openGroup();
+                hoverOpen();
                 document.addEventListener('mousemove', onMouseMove);
             });
 
@@ -640,16 +842,38 @@ Metis.nav = (function() {
                 /* Don’t remove listener immediately — onMouseMove handles close */
             });
 
-            if (submenu) {
-                submenu.addEventListener('mouseenter', function() { clearTimeout(closeTimer); });
-            }
+            submenu.addEventListener('mouseenter', function() { clearTimeout(closeTimer); });
+
+            trigger.addEventListener('click', function() {
+                if (group.classList.contains('is-open')) {
+                    closeGroup(group);
+                } else {
+                    openGroup(group);
+                }
+            });
+
+            trigger.addEventListener('keydown', function(event) {
+                if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openGroup(group);
+                    var firstItem = submenu.querySelector('a, button, [tabindex]:not([tabindex="-1"])');
+                    if (firstItem) firstItem.focus();
+                }
+            });
+
+            submenu.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeGroup(group);
+                    trigger.focus();
+                }
+            });
         });
 
         /* Close open groups when clicking outside */
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.mw-sidebar-group')) {
                 sidebar.querySelectorAll('.mw-sidebar-group.is-open').forEach(function(g) {
-                    g.classList.remove('is-open');
+                    closeGroup(g);
                 });
             }
         });
@@ -855,6 +1079,7 @@ Metis.breadcrumb = {
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', function() {
+    Metis.accessibility.init();
     Metis.tabs.init(document);
     Metis.modal.init(document);
     Metis.inlineEdit.init(document);

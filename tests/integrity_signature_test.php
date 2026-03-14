@@ -81,16 +81,19 @@ if (!function_exists('get_users')) {
 
 if (!class_exists('Core_Settings_Service')) {
     final class Core_Settings_Service {
+        private static array $values = [];
+
         public static function has(string $key): bool {
-            return false;
+            return array_key_exists($key, self::$values);
         }
 
         public static function get(string $key, mixed $default = null): mixed {
-            return $default;
+            return self::$values[$key] ?? $default;
         }
 
         public static function set(string $key, mixed $value, bool $autoload = true): bool {
-            return false;
+            self::$values[$key] = $value;
+            return true;
         }
     }
 }
@@ -103,7 +106,8 @@ if (!class_exists('Metis_Logger')) {
     }
 }
 
-require_once dirname(__DIR__) . '/includes/core/integrity.php';
+require_once dirname(__DIR__) . '/includes/core/bootstrap.php';
+metis_core_bootstrap('integrity');
 
 function assert_true(bool $condition, string $message = 'Assertion failed'): void {
     if (!$condition) {
@@ -161,6 +165,51 @@ function create_keypair(string $privatePath, string $publicPath): void {
     file_put_contents($publicPath, (string) $details['key']);
 }
 
+function run_command(array $command, ?string $cwd = null): array {
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = proc_open($command, $descriptors, $pipes, $cwd ?? $GLOBALS['root_test_dir'] ?? null);
+    if (!is_resource($process)) {
+        throw new RuntimeException('Failed to start command: ' . implode(' ', $command));
+    }
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $exitCode = proc_close($process);
+
+    return [
+        'exit_code' => $exitCode,
+        'stdout' => is_string($stdout) ? $stdout : '',
+        'stderr' => is_string($stderr) ? $stderr : '',
+    ];
+}
+
+function require_git_repo(string $root): void {
+    $GLOBALS['root_test_dir'] = $root;
+    $commands = [
+        ['git', 'init', '-b', 'main'],
+        ['git', 'config', 'user.email', 'tests@example.com'],
+        ['git', 'config', 'user.name', 'Metis Tests'],
+        ['git', 'add', 'metis.php', 'includes/example.php', 'assets/example.css', 'config/integrity.php'],
+        ['git', 'commit', '-m', 'Initial baseline'],
+    ];
+
+    foreach ($commands as $command) {
+        $result = run_command($command, $root);
+        if ($result['exit_code'] !== 0) {
+            throw new RuntimeException('Git command failed: ' . implode(' ', $command) . ' ' . $result['stderr']);
+        }
+    }
+}
+
 $privateKey = $root . '/.metis-integrity/keys/private.pem';
 $publicKey = $root . '/.metis-integrity/keys/public.pem';
 create_keypair($privateKey, $publicKey);
@@ -202,6 +251,9 @@ $tests['tampered_manifest_fails_verification'] = function () use ($root): void {
 };
 
 $tests['poisoned_recovery_snapshot_is_not_used_for_restore'] = function () use ($root): void {
+    Core_Settings_Service::set('integrity_auto_heal_enabled', true);
+    Core_Settings_Service::set('integrity_quarantine_enabled', true);
+
     $livePath = $root . '/includes/example.php';
     $recoveryPath = $root . '/.metis-integrity/recovery/includes/example.php';
 
@@ -212,6 +264,34 @@ $tests['poisoned_recovery_snapshot_is_not_used_for_restore'] = function () use (
     assert_same([], $result['restored'], 'Restore should refuse poisoned recovery snapshot.');
     assert_true(!empty($result['quarantined']), 'Modified live file should be quarantined before restore is refused.');
     assert_true(!is_file($livePath), 'Modified live file should not remain in place after quarantine.');
+};
+
+$tests['git_tracked_file_can_restore_without_snapshot'] = function () use ($root): void {
+    $gitAvailable = run_command(['git', '--version'], $root);
+    if ($gitAvailable['exit_code'] !== 0) {
+        return;
+    }
+
+    Core_Settings_Service::set('integrity_auto_heal_enabled', true);
+    Core_Settings_Service::set('integrity_quarantine_enabled', true);
+
+    file_put_contents($root . '/includes/example.php', "<?php\nfunction metis_example(): string { return 'ok'; }\n");
+    file_put_contents($root . '/assets/example.css', "body{color:#123456;}\n");
+
+    require_git_repo($root);
+    assert_true(Metis_Integrity_Manager::build_baseline('git-test'), 'Baseline build should succeed for git restore test.');
+    assert_true(Metis_Integrity_Manager::sign_baseline(), 'Signing baseline should succeed for git restore test.');
+
+    $livePath = $root . '/includes/example.php';
+    $snapshotPath = $root . '/.metis-integrity/recovery/includes/example.php';
+
+    @unlink($snapshotPath);
+    file_put_contents($livePath, "<?php\nfunction metis_example(): string { return 'tampered'; }\n");
+
+    $result = Metis_Integrity_Manager::scan_and_heal('test-git-restore');
+
+    assert_true(in_array('includes/example.php', $result['restored'], true), 'Tracked file should restore from git.');
+    assert_same("<?php\nfunction metis_example(): string { return 'ok'; }\n", file_get_contents($livePath), 'Git restore should recover committed file contents.');
 };
 
 try {

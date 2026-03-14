@@ -16,6 +16,7 @@ final class PeopleModule {
 
         \metis_add_action( 'init', [ self::class, 'handleInit' ], 4 );
         \metis_add_action( 'wp_ajax_metis_people_schema_status', [ self::class, 'handleSchemaStatusRequest' ] );
+        self::registerEventSubscribers();
     }
 
     public static function handleInit(): void {
@@ -66,6 +67,76 @@ final class PeopleModule {
         }
 
         \metis_send_json_success( [ 'tables' => $status ] );
+    }
+
+    public static function handleUserCreated( \Metis\Core\Event $event ): void {
+        $person_id = (int) $event->payload( 'person_id', 0 );
+        ActivityService::logActivity(
+            $person_id > 0 ? $person_id : null,
+            'user_created',
+            'Created people profile',
+            [
+                'event' => $event->name(),
+                'email' => (string) $event->payload( 'email', '' ),
+                'roles' => (array) $event->payload( 'roles', [] ),
+            ]
+        );
+    }
+
+    public static function handleDonationBatchCreated( \Metis\Core\Event $event ): void {
+        ActivityService::logActivity(
+            null,
+            'donation_batch_created',
+            'Created donation deposit batch',
+            [
+                'event'      => $event->name(),
+                'batch_code' => (string) $event->payload( 'batch_code', '' ),
+                'txn_count'  => (int) $event->payload( 'txn_count', 0 ),
+                'gross'      => (float) $event->payload( 'gross', 0.0 ),
+                'net'        => (float) $event->payload( 'net', 0.0 ),
+            ]
+        );
+    }
+
+    public static function handleDonationReceived( \Metis\Core\Event $event ): void {
+        ActivityService::logActivity(
+            null,
+            'donation_received',
+            'Recorded donation event',
+            [
+                'event'         => $event->name(),
+                'finance_event' => (int) $event->payload( 'event_id', 0 ),
+                'reference_id'  => (string) $event->payload( 'reference_id', '' ),
+                'amount'        => (float) $event->payload( 'amount', 0.0 ),
+                'currency'      => (string) $event->payload( 'currency', 'usd' ),
+            ]
+        );
+    }
+
+    public static function handleNewsletterSent( \Metis\Core\Event $event ): void {
+        ActivityService::logActivity(
+            null,
+            'newsletter_sent',
+            'Newsletter message delivered',
+            [
+                'event'       => $event->name(),
+                'campaign_id' => (int) $event->payload( 'campaign_id', 0 ),
+                'message_id'  => (int) $event->payload( 'message_id', 0 ),
+                'email'       => (string) $event->payload( 'email', '' ),
+            ]
+        );
+    }
+
+    private static function registerEventSubscribers(): void {
+        if ( ! \Metis\Core\Application::has_service( 'events' ) ) {
+            return;
+        }
+
+        $events = \Metis\Core\Application::service( 'events' );
+        $events->subscribe( 'user.created', [ self::class, 'handleUserCreated' ] );
+        $events->subscribe( 'donation.batch.created', [ self::class, 'handleDonationBatchCreated' ] );
+        $events->subscribe( 'donation.received', [ self::class, 'handleDonationReceived' ] );
+        $events->subscribe( 'newsletter.sent', [ self::class, 'handleNewsletterSent' ] );
     }
 
     public static function tableExists( string $table ): bool { return SchemaManager::tableExists( $table ); }

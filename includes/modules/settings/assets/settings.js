@@ -179,6 +179,72 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    const backupRunBtn = document.querySelector('[data-backup-run-now]');
+    if (backupRunBtn) {
+        backupRunBtn.addEventListener('click', function () {
+            const action = 'metis_backup_run_now';
+            const body = new FormData();
+            const statusEl = document.querySelector('[data-backup-action-status]');
+            body.append('action', action);
+            body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+            body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+            const originalLabel = backupRunBtn.textContent;
+            backupRunBtn.disabled = true;
+            backupRunBtn.textContent = 'Running...';
+            if (statusEl) statusEl.textContent = 'Creating backup...';
+
+            Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+                const message = String(data.message || 'Backup completed.');
+                showToast('success', message);
+                if (statusEl) statusEl.textContent = message;
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 700);
+            }).catch(function (error) {
+                const message = error && error.message ? error.message : 'Backup failed.';
+                showToast('error', message);
+                if (statusEl) statusEl.textContent = message;
+            }).finally(function () {
+                backupRunBtn.disabled = false;
+                backupRunBtn.textContent = originalLabel;
+            });
+        });
+    }
+
+    document.querySelectorAll('[data-backup-restore-run]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const runUuid = String(button.getAttribute('data-backup-restore-run') || '').trim();
+            if (!runUuid) return;
+            if (!window.confirm('Restore backup ' + runUuid + '? This will overwrite the current database and files.')) {
+                return;
+            }
+
+            const action = 'metis_backup_restore_run';
+            const body = new FormData();
+            body.append('action', action);
+            body.append('run_uuid', runUuid);
+            body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+            body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+            const originalLabel = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Restoring...';
+
+            Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+                showToast('success', String(data.message || 'Restore completed.'));
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 700);
+            }).catch(function (error) {
+                showToast('error', error && error.message ? error.message : 'Restore failed.');
+            }).finally(function () {
+                button.disabled = false;
+                button.textContent = originalLabel;
+            });
+        });
+    });
+
     function postSchedulerUpdate(payload) {
         const action = 'metis_scheduler_update_task_settings';
         const body = new FormData();
@@ -309,6 +375,97 @@ document.addEventListener('DOMContentLoaded', function () {
             }).finally(function () {
                 buildBaselineBtn.disabled = false;
                 buildBaselineBtn.textContent = originalLabel;
+            });
+        });
+    }
+
+    const releaseRefreshBtn = document.querySelector('[data-release-check-updates]');
+    if (releaseRefreshBtn) {
+        releaseRefreshBtn.addEventListener('click', function () {
+            const action = 'metis_release_check_updates';
+            const body = new FormData();
+            body.append('action', action);
+            body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+            body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+            const originalLabel = releaseRefreshBtn.textContent;
+            releaseRefreshBtn.disabled = true;
+            releaseRefreshBtn.textContent = 'Refreshing...';
+
+            Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+                showToast('success', String(data.message || 'Release metadata refreshed.'));
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 500);
+            }).catch(function (error) {
+                showToast('error', error && error.message ? error.message : 'Release refresh failed.');
+            }).finally(function () {
+                releaseRefreshBtn.disabled = false;
+                releaseRefreshBtn.textContent = originalLabel;
+            });
+        });
+    }
+
+    document.querySelectorAll('[data-release-apply-tag]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const tag = String(button.getAttribute('data-release-apply-tag') || '').trim();
+            if (!tag) return;
+            if (!window.confirm('Apply trusted release ' + tag + '? Metis will run an integrity check and create a backup first.')) {
+                return;
+            }
+
+            const action = 'metis_release_apply';
+            const body = new FormData();
+            body.append('action', action);
+            body.append('tag', tag);
+            body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+            body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+            const originalLabel = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Applying...';
+
+            Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+                showToast('success', String(data.message || 'Release applied.'));
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 900);
+            }).catch(function (error) {
+                showToast('error', error && error.message ? error.message : 'Release update failed.');
+            }).finally(function () {
+                button.disabled = false;
+                button.textContent = originalLabel;
+            });
+        });
+    });
+
+    const releaseRollbackBtn = document.querySelector('[data-release-rollback]');
+    if (releaseRollbackBtn) {
+        releaseRollbackBtn.addEventListener('click', function () {
+            if (!window.confirm('Rollback to the previous trusted release? Metis will create a backup first.')) {
+                return;
+            }
+
+            const action = 'metis_release_rollback';
+            const body = new FormData();
+            body.append('action', action);
+            body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+            body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+            const originalLabel = releaseRollbackBtn.textContent;
+            releaseRollbackBtn.disabled = true;
+            releaseRollbackBtn.textContent = 'Rolling Back...';
+
+            Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+                showToast('success', String(data.message || 'Rollback completed.'));
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 900);
+            }).catch(function (error) {
+                showToast('error', error && error.message ? error.message : 'Rollback failed.');
+            }).finally(function () {
+                releaseRollbackBtn.disabled = false;
+                releaseRollbackBtn.textContent = originalLabel;
             });
         });
     }

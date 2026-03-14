@@ -1,0 +1,93 @@
+{
+    "create_deposit": {
+        "title": "Creating a Deposit",
+        "description": "Walk through the donations deposit workflow.",
+        "module": "donations",
+        "topic": "donations.deposits",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-help=\"donations.dashboard\"]",
+                "message": "Open the Donations module from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": "[data-help=\"donations.deposits\"]",
+                "message": "Switch to the Deposits screen.",
+                "advance": "click"
+            },
+            {
+                "target": "#create-deposit, #metis-create-deposit, [data-help=\"donations.deposits\"] .mw-btn",
+                "message": "Use the create controls to start a new deposit record.",
+                "advance": "click"
+            }
+        ]
+    },
+    "manage_contacts": {
+        "title": "Managing Contacts",
+        "description": "Guide for reviewing and updating contact profiles.",
+        "module": "contacts",
+        "topic": "contacts.dashboard",
+        "trigger": "first_login",
+        "steps": [
+            {
+                "target": "[data-help=\"contacts.dashboard\"]",
+                "message": "Open Contacts from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": ".mw-main [data-metis-topic=\"contacts.dashboard\"]",
+                "message": "Use filters and list controls to locate a contact.",
+                "advance": "next"
+            }
+        ]
+    },
+    "newsletter_campaign": {
+        "title": "Launching a Newsletter Campaign",
+        "description": "Guide for creating and sending a newsletter campaign.",
+        "module": "newsletter",
+        "topic": "newsletter.campaigns",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-help=\"newsletter.dashboard\"]",
+                "message": "Open Newsletter from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": "[data-help=\"newsletter.campaigns\"]",
+                "message": "Go to Campaigns.",
+                "advance": "click"
+            },
+            {
+                "target": ".mw-main [data-metis-topic=\"newsletter.campaigns\"] .mw-btn",
+                "message": "Use the campaign actions to draft, test, and queue a send.",
+                "advance": "click"
+            }
+        ]
+    },
+    "finance_reconciliation": {
+        "title": "Reconciling Accounts",
+        "description": "Guide for reviewing ledger balances against statements.",
+        "module": "finance",
+        "topic": "finance.reconciliations",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-help=\"finance.dashboard\"]",
+                "message": "Open Finance from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": "[data-help=\"finance.reconciliations\"]",
+                "message": "Open Reconcile.",
+                "advance": "click"
+            },
+            {
+                "target": ".mw-main [data-metis-topic=\"finance.reconciliations\"]",
+                "message": "Review statement balance, timing items, and follow-up notes before saving the reconciliation.",
+                "advance": "next"
+            }
+        ]
+    }
+}

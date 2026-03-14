@@ -1,0 +1,180 @@
+{
+  "type": "context_pack",
+  "key": "inventory",
+  "version": 1,
+  "module_slug": "grandys_stash",
+  "title": "Inventory Context Pack",
+  "description": "Structured knowledge for durable medical equipment intake, routing, assignment, and fulfillment.",
+  "source_modules": [
+    "grandys_stash",
+    "contacts",
+    "forms"
+  ],
+  "objects": [
+    {
+      "key": "inventory_item",
+      "name": "Inventory Item",
+      "description": "Cataloged equipment available for intake review, assignment, or distribution.",
+      "identifiers": [
+        "item_id",
+        "equipment_code"
+      ],
+      "important_fields": [
+        "name",
+        "category",
+        "condition_status",
+        "status",
+        "storage_location"
+      ]
+    },
+    {
+      "key": "inventory_case",
+      "name": "Inventory Case",
+      "description": "Request or donation intake case that drives review and assignment.",
+      "identifiers": [
+        "case_id",
+        "case_code"
+      ],
+      "important_fields": [
+        "intake_type",
+        "status",
+        "contact_cid",
+        "assignee_user_id",
+        "scheduled_for"
+      ]
+    },
+    {
+      "key": "distribution",
+      "name": "Distribution",
+      "description": "Assignment and fulfillment record connecting equipment to a recipient case.",
+      "identifiers": [
+        "distribution_id",
+        "distribution_code"
+      ],
+      "important_fields": [
+        "item_id",
+        "case_id",
+        "status",
+        "fulfillment_method",
+        "completed_at"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from": "inventory_case",
+      "to": "inventory_item",
+      "type": "sources_or_requests",
+      "description": "Cases may contribute items into stock or request items out of stock."
+    },
+    {
+      "from": "inventory_item",
+      "to": "distribution",
+      "type": "has_many",
+      "description": "An item may be assigned, scheduled, and completed through a distribution flow."
+    },
+    {
+      "from": "inventory_case",
+      "to": "distribution",
+      "type": "has_many",
+      "description": "Cases drive assignment and fulfillment records."
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "grandys_stash.view",
+      "allowed_roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "edit",
+      "permission_key": "grandys_stash.edit",
+      "allowed_roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "inventory.dashboard_snapshot",
+      "category": "context",
+      "description": "Load inventory counts, inbox, cases, items, distributions, and routing defaults.",
+      "required_permission": "view"
+    },
+    {
+      "key": "inventory.fulfillment_diagnostic",
+      "category": "diagnostic",
+      "description": "Inspect stale intake items, unassigned cases, and scheduling drift.",
+      "required_permission": "view"
+    },
+    {
+      "key": "inventory.assignment_proposal",
+      "category": "action_proposal",
+      "description": "Prepare item updates, case changes, or item-to-case assignment proposals for approval.",
+      "required_permission": "edit"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "stale_assignment_scan",
+      "purpose": "Identify items stuck in assigned or intake_review without case progress.",
+      "evidence": [
+        "item status age",
+        "case status age",
+        "scheduled_for"
+      ],
+      "severity": "high"
+    },
+    {
+      "key": "routing_default_integrity",
+      "purpose": "Check that donation and request routing defaults point to active assignees.",
+      "evidence": [
+        "default assignee IDs",
+        "workspace user availability"
+      ],
+      "severity": "medium"
+    }
+  ],
+  "common_operational_issues": [
+    {
+      "issue": "Requested equipment exists in stock but never reaches fulfillment.",
+      "symptoms": [
+        "available item count remains high",
+        "cases stay in ready or review"
+      ],
+      "likely_causes": [
+        "assignment not created",
+        "missing recipient contact",
+        "routing defaults stale"
+      ],
+      "recommended_playbooks": [
+        "inventory_verification",
+        "permission_diagnostics"
+      ]
+    },
+    {
+      "issue": "Donation intake creates cases but stock counts remain wrong.",
+      "symptoms": [
+        "case exists without item",
+        "dashboard stats lag"
+      ],
+      "likely_causes": [
+        "form sync drift",
+        "catalog normalization mismatch",
+        "manual intake step skipped"
+      ],
+      "recommended_playbooks": [
+        "inventory_verification",
+        "system_health_diagnostics"
+      ]
+    }
+  ]
+}

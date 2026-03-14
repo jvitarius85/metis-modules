@@ -2,7 +2,8 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 if ( ! class_exists( 'Metis' ) ) {
-    require_once __DIR__ . '/service_registry.php';
+    require_once __DIR__ . '/bootstrap.php';
+    metis_core_bootstrap( 'service_registry' );
 }
 
 /**

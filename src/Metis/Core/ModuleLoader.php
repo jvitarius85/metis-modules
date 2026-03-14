@@ -23,6 +23,12 @@ final class ModuleLoader {
         $config['slug']   = $slug;
         $config['domain'] = \sanitize_key( (string) ( $config['domain'] ?? $slug ) ) ?: $slug;
 
+        $normalized_permissions = self::normalizeManifestPermissions( $slug, (array) ( $config['permissions'] ?? [] ) );
+        $config['permissions']  = $normalized_permissions['roles'];
+        if ( empty( $config['permission_definitions'] ) ) {
+            $config['permission_definitions'] = $normalized_permissions['definitions'];
+        }
+
         $this->modules[ $slug ] = [
             'slug'          => $slug,
             'dir'           => \trailingslashit( $dir ),
@@ -84,8 +90,20 @@ final class ModuleLoader {
                 \metis_security_register_module_policies( $slug, $manifest );
             }
 
+            $this->publish_event( 'module.registered', [
+                'module'   => $slug,
+                'dir'      => \trailingslashit( $dir ),
+                'manifest' => $manifest,
+            ] );
+
             $this->autoload_manifest_files( $slug, $dir, (array) ( $manifest['services'] ?? [] ), 'service' );
             $this->autoload_bootstrap( $slug, $dir, $manifest );
+            $this->register_manifest_listeners( $slug, $manifest );
+            $this->publish_event( 'module.booted', [
+                'module'   => $slug,
+                'dir'      => \trailingslashit( $dir ),
+                'manifest' => $manifest,
+            ] );
 
             \Metis_Logger::module_registered( $slug );
         }
@@ -108,6 +126,28 @@ final class ModuleLoader {
         }
 
         return $routes;
+    }
+
+    public function declaredPermissions(): array {
+        $declared = [];
+
+        foreach ( $this->all() as $module ) {
+            foreach ( (array) ( $module['config']['permission_definitions'] ?? [] ) as $definition ) {
+                if ( ! is_array( $definition ) ) {
+                    continue;
+                }
+
+                $key = self::sanitizePermissionKey( (string) ( $definition['key'] ?? '' ) );
+                if ( $key === '' ) {
+                    continue;
+                }
+
+                $definition['key'] = $key;
+                $declared[ $key ]  = $definition;
+            }
+        }
+
+        return array_values( $declared );
     }
 
     public function resolve_view( string $domain, string $view ): array {
@@ -169,9 +209,121 @@ final class ModuleLoader {
                 )
             )
         );
+        $normalized_permissions            = self::normalizeManifestPermissions( $manifest['slug'], (array) ( $manifest['permissions'] ?? [] ) );
+        $manifest['permissions']           = $normalized_permissions['roles'];
+        $manifest['permission_definitions'] = $normalized_permissions['definitions'];
         $manifest['_manifest_path'] = $manifest_path;
 
         return $manifest;
+    }
+
+    public static function rolesForPermission( array $module_config, string $action ): array {
+        $entry = $module_config['permissions'][ $action ] ?? [];
+
+        if ( is_array( $entry ) && array_is_list( $entry ) ) {
+            return array_values(
+                array_filter(
+                    array_map(
+                        static fn ( mixed $role ): string => (string) $role,
+                        $entry
+                    ),
+                    static fn ( string $role ): bool => $role !== ''
+                )
+            );
+        }
+
+        if ( is_array( $entry ) ) {
+            return array_values(
+                array_filter(
+                    array_map(
+                        static fn ( mixed $role ): string => (string) $role,
+                        (array) ( $entry['roles'] ?? [] )
+                    ),
+                    static fn ( string $role ): bool => $role !== ''
+                )
+            );
+        }
+
+        return [];
+    }
+
+    public static function normalizeManifestPermissions( string $module_slug, array $permissions ): array {
+        $module_slug = \sanitize_key( $module_slug );
+        $definitions = [];
+        $roles       = [];
+
+        foreach ( $permissions as $default_action => $entry ) {
+            $default_action = \sanitize_key( (string) $default_action );
+            if ( $default_action === '' || ! is_array( $entry ) ) {
+                continue;
+            }
+
+            if ( array_is_list( $entry ) ) {
+                $definition = self::buildPermissionDefinition( $module_slug, $default_action, [
+                    'roles' => $entry,
+                ] );
+                if ( $definition === null ) {
+                    continue;
+                }
+
+                $definitions[]                 = $definition;
+                $roles[ $definition['action'] ] = $definition['roles'];
+                continue;
+            }
+
+            $definition = self::buildPermissionDefinition( $module_slug, $default_action, $entry );
+            if ( $definition === null ) {
+                continue;
+            }
+
+            $definitions[]                 = $definition;
+            $roles[ $definition['action'] ] = $definition['roles'];
+        }
+
+        return [
+            'definitions' => $definitions,
+            'roles'       => $roles,
+        ];
+    }
+
+    private static function buildPermissionDefinition( string $module_slug, string $default_action, array $entry ): ?array {
+        $action = \sanitize_key( (string) ( $entry['action'] ?? $default_action ) );
+        if ( $module_slug === '' || $action === '' ) {
+            return null;
+        }
+
+        $key = self::sanitizePermissionKey( (string) ( $entry['key'] ?? ( $module_slug . '.' . $action ) ) );
+        if ( $key === '' ) {
+            return null;
+        }
+
+        $name = trim( (string) ( $entry['name'] ?? ( ucfirst( $module_slug ) . ' ' . ucwords( str_replace( '_', ' ', $action ) ) ) ) );
+        if ( $name === '' ) {
+            $name = $key;
+        }
+
+        $declared_roles = (array) ( $entry['roles'] ?? [] );
+        $roles          = [];
+
+        foreach ( $declared_roles as $role ) {
+            $role = \sanitize_key( (string) $role );
+            if ( $role !== '' ) {
+                $roles[] = $role;
+            }
+        }
+
+        return [
+            'key'    => $key,
+            'module' => $module_slug,
+            'action' => $action,
+            'name'   => $name,
+            'roles'  => array_values( array_unique( $roles ) ),
+        ];
+    }
+
+    private static function sanitizePermissionKey( string $key ): string {
+        $key = strtolower( trim( $key ) );
+        return preg_replace( '/[^a-z0-9._-]/', '', $key ) ?? '';
     }
 
     private function discover_manifest_path( string $dir, string $fallback_slug ): ?string {
@@ -260,5 +412,40 @@ final class ModuleLoader {
         } else {
             require_once $bootstrap_file;
         }
+    }
+
+    private function register_manifest_listeners( string $slug, array $manifest ): void {
+        if ( ! Application::has_service( 'events' ) ) {
+            return;
+        }
+
+        foreach ( (array) ( $manifest['listeners'] ?? [] ) as $listener ) {
+            if ( ! is_array( $listener ) ) {
+                continue;
+            }
+
+            $event   = trim( strtolower( (string) ( $listener['event'] ?? '' ) ) );
+            $handler = $listener['handler'] ?? null;
+            $priority = (int) ( $listener['priority'] ?? 10 );
+
+            if ( $event === '' || ! is_callable( $handler ) ) {
+                Application::service( 'logger' )->warn( 'Skipping invalid manifest event listener', [
+                    'module'  => $slug,
+                    'event'   => $event,
+                    'handler' => is_string( $handler ) ? $handler : gettype( $handler ),
+                ] );
+                continue;
+            }
+
+            Application::service( 'events' )->subscribe( $event, $handler, $priority );
+        }
+    }
+
+    private function publish_event( string $event, array $payload ): void {
+        if ( ! Application::has_service( 'events' ) ) {
+            return;
+        }
+
+        Application::service( 'events' )->publish( $event, $payload );
     }
 }

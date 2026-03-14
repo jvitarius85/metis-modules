@@ -1,0 +1,38 @@
+{
+  "slug": "hermes",
+  "label": "Hermes",
+  "domain": "hermes",
+  "default_view": "dashboard",
+  "menu_order": 2,
+  "description": "Reasoning, diagnostics, mission planning, and approval-first secure execution for Metis.",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v10\"/><path d=\"M8 10c1.3-1.2 2.6-1.8 4-1.8s2.7.6 4 1.8\"/><path d=\"M8 14c1.3 1.2 2.6 1.8 4 1.8s2.7-.6 4-1.8\"/></svg>",
+  "permissions": {
+    "view": {
+      "key": "hermes.view",
+      "action": "view",
+      "name": "Hermes View",
+      "roles": ["administrator", "board", "donor_admin", "newsletter_admin"]
+    },
+    "edit": {
+      "key": "hermes.edit",
+      "action": "edit",
+      "name": "Hermes Execute",
+      "roles": ["administrator", "board", "donor_admin", "newsletter_admin"]
+    },
+    "create": {
+      "key": "hermes.create",
+      "action": "create",
+      "name": "Hermes Create",
+      "roles": ["administrator", "board", "donor_admin", "newsletter_admin"]
+    }
+  },
+  "views": {
+    "dashboard": "dashboard.php"
+  },
+  "assets": {
+    "css": ["hermes.css", "hermes-dashboard.css"],
+    "js": ["hermes.js", "hermes-dashboard.js"],
+    "ajax": "hermes.ajax.php"
+  },
+  "ajax_object": "metisHermesAjax"
+}

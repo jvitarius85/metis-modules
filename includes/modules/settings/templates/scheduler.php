@@ -81,6 +81,62 @@ extract( $ctx, EXTR_SKIP );
     <div class="mw-settings-card">
         <div class="mw-settings-header"><h2>Registered Tasks</h2></div>
         <div class="mw-settings-body">
+            <?php
+            $release_current = is_array( $release_status['current'] ?? null ) ? $release_status['current'] : [];
+            $release_latest = is_array( $release_status['latest'] ?? null ) ? $release_status['latest'] : [];
+            $release_repository = is_array( $release_status['repository'] ?? null ) ? $release_status['repository'] : [];
+            $release_can_apply_latest = $is_system_admin
+                && ! empty( $release_status['update_available'] )
+                && ! empty( $release_latest['tag'] );
+            $release_can_rollback = $is_system_admin
+                && is_array( $release_status['state'] ?? null )
+                && (string) ( $release_status['state']['previous_tag'] ?? '' ) !== '';
+            ?>
+            <div class="mw-field">
+                <label>Release Integrity</label>
+                <div class="mw-shortcode-wrap" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
+                    <div>
+                        <div><strong>Installed</strong>: <code><?php echo esc_html( (string) ( $release_current['tag'] ?? $release_status['installed_version'] ?? 'unknown' ) ); ?></code></div>
+                        <div class="mw-help">Version <?php echo esc_html( (string) ( $release_current['version'] ?? $release_status['installed_version'] ?? 'unknown' ) ); ?></div>
+                    </div>
+                    <div>
+                        <div><strong>Latest Trusted</strong>: <code><?php echo esc_html( (string) ( $release_latest['tag'] ?? 'none' ) ); ?></code></div>
+                        <div class="mw-help">
+                            <?php if ( ! empty( $release_status['update_available'] ) ) : ?>
+                                Update available
+                            <?php elseif ( ! empty( $release_latest ) ) : ?>
+                                Already current
+                            <?php else : ?>
+                                No trusted tags discovered yet
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div>
+                        <div><strong>Repository</strong>: <code><?php echo ! empty( $release_repository['clean'] ) ? 'clean' : 'dirty'; ?></code></div>
+                        <div class="mw-help">Last check: <?php echo esc_html( (string) ( $release_status['last_checked_at'] ?? 'never' ) ); ?></div>
+                    </div>
+                    <?php if ( $is_system_admin ) : ?>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button type="button" class="mw-btn mw-btn-xs mw-btn-ghost" data-release-check-updates="1">Refresh Releases</button>
+                            <?php if ( $release_can_apply_latest ) : ?>
+                                <button
+                                    type="button"
+                                    class="mw-btn mw-btn-xs"
+                                    data-release-apply-tag="<?php echo esc_attr( (string) $release_latest['tag'] ); ?>"
+                                >Apply Latest</button>
+                            <?php endif; ?>
+                            <?php if ( $release_can_rollback ) : ?>
+                                <button type="button" class="mw-btn mw-btn-xs mw-btn-ghost" data-release-rollback="1">Rollback</button>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <?php if ( ! empty( $release_status['remote_error'] ) ) : ?>
+                    <p class="mw-help" style="color:#b91c1c;"><?php echo esc_html( (string) $release_status['remote_error'] ); ?></p>
+                <?php else : ?>
+                    <p class="mw-help">Release checks trust semantic Git tags and cache the results locally. Updates require a clean worktree, a passing integrity scan, and a successful pre-update backup.</p>
+                <?php endif; ?>
+            </div>
             <div class="mw-field">
                 <label>Integrity Baseline</label>
                 <div class="mw-shortcode-wrap">

@@ -10,6 +10,7 @@
 - Legacy underscore class names remain available through class aliases.
 - Global helper functions remain supported for now; new class-based code should live under `src/Metis`.
 - The local autoloader in `includes/core/autoload.php` provides PSR-4-style loading without requiring Composer.
+- `includes/core/bootstrap.php` is the single entrypoint for procedural core dependencies, so entrypoints and tests can request named components instead of maintaining long `require_once` lists.
 
 # Suggested Module Structure
 

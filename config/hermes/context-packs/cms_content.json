@@ -1,0 +1,169 @@
+{
+  "type": "context_pack",
+  "key": "cms_content",
+  "version": 1,
+  "module_slug": "website",
+  "title": "CMS Content Context Pack",
+  "description": "Structured knowledge for public-facing content, landing pages, and publishable content dependencies.",
+  "source_modules": [
+    "website",
+    "forms",
+    "donations"
+  ],
+  "objects": [
+    {
+      "key": "content_entry",
+      "name": "Content Entry",
+      "description": "Public page or post managed through the website surface.",
+      "identifiers": [
+        "content_id",
+        "slug",
+        "path"
+      ],
+      "important_fields": [
+        "title",
+        "status",
+        "updated_at",
+        "visibility"
+      ]
+    },
+    {
+      "key": "content_block",
+      "name": "Content Block",
+      "description": "Embedded layout or component dependency such as fundraising CTA, form embed, or announcement module.",
+      "identifiers": [
+        "block_id",
+        "content_id"
+      ],
+      "important_fields": [
+        "block_type",
+        "dependency_key",
+        "position"
+      ]
+    },
+    {
+      "key": "landing_dependency",
+      "name": "Landing Dependency",
+      "description": "Cross-module asset needed for a published page to function.",
+      "identifiers": [
+        "dependency_key"
+      ],
+      "important_fields": [
+        "module",
+        "target_id",
+        "status"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from": "content_entry",
+      "to": "content_block",
+      "type": "has_many",
+      "description": "Pages and posts are composed from one or more content blocks."
+    },
+    {
+      "from": "content_block",
+      "to": "landing_dependency",
+      "type": "depends_on",
+      "description": "Embedded forms or campaign calls-to-action rely on downstream module objects."
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "website.view",
+      "allowed_roles": [
+        "board",
+        "donor_admin",
+        "donor_user",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "edit",
+      "permission_key": "website.edit",
+      "allowed_roles": []
+    },
+    {
+      "action": "create",
+      "permission_key": "website.create",
+      "allowed_roles": []
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "cms_content.publish_snapshot",
+      "category": "context",
+      "description": "Load page metadata, embedded dependencies, and publish readiness evidence.",
+      "required_permission": "view"
+    },
+    {
+      "key": "cms_content.publish_diagnostic",
+      "category": "diagnostic",
+      "description": "Inspect whether linked forms, campaigns, and routes are ready for public use.",
+      "required_permission": "view"
+    },
+    {
+      "key": "cms_content.publish_proposal",
+      "category": "action_proposal",
+      "description": "Prepare a publish or dependency-fix proposal for approval through the secure enclave.",
+      "required_permission": "edit"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "dependency_readiness",
+      "purpose": "Catch content that references a draft form, inactive campaign, or missing route.",
+      "evidence": [
+        "form status",
+        "campaign status",
+        "content visibility"
+      ],
+      "severity": "high"
+    },
+    {
+      "key": "public_visibility_gap",
+      "purpose": "Detect content that appears published in Metis but is not ready for public consumption.",
+      "evidence": [
+        "content status",
+        "block dependency state",
+        "audience targeting intent"
+      ],
+      "severity": "medium"
+    }
+  ],
+  "common_operational_issues": [
+    {
+      "issue": "Fundraising or announcement page publishes with broken dependencies.",
+      "symptoms": [
+        "CTA links fail",
+        "embedded form unavailable",
+        "campaign not attributed"
+      ],
+      "likely_causes": [
+        "content published before supporting modules were ready",
+        "inactive campaign or draft form embed"
+      ],
+      "recommended_playbooks": [
+        "content_publishing_workflows",
+        "system_health_diagnostics"
+      ]
+    },
+    {
+      "issue": "Editors can view content status but cannot complete publication.",
+      "symptoms": [
+        "publish controls unavailable",
+        "workflow stops at proposal stage"
+      ],
+      "likely_causes": [
+        "no website edit permission mapped",
+        "approval boundary not satisfied"
+      ],
+      "recommended_playbooks": [
+        "permission_diagnostics",
+        "content_publishing_workflows"
+      ]
+    }
+  ]
+}

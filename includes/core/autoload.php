@@ -44,6 +44,8 @@ if ( ! function_exists( 'metis_register_class_aliases' ) ) {
 
         $aliases = [
             'Metis\\Core\\Application' => 'Metis',
+            'Metis\\Core\\Event' => 'Metis_Event',
+            'Metis\\Core\\EventBus' => 'Metis_Event_Bus',
             'Metis\\Core\\ServiceRegistry' => 'Metis_Service_Registry',
             'Metis\\Core\\ModuleLoader' => 'Metis_Module_Loader_Service',
             'Metis\\Core\\RouterService' => 'Metis_Router_Service',

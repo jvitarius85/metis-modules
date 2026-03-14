@@ -82,6 +82,17 @@
     line-height: 1.5;
 }
 
+.metis-settings-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mw-text);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
 .metis-logo-upload {
     display: flex;
     flex-direction: column;

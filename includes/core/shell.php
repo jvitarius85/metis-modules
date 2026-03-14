@@ -7,9 +7,11 @@ $portal_logo_url = function_exists( 'metis_portal_logo_url' ) ? metis_portal_log
 $portal_favicon = function_exists( 'metis_portal_favicon_asset' ) ? metis_portal_favicon_asset() : [];
 $portal_favicon_url = function_exists( 'metis_portal_favicon_url' ) ? metis_portal_favicon_url() : '';
 $portal_favicon_type = is_array( $portal_favicon ) ? (string) ( $portal_favicon['mime_type'] ?? '' ) : '';
+$accessibility_ui_enabled = function_exists( 'metis_accessibility_interface_enabled' ) && metis_accessibility_interface_enabled();
+$accessibility_bootstrap = function_exists( 'metis_accessibility_bootstrap_script' ) ? metis_accessibility_bootstrap_script() : '';
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title><?php
         $title_parts = [ metis_portal_name() ];
@@ -22,9 +24,14 @@ $portal_favicon_type = is_array( $portal_favicon ) ? (string) ( $portal_favicon[
         <link rel="shortcut icon" href="<?php echo esc_attr( $portal_favicon_url ); ?>">
         <link rel="apple-touch-icon" href="<?php echo esc_attr( $portal_favicon_url ); ?>">
     <?php endif; ?>
+    <?php if ( $accessibility_bootstrap !== '' ) : ?>
+        <script><?php echo $accessibility_bootstrap; ?></script>
+    <?php endif; ?>
     <?php metis_head(); ?>
 </head>
 <body class="metis-portal">
+
+<a class="mw-skip-link" href="#mw-main-content">Skip to main content</a>
 
 <!-- Toast container -->
 <div id="mw-toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -67,10 +74,69 @@ $portal_favicon_type = is_array( $portal_favicon ) ? (string) ( $portal_favicon[
             </span>
             <div class="mw-code-result" id="metis-code-result" style="display:none;"></div>
         </div>
+        <div class="mw-help-actions">
+            <button
+                type="button"
+                class="mw-help-toggle"
+                id="mw-help-toggle"
+                data-help="help.mode"
+                aria-pressed="false"
+                aria-label="Toggle help mode">
+                Help
+            </button>
+            <button
+                type="button"
+                class="mw-help-search-trigger"
+                id="mw-help-search-trigger"
+                data-help="help.search"
+                aria-label="Search help">
+                Search Help
+            </button>
+        </div>
+        <?php if ( $accessibility_ui_enabled ) : ?>
+            <div class="mw-accessibility">
+                <button
+                    type="button"
+                    class="mw-accessibility-toggle"
+                    id="mw-accessibility-toggle"
+                    aria-expanded="false"
+                    aria-controls="mw-accessibility-panel"
+                    aria-label="Open accessibility settings">
+                    <span aria-hidden="true">Aa</span>
+                </button>
+                <section class="mw-accessibility-panel" id="mw-accessibility-panel" hidden aria-label="Accessibility settings">
+                    <div class="mw-accessibility-panel-header">
+                        <h2>Accessibility</h2>
+                        <button type="button" class="mw-accessibility-close" data-accessibility-close aria-label="Close accessibility settings">Close</button>
+                    </div>
+                    <div class="mw-accessibility-panel-body">
+                        <div class="mw-field">
+                            <label for="mw-accessibility-profile">Profile</label>
+                            <select id="mw-accessibility-profile" class="mw-input" data-accessibility-profile>
+                                <option value="none">Standard</option>
+                                <option value="high-contrast">High Contrast</option>
+                                <option value="large-text">Large Text</option>
+                                <option value="readable">Readable Typography</option>
+                                <option value="screen-reader">Screen Reader</option>
+                            </select>
+                        </div>
+                        <label class="mw-accessibility-option"><input type="checkbox" data-accessibility-pref="contrast"> High contrast colors</label>
+                        <label class="mw-accessibility-option"><input type="checkbox" data-accessibility-pref="large_text"> Large text</label>
+                        <label class="mw-accessibility-option"><input type="checkbox" data-accessibility-pref="readable_font"> Simplified typography</label>
+                        <label class="mw-accessibility-option"><input type="checkbox" data-accessibility-pref="underline_links"> Underline links</label>
+                        <label class="mw-accessibility-option"><input type="checkbox" data-accessibility-pref="reduced_motion"> Reduce motion</label>
+                        <label class="mw-accessibility-option"><input type="checkbox" data-accessibility-pref="nav_labels"> Expanded navigation labels</label>
+                    </div>
+                    <div class="mw-accessibility-panel-actions">
+                        <button type="button" class="mw-btn mw-btn-ghost mw-btn-xs" data-accessibility-reset>Reset</button>
+                    </div>
+                </section>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Mobile hamburger -->
-    <button class="mw-nav-toggle" id="mw-nav-toggle" aria-label="Open menu" aria-expanded="false">
+    <button class="mw-nav-toggle" id="mw-nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mw-sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="3" y1="6"  x2="21" y2="6"/>
             <line x1="3" y1="12" x2="21" y2="12"/>
@@ -130,9 +196,44 @@ $portal_favicon_type = is_array( $portal_favicon ) ? (string) ( $portal_favicon[
 <!-- ============================================================
      MAIN CONTENT
      ============================================================ -->
-<main class="mw-main">
+<main class="mw-main" id="mw-main-content" tabindex="-1">
     <?php metis_render_manager(); ?>
 </main>
+
+<?php if ( function_exists( 'metis_hermes_can_view' ) && metis_hermes_can_view() ) : ?>
+    <div id="hermes-container" class="metis-hermes-global" aria-label="Open Hermes" role="button" tabindex="0">
+        <canvas id="hermesCanvas"></canvas>
+    </div>
+
+    <section id="hermes-panel" class="metis-hermes-global-panel" hidden>
+        <header class="panel-header">
+            <div class="header-left">
+                <div class="header-avatar" id="hermesHeaderAvatar"></div>
+                <div class="metis-hermes-header-copy">
+                    <span class="metis-hermes-header-title">Hermes</span>
+                    <span class="metis-hermes-header-subtitle">Approval-first secure assistant</span>
+                </div>
+            </div>
+            <div class="metis-hermes-header-links">
+                <a href="<?php echo esc_url( metis_portal_url( 'hermes', 'dashboard' ) ); ?>" class="metis-hermes-full-link">Full View</a>
+                <button id="closeHermes" type="button" aria-label="Close Hermes">×</button>
+            </div>
+        </header>
+
+        <div class="panel-body">
+            <div id="messages" class="messages"></div>
+
+            <div class="toolbar">
+                <button id="testPulse" type="button">Diagnostics</button>
+            </div>
+
+            <div class="composer">
+                <input id="chatInput" type="text" placeholder="Ask Hermes something...">
+                <button id="sendBtn" type="button">Send</button>
+            </div>
+        </div>
+    </section>
+<?php endif; ?>
 
 <?php metis_footer(); ?>
 </body>
@@ -167,27 +268,29 @@ function metis_sidebar_nav( array $modules, string $active_domain ): string {
         $icon       = $cfg['icon'] ?? $fallback_icon;
         $url        = esc_url( metis_portal_url( $slug ) );
         $active_cls = $is_active ? ' is-active' : '';
+        $aria_current = $is_active ? ' aria-current="page"' : '';
 
         if ( $type === 'single' ) {
 
-            $html .= '<a href="' . $url . '" class="mw-sidebar-item' . $active_cls . '" data-tooltip="' . esc_attr( $label ) . '">'
+            $html .= '<a href="' . $url . '" class="mw-sidebar-item' . $active_cls . '" data-tooltip="' . esc_attr( $label ) . '" data-help="' . esc_attr( $slug . '.dashboard' ) . '" aria-label="' . esc_attr( $label ) . '"' . $aria_current . '>'
                    . '<span class="mw-sidebar-icon">' . $icon . '</span>'
                    . '<span class="mw-sidebar-label">' . esc_html( $label ) . '</span>'
                    . '</a>';
 
         } elseif ( $type === 'dropdown' && ! empty( $items ) ) {
 
-            // Outer group — JS hover triggers the flyout; icon click navigates to module root
+            $submenu_id = 'mw-sidebar-submenu-' . sanitize_key( $slug );
             $html .= '<div class="mw-sidebar-group' . $active_cls . '">';
-            $html .= '<a href="' . $url . '" class="mw-sidebar-item mw-sidebar-group-trigger' . $active_cls . '">'
+            $html .= '<button type="button" class="mw-sidebar-item mw-sidebar-group-trigger' . $active_cls . '" data-help="' . esc_attr( $slug . '.dashboard' ) . '" aria-expanded="false" aria-controls="' . esc_attr( $submenu_id ) . '" aria-label="' . esc_attr( $label . ' menu' ) . '">'
                    . '<span class="mw-sidebar-icon">' . $icon . '</span>'
-                   . '</a>';
+                   . '<span class="mw-sidebar-label">' . esc_html( $label ) . '</span>'
+                   . '</button>';
 
-            // Flyout panel — positioned to the right of the sidebar via CSS/JS
-            $html .= '<div class="mw-sidebar-submenu">';
+            $html .= '<div class="mw-sidebar-submenu" id="' . esc_attr( $submenu_id ) . '" aria-label="' . esc_attr( $label . ' navigation' ) . '">';
             $html .= '<div class="mw-sidebar-submenu-title">' . esc_html( $label ) . '</div>';
+            $html .= '<a class="mw-sidebar-subitem" data-help="' . esc_attr( $slug . '.dashboard' ) . '" href="' . $url . '"' . $aria_current . '>Overview</a>';
             foreach ( $items as $view => $view_label ) {
-                $html .= '<a class="mw-sidebar-subitem" href="' . esc_url( metis_portal_url( $slug, $view ) ) . '">'
+                $html .= '<a class="mw-sidebar-subitem" data-help="' . esc_attr( $slug . '.' . $view ) . '" href="' . esc_url( metis_portal_url( $slug, $view ) ) . '">'
                        . esc_html( $view_label ) . '</a>';
             }
             $html .= '</div>'; // .mw-sidebar-submenu

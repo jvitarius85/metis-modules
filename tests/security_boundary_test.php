@@ -270,11 +270,14 @@ if (!class_exists('Metis_Logger')) {
     }
 }
 
-require_once dirname(__DIR__) . '/includes/core/http.php';
-require_once dirname(__DIR__) . '/includes/core/security_enclave.php';
-require_once dirname(__DIR__) . '/includes/core/security_runtime_bridge.php';
-require_once dirname(__DIR__) . '/includes/core/ajax.php';
-require_once dirname(__DIR__) . '/includes/core/cron.php';
+require_once dirname(__DIR__) . '/includes/core/bootstrap.php';
+metis_core_bootstrap([
+    'http',
+    'security_enclave',
+    'security_runtime_bridge',
+    'ajax',
+    'cron',
+]);
 
 function assert_true(bool $condition, string $message = 'Assertion failed'): void {
     if (!$condition) {

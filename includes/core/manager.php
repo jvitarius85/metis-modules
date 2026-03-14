@@ -97,5 +97,8 @@ function metis_render_manager() {
         metis_breadcrumb( $auto_crumbs );
     }
 
+    $topic_id = sanitize_key( $domain ) . '.' . sanitize_key( $view );
+    echo '<div class="metis-view-shell" data-metis-module="' . esc_attr( (string) $domain ) . '" data-metis-view="' . esc_attr( (string) $view ) . '" data-metis-topic="' . esc_attr( $topic_id ) . '">';
     echo $output;
+    echo '</div>';
 }

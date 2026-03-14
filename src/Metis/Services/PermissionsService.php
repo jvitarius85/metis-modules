@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Metis\Services;
 
 use Metis\Core\Application;
+use Metis\Core\ModuleLoader;
 
 final class PermissionsService {
     public function can( ?string $module, string $permission = 'view', array $actor = [] ): bool {
@@ -22,7 +23,7 @@ final class PermissionsService {
 
         $roles   = array_map( 'strval', (array) ( $actor['roles'] ?? [] ) );
         $modules = Application::service( 'modules' )->all();
-        $allowed = (array) ( $modules[ $module ]['config']['permissions'][ $permission ] ?? [] );
+        $allowed = ModuleLoader::rolesForPermission( (array) ( $modules[ $module ]['config'] ?? [] ), $permission );
 
         foreach ( $roles as $role ) {
             if ( in_array( $role, $allowed, true ) ) {

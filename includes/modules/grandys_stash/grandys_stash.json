@@ -1,0 +1,40 @@
+{
+  "slug": "grandys_stash",
+  "label": "Grandy's Stash",
+  "domain": "grandys_stash",
+  "default_view": "dashboard",
+  "menu_order": 2,
+  "description": "Coordinate durable medical equipment intake, inventory, and community distribution.",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 7 12 3 4 7\"/><path d=\"M20 7v10l-8 4-8-4V7\"/><path d=\"M12 21V11\"/><path d=\"M4 7l8 4 8-4\"/></svg>",
+  "menu": {
+    "type": "dropdown",
+    "items": {
+      "dashboard": "Inbox",
+      "settings": "Settings"
+    }
+  },
+  "permissions": {
+    "view": {
+      "key": "grandys_stash.view",
+      "action": "view",
+      "name": "Grandy's Stash View",
+      "roles": ["administrator", "board", "donor_admin", "newsletter_admin"]
+    },
+    "edit": {
+      "key": "grandys_stash.edit",
+      "action": "edit",
+      "name": "Grandy's Stash Edit",
+      "roles": ["administrator", "board", "donor_admin", "newsletter_admin"]
+    }
+  },
+  "views": {
+    "dashboard": "dashboard.php",
+    "settings": "settings.php"
+  },
+  "assets": {
+    "css": ["grandys_stash.css"],
+    "js": ["grandys_stash.js"],
+    "ajax": "grandys_stash.ajax.php"
+  },
+  "ajax_object": "metisGrandyStashAjax"
+}

@@ -2,7 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 if ( ! class_exists( 'Metis' ) ) {
-    require_once __DIR__ . '/service_registry.php';
+    require_once __DIR__ . '/bootstrap.php';
+    metis_core_bootstrap( 'service_registry' );
 }
 
 function metis_http_router(): Metis_Http_Router {
@@ -89,6 +90,13 @@ function metis_build_http_router(): Metis_Http_Router {
     );
 
     $router->group(
+        [ 'route.security' ],
+        static function ( Metis_Http_Router $router ): void {
+            metis_register_manifest_module_routes( $router );
+        }
+    );
+
+    $router->group(
         [ 'portal.stack' ],
         static function ( Metis_Http_Router $router ): void {
             $router->register(
@@ -133,8 +141,6 @@ function metis_build_http_router(): Metis_Http_Router {
             );
         }
     );
-
-    metis_register_manifest_module_routes( $router );
 
     return $router;
 }
@@ -290,7 +296,12 @@ function metis_module_asset_base_path(): string {
 function metis_module_asset_url( string $module, string $asset ): string {
     $module = sanitize_key( $module );
     $asset  = ltrim( (string) $asset, '/' );
-    return home_url( trim( metis_module_asset_base_path(), '/' ) . '/' . rawurlencode( $module ) . '/' . str_replace( '%2F', '/', rawurlencode( $asset ) ) );
+    $url = home_url( trim( metis_module_asset_base_path(), '/' ) . '/' . rawurlencode( $module ) . '/' . str_replace( '%2F', '/', rawurlencode( $asset ) ) );
+    $path = trailingslashit( ABSPATH ) . 'includes/modules/' . $module . '/assets/' . $asset;
+    if ( is_file( $path ) ) {
+        $url = add_query_arg( 'v', (string) filemtime( $path ), $url );
+    }
+    return $url;
 }
 
 function metis_module_asset_match_request( Metis_Http_Request $request ): ?array {
@@ -514,6 +525,10 @@ function metis_wp_router_route_permission_for_request( Metis_Http_Request $reque
         return 'view';
     }
 
+    if ( $route_name === 'forms.public' ) {
+        return $method === 'POST' ? 'create' : 'view';
+    }
+
     if ( $route_name === 'webhook.gateway' ) {
         return 'create';
     }
@@ -554,6 +569,15 @@ function metis_wp_router_route_policy( Metis_Http_Request $request ): ?Metis_Sec
             $require_authentication = true;
             $require_session = true;
             $rate_limit = 360;
+            break;
+
+        case 'forms.public':
+            $module = 'forms';
+            $require_authentication = false;
+            $require_session = false;
+            $require_nonce = false;
+            $rate_limit = 120;
+            $rate_window = 60;
             break;
 
         case 'webhook.gateway':
@@ -671,6 +695,7 @@ function metis_wp_router_portal_nonce_map(): array {
         'settings/general' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_general' ],
         'settings/logging' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_logging' ],
         'settings/customization' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_customization' ],
+        'settings/accessibility' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_accessibility' ],
         'settings/menu' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_menu' ],
         'settings/profile' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_profile' ],
         'settings/newsletter' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_newsletter' ],
@@ -679,6 +704,7 @@ function metis_wp_router_portal_nonce_map(): array {
         'settings/calendar' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_calendar' ],
         'settings/api' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_api' ],
         'settings/scheduler' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_scheduler' ],
+        'settings/help' => [ 'field' => 'metis_settings_nonce', 'action' => 'metis_save_settings_help' ],
         'donations/transactions' => [ 'field' => 'mw_batch_nonce', 'action' => 'mw_create_batch' ],
         'finance/ledger' => [ 'field' => 'metis_finance_ledger_nonce', 'action' => 'metis_finance_ledger_save' ],
         'finance/reconciliations' => [ 'field' => 'metis_finance_recon_nonce', 'action' => 'metis_finance_recon_save' ],

@@ -1,0 +1,59 @@
+{
+  "type": "context_pack",
+  "key": "drive",
+  "version": 1,
+  "module_slug": "drive",
+  "title": "Drive Context Pack",
+  "description": "Knowledge for shared drive assets, access controls, linked folders, and workspace document visibility.",
+  "source_modules": [
+    "drive",
+    "board"
+  ],
+  "objects": [
+    {
+      "key": "drive_asset",
+      "name": "Drive Asset",
+      "description": "A linked document, folder, or workspace resource visible through Metis.",
+      "identifiers": [
+        "drive_file_id",
+        "folder_id"
+      ],
+      "important_fields": [
+        "visibility",
+        "linked_module",
+        "owner",
+        "updated_at"
+      ]
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "drive.board.view",
+      "allowed_roles": [
+        "administrator",
+        "board"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "drive.access_diagnostic",
+      "category": "diagnostic",
+      "description": "Evaluate workspace folder and linked document visibility for a requested actor.",
+      "required_permission": "view"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "drive_acl_validation",
+      "purpose": "Detect missing ACLs, stale group propagation, or unlinked workspace folders.",
+      "evidence": [
+        "drive acl",
+        "workspace membership",
+        "folder linkage"
+      ],
+      "severity": "high"
+    }
+  ]
+}

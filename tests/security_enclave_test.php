@@ -105,8 +105,8 @@ if (!class_exists('Metis_Logger')) {
     }
 }
 
-require_once dirname(__DIR__) . '/includes/core/security_enclave.php';
-require_once dirname(__DIR__) . '/includes/core/security_runtime_bridge.php';
+require_once dirname(__DIR__) . '/includes/core/bootstrap.php';
+metis_core_bootstrap(['security_enclave', 'security_runtime_bridge']);
 
 final class TestLogger implements Metis_Security_Audit_Logger_Interface {
     public array $audit = [];

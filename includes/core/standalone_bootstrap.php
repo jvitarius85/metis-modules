@@ -1,10 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/standalone_runtime.php';
-require_once __DIR__ . '/http.php';
-require_once __DIR__ . '/log.php';
-require_once __DIR__ . '/service_registry.php';
+require_once __DIR__ . '/bootstrap.php';
+
+metis_core_bootstrap( [ 'standalone_runtime', 'http', 'log', 'service_registry', 'release' ] );
 
 if ( ! function_exists( 'metis_portal_slug' ) ) {
     function metis_portal_slug(): string {
@@ -67,29 +66,7 @@ function metis_standalone_boot_log( string $message, array $context = [] ): void
         && $GLOBALS['wpdb'] instanceof wpdb
     ) {
         Metis_Logger::info( 'standalone_' . $message, $context );
-        return;
     }
-
-    $year        = date( 'Y' );
-    $root        = dirname( __DIR__, 2 ) . '/logs/';
-    $dir         = $root . $year . '/';
-    $path        = $dir . 'standalone-boot.log';
-    $legacy_path = $root . 'standalone-boot.log';
-
-    if ( ! is_dir( $dir ) ) {
-        metis_make_dir( $dir );
-    }
-
-    if ( ! file_exists( $path ) && file_exists( $legacy_path ) ) {
-        @rename( $legacy_path, $path );
-    }
-
-    $line = '[' . date( 'Y-m-d H:i:s' ) . '] ' . $message;
-    if ( $context !== [] ) {
-        $line .= ' ' . metis_json_encode( $context );
-    }
-    $line .= PHP_EOL;
-    file_put_contents( $path, $line, FILE_APPEND | LOCK_EX );
 }
 
 function metis_standalone_database_config_path(): string {
@@ -432,11 +409,13 @@ function metis_standalone_boot(): void {
 
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'load_core' ] );
     require_once dirname( __DIR__, 2 ) . '/includes/core/helpers.php';
+    require_once dirname( __DIR__, 2 ) . '/includes/core/accessibility.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/audit.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/webhooks.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/integrity.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/security_enclave.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/cron.php';
+    require_once dirname( __DIR__, 2 ) . '/includes/core/backup.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/code_registry.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/security_runtime_bridge.php';
     require_once dirname( __DIR__, 2 ) . '/includes/core/ajax.php';

@@ -15,6 +15,9 @@
   "views": {
     "dashboard": "dashboard.php"
   },
+  "help_topics": [
+    "calendar.dashboard"
+  ],
   "assets": {
     "css": ["calendar.css"],
     "js": ["calendar.js"],

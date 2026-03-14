@@ -2,7 +2,8 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 if ( ! class_exists( 'Metis' ) ) {
-    require_once __DIR__ . '/service_registry.php';
+    require_once __DIR__ . '/bootstrap.php';
+    metis_core_bootstrap( 'service_registry' );
 }
 
 final class Metis_Runtime_Security_Logger implements Metis_Security_Audit_Logger_Interface {
@@ -279,6 +280,7 @@ function metis_security_infer_module_from_ajax_action( string $ajax_action ): ?s
         'profile' => 'profile',
         'people' => 'people',
         'drive' => 'drive',
+        'backup' => 'settings',
         'settings' => 'settings',
     ] );
 
@@ -422,6 +424,10 @@ function metis_security_trusted_include( string $path, bool $once = true ): void
     }
 
     include $real;
+}
+
+if ( function_exists( 'metis_register_core_services' ) ) {
+    metis_register_core_services();
 }
 
 metis_security_runtime_bootstrap();

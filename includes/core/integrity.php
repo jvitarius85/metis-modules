@@ -16,8 +16,10 @@ class Metis_Integrity_Manager {
     private const ALERTS_OPTION        = 'integrity_alerts_enabled';
     private const AUTO_HEAL_OPTION     = 'integrity_auto_heal_enabled';
     private const QUARANTINE_OPTION    = 'integrity_quarantine_enabled';
+    private const GIT_RESTORE_OPTION   = 'integrity_git_restore_enabled';
 
     private static bool $booted = false;
+    private static ?array $git_repository_state = null;
 
     public static function init(): void {
 
@@ -145,7 +147,11 @@ class Metis_Integrity_Manager {
             }
 
             if ( in_array( $issue['type'], [ 'modified', 'missing' ], true ) ) {
-                if ( self::restore_file( $issue['path'], (string) ( $issue['expected_hash'] ?? '' ) ) ) {
+                if ( self::restore_file(
+                    $issue['path'],
+                    (string) ( $issue['expected_hash'] ?? '' ),
+                    (array) ( $manifest['git'] ?? [] )
+                ) ) {
                     $restored[] = $issue['path'];
                     self::record_security_event( 'integrity_restored', 'critical', 'restored', $context, $issue['path'], $issue['type'] );
                 }
@@ -259,6 +265,7 @@ class Metis_Integrity_Manager {
             'generated_at' => current_time( 'mysql' ),
             'version'      => self::current_version(),
             'reason'       => $reason,
+            'git'          => self::git_manifest_metadata(),
             'files'        => $files,
         ];
 
@@ -439,7 +446,11 @@ class Metis_Integrity_Manager {
         return in_array( basename( $relative ), self::ignored_basenames(), true );
     }
 
-    private static function restore_file( string $relative, string $expected_hash = '' ): bool {
+    private static function restore_file( string $relative, string $expected_hash = '', array $git = [] ): bool {
+        if ( self::restore_file_from_git( $relative, $expected_hash, $git ) ) {
+            return true;
+        }
+
         $snapshot = self::recovery_file_path( $relative );
         $target   = self::absolute_path( $relative );
 
@@ -465,6 +476,74 @@ class Metis_Integrity_Manager {
         $restored = copy( $snapshot, $target );
         if ( ! $restored ) {
             Metis_Logger::error( 'Integrity restore failed: copy failed', [ 'path' => $relative ] );
+            return false;
+        }
+
+        return true;
+    }
+
+    private static function restore_file_from_git( string $relative, string $expected_hash, array $git ): bool {
+        if ( ! self::git_restore_enabled() ) {
+            return false;
+        }
+
+        $commit = trim( (string) ( $git['commit'] ?? '' ) );
+        if ( $commit === '' ) {
+            return false;
+        }
+
+        $repository = self::git_repository_state();
+        if ( $repository === null ) {
+            return false;
+        }
+
+        $prefix = (string) ( $git['prefix'] ?? $repository['prefix'] ?? '' );
+        $pathspec = ltrim( $prefix . self::normalize_relative_path( $relative ), '/' );
+        if ( $pathspec === '' ) {
+            return false;
+        }
+
+        $result = self::run_command(
+            [
+                self::git_binary(),
+                '-C',
+                METIS_PATH,
+                'show',
+                $commit . ':' . $pathspec,
+            ]
+        );
+
+        if ( (int) ( $result['exit_code'] ?? 1 ) !== 0 || ! array_key_exists( 'stdout', $result ) ) {
+            return false;
+        }
+
+        $content = (string) $result['stdout'];
+        if ( $expected_hash !== '' ) {
+            $content_hash = hash( 'sha256', $content );
+            if ( ! hash_equals( $expected_hash, $content_hash ) ) {
+                Metis_Logger::error( 'Integrity restore failed: git content hash mismatch', [
+                    'path' => $relative,
+                    'expected_hash' => $expected_hash,
+                    'git_hash' => $content_hash,
+                    'commit' => $commit,
+                ] );
+                return false;
+            }
+        }
+
+        $target = self::absolute_path( $relative );
+        $temp = $target . '.git-restore-' . bin2hex( random_bytes( 6 ) ) . '.tmp';
+
+        metis_make_dir( dirname( $target ) );
+
+        $written = file_put_contents( $temp, $content, LOCK_EX );
+        if ( $written === false ) {
+            @unlink( $temp );
+            return false;
+        }
+
+        if ( ! @rename( $temp, $target ) ) {
+            @unlink( $temp );
             return false;
         }
 
@@ -899,11 +978,11 @@ class Metis_Integrity_Manager {
     }
 
     private static function auto_heal_enabled(): bool {
-        return self::get_flag( self::AUTO_HEAL_OPTION, true );
+        return self::get_flag( self::AUTO_HEAL_OPTION, false );
     }
 
     private static function quarantine_enabled(): bool {
-        return self::get_flag( self::QUARANTINE_OPTION, true );
+        return self::get_flag( self::QUARANTINE_OPTION, false );
     }
 
     private static function get_flag( string $key, bool $default ): bool {
@@ -922,6 +1001,23 @@ class Metis_Integrity_Manager {
 
     private static function current_version(): string {
         return defined( 'METIS_VERSION' ) ? (string) METIS_VERSION : '';
+    }
+
+    private static function git_manifest_metadata(): array {
+        $repository = self::git_repository_state();
+        if ( $repository === null ) {
+            return [];
+        }
+
+        if ( ! isset( $repository['commit'], $repository['prefix'] ) ) {
+            return [];
+        }
+
+        return [
+            'commit' => (string) $repository['commit'],
+            'prefix' => (string) $repository['prefix'],
+            'dirty' => ! empty( $repository['dirty'] ),
+        ];
     }
 
     private static function config(): array {
@@ -950,6 +1046,97 @@ class Metis_Integrity_Manager {
     private static function signature_required(): bool {
         $config = self::config();
         return ! empty( $config['require_signature'] );
+    }
+
+    private static function git_restore_enabled(): bool {
+        return self::get_flag( self::GIT_RESTORE_OPTION, true );
+    }
+
+    private static function git_binary(): string {
+        $config = self::config();
+        $binary = isset( $config['git_binary'] ) ? trim( (string) $config['git_binary'] ) : '';
+        return $binary !== '' ? $binary : 'git';
+    }
+
+    private static function git_repository_state(): ?array {
+        if ( is_array( self::$git_repository_state ) ) {
+            return self::$git_repository_state;
+        }
+
+        $top_level = self::run_command( [ self::git_binary(), '-C', METIS_PATH, 'rev-parse', '--show-toplevel' ] );
+        $commit = self::run_command( [ self::git_binary(), '-C', METIS_PATH, 'rev-parse', 'HEAD' ] );
+        $prefix = self::run_command( [ self::git_binary(), '-C', METIS_PATH, 'rev-parse', '--show-prefix' ] );
+
+        if (
+            (int) ( $top_level['exit_code'] ?? 1 ) !== 0
+            || (int) ( $commit['exit_code'] ?? 1 ) !== 0
+            || (int) ( $prefix['exit_code'] ?? 1 ) !== 0
+        ) {
+            return null;
+        }
+
+        $dirty = self::run_command( [
+            self::git_binary(),
+            '-C',
+            METIS_PATH,
+            'status',
+            '--porcelain',
+            '--untracked-files=no',
+            '--ignored=no',
+        ] );
+
+        self::$git_repository_state = [
+            'top_level' => trim( (string) ( $top_level['stdout'] ?? '' ) ),
+            'commit' => trim( (string) ( $commit['stdout'] ?? '' ) ),
+            'prefix' => self::normalize_git_prefix( (string) ( $prefix['stdout'] ?? '' ) ),
+            'dirty' => trim( (string) ( $dirty['stdout'] ?? '' ) ) !== '',
+        ];
+
+        return self::$git_repository_state;
+    }
+
+    private static function normalize_git_prefix( string $prefix ): string {
+        $prefix = self::normalize_relative_path( trim( $prefix ) );
+        return $prefix === '' ? '' : $prefix . '/';
+    }
+
+    private static function run_command( array $command, ?string $cwd = null ): array {
+        if ( ! function_exists( 'proc_open' ) ) {
+            return [
+                'exit_code' => 1,
+                'stdout' => '',
+                'stderr' => 'proc_open unavailable',
+            ];
+        }
+
+        $descriptors = [
+            0 => [ 'pipe', 'r' ],
+            1 => [ 'pipe', 'w' ],
+            2 => [ 'pipe', 'w' ],
+        ];
+
+        $process = @proc_open( $command, $descriptors, $pipes, $cwd ?? METIS_PATH );
+        if ( ! is_resource( $process ) ) {
+            return [
+                'exit_code' => 1,
+                'stdout' => '',
+                'stderr' => 'proc_open failed',
+            ];
+        }
+
+        fclose( $pipes[0] );
+        $stdout = stream_get_contents( $pipes[1] );
+        $stderr = stream_get_contents( $pipes[2] );
+        fclose( $pipes[1] );
+        fclose( $pipes[2] );
+
+        $exit_code = proc_close( $process );
+
+        return [
+            'exit_code' => is_int( $exit_code ) ? $exit_code : 1,
+            'stdout' => is_string( $stdout ) ? $stdout : '',
+            'stderr' => is_string( $stderr ) ? $stderr : '',
+        ];
     }
 
     private static function private_key_path(): string {

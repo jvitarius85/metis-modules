@@ -75,6 +75,20 @@ final class QueueService {
         );
 
         \metis_newsletter_audit_log( 'campaign_queued', 'campaign', $campaign_id, [ 'queued' => $queued, 'audience' => $audience ] );
+
+        if ( \Metis\Core\Application::has_service( 'events' ) ) {
+            \Metis\Core\Application::service( 'events' )->publish(
+                'newsletter.campaign.queued',
+                [
+                    'campaign_id' => $campaign_id,
+                    'queued'      => $queued,
+                    'status'      => $status,
+                    'audience'    => $audience,
+                    'queued_at'   => $now,
+                ]
+            );
+        }
+
         return [ 'ok' => true, 'queued' => $queued ];
     }
 
@@ -218,6 +232,22 @@ final class QueueService {
                     [ '%d' ]
                 );
                 \metis_newsletter_track_event_for_message( $message_code, 'delivered', 'Gmail accepted' );
+
+                if ( \Metis\Core\Application::has_service( 'events' ) ) {
+                    \Metis\Core\Application::service( 'events' )->publish(
+                        'newsletter.sent',
+                        [
+                            'campaign_id' => $campaign_id,
+                            'message_id'  => $message_id,
+                            'message_code'=> $message_code,
+                            'contact_id'  => (int) ( $row['contact_id'] ?? 0 ),
+                            'email'       => (string) ( $row['email'] ?? '' ),
+                            'subject'     => $subject,
+                            'provider'    => 'gmail_api',
+                            'sent_at'     => $now,
+                        ]
+                    );
+                }
             } else {
                 $failed++;
                 $send_error = (string) ( $send['error'] ?? 'Gmail send returned an unknown error.' );
@@ -249,6 +279,23 @@ final class QueueService {
                     ],
                     [ '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s' ]
                 );
+
+                if ( \Metis\Core\Application::has_service( 'events' ) ) {
+                    \Metis\Core\Application::service( 'events' )->publish(
+                        'newsletter.failed',
+                        [
+                            'campaign_id' => $campaign_id,
+                            'message_id'  => $message_id,
+                            'message_code'=> $message_code,
+                            'contact_id'  => (int) ( $row['contact_id'] ?? 0 ),
+                            'email'       => (string) ( $row['email'] ?? '' ),
+                            'subject'     => $subject,
+                            'provider'    => 'gmail_api',
+                            'error'       => $send_error,
+                            'failed_at'   => $now,
+                        ]
+                    );
+                }
             }
 
             $stats = $wpdb->get_row(

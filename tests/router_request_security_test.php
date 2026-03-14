@@ -21,13 +21,16 @@ if (!class_exists('Metis_Cron_Manager')) {
     }
 }
 
-require_once dirname(__DIR__) . '/includes/core/standalone_runtime.php';
-require_once dirname(__DIR__) . '/includes/core/http.php';
-require_once dirname(__DIR__) . '/includes/core/security_enclave.php';
-require_once dirname(__DIR__) . '/includes/core/security_runtime_bridge.php';
-require_once dirname(__DIR__) . '/includes/core/auth.php';
-require_once dirname(__DIR__) . '/includes/core/ajax.php';
-require_once dirname(__DIR__) . '/includes/core/router.php';
+require_once dirname(__DIR__) . '/includes/core/bootstrap.php';
+metis_core_bootstrap([
+    'standalone_runtime',
+    'http',
+    'security_enclave',
+    'security_runtime_bridge',
+    'auth',
+    'ajax',
+    'router',
+]);
 
 function assert_true(bool $condition, string $message = 'Assertion failed'): void {
     if (!$condition) {

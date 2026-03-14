@@ -1,0 +1,99 @@
+{
+  "type": "dynamic_context_schema",
+  "schema_version": 1,
+  "description": "Dynamic Hermes context stores bounded operational learning signals derived from mission outcomes and approved actions.",
+  "load_contract": {
+    "merge_order": [
+      "static_context_pack",
+      "reviewed_dynamic_patterns",
+      "session_evidence"
+    ],
+    "confidence_floor": 0.6,
+    "max_records_per_module": 50,
+    "prefer_reviewed_records": true
+  },
+  "record_types": {
+    "failure_pattern": {
+      "required_fields": [
+        "record_id",
+        "module_keys",
+        "signature",
+        "symptoms",
+        "likely_causes",
+        "recommended_playbooks",
+        "confidence",
+        "usage_count",
+        "review_state"
+      ],
+      "indexes": [
+        "module_keys",
+        "signature",
+        "review_state",
+        "last_seen_at"
+      ]
+    },
+    "successful_resolution": {
+      "required_fields": [
+        "record_id",
+        "module_keys",
+        "resolution_key",
+        "matched_failure_signatures",
+        "steps",
+        "outcome_summary",
+        "confidence",
+        "usage_count",
+        "review_state"
+      ],
+      "indexes": [
+        "module_keys",
+        "resolution_key",
+        "review_state",
+        "last_used_at"
+      ]
+    },
+    "workflow_signal": {
+      "required_fields": [
+        "record_id",
+        "workflow_key",
+        "module_keys",
+        "entry_signals",
+        "step_sequence",
+        "success_rate",
+        "usage_count",
+        "review_state"
+      ],
+      "indexes": [
+        "workflow_key",
+        "module_keys",
+        "review_state",
+        "last_used_at"
+      ]
+    }
+  },
+  "promotion_policy": {
+    "review_states": [
+      "candidate",
+      "reviewed",
+      "retired"
+    ],
+    "candidate_thresholds": {
+      "minimum_occurrences": 2,
+      "minimum_confidence": 0.65
+    },
+    "reviewed_thresholds": {
+      "minimum_occurrences": 3,
+      "minimum_confidence": 0.75
+    }
+  },
+  "retention_policy": {
+    "candidate_ttl_days": 45,
+    "reviewed_revalidation_days": 180,
+    "retired_archive_days": 365
+  },
+  "ingestion_sources": [
+    "mission_outcomes",
+    "playbook_runs",
+    "diagnostic_results",
+    "approved_action_results"
+  ]
+}

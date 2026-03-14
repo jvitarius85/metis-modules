@@ -1,0 +1,632 @@
+{
+    "board.dashboard": {
+        "title": "Board Dashboard",
+        "description": "Board governance portal for meetings, decisions, actions, committees, and compliance.",
+        "learn_more": "/docs/modules/board.md",
+        "steps": [
+            "Open the Board module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "board.meeting": {
+        "title": "Board Meeting",
+        "description": "Board governance portal for meetings, decisions, actions, committees, and compliance.",
+        "learn_more": "/docs/modules/board.md",
+        "steps": [
+            "Open the Board module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "calendar.dashboard": {
+        "title": "Calendar Dashboard",
+        "description": "Manage Google Calendar events from Metis.",
+        "learn_more": "/docs/modules/calendar.md",
+        "steps": [
+            "Open the Calendar module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "contacts.contact": {
+        "title": "Contacts Contact",
+        "description": "View and organize all contacts across the organization.",
+        "learn_more": "/docs/modules/contacts.md",
+        "steps": [
+            "Open the Contacts module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "contacts.dashboard": {
+        "title": "Contacts Dashboard",
+        "description": "View and organize all contacts across the organization.",
+        "learn_more": "/docs/modules/contacts.md",
+        "steps": [
+            "Open the Contacts module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.batch": {
+        "title": "Donations Batch",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.campaign": {
+        "title": "Donations Campaign",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.campaigns": {
+        "title": "Donations Campaigns",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.dashboard": {
+        "title": "Donations Dashboard",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.deposit": {
+        "title": "Donations Deposit",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.deposits": {
+        "title": "Donations Deposits",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.donor": {
+        "title": "Donations Donor",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.donors": {
+        "title": "Donations Donors",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.reports": {
+        "title": "Donations Reports",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.transaction": {
+        "title": "Donations Transaction",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "donations.transactions": {
+        "title": "Donations Transactions",
+        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "learn_more": "/docs/modules/donations.md",
+        "steps": [
+            "Open the Donations module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "drive.dashboard": {
+        "title": "Drive Dashboard",
+        "description": "Browse and manage files in the configured Google Shared Drive.",
+        "learn_more": "/docs/modules/drive.md",
+        "steps": [
+            "Open the Drive module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.finance": {
+        "title": "Finance Finance",
+        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.ledger": {
+        "title": "Finance Ledger",
+        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.reconciliations": {
+        "title": "Finance Reconciliations",
+        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.reports": {
+        "title": "Finance Reports",
+        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "forms.build": {
+        "title": "Forms Build",
+        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "learn_more": "/docs/modules/forms.md",
+        "steps": [
+            "Open the Forms module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "forms.dashboard": {
+        "title": "Forms Dashboard",
+        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "learn_more": "/docs/modules/forms.md",
+        "steps": [
+            "Open the Forms module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "forms.entries": {
+        "title": "Forms Entries",
+        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "learn_more": "/docs/modules/forms.md",
+        "steps": [
+            "Open the Forms module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "forms.form": {
+        "title": "Forms Form",
+        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "learn_more": "/docs/modules/forms.md",
+        "steps": [
+            "Open the Forms module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "forms.settings": {
+        "title": "Forms Settings",
+        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "learn_more": "/docs/modules/forms.md",
+        "steps": [
+            "Open the Forms module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "grandys_stash.dashboard": {
+        "title": "Grandy's Stash Dashboard",
+        "description": "Coordinate durable medical equipment intake, inventory, and community distribution.",
+        "learn_more": "/docs/modules/grandys_stash.md",
+        "steps": [
+            "Open the Grandy's Stash module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "help.mode": {
+        "title": "Help Mode",
+        "description": "Turn on contextual help to highlight tagged interface elements and open in-app guidance.",
+        "learn_more": "/docs/developer/help-system.md",
+        "steps": [
+            "Use the Help button in the portal header or press Shift+H.",
+            "Hover highlighted items to preview their purpose.",
+            "Click a highlighted item to open the detailed help panel."
+        ]
+    },
+    "help.search": {
+        "title": "Help Search",
+        "description": "Search topics, documentation pages, and walkthroughs from a single modal.",
+        "learn_more": "/docs/developer/help-system.md",
+        "steps": [
+            "Open Search Help from the header.",
+            "Search by workflow, module, or administrative task.",
+            "Launch a topic or walkthrough directly from results."
+        ]
+    },
+    "newsletter.campaigns": {
+        "title": "Newsletter Campaigns",
+        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "learn_more": "/docs/modules/newsletter.md",
+        "steps": [
+            "Open the Newsletter module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "newsletter.dashboard": {
+        "title": "Newsletter Dashboard",
+        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "learn_more": "/docs/modules/newsletter.md",
+        "steps": [
+            "Open the Newsletter module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "newsletter.lists": {
+        "title": "Newsletter Lists",
+        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "learn_more": "/docs/modules/newsletter.md",
+        "steps": [
+            "Open the Newsletter module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "newsletter.subscribers": {
+        "title": "Newsletter Subscribers",
+        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "learn_more": "/docs/modules/newsletter.md",
+        "steps": [
+            "Open the Newsletter module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "newsletter.templates": {
+        "title": "Newsletter Templates",
+        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "learn_more": "/docs/modules/newsletter.md",
+        "steps": [
+            "Open the Newsletter module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.access_requests": {
+        "title": "People Access Requests",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.activity": {
+        "title": "People Activity",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.bulk_actions": {
+        "title": "People Bulk Actions",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.dashboard": {
+        "title": "People Dashboard",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.people_list": {
+        "title": "People People List",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.permissions": {
+        "title": "People Permissions",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.person": {
+        "title": "People Person",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.role": {
+        "title": "People Role",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.roles_list": {
+        "title": "People Roles List",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.templates": {
+        "title": "People Templates",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.workspace": {
+        "title": "People Workspace",
+        "description": "Manage staff, board, volunteers, and system access.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "portal.dashboard": {
+        "title": "Portal Dashboard",
+        "description": "Reference for the Portal dashboard screen.",
+        "learn_more": "/docs/modules/portal.md",
+        "steps": [
+            "Open the Portal module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "portal.email_usage": {
+        "title": "Portal Email Usage",
+        "description": "Reference for the Portal email_usage screen.",
+        "learn_more": "/docs/modules/portal.md",
+        "steps": [
+            "Open the Portal module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "profile.dashboard": {
+        "title": "Profile Dashboard",
+        "description": "Manage your profile, security methods, and notification preferences.",
+        "learn_more": "/docs/modules/profile.md",
+        "steps": [
+            "Open the Profile module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.accessibility": {
+        "title": "Settings Accessibility",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.api": {
+        "title": "Settings Api",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.backup": {
+        "title": "Settings Backup",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.calendar": {
+        "title": "Settings Calendar",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.customization": {
+        "title": "Settings Customization",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.dashboard": {
+        "title": "Settings Dashboard",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.drive": {
+        "title": "Settings Drive",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.help": {
+        "title": "Settings Help",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.logging": {
+        "title": "Settings Logging",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.menu": {
+        "title": "Settings Menu",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.newsletter": {
+        "title": "Settings Newsletter",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.profile": {
+        "title": "Settings Profile",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.scheduler": {
+        "title": "Settings Scheduler",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "settings.workspace": {
+        "title": "Settings Workspace",
+        "description": "Managing site settings and APIs",
+        "learn_more": "/docs/modules/settings.md",
+        "steps": [
+            "Open the Settings module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.dashboard": {
+        "title": "Website Dashboard",
+        "description": "Manage pages & posts on the site.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    }
+}
