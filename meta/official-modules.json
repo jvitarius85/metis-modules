@@ -14,5 +14,11 @@
     "board",
     "website",
     "hermes"
+  ],
+   "required_modules": [
+    "portal",
+    "people",
+    "settings"
+    "profile"
   ]
 }
