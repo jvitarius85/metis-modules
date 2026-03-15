@@ -1,0 +1,18 @@
+{
+  "official_modules": [
+    "portal",
+    "people",
+    "settings",
+    "contacts",
+    "donations",
+    "drive",
+    "calendar",
+    "finance",
+    "newsletter",
+    "profile",
+    "forms",
+    "board",
+    "website",
+    "hermes"
+  ]
+}
