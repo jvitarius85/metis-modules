@@ -1,8 +1,9 @@
 # Métis Platform
 
-![Status](https://img.shields.io/badge/status-active-blue)
-![Architecture](https://img.shields.io/badge/architecture-modular-purple)
-![License](https://img.shields.io/badge/license-private-lightgrey)
+![Architecture](https://img.shields.io/badge/architecture-modular-blue)
+![System](https://img.shields.io/badge/platform-Metis-purple)
+![AI Layer](https://img.shields.io/badge/AI-Hermes-indigo)
+![Status](https://img.shields.io/badge/status-active-green)
 
 ---
 
