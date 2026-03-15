@@ -1,109 +1,294 @@
-# Métis
+# Métis Platform
 
-**Métis** is a modular operations platform designed to centralize governance, communications, data management, and organizational workflows into a single unified system.
-
-Rather than relying on a collection of disconnected SaaS tools, Métis establishes a stable operational framework where people, information, and processes can be managed together through a consistent interface and shared service architecture.
-
-The platform emphasizes clarity, maintainability, and long-term operational stability.
+![Status](https://img.shields.io/badge/status-active-blue)
+![Architecture](https://img.shields.io/badge/architecture-modular-purple)
+![License](https://img.shields.io/badge/license-private-lightgrey)
 
 ---
 
-# Hermes
+# Overview
 
-**Hermes** is the intelligence layer embedded within Métis.
+**Métis** is a modular operational platform designed to centralize governance, communications, data management, and organizational workflows within a unified system.
 
-Where Métis provides the infrastructure and operational framework, Hermes provides reasoning, automation, and system-aware assistance across the platform.
+Rather than relying on fragmented SaaS tools, Métis provides a coordinated infrastructure where people, information, and institutional processes operate through a consistent architecture and shared services layer.
 
-Hermes can interpret requests, automate tasks, analyze data, and assist administrators while operating within the security and permission model of Métis.
+The platform emphasizes:
 
-Hermes is not intended to function as a standalone chatbot. Instead, it acts as an integrated operational assistant that works directly with platform services and modules.
+- operational clarity  
+- long‑term maintainability  
+- secure governance  
+- modular extensibility  
 
 ---
 
-# How Métis and Hermes Work Together
+# Hermes Intelligence Layer
 
-| Component | Role |
-|----------|------|
-| **Métis** | Provides platform infrastructure, modules, governance tools, and shared services |
-| **Hermes** | Provides automation, reasoning, system interpretation, and operational intelligence |
+**Hermes** is the embedded intelligence engine within the Métis platform.
 
-This separation allows the system to remain stable and maintainable while still benefiting from intelligent assistance.
+Where Métis provides the infrastructure, Hermes provides **reasoning, automation, and system‑aware assistance**.
 
-Métis governs the environment. Hermes enhances how that environment is used.
+Hermes operates within the permission and security model of the platform and interacts directly with system services and modules.
+
+Capabilities include:
+
+- administrative automation
+- contextual data queries
+- operational insights
+- workflow assistance
+- reporting generation
+
+Hermes is designed as an **operational intelligence layer**, not a standalone chatbot.
+
+---
+
+# System Relationship
+
+| Component | Responsibility |
+|----------|---------------|
+| Métis | Platform infrastructure and operational modules |
+| Hermes | Automation, reasoning, and system intelligence |
+
+Métis provides the **structure**.  
+Hermes provides the **intelligence**.
 
 ---
 
 # Core Platform Capabilities
 
-Métis is designed to support a wide range of organizational operations, including:
+## Identity & Access
 
-- Identity and user management  
-- Roles, permissions, and access governance  
-- Communication tools such as newsletters and notifications  
-- Document storage and structured file management  
-- Financial operations and reporting  
-- Board governance and administrative workflows  
-- Dashboards, analytics, and reporting tools  
+- User management
+- Role‑based permissions
+- Access governance
+- Audit visibility
+
+## Communications
+
+- Newsletter distribution
+- Notifications
+- Messaging integrations
+- Event coordination
+
+## Data & Documents
+
+- Organizational file storage
+- Document governance
+- Folder structure management
+- External storage integrations
+
+## Governance
+
+- Board portals
+- Organizational recordkeeping
+- Policy management
+- Meeting materials
+
+## Financial Operations
+
+- Donation tracking
+- Transaction records
+- Financial reporting
+- Payment integrations
+
+## Reporting & Analytics
+
+- Operational dashboards
+- Data exports
+- Audit logs
+- System reports
 
 ---
 
-# Architectural Philosophy
+# Hermes Example Requests
 
-The platform is built around several key architectural principles:
+Hermes can assist administrators and operators with natural instructions such as:
 
-- **Modular Design**  
-  Each capability is implemented as an independent module to allow flexible system growth.
+```
+List all board members who have permission to create users
+```
 
-- **Centralized Services**  
-  Core services are shared across modules to prevent duplicated code and inconsistent behavior.
+```
+Create a new staff user with Drive access and board portal permissions
+```
 
-- **API-Driven Integration**  
-  The system is designed to integrate with external services such as payment platforms, cloud storage, and communication tools.
+```
+Generate the monthly donations report
+```
 
-- **Security-First Execution**  
-  All operations run through permission checks, audit logging, and controlled service layers.
+All actions pass through the Métis service layer to ensure permission enforcement and audit logging.
 
-- **Long-Term Maintainability**  
-  The system favors clear architecture and sustainable development practices over short-term complexity.
+---
+
+# Architecture
+
+```
+Users
+   │
+   ▼
++------------------------+
+|        Métis Core      |
+|------------------------|
+| Authentication         |
+| Permissions            |
+| Core Services          |
+| API Layer              |
+| UI Services            |
+| Logging / Audit        |
++-----------+------------+
+            │
+            ▼
+  +---------+---------+
+  |     Modules       |
+  |-------------------|
+  | People            |
+  | Communications    |
+  | Donations         |
+  | Drive             |
+  | Governance        |
+  | Reports           |
+  +---------+---------+
+            │
+            ▼
+       +-----------+
+       |  Hermes   |
+       |-----------|
+       | Automation|
+       | Queries   |
+       | Insights  |
+       +-----------+
+```
+
+---
+
+# Module Structure
+
+```
+modules/
+├── people
+├── communications
+├── donations
+├── drive
+├── calendar
+├── governance
+├── reports
+```
+
+Core services:
+
+```
+core/
+├── auth
+├── permissions
+├── services
+├── api
+├── ui
+├── logging
+├── caching
+```
+
+---
+
+# Security Model
+
+Métis is designed with a security‑first architecture.
+
+Security principles include:
+
+- role‑based access control
+- permission‑gated system actions
+- audit logging of sensitive operations
+- controlled service execution
+- minimal trust boundaries between modules
+
+Hermes actions must always execute through the same permission layer used by human users.
+
+This prevents automation from bypassing governance controls.
+
+---
+
+# Development Standards
+
+The platform follows consistent development guidelines to maintain clarity and stability.
+
+### Code Principles
+
+- avoid duplicated logic
+- centralize shared services
+- modularize large components
+- enforce permission checks
+- maintain clean routing structures
+
+### Frontend Principles
+
+- shared core CSS
+- module‑specific styling layers
+- minimal table usage
+- responsive UI components
+- accessible interface design
+
+### Performance
+
+- caching of repeated queries
+- asynchronous background tasks
+- minimized external API calls
+- modular asset loading
+
+---
+
+# Hermes Capability Framework
+
+Hermes interacts with the platform through defined playbooks.
+
+Example capability domains include:
+
+### Administrative Operations
+
+- user management
+- permission adjustments
+- account provisioning
+
+### Data Analysis
+
+- report generation
+- financial summaries
+- activity analysis
+
+### Workflow Automation
+
+- scheduled processes
+- background tasks
+- operational reminders
+
+### System Assistance
+
+- answering operational questions
+- locating information
+- assisting with configuration
+
+Each Hermes capability operates through structured service calls to ensure transparency and maintainability.
 
 ---
 
 # Intended Use
 
-Métis is designed for organizations that require structured operational infrastructure without the overhead and fragmentation of large enterprise platforms.
+Métis is designed for organizations that require structured operational infrastructure without depending on fragmented SaaS ecosystems.
 
 Typical environments include:
 
-- Nonprofit organizations  
-- Community initiatives  
-- Governance boards  
-- Membership organizations  
-- Administrative teams managing shared operational resources
+- nonprofit organizations
+- community initiatives
+- governance boards
+- membership organizations
+- operational teams
 
-By combining a stable platform architecture with an embedded intelligence layer, Métis and Hermes create an environment where operations become easier to manage, workflows become more efficient, and information becomes easier to understand.
-
----
-
-# Project Structure
-
-Métis follows a modular architecture where each capability exists as an independent module built on top of shared platform services.
-
-Examples of modules include:
-
-- People & Identity
-- Communications
-- Drive & File Management
-- Financial Operations
-- Governance & Board Portal
-- Reporting and Analytics
-
-Hermes operates within this ecosystem as a service layer capable of interacting with modules and assisting users through system-aware automation.
+The platform provides a stable foundation for managing organizational processes, institutional knowledge, and operational coordination.
 
 ---
 
 # Summary
 
-Métis provides the **structure** of the system.  
-Hermes provides the **intelligence** within that structure.
+Métis provides the **system infrastructure**.
 
-Together they form a unified operational platform designed to support organizations with clarity, automation, and long-term stability.
+Hermes provides the **operational intelligence**.
+
+Together they form a unified platform designed to support organizations with stability, automation, and strategic clarity.
