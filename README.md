@@ -97,6 +97,25 @@ Hermes provides the **intelligence**.
 - Audit logs
 - System reports
 
+## Website Builder
+
+Métis includes a built-in **website builder and publishing system** designed to allow organizations to manage public-facing content without relying on external CMS platforms.
+
+The builder provides a structured editing environment that enables administrators to create pages, landing sections, and content layouts while maintaining consistent design standards across the organization’s website.
+
+Key features include:
+
+- visual page composition
+- reusable layout components
+- dynamic content blocks
+- SEO-friendly page generation
+- structured navigation management
+- publishing workflows
+- accessibility-aware design
+
+Unlike traditional CMS platforms, the Métis website builder is integrated directly with the platform’s identity, communications, and data modules. This allows organizations to connect their public presence with internal systems such as newsletters, events, and reporting tools.
+
+The builder is designed to prioritize **simplicity for editors and maintainability for developers** while preserving a consistent interface across the entire platform.
 ---
 
 # Hermes Example Requests
