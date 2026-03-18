@@ -1,6 +1,7 @@
 # API and AJAX Endpoints
 
-Metis routes most interactive behavior through the shared AJAX endpoint exposed by `includes/core/ajax.php` and routed by `includes/core/router.php`.
+Metis routes most interactive behavior through the shared AJAX endpoint exposed by `src/Metis/Core/Ajax/AjaxRuntime.php` and routed by `src/Metis/Core/Routing/RouterRuntime.php`.
+The router matches the normalized path `/api/ajax`; on subdirectory installs the public URL is site-base-prefixed, for example `/metis/api/ajax`.
 
 ## Board
 
@@ -174,4 +175,3 @@ Metis routes most interactive behavior through the shared AJAX endpoint exposed 
 - `POST /api/ajax` with `action=metis_scheduler_run_task_now`
 - `POST /api/ajax` with `action=metis_scheduler_update_task_settings`
 - `POST /api/ajax` with `action=metis_settings_save_section`
-

@@ -353,63 +353,63 @@ if ( ! function_exists( 'metis_core_bootstrap' ) ) {
         if ( $manifest === null ) {
             $manifest = [
                 'autoload' => [
-                    'path' => __DIR__ . '/LegacyAutoload.php',
+                    'path' => __DIR__ . '/Autoload.php',
                     'requires' => [],
                 ],
                 'standalone_runtime' => [
-                    'path' => __DIR__ . '/Runtime/LegacyStandaloneRuntime.php',
+                    'path' => __DIR__ . '/Runtime/StandaloneRuntime.php',
                     'requires' => [],
                 ],
                 'http' => [
-                    'path' => __DIR__ . '/Runtime/LegacyHttpBootstrap.php',
+                    'path' => __DIR__ . '/Runtime/HttpBootstrap.php',
                     'requires' => [ 'autoload' ],
                 ],
                 'log' => [
-                    'path' => __DIR__ . '/LegacyLoggerRuntime.php',
+                    'path' => __DIR__ . '/LoggerRuntime.php',
                     'requires' => [],
                 ],
                 'service_registry' => [
-                    'path' => __DIR__ . '/LegacyServiceRegistry.php',
+                    'path' => __DIR__ . '/ServiceRegistryRuntime.php',
                     'requires' => [ 'autoload' ],
                 ],
                 'router' => [
-                    'path' => __DIR__ . '/Routing/LegacyRouterRuntime.php',
+                    'path' => __DIR__ . '/Routing/RouterRuntime.php',
                     'requires' => [ 'service_registry', 'auth' ],
                 ],
                 'modules' => [
-                    'path' => __DIR__ . '/Modules/LegacyModulesRuntime.php',
+                    'path' => __DIR__ . '/Modules/ModulesRuntime.php',
                     'requires' => [ 'service_registry' ],
                 ],
                 'security_enclave' => [
-                    'path' => __DIR__ . '/Security/LegacySecurityEnclave.php',
+                    'path' => __DIR__ . '/Security/SecurityEnclave.php',
                     'requires' => [],
                 ],
                 'security_runtime_bridge' => [
-                    'path' => __DIR__ . '/Security/LegacySecurityRuntimeBridge.php',
+                    'path' => __DIR__ . '/Security/SecurityRuntimeBridge.php',
                     'requires' => [ 'security_enclave', 'service_registry' ],
                 ],
                 'auth' => [
-                    'path' => __DIR__ . '/Auth/LegacyAuthRuntime.php',
+                    'path' => __DIR__ . '/Auth/AuthRuntime.php',
                     'requires' => [],
                 ],
                 'ajax' => [
-                    'path' => __DIR__ . '/Ajax/LegacyAjaxRuntime.php',
+                    'path' => __DIR__ . '/Ajax/AjaxRuntime.php',
                     'requires' => [],
                 ],
                 'cron' => [
-                    'path' => __DIR__ . '/Cron/LegacyCronRuntime.php',
+                    'path' => __DIR__ . '/Cron/CronRuntime.php',
                     'requires' => [],
                 ],
                 'integrity' => [
-                    'path' => __DIR__ . '/LegacyIntegrityRuntime.php',
+                    'path' => __DIR__ . '/IntegrityRuntime.php',
                     'requires' => [],
                 ],
                 'release' => [
-                    'path' => __DIR__ . '/LegacyReleaseRuntime.php',
+                    'path' => __DIR__ . '/ReleaseRuntime.php',
                     'requires' => [ 'service_registry', 'integrity' ],
                 ],
                 'standalone_bootstrap' => [
-                    'path' => __DIR__ . '/Runtime/LegacyStandaloneApplicationBootstrap.php',
+                    'path' => __DIR__ . '/Runtime/StandaloneApplicationBootstrap.php',
                     'requires' => [ 'standalone_runtime', 'http', 'log', 'service_registry' ],
                 ],
             ];
