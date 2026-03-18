@@ -1,12 +1,16 @@
 <?php
 declare(strict_types=1);
 
-function metis_runtime_trailingslashit( string $value ): string {
-    return rtrim( $value, '/' ) . '/';
+if ( ! function_exists( 'metis_runtime_trailingslashit' ) ) {
+    function metis_runtime_trailingslashit( string $value ): string {
+        return rtrim( $value, '/' ) . '/';
+    }
 }
 
-function metis_runtime_untrailingslashit( string $value ): string {
-    return rtrim( $value, '/' );
+if ( ! function_exists( 'metis_runtime_untrailingslashit' ) ) {
+    function metis_runtime_untrailingslashit( string $value ): string {
+        return rtrim( $value, '/' );
+    }
 }
 
 function metis_runtime_config_base_url(): string {

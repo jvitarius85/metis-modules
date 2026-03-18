@@ -21,7 +21,7 @@ Metis is a modular portal for operations, donor management, finance, communicati
 
 ## Architecture
 
-- **Router**: `src/Metis/Core/Routing/RouterRuntime.php` and `src/Metis/Http` normalize requests, enforce middleware, and dispatch portal, AJAX, webhook, and cron traffic.
-- **Core services**: `src/Metis/Core/ServiceRegistryRuntime.php` registers the compatibility-backed settings, DB, auth, router, backup, release, help, and walkthrough services used by the standalone runtime.
+- **Router**: `includes/core/router.php` and `src/Metis/Http` normalize requests, enforce middleware, and dispatch portal, AJAX, webhook, and cron traffic.
+- **Core services**: `includes/core/service_registry.php` registers shared settings, DB, auth, router, backup, release, help, and walkthrough services.
 - **UI services**: `assets/core.js` provides the shared UI runtime; module assets extend it without replacing the base layer.
-- **Modules**: `modules/*/*.json` define menus, views, permissions, assets, and extension hooks. PHP templates and module services implement behavior.
+- **Modules**: `includes/modules/*/*.json` define menus, views, permissions, assets, and extension hooks. PHP templates and module services implement behavior.

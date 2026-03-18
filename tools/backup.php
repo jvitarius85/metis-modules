@@ -4,7 +4,7 @@ declare(strict_types=1);
 define( 'METIS_STANDALONE', true );
 define( 'METIS_PATH', dirname( __DIR__ ) . '/' );
 
-require_once dirname( __DIR__ ) . '/src/Metis/Core/CoreBootstrap.php';
+require_once dirname( __DIR__ ) . '/includes/core/bootstrap.php';
 metis_core_bootstrap( 'standalone_bootstrap' );
 metis_standalone_boot();
 

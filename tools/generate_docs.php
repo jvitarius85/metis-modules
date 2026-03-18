@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $root = dirname( __DIR__ );
 $docsRoot = $root . '/docs';
-$modulesRoot = $root . '/modules';
+$modulesRoot = $root . '/includes/modules';
 $srcModulesRoot = $root . '/src/Metis/Modules';
 
 function metis_docs_mkdir( string $path ): void {
@@ -56,7 +56,7 @@ function metis_docs_actions_from_file( string $path ): array {
     if ( ! is_file( $path ) ) {
         return [];
     }
-    preg_match_all( "/legacy_ajax_([a-z0-9_]+)/i", (string) file_get_contents( $path ), $matches );
+    preg_match_all( "/wp_ajax_([a-z0-9_]+)/i", (string) file_get_contents( $path ), $matches );
     $actions = array_values( array_unique( array_map( 'strval', $matches[1] ?? [] ) ) );
     sort( $actions );
     return $actions;
@@ -250,13 +250,13 @@ foreach ( [ 'overview', 'installation', 'user-guide', 'admin-guide', 'modules', 
     metis_docs_mkdir( $docsRoot . '/' . $section );
 }
 
-$tableMap = metis_docs_table_map( $root . '/src/Metis/Core/TablesRegistry.php' );
+$tableMap = metis_docs_table_map( $root . '/includes/core/tables.php' );
 $manifests = metis_docs_manifests( $modulesRoot );
 
 $schema = [];
 foreach ( [
-    $root . '/src/Metis/Core/DatabaseRuntime.php',
-    $root . '/src/Metis/Modules/Drive/DriveModule.php',
+    $root . '/includes/core/db.php',
+    $root . '/includes/modules/drive/legacy.php',
     $srcModulesRoot . '/Board/SchemaManager.php',
     $srcModulesRoot . '/Contacts/SchemaManager.php',
     $srcModulesRoot . '/Finance/SchemaManager.php',
@@ -292,10 +292,10 @@ foreach ( $manifests as $slug => $manifest ) {
     $overview .= "- **" . ( $manifest['label'] ?? metis_docs_slug_title( $slug ) ) . "**: " . ( $manifest['description'] ?? 'Module capability area.' ) . "\n";
 }
 $overview .= "\n## Architecture\n\n";
-$overview .= "- **Router**: `src/Metis/Core/Routing/RouterRuntime.php` and `src/Metis/Http` normalize requests, enforce middleware, and dispatch portal, AJAX, webhook, and cron traffic.\n";
-$overview .= "- **Core services**: `src/Metis/Core/ServiceRegistryRuntime.php` registers the compatibility-backed settings, DB, auth, router, backup, release, help, and walkthrough services used by the standalone runtime.\n";
+$overview .= "- **Router**: `includes/core/router.php` and `src/Metis/Http` normalize requests, enforce middleware, and dispatch portal, AJAX, webhook, and cron traffic.\n";
+$overview .= "- **Core services**: `includes/core/service_registry.php` registers shared settings, DB, auth, router, backup, release, help, and walkthrough services.\n";
 $overview .= "- **UI services**: `assets/core.js` provides the shared UI runtime; module assets extend it without replacing the base layer.\n";
-$overview .= "- **Modules**: `modules/*/*.json` define menus, views, permissions, assets, and extension hooks. PHP templates and module services implement behavior.\n";
+$overview .= "- **Modules**: `includes/modules/*/*.json` define menus, views, permissions, assets, and extension hooks. PHP templates and module services implement behavior.\n";
 metis_docs_write( $docsRoot . '/overview/system-overview.md', $overview );
 
 $install = "# Installation\n\n";
@@ -306,11 +306,11 @@ $install .= "- Writable access for logs and storage paths used by Metis.\n";
 $install .= "\n## Setup\n\n";
 $install .= "1. Place the repository in the web root or plugin/application directory expected by your WordPress or standalone runtime.\n";
 $install .= "2. Configure `config/database.php` and environment-specific settings before first boot.\n";
-$install .= "3. Ensure `src/Metis/Core/DatabaseRuntime.php` runs so core tables and module schema managers can create their tables.\n";
+$install .= "3. Ensure `includes/core/db.php` runs so core tables and module schema managers can create their tables.\n";
 $install .= "4. Open the portal, authenticate, and complete initial settings for branding, API keys, workspace integration, help, and scheduling.\n";
 $install .= "\n## First Boot\n\n";
 $install .= "- The core bootstrap loads autoloading, service registration, routing, security boundaries, and module manifests.\n";
-$install .= "- Modules boot from `modules/*` and may run schema installers from their namespaced services.\n";
+$install .= "- Modules boot from `includes/modules/*` and may run schema installers from their namespaced services.\n";
 $install .= "- Initial admin work should include settings review, backup configuration, cron secret setup, and help system verification.\n";
 metis_docs_write( $docsRoot . '/installation/setup.md', $install );
 
@@ -401,7 +401,7 @@ foreach ( $manifests as $slug => $manifest ) {
 }
 
 $databaseDoc = "# Database Schema\n\n";
-$databaseDoc .= "This section is generated from `src/Metis/Core/DatabaseRuntime.php`, module schema managers, and table registry definitions.\n\n";
+$databaseDoc .= "This section is generated from `includes/core/db.php`, module schema managers, and table registry definitions.\n\n";
 foreach ( $schema as $tableKey => $definition ) {
     $databaseDoc .= "## `" . $tableKey . "` (`" . $definition['name'] . "`)\n\n";
     $databaseDoc .= "### Fields\n\n";
@@ -423,7 +423,7 @@ foreach ( $schema as $tableKey => $definition ) {
 metis_docs_write( $docsRoot . '/database/schema.md', $databaseDoc );
 
 $apiDoc = "# API and AJAX Endpoints\n\n";
-$apiDoc .= "Metis routes most interactive behavior through the shared AJAX endpoint exposed by `src/Metis/Core/Ajax/AjaxRuntime.php` and routed by `src/Metis/Core/Routing/RouterRuntime.php`.\n\n";
+$apiDoc .= "Metis routes most interactive behavior through the shared AJAX endpoint exposed by `includes/core/ajax.php` and routed by `includes/core/router.php`.\n\n";
 foreach ( $manifests as $slug => $manifest ) {
     $ajaxFile = (string) ( $manifest['assets']['ajax'] ?? '' );
     $moduleDir = $modulesRoot . '/' . $slug;
@@ -441,14 +441,14 @@ metis_docs_write( $docsRoot . '/api/endpoints.md', $apiDoc );
 
 $developer = "# Developer Guide\n\n";
 $developer .= "## Module Creation\n\n";
-$developer .= "- Create a manifest in `modules/<module>/<module>.json`.\n";
+$developer .= "- Create a manifest in `includes/modules/<module>/<module>.json`.\n";
 $developer .= "- Define views, assets, permissions, help topics, and optional services.\n";
 $developer .= "- Keep module logic behind the existing router, service, and UI layers instead of bypassing them.\n";
 $developer .= "\n## Router Usage\n\n";
 $developer .= "- Portal routes are derived from domain and view query vars.\n";
-$developer .= "- AJAX routes go through the normalized `/api/ajax` path and inherit the site base path on subdirectory installs, for example `/metis/api/ajax`.\n";
+$developer .= "- AJAX routes go through `/api/ajax` and should register secure controller definitions when possible.\n";
 $developer .= "\n## Service Architecture\n\n";
-$developer .= "- Register shared services through `src/Metis/Core/ServiceRegistryRuntime.php`.\n";
+$developer .= "- Register shared services through `includes/core/service_registry.php`.\n";
 $developer .= "- Reuse `Core_Settings_Service`, `Metis_Tables`, and existing module services before adding new abstractions.\n";
 $developer .= "\n## UI Services\n\n";
 $developer .= "- Extend the shared `Metis` JS namespace instead of shipping isolated frameworks.\n";

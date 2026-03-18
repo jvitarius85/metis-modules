@@ -30,7 +30,12 @@ function metis_build_http_router(): Metis_Http_Router {
                 static function ( Metis_Http_Request $request ): ?array {
                     return metis_runtime_asset_match_request( $request );
                 },
-                'metis_router_handle_runtime_asset_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_runtime_asset_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_runtime_asset_request( $request );
+                }
             );
 
             $router->register(
@@ -39,7 +44,12 @@ function metis_build_http_router(): Metis_Http_Router {
                 static function ( Metis_Http_Request $request ): ?array {
                     return metis_module_asset_match_request( $request );
                 },
-                'metis_router_handle_module_asset_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_module_asset_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_module_asset_request( $request );
+                }
             );
 
             $router->register(
@@ -57,7 +67,12 @@ function metis_build_http_router(): Metis_Http_Router {
 
                     return metis_parse_webhook_path( $request->path() );
                 },
-                'metis_webhook_handle_router_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_webhook_handle_router_request' ) ) {
+                        return null;
+                    }
+                    return metis_webhook_handle_router_request( $request );
+                }
             );
         }
     );
@@ -71,7 +86,12 @@ function metis_build_http_router(): Metis_Http_Router {
                 static function ( Metis_Http_Request $request ): ?array {
                     return metis_untrailingslashit( $request->path() ) === '/api/auth/resolve' ? [] : null;
                 },
-                'metis_router_handle_auth_resolve_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_auth_resolve_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_auth_resolve_request( $request );
+                }
             );
 
             $router->register(
@@ -80,7 +100,12 @@ function metis_build_http_router(): Metis_Http_Router {
                 static function ( Metis_Http_Request $request ): ?array {
                     return metis_untrailingslashit( $request->path() ) === '/api/auth/passkeys/begin' ? [] : null;
                 },
-                'metis_router_handle_auth_passkey_begin_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_auth_passkey_begin_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_auth_passkey_begin_request( $request );
+                }
             );
 
             $router->register(
@@ -89,7 +114,12 @@ function metis_build_http_router(): Metis_Http_Router {
                 static function ( Metis_Http_Request $request ): ?array {
                     return metis_untrailingslashit( $request->path() ) === '/api/auth/passkeys/complete' ? [] : null;
                 },
-                'metis_router_handle_auth_passkey_complete_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_auth_passkey_complete_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_auth_passkey_complete_request( $request );
+                }
             );
         }
     );
@@ -103,7 +133,12 @@ function metis_build_http_router(): Metis_Http_Router {
                 static function ( Metis_Http_Request $request ): ?array {
                     return $request->path() === '/api/system/version' ? [] : null;
                 },
-                'metis_router_handle_system_version_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_system_version_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_system_version_request( $request );
+                }
             );
         }
     );
@@ -121,7 +156,13 @@ function metis_build_http_router(): Metis_Http_Router {
 
                     return metis_contacts_carddav_match_request( $request );
                 },
-                'metis_contacts_carddav_handle_request'
+                static function ( Metis_Http_Request $request ): array {
+                    if ( ! function_exists( 'metis_contacts_carddav_handle_request' ) ) {
+                        return [ 'status' => 501, 'body' => 'CardDAV not available.' ];
+                    }
+
+                    return metis_contacts_carddav_handle_request( $request );
+                }
             );
         }
     );
@@ -139,7 +180,12 @@ function metis_build_http_router(): Metis_Http_Router {
 
                     return [];
                 },
-                'metis_router_handle_system_cron_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_system_cron_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_system_cron_request( $request );
+                }
             );
         }
     );
@@ -173,7 +219,12 @@ function metis_build_http_router(): Metis_Http_Router {
                         'view'   => $view,
                     ];
                 },
-                'metis_router_handle_portal_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_portal_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_portal_request( $request );
+                }
             );
         }
     );
@@ -196,7 +247,12 @@ function metis_build_http_router(): Metis_Http_Router {
 
                     return [ 'ajax_action' => $action ];
                 },
-                'metis_router_handle_ajax_request'
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_ajax_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_ajax_request( $request );
+                }
             );
         }
     );
@@ -255,17 +311,67 @@ function metis_register_manifest_module_routes( Metis_Http_Router $router ): voi
 }
 
 function metis_router_configure_middleware( Metis_Http_Router $router ): void {
-    $router->register_middleware( 'request.normalize', 'metis_router_normalize_request' );
-    $router->register_middleware( 'request.security', 'metis_router_require_request_security' );
-    $router->register_middleware( 'auth.security', 'metis_router_require_auth_request_security' );
-    $router->register_middleware( 'route.security', 'metis_router_require_route_security' );
-    $router->register_middleware( 'portal.auth', 'metis_router_require_portal_authentication' );
-    $router->register_middleware( 'portal.permissions', 'metis_router_require_portal_permissions' );
-    $router->register_middleware( 'ajax.contract', 'metis_router_require_ajax_contract' );
-    $router->register_middleware( 'ajax.security', 'metis_router_require_ajax_security' );
-    $router->register_middleware( 'system.cron.security', 'metis_router_require_system_cron_security' );
+    $router->register_middleware( 'request.normalize', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_normalize_request' ) ) {
+            return $next( $request );
+        }
+        return metis_router_normalize_request( $request, $next );
+    } );
+    $router->register_middleware( 'request.security', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_request_security' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_request_security( $request, $next );
+    } );
+    $router->register_middleware( 'auth.security', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_auth_request_security' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_auth_request_security( $request, $next );
+    } );
+    $router->register_middleware( 'route.security', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_route_security' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_route_security( $request, $next );
+    } );
+    $router->register_middleware( 'portal.auth', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_portal_authentication' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_portal_authentication( $request, $next );
+    } );
+    $router->register_middleware( 'portal.permissions', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_portal_permissions' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_portal_permissions( $request, $next );
+    } );
+    $router->register_middleware( 'ajax.contract', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_ajax_contract' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_ajax_contract( $request, $next );
+    } );
+    $router->register_middleware( 'ajax.security', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_ajax_security' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_ajax_security( $request, $next );
+    } );
+    $router->register_middleware( 'system.cron.security', static function ( Metis_Http_Request $request, callable $next ): mixed {
+        if ( ! function_exists( 'metis_router_require_system_cron_security' ) ) {
+            return $next( $request );
+        }
+        return metis_router_require_system_cron_security( $request, $next );
+    } );
     if ( function_exists( 'metis_contacts_carddav_require_authentication' ) ) {
-        $router->register_middleware( 'contacts.auth', 'metis_contacts_carddav_require_authentication' );
+        $router->register_middleware( 'contacts.auth', static function ( Metis_Http_Request $request, callable $next ): mixed {
+            if ( ! function_exists( 'metis_contacts_carddav_require_authentication' ) ) {
+                return $next( $request );
+            }
+            return metis_contacts_carddav_require_authentication( $request, $next );
+        } );
         $router->register_middleware_group( 'contacts.stack', [ 'contacts.auth', 'route.security' ] );
     } else {
         $router->register_middleware_group( 'contacts.stack', [ 'route.security' ] );

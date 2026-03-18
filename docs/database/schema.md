@@ -1,6 +1,6 @@
 # Database Schema
 
-This section is generated from `src/Metis/Core/DatabaseRuntime.php`, module schema managers, and table registry definitions.
+This section is generated from `includes/core/db.php`, module schema managers, and table registry definitions.
 
 ## `table` (`table`)
 
@@ -1962,3 +1962,4 @@ This section is generated from `src/Metis/Core/DatabaseRuntime.php`, module sche
 
 - Created and updated through module services, AJAX handlers, scheduled jobs, or sync services that reference this table.
 - Indexes should be preserved when adding filters, joins, or pagination flows against this table.
+

@@ -8,6 +8,7 @@ if ( PHP_SAPI !== 'cli' ) {
 
 define( 'METIS_STANDALONE', true );
 define( 'METIS_PREFIX', 'metis' );
+define( 'METIS_VERSION', '1.6.0' );
 define( 'METIS_PATH', dirname( __DIR__ ) . '/' );
 define( 'METIS_URL', 'http://localhost/metis/' );
 
@@ -17,8 +18,7 @@ $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
 
-require_once dirname( __DIR__ ) . '/src/Metis/Core/CoreBootstrap.php';
-metis_define_system_version( dirname( __DIR__ ) . '/' );
+require_once dirname( __DIR__ ) . '/includes/core/bootstrap.php';
 metis_core_bootstrap( [ 'standalone_bootstrap', 'release' ] );
 
 function metis_release_cli_usage(): never {

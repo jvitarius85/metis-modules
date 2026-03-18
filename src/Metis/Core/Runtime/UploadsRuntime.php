@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
-function metis_runtime_make_dir( string $target ): bool {
-    return is_dir( $target ) || mkdir( $target, 0775, true );
+if ( ! function_exists( 'metis_runtime_make_dir' ) ) {
+    function metis_runtime_make_dir( string $target ): bool {
+        return is_dir( $target ) || mkdir( $target, 0775, true );
+    }
 }
 
 function metis_normalize_mime_map( array $mimes ): array {

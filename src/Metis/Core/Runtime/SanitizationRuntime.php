@@ -53,8 +53,10 @@ function metis_runtime_unslash( mixed $value ): mixed {
     return is_string( $value ) ? stripslashes( $value ) : $value;
 }
 
-function metis_runtime_parse_url( string $url, int $component = -1 ): mixed {
-    return parse_url( $url, $component );
+if ( ! function_exists( 'metis_runtime_parse_url' ) ) {
+    function metis_runtime_parse_url( string $url, int $component = -1 ): mixed {
+        return parse_url( $url, $component );
+    }
 }
 
 function metis_runtime_kses_post( string $html ): string {
@@ -65,8 +67,10 @@ function get_bloginfo( string $show ): string {
     return $show === 'charset' ? 'UTF-8' : '';
 }
 
-function metis_runtime_json_encode( mixed $value, int $flags = 0 ): string|false {
-    return json_encode( $value, $flags | JSON_UNESCAPED_SLASHES );
+if ( ! function_exists( 'metis_runtime_json_encode' ) ) {
+    function metis_runtime_json_encode( mixed $value, int $flags = 0 ): string|false {
+        return json_encode( $value, $flags | JSON_UNESCAPED_SLASHES );
+    }
 }
 
 function esc_html( mixed $value ): string {
