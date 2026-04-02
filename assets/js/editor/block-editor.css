@@ -870,3 +870,116 @@
 
 /* Prevent text selection during drag */
 .mube-root.mube-dragging * { user-select: none !important; cursor: grabbing !important; }
+
+/* ============================================================
+   MEDIA PICKER MODAL
+   ============================================================ */
+.mube-media-modal {
+  position: fixed; inset: 0; z-index: 9500;
+  display: flex; align-items: center; justify-content: center;
+}
+[hidden].mube-media-modal { display: none; }
+.mube-media-modal-bg {
+  position: absolute; inset: 0; background: rgba(0,0,0,.5);
+}
+.mube-media-modal-panel {
+  position: relative; z-index: 1;
+  background: #fff; border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  width: 860px; max-width: 95vw; max-height: 85vh;
+  display: flex; flex-direction: column;
+}
+.mube-media-modal-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0;
+}
+.mube-media-modal-head > span { font-weight: 600; font-size: 14px; flex-shrink: 0; }
+.mube-media-search {
+  flex: 1; padding: 6px 10px;
+  border: 1px solid #e2e8f0; border-radius: 5px;
+  font-size: 13px; outline: none;
+}
+.mube-media-search:focus { border-color: #3b82f6; }
+.mube-media-modal-body { flex: 1; overflow-y: auto; padding: 12px; }
+.mube-media-modal-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-top: 1px solid #e2e8f0; flex-shrink: 0;
+}
+.mube-media-status { font-size: 12px; color: #64748b; }
+.mube-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.mube-media-item {
+  border: 2px solid #e2e8f0; border-radius: 6px;
+  overflow: hidden; cursor: pointer;
+  transition: border-color .12s, box-shadow .12s;
+}
+.mube-media-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
+.mube-media-item img {
+  width: 100%; height: 90px;
+  object-fit: cover; display: block; background: #f8fafc;
+}
+.mube-media-item-name {
+  font-size: 10px; color: #64748b;
+  padding: 4px 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mube-media-loading,
+.mube-media-empty {
+  padding: 40px; text-align: center;
+  color: #94a3b8; font-size: 13px;
+}
+
+/* Image preview thumbnail in properties panel */
+.mube-img-preview {
+  width: 100%; height: 80px; border-radius: 5px;
+  overflow: hidden; margin-bottom: 6px;
+  background: #f1f5f9;
+  display: flex; align-items: center; justify-content: center;
+}
+.mube-img-preview img { width: 100%; height: 100%; object-fit: cover; }
+.mube-img-preview--empty { font-size: 11px; color: #94a3b8; }
+
+/* Choose from Media / Remove buttons in panel */
+.mube-btn-choose-img {
+  width: 100%; padding: 7px;
+  border: 1px solid #e2e8f0; border-radius: 5px;
+  background: #f8fafc; font-size: 12px; font-weight: 500;
+  color: #3b82f6; cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.mube-btn-choose-img:hover { background: #eff6ff; border-color: #3b82f6; }
+.mube-btn-clear-img {
+  width: 100%; padding: 5px; margin-top: 4px;
+  border: 1px solid #fecaca; border-radius: 5px;
+  background: #fff; font-size: 11px; color: #ef4444; cursor: pointer;
+  transition: background .12s;
+}
+.mube-btn-clear-img:hover { background: #fef2f2; }
+
+/* ============================================================
+   VERTICAL RESIZE HANDLE
+   ============================================================ */
+.mube-vresize {
+  height: 8px; cursor: ns-resize;
+  background: transparent; position: relative;
+  opacity: 0; transition: opacity .15s;
+  flex-shrink: 0;
+}
+.mube-module:hover .mube-vresize,
+.mube-module.is-selected .mube-vresize { opacity: 1; }
+.mube-vresize::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px; height: 4px;
+  background: #cbd5e1; border-radius: 2px;
+  transition: background .12s;
+}
+.mube-vresize:hover::after,
+.mube-module.is-selected .mube-vresize::after { background: #3b82f6; }
