@@ -229,19 +229,30 @@ function MetisBlockEditor(containerId, config) {
   }
 
   /* State */
-  this.sel       = null;   /* {kind:'section'|'column'|'module', sIdx, cIdx, mIdx} */
-  this._drag     = null;
-  this._history  = [];
-  this._future   = [];
-  this._hLimit   = 60;
-  this._hmuting  = false;
-  this._panelTab = 'general';
-  this._device   = 'desktop';
-  this._saveTimer= null;
-  this._webparts = [];
-  this._cpStyle  = null;  /* copied style */
-  this._forms    = [];    /* list of available forms */
+  this.sel          = null;   /* {kind:'section'|'column'|'module', sIdx, cIdx, mIdx} */
+  this._drag        = null;
+  this._history     = [];
+  this._future      = [];
+  this._hLimit      = 60;
+  this._hmuting     = false;
+  this._panelTab    = 'general'; /* general | style | advanced — block sub-tab */
+  this._sidebarTab  = 'blocks';  /* blocks | properties | settings — main sidebar tab */
+  this._device      = 'desktop';
+  this._saveTimer   = null;
+  this._webparts    = [];
+  this._cpStyle     = null;  /* copied style */
+  this._forms       = [];    /* list of available forms */
   this._contextProfile = this.config.contextProfile || null;
+
+  /* Page-level metadata (Status, Slug, SEO, etc.) — populated by page-builder */
+  this._pageMeta = Object.assign({
+    status: 'draft', slug: '', is_homepage: false,
+    seo_title: '', seo_desc: '', excerpt: '',
+    created_by: '', context: this.context,
+    schedule_at: ''
+  }, this.config.pageMeta || {});
+  this._onPageMetaChange = typeof this.config.onPageMetaChange === 'function'
+    ? this.config.onPageMetaChange : function() {};
 
   /* Block defs: merge server registry */
   this._defs = this._buildDefs();
@@ -314,7 +325,7 @@ MetisBlockEditor.prototype.undo = function() {
   this._hmuting = true;
   this.layout = ensureLayout(this._history.pop());
   this.sel = null; this._hmuting = false;
-  this._renderCanvas(); this._renderPanel(); this.onChange(this.layout);
+  this._renderCanvas(); this._renderPropsPane(); this.onChange(this.layout);
 };
 MetisBlockEditor.prototype.redo = function() {
   if (!this._future.length) return;
@@ -322,7 +333,7 @@ MetisBlockEditor.prototype.redo = function() {
   this._hmuting = true;
   this.layout = ensureLayout(this._future.pop());
   this.sel = null; this._hmuting = false;
-  this._renderCanvas(); this._renderPanel(); this.onChange(this.layout);
+  this._renderCanvas(); this._renderPropsPane(); this.onChange(this.layout);
 };
 
 /* =========================================================================
@@ -332,53 +343,64 @@ MetisBlockEditor.prototype._render = function() {
   this.container.innerHTML = this._shellHtml();
   this._renderPalette();
   this._renderCanvas();
-  this._renderPanel();
+  this._renderPropsPane();
+  this._renderSettingsPane();
 };
 
 MetisBlockEditor.prototype._shellHtml = function() {
   return [
     '<div class="mube-root mube-ctx-' + escA(this.context) + '" id="mube-root">',
-    /* LEFT SIDEBAR */
+
+    /* ── UNIFIED LEFT SIDEBAR ── */
     '  <div class="mube-sidebar" id="mube-sidebar">',
-    '    <div class="mube-sidebar-head"><span class="mube-sidebar-title">Blocks</span></div>',
-    '    <div class="mube-palette-search-wrap">',
-    '      <input id="mube-palette-search" type="search" class="mube-palette-search" placeholder="Search blocks\u2026" autocomplete="off">',
+
+    /* Sidebar tab bar */
+    '    <div class="mube-stab-bar" role="tablist">',
+    '      <button type="button" class="mube-stab is-active" data-stab="blocks"     role="tab" aria-selected="true">Blocks</button>',
+    '      <button type="button" class="mube-stab"           data-stab="properties" role="tab" aria-selected="false">Properties</button>',
+    '      <button type="button" class="mube-stab"           data-stab="settings"   role="tab" aria-selected="false">Settings</button>',
     '    </div>',
-    '    <div class="mube-palette-scroll">',
-    '      <div class="mube-palette" id="mube-palette"></div>',
-    '      <div class="mube-webparts-wrap" id="mube-webparts-wrap">',
-    '        <div class="mube-webparts-head">',
-    '          <span>Saved Sections</span>',
-    '          <button type="button" class="mube-icon-btn" data-action="refresh-webparts" title="Refresh">',
-    '            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
-    '          </button>',
+
+    /* Pane: Blocks */
+    '    <div class="mube-spane is-active" id="mube-spane-blocks" data-spane="blocks">',
+    '      <div class="mube-palette-search-wrap">',
+    '        <input id="mube-palette-search" type="search" class="mube-palette-search" placeholder="Search blocks\u2026" autocomplete="off">',
+    '      </div>',
+    '      <div class="mube-palette-scroll">',
+    '        <div class="mube-palette" id="mube-palette"></div>',
+    '        <div class="mube-webparts-wrap" id="mube-webparts-wrap">',
+    '          <div class="mube-webparts-head">',
+    '            <span>Saved Sections</span>',
+    '            <button type="button" class="mube-icon-btn" data-action="refresh-webparts" title="Refresh">',
+    '              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+    '            </button>',
+    '          </div>',
+    '          <div class="mube-webparts-list" id="mube-webparts-list"></div>',
     '        </div>',
-    '        <div class="mube-webparts-list" id="mube-webparts-list"></div>',
     '      </div>',
     '    </div>',
+
+    /* Pane: Properties (block settings — General / Style / Advanced sub-tabs) */
+    '    <div class="mube-spane" id="mube-spane-properties" data-spane="properties">',
+    '      <div id="mube-props-body" class="mube-props-body"></div>',
+    '    </div>',
+
+    /* Pane: Settings (page-level meta) */
+    '    <div class="mube-spane" id="mube-spane-settings" data-spane="settings">',
+    '      <div id="mube-settings-body" class="mube-props-body"></div>',
+    '    </div>',
     '  </div>',
-    /* CANVAS AREA */
+
+    /* ── CANVAS ── */
     '  <div class="mube-canvas-wrap" id="mube-canvas-wrap">',
     '    <div class="mube-canvas" id="mube-canvas" data-device="desktop">',
     '    </div>',
     '  </div>',
-    /* RIGHT PANEL */
-    '  <div class="mube-rpanel" id="mube-rpanel" hidden>',
-    '    <div class="mube-rpanel-head">',
-    '      <div class="mube-rpanel-tabs" id="mube-rpanel-tabs" role="tablist">',
-    '        <button type="button" class="mube-rtab is-active" data-tab="general" role="tab">General</button>',
-    '        <button type="button" class="mube-rtab" data-tab="style" role="tab">Style</button>',
-    '        <button type="button" class="mube-rtab" data-tab="advanced" role="tab">Advanced</button>',
-    '      </div>',
-    '      <button type="button" class="mube-icon-btn mube-rpanel-close" id="mube-rpanel-close" title="Close" aria-label="Close panel">',
-    '        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-    '      </button>',
-    '    </div>',
-    '    <div class="mube-rpanel-body" id="mube-rpanel-body"></div>',
-    '  </div>',
-    /* FLOATING RICH-TEXT TOOLBAR */
+
+    /* ── FLOATING RICH-TEXT TOOLBAR ── */
     '  <div class="mube-ft" id="mube-ft" hidden></div>',
-    /* SHORTCUTS HELP */
+
+    /* ── SHORTCUTS HELP ── */
     '  <div class="mube-shortcuts" id="mube-shortcuts" hidden>',
     '    <div class="mube-shortcuts-bg" data-action="close-shortcuts"></div>',
     '    <div class="mube-shortcuts-panel" role="dialog">',
@@ -775,44 +797,193 @@ MetisBlockEditor.prototype._applySelClasses = function() {
 MetisBlockEditor.prototype._select = function(sel) {
   this.sel = sel;
   this._applySelClasses();
-  var panel = document.getElementById('mube-rpanel');
-  if (panel) panel.hidden = !sel;
-  this._renderPanel();
+  if (sel) this._switchSidebarTab('properties');
+  this._renderPropsPane();
 };
 
 MetisBlockEditor.prototype._deselect = function() {
   this.sel = null;
   this._applySelClasses();
-  var panel = document.getElementById('mube-rpanel');
-  if (panel) panel.hidden = true;
+  this._renderPropsPane();
+  /* Stay on whichever tab we're on — don't force back to blocks */
 };
 
 /* =========================================================================
-   RIGHT PANEL
+   SIDEBAR TAB SWITCHING
    ========================================================================= */
-MetisBlockEditor.prototype._renderPanel = function() {
-  var body = document.getElementById('mube-rpanel-body');
-  var panel = document.getElementById('mube-rpanel');
-  if (!body || !panel) return;
-  if (!this.sel) { panel.hidden = true; return; }
-  panel.hidden = false;
-  body.innerHTML = this._panelContent();
-
-  /* Re-bind all panel inputs for live preview */
-  var self = this;
-  body.querySelectorAll('[data-bind]').forEach(function(el) {
-    self._bindInput(el);
+MetisBlockEditor.prototype._switchSidebarTab = function(tab) {
+  this._sidebarTab = tab;
+  var root = document.getElementById('mube-root');
+  if (!root) return;
+  /* Update tab buttons */
+  root.querySelectorAll('.mube-stab').forEach(function(btn) {
+    var active = btn.dataset.stab === tab;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  /* Update panes */
+  root.querySelectorAll('.mube-spane').forEach(function(pane) {
+    pane.classList.toggle('is-active', pane.dataset.spane === tab);
   });
 };
 
-MetisBlockEditor.prototype._panelContent = function() {
+/* =========================================================================
+   PROPERTIES PANE  (block General / Style / Advanced)
+   ========================================================================= */
+MetisBlockEditor.prototype._renderPropsPane = function() {
+  var body = document.getElementById('mube-props-body');
+  if (!body) return;
+  body.innerHTML = this._propsPaneContent();
+  var self = this;
+  body.querySelectorAll('[data-bind]').forEach(function(el) { self._bindInput(el); });
+};
+
+MetisBlockEditor.prototype._propsPaneContent = function() {
+  if (!this.sel) {
+    return '<div class="mube-props-empty">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M3 6h18M3 12h18M3 18h18"/></svg>'
+      + '<p>Click a block on the canvas<br>to edit its settings.</p>'
+      + '</div>';
+  }
   var sel = this.sel;
-  if (!sel) return '';
   var tab = this._panelTab;
-  if (sel.kind === 'section') return this._panelSection(sel, tab);
-  if (sel.kind === 'column')  return this._panelColumn(sel, tab);
-  if (sel.kind === 'module')  return this._panelModule(sel, tab);
-  return '';
+
+  /* Sub-tab bar */
+  var subTabs = ['general','style','advanced'].map(function(t) {
+    return '<button type="button" class="mube-ptab' + (tab === t ? ' is-active' : '') + '" data-ptab="' + t + '">'
+      + t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
+  }).join('');
+  var html = '<div class="mube-ptab-bar">' + subTabs + '</div>';
+
+  if (sel.kind === 'section') html += this._panelSection(sel, tab);
+  else if (sel.kind === 'column')  html += this._panelColumn(sel, tab);
+  else if (sel.kind === 'module')  html += this._panelModule(sel, tab);
+  return html;
+};
+
+/* =========================================================================
+   SETTINGS PANE  (page-level metadata)
+   ========================================================================= */
+MetisBlockEditor.prototype._renderSettingsPane = function() {
+  var body = document.getElementById('mube-settings-body');
+  if (!body) return;
+  body.innerHTML = this._settingsPaneContent();
+  var self = this;
+  /* Bind all settings inputs */
+  body.querySelectorAll('[data-page-bind]').forEach(function(el) {
+    self._bindPageMetaInput(el);
+  });
+};
+
+MetisBlockEditor.prototype._settingsPaneContent = function() {
+  var m   = this._pageMeta || {};
+  var ctx = String(m.context || this.context || 'website');
+  var isPage     = ctx === 'website' || ctx === 'page';
+  var isPost     = ctx === 'post';
+  var isTemplate = ctx === 'template';
+  var isNewsletter = ctx === 'newsletter' || ctx === 'newsletter_template';
+
+  var statusOpts = isTemplate
+    ? [{v:'draft',l:'Draft'},{v:'published',l:'Published'}]
+    : [{v:'draft',l:'Draft'},{v:'scheduled',l:'Scheduled'},{v:'published',l:'Published'}];
+
+  var html = '<div class="mube-settings-section">';
+  html += '<div class="mube-settings-label">Page</div>';
+
+  /* Status */
+  html += '<div class="mube-pfield">';
+  html += '<label class="mube-plabel">Status</label>';
+  html += '<select class="mube-fi" id="mube-meta-status" data-page-bind="status">';
+  statusOpts.forEach(function(o) {
+    html += '<option value="' + escA(o.v) + '"' + (m.status === o.v ? ' selected' : '') + '>' + escH(o.l) + '</option>';
+  });
+  html += '</select></div>';
+
+  /* Scheduled At — shown only when status=scheduled */
+  var schedDisplay = m.status === 'scheduled' ? '' : ' style="display:none"';
+  html += '<div class="mube-pfield" id="mube-meta-schedule-wrap"' + schedDisplay + '>';
+  html += '<label class="mube-plabel">Publish Date</label>';
+  html += '<input type="datetime-local" class="mube-fi" id="mube-meta-schedule-at" data-page-bind="schedule_at" value="' + escA(m.schedule_at || '') + '">';
+  html += '</div>';
+
+  /* Slug */
+  if (!isNewsletter) {
+    html += '<div class="mube-pfield">';
+    html += '<label class="mube-plabel">Slug</label>';
+    html += '<input type="text" class="mube-fi" id="mube-meta-slug" data-page-bind="slug" value="' + escA(m.slug || '') + '" placeholder="my-page-slug">';
+    html += '</div>';
+  }
+
+  /* Set as Homepage — pages only */
+  if (isPage) {
+    html += '<div class="mube-pfield mube-pfield--check">';
+    html += '<label class="mube-check-label">';
+    html += '<input type="checkbox" id="mube-meta-homepage" data-page-bind="is_homepage"' + (m.is_homepage ? ' checked' : '') + '>';
+    html += '<span>Set as Homepage</span></label>';
+    html += '</div>';
+  }
+
+  /* Excerpt — posts only */
+  if (isPost) {
+    html += '<div class="mube-pfield">';
+    html += '<label class="mube-plabel">Excerpt</label>';
+    html += '<textarea class="mube-fi mube-fita" rows="3" id="mube-meta-excerpt" data-page-bind="excerpt" placeholder="Short summary\u2026">' + escH(m.excerpt || '') + '</textarea>';
+    html += '</div>';
+  }
+
+  html += '</div>'; /* end mube-settings-section */
+
+  /* SEO section — not for newsletter */
+  if (!isNewsletter) {
+    html += '<div class="mube-settings-section">';
+    html += '<div class="mube-settings-label">SEO</div>';
+    html += '<div class="mube-pfield">';
+    html += '<label class="mube-plabel">SEO Title</label>';
+    html += '<input type="text" class="mube-fi" id="mube-meta-seo-title" data-page-bind="seo_title" value="' + escA(m.seo_title || '') + '" placeholder="Overrides page title\u2026">';
+    html += '</div>';
+    html += '<div class="mube-pfield">';
+    html += '<label class="mube-plabel">Meta Description</label>';
+    html += '<textarea class="mube-fi mube-fita" rows="3" id="mube-meta-seo-desc" data-page-bind="seo_desc" placeholder="160 chars max\u2026">' + escH(m.seo_desc || '') + '</textarea>';
+    html += '</div>';
+    html += '</div>';
+  }
+
+  /* Info section */
+  html += '<div class="mube-settings-section">';
+  html += '<div class="mube-settings-label">Info</div>';
+  html += '<div class="mube-pfield">';
+  html += '<label class="mube-plabel">Created By</label>';
+  html += '<div class="mube-meta-value">' + escH(m.created_by || '\u2014') + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  return html;
+};
+
+/* Bind a page-meta input to _pageMeta and fire onPageMetaChange */
+MetisBlockEditor.prototype._bindPageMetaInput = function(el) {
+  var self = this;
+  var key = el.dataset.pageBind;
+  if (!key) return;
+  var handler = function() {
+    var val = el.type === 'checkbox' ? el.checked : el.value;
+    self._pageMeta[key] = val;
+    /* Show/hide scheduled date field */
+    if (key === 'status') {
+      var wrap = document.getElementById('mube-meta-schedule-wrap');
+      if (wrap) wrap.style.display = val === 'scheduled' ? '' : 'none';
+    }
+    self._onPageMetaChange(Object.assign({}, self._pageMeta));
+  };
+  el.addEventListener('input',  handler);
+  el.addEventListener('change', handler);
+};
+
+/* Public method for page-builder to push updated metadata into editor */
+MetisBlockEditor.prototype.setPageMeta = function(meta) {
+  if (!meta || typeof meta !== 'object') return;
+  Object.assign(this._pageMeta, meta);
+  this._renderSettingsPane();
 };
 
 /* helper shortcuts */
@@ -1064,7 +1235,7 @@ MetisBlockEditor.prototype._applyBind = function(key, val, si, ci, mi) {
         if (others.length === 1) others[0].width = Math.max(10, others[0].width - diff);
         col.width = newW;
         /* Sync paired width input/range in panel */
-        var panel = document.getElementById('mube-rpanel-body');
+        var panel = document.getElementById('mube-props-body');
         if (panel) {
           panel.querySelectorAll('[data-bind="column.width"]').forEach(function(el) {
             if (el !== document.activeElement) el.value = String(Math.round(newW));
@@ -1275,19 +1446,21 @@ MetisBlockEditor.prototype._bindEvents = function() {
     }
   });
 
-  /* ---- Panel tab switching ---- */
+  /* ---- Main sidebar tab switching ---- */
   root.addEventListener('click', function(e) {
-    var tab = e.target.closest('.mube-rtab');
-    if (!tab) return;
-    root.querySelectorAll('.mube-rtab').forEach(function(t){t.classList.remove('is-active');});
-    tab.classList.add('is-active');
-    self._panelTab = tab.dataset.tab || 'general';
-    self._renderPanel();
+    var stab = e.target.closest('.mube-stab');
+    if (!stab) return;
+    self._switchSidebarTab(stab.dataset.stab || 'blocks');
   });
 
-  /* ---- Panel close ---- */
+  /* ---- Properties sub-tab switching (General/Style/Advanced) ---- */
   root.addEventListener('click', function(e) {
-    if (e.target.closest('#mube-rpanel-close')) self._deselect();
+    var ptab = e.target.closest('[data-ptab]');
+    if (!ptab) return;
+    root.querySelectorAll('.mube-ptab').forEach(function(t) { t.classList.remove('is-active'); });
+    ptab.classList.add('is-active');
+    self._panelTab = ptab.dataset.ptab || 'general';
+    self._renderPropsPane();
   });
 
   /* ---- Palette search ---- */
@@ -1623,6 +1796,7 @@ MetisBlockEditor.prototype._handleKeydown = function(e) {
    PUBLIC API  (matches page-builder.js integration surface)
    ========================================================================= */
 MetisBlockEditor.prototype.getLayout  = function() { return cloneDeep(this.layout); };
+MetisBlockEditor.prototype.getPageMeta = function() { return Object.assign({}, this._pageMeta); };
 MetisBlockEditor.prototype.getBlocks  = function() {
   var blocks = [];
   (this.layout.sections||[]).forEach(function(sec){
@@ -1634,7 +1808,7 @@ MetisBlockEditor.prototype.setPreviewDevice = function(dev) {
   this._device = dev||'desktop';
   var c = document.getElementById('mube-canvas'); if (c) c.dataset.device = this._device;
 };
-MetisBlockEditor.prototype.refresh = function() { this._renderCanvas(); this._renderPanel(); };
+MetisBlockEditor.prototype.refresh = function() { this._renderCanvas(); this._renderPropsPane(); this._renderSettingsPane(); };
 MetisBlockEditor.prototype.setWebparts = function(items) { this._webparts = Array.isArray(items)?items:[]; this._renderWebparts(); };
 MetisBlockEditor.prototype.setFormOptions = function(forms) { this._forms = Array.isArray(forms)?forms:[]; };
 /* Compatibility shims for page-builder callers that reference these */
@@ -1652,7 +1826,6 @@ MetisBlockEditor.prototype.handleGlobalKeydown = function(e) { this._handleKeydo
    ========================================================================= */
 global.MetisBlockEditor = MetisBlockEditor;
 
-}(window));
 
 /* =========================================================================
    ADDITIONAL SHIMS FOR PAGE-BUILDER INTEGRATION
@@ -1688,9 +1861,8 @@ MetisBlockEditor.prototype.validateForSave = function() {
 
 /** setPropsVisible — page-builder calls this to show/hide properties panel */
 MetisBlockEditor.prototype.setPropsVisible = function(visible) {
-  var panel = document.getElementById('mube-rpanel');
-  if (!panel) return;
-  if (!visible) { this._deselect(); }
+  if (!visible) this._deselect();
+  else if (this.sel) this._switchSidebarTab('properties');
 };
 
 /** Expose the blocks panel element for the shell's slot system */
@@ -1706,3 +1878,5 @@ MetisBlockEditor.prototype.getBlocksPanelElement = function() {
 MetisBlockEditor.prototype.getSaveLayout = function() {
   return cloneDeep(this.layout);
 };
+
+}(window));

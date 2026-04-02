@@ -501,6 +501,31 @@ var MetisPageBuilder = {
                     contextProfile: self._contextProfile || undefined,
                     layout: (layout && layout.sections) ? layout : undefined,
                     blocks: (layout && layout.sections) ? [] : blocks,
+                    pageMeta: {
+                        status:      String((self._entityMeta && self._entityMeta.status) || 'draft'),
+                        slug:        String((self._entityMeta && self._entityMeta.slug) || ''),
+                        is_homepage: !!(self._entityMeta && self._entityMeta.is_homepage),
+                        seo_title:   String(self._seoTitle || ''),
+                        seo_desc:    String(self._seoDesc  || ''),
+                        excerpt:     String(self._excerpt  || ''),
+                        created_by:  String(self._resolveCreatorLabel(entity) || ''),
+                        context:     self._editorRegistryContext(),
+                        schedule_at: String((self._entityMeta && self._entityMeta.schedule_at) || '')
+                    },
+                    onPageMetaChange: function(meta) {
+                        /* Write changes back into page-builder's _entityMeta */
+                        self._entityMeta = self._entityMeta || {};
+                        if (meta.status    !== undefined) self._entityMeta.status      = meta.status;
+                        if (meta.slug      !== undefined) self._entityMeta.slug        = meta.slug;
+                        if (meta.is_homepage !== undefined) self._entityMeta.is_homepage = meta.is_homepage;
+                        if (meta.schedule_at !== undefined) self._entityMeta.schedule_at = meta.schedule_at;
+                        if (meta.seo_title !== undefined) self._seoTitle = meta.seo_title;
+                        if (meta.seo_desc  !== undefined) self._seoDesc  = meta.seo_desc;
+                        if (meta.excerpt   !== undefined) self._excerpt  = meta.excerpt;
+                        self._dirty = true;
+                        self._showSaveStatus('Unsaved changes');
+                        self._scheduleAutosave();
+                    },
                     onChange: function() {
                         self._dirty = true;
                         self._showSaveStatus('Unsaved changes');
@@ -1445,10 +1470,14 @@ var MetisPageBuilder = {
                 }
                 layoutJson = JSON.stringify(this._serializeLayoutFromBlocks(blocks));
             }
-            var seoTitle = this._safeFieldTrim('#mwpb-seo-title');
-            var seoDesc  = this._safeFieldTrim('#mwpb-seo-desc');
+            /* SEO + excerpt: read from editor pageMeta (set via onPageMetaChange),
+               fall back to DOM fields if the editor hasn't been mounted yet */
+            var editorMeta = (this.editor && typeof this.editor.getPageMeta === 'function')
+                ? this.editor.getPageMeta() : null;
+            var seoTitle = (editorMeta && editorMeta.seo_title) || this._seoTitle || this._safeFieldTrim('#mwpb-seo-title');
+            var seoDesc  = (editorMeta && editorMeta.seo_desc)  || this._seoDesc  || this._safeFieldTrim('#mwpb-seo-desc');
             var seoJson  = ( seoTitle || seoDesc ) ? JSON.stringify({ title: seoTitle, description: seoDesc }) : '';
-            var excerpt  = this._safeFieldTrim('#mwpb-excerpt');
+            var excerpt  = (editorMeta && editorMeta.excerpt)   || this._excerpt  || this._safeFieldTrim('#mwpb-excerpt');
             var requestKey = String(this.currentKey || '').trim();
             var hasExistingEntity = requestKey !== '' || !!this.currentId;
             action = isPage ? (hasExistingEntity ? 'metis_website_page_save' : 'metis_website_page_create') : (hasExistingEntity ? 'metis_website_post_save' : 'metis_website_post_create');
@@ -1468,10 +1497,12 @@ var MetisPageBuilder = {
             if (requestedStatus === 'scheduled' && scheduleAt) {
                 data.schedule_at = scheduleAt;
             }
-            if (isPage && requestedStatus === 'published' && $('#mwpb-set-homepage').is(':checked')) {
+            if (isPage && requestedStatus === 'published' && ((editorMeta && editorMeta.is_homepage) || (this._entityMeta && this._entityMeta.is_homepage) || $('#mwpb-set-homepage').is(':checked'))) {
                 data.set_as_homepage = 1;
             }
-            var slugVal = this._safeSlug(this._safeFieldTrim('#mwpb-slug-input'));
+            var slugVal = this._safeSlug(
+                (editorMeta && editorMeta.slug) || this._safeFieldTrim('#mwpb-slug-input')
+            );
             if (slugVal) data.slug = slugVal;
             if (requestKey !== '') {
                 data.key = requestKey;

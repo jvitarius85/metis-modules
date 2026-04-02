@@ -1,15 +1,11 @@
 /**
  * Metis Page Builder CSS — Beaver Builder Parity
- * Version 2.0.0
+ * Version 2.1.0
  *
- * Layout:
- *   .mube-root = flex row: [sidebar 260px] [canvas flex-1] [rpanel 300px]
- *
- * Key design rules:
- *   - Canvas is a clean white page — zero persistent chrome
- *   - Controls appear ONLY on hover (blue outline + floating bar above element)
- *   - Selected element gets persistent blue outline
- *   - Right panel slides in when something is selected
+ * Layout: .mube-root = flex row: [sidebar 280px] [canvas flex-1]
+ * Sidebar has 3 tabs: Blocks | Properties | Settings
+ * Properties shows block General/Style/Advanced sub-tabs when a block is selected
+ * Settings always shows page-level metadata fields
  */
 
 /* ============================================================
@@ -42,19 +38,8 @@
   z-index: 20;
 }
 
-.mube-sidebar-head {
-  padding: 14px 16px 10px;
-  border-bottom: 1px solid #e2e8f0;
-  flex-shrink: 0;
-}
+/* ---- Old sidebar-head/title removed — replaced by .mube-stab-bar ---- */
 
-.mube-sidebar-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #64748b;
-}
 
 .mube-palette-search-wrap {
   padding: 10px 12px 6px;
@@ -426,46 +411,87 @@
 .mube-layout-btn.is-active { border-color: #3b82f6; background: #3b82f6; color: #fff; }
 
 /* ============================================================
-   RIGHT PANEL
+   SIDEBAR TABS + PANES
    ============================================================ */
-.mube-rpanel {
-  width: 300px; min-width: 300px;
-  background: #fff;
-  border-left: 1px solid #e2e8f0;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  z-index: 20;
-}
-[hidden].mube-rpanel { display: none; }
 
-.mube-rpanel-head {
-  display: flex; align-items: center;
+/* ---- Main tab bar (Blocks / Properties / Settings) ---- */
+.mube-stab-bar {
+  display: flex; flex-shrink: 0;
   border-bottom: 1px solid #e2e8f0;
-  padding: 0 8px 0 0;
-  flex-shrink: 0;
+  background: #fff;
 }
-.mube-rpanel-tabs {
-  display: flex; flex: 1;
-}
-.mube-rtab {
+.mube-stab {
   flex: 1; padding: 10px 4px; border: none; background: none;
   font-size: 12px; font-weight: 500; color: #64748b; cursor: pointer;
-  border-bottom: 2px solid transparent; transition: all .12s;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  transition: color .12s, border-color .12s;
+  white-space: nowrap;
 }
-.mube-rtab:hover { color: #1e293b; }
-.mube-rtab.is-active { color: #3b82f6; border-bottom-color: #3b82f6; }
-.mube-rpanel-close {
-  flex-shrink: 0; color: #94a3b8;
-}
+.mube-stab:hover   { color: #1e293b; border-bottom-color: #cbd5e1; }
+.mube-stab.is-active { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
 
-.mube-rpanel-body {
+/* ---- Panes ---- */
+.mube-spane { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.mube-spane.is-active { display: flex; }
+
+/* Blocks pane: use existing .mube-palette-scroll layout */
+#mube-spane-blocks { overflow: hidden; }
+
+/* Properties + Settings panes scroll body */
+#mube-spane-properties,
+#mube-spane-settings { overflow: hidden; }
+
+.mube-props-body {
   flex: 1; overflow-y: auto; padding: 12px;
 }
 
-/* Panel fields */
+/* ---- Properties pane: empty state ---- */
+.mube-props-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 100%; padding: 32px 16px; text-align: center; color: #94a3b8;
+}
+.mube-props-empty svg { width: 40px; height: 40px; margin-bottom: 12px; }
+.mube-props-empty p   { font-size: 12px; line-height: 1.5; margin: 0; }
+
+/* ---- Properties sub-tab bar (General / Style / Advanced) ---- */
+.mube-ptab-bar {
+  display: flex; flex-shrink: 0;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 12px;
+}
+.mube-ptab {
+  flex: 1; padding: 8px 4px; border: none; background: none;
+  font-size: 11px; font-weight: 500; color: #64748b; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: color .12s, border-color .12s;
+}
+.mube-ptab:hover    { color: #1e293b; }
+.mube-ptab.is-active { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
+
+/* ---- Settings pane fields ---- */
+.mube-settings-section { margin-bottom: 16px; }
+.mube-settings-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #94a3b8; margin-bottom: 8px; padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.mube-meta-value {
+  font-size: 12px; color: #475569; padding: 6px 8px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px;
+}
+.mube-pfield--check { padding: 4px 0; }
+.mube-check-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #475569; cursor: pointer;
+}
+.mube-check-label input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; }
+
+/* ---- Shared panel field styles (used in both Properties + Settings panes) ---- */
 .mube-ptype-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .06em; color: #64748b; margin-bottom: 12px; padding-bottom: 8px;
+  letter-spacing: .06em; color: #64748b; margin-bottom: 10px; padding-bottom: 6px;
   border-bottom: 1px solid #e2e8f0;
 }
 .mube-pfield { margin-bottom: 10px; }
@@ -476,6 +502,7 @@
   font-size: 12px; color: #1e293b; background: #f8fafc;
   outline: none; transition: border-color .12s;
 }
+
 .mube-fi:focus { border-color: #3b82f6; background: #fff; }
 .mube-fita { resize: vertical; min-height: 80px; font-family: monospace; }
 .mube-fi-color { width: 40px; height: 32px; padding: 2px 3px; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; }
@@ -693,19 +720,19 @@
    ============================================================ */
 .mube-palette-scroll,
 .mube-canvas-wrap,
-.mube-rpanel-body {
+.mube-props-body {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
 .mube-palette-scroll::-webkit-scrollbar,
 .mube-canvas-wrap::-webkit-scrollbar,
-.mube-rpanel-body::-webkit-scrollbar { width: 5px; }
+.mube-props-body::-webkit-scrollbar { width: 5px; }
 .mube-palette-scroll::-webkit-scrollbar-track,
 .mube-canvas-wrap::-webkit-scrollbar-track,
-.mube-rpanel-body::-webkit-scrollbar-track { background: transparent; }
+.mube-props-body::-webkit-scrollbar-track { background: transparent; }
 .mube-palette-scroll::-webkit-scrollbar-thumb,
 .mube-canvas-wrap::-webkit-scrollbar-thumb,
-.mube-rpanel-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.mube-props-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
 /* ============================================================
    RESPONSIVE — DEVICE PREVIEW FRAMING
@@ -770,47 +797,28 @@
 
 /* ============================================================
    PAGE-BUILDER SHELL INTEGRATION
-   (styles for .mwpb-* elements that wrap the editor)
    ============================================================ */
 
-/* Editor mount point fills the frame body */
+/* Editor mount fills the frame */
 #mwpb-editor-mount {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
+  flex: 1; min-height: 0; overflow: hidden; position: relative;
 }
 #mwpb-editor-mount .mube-root {
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
 }
 
-/* Right sidebar pane (blocks tab hosts editor's left sidebar via slot) */
-.mwpb-blocks-sidebar-slot {
-  height: 100%;
-  overflow: hidden;
-}
+/* Sidebar is now self-contained — shell props panel is hidden */
+.mwpb-inline #mwpb-props-panel { display: none; }
 
-/* When editor is in inline shell mode, root fills the full frame */
-.mwpb-inline #mwpb-frame {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+/* mube-root: 2-column layout [sidebar | canvas] — no right panel */
+.mube-root {
+  display: flex; flex-direction: row;
+  height: 100%; min-height: 0;
 }
-.mwpb-inline #mwpb-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-}
-.mwpb-inline #mwpb-editor-mount {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-}
-.mwpb-inline #mwpb-props-panel {
-  display: none; /* editor provides its own right panel */
+.mube-sidebar {
+  width: 280px; min-width: 280px;
+  background: #fff; border-right: 1px solid #e2e8f0;
+  display: flex; flex-direction: column; overflow: hidden; z-index: 20;
 }
 
 /* ============================================================
@@ -823,7 +831,8 @@
 
 /* Focus-visible ring for accessibility */
 .mube-ctrl-btn:focus-visible,
-.mube-rtab:focus-visible,
+.mube-stab:focus-visible,
+.mube-ptab:focus-visible,
 .mube-pblock:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
