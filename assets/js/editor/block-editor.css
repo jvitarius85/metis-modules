@@ -253,10 +253,10 @@
 
 /* Column controls bar */
 .mube-col-bar {
-  position: absolute; top: 0; left: 0;
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 2px;
   background: #22c55e;
-  border-radius: 0 0 4px 0;
+  border-radius: 0 0 4px 4px;
   padding: 3px 6px;
   opacity: 0; pointer-events: none;
   transition: opacity .12s;
