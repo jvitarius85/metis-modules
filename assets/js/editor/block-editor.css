@@ -206,9 +206,10 @@
 /* Section controls bar — hidden by default, shown on hover/select */
 .mube-section-bar {
   position: absolute;
-  top: -30px; left: 0;
+  top: 0; left: auto; right: 0;
   display: flex; align-items: center; gap: 2px;
-  background: #3b82f6; border-radius: 4px 4px 0 0;
+  background: #3b82f6;
+  border-radius: 0 0 0 4px;
   padding: 3px 6px;
   opacity: 0; pointer-events: none;
   transition: opacity .12s;
@@ -254,7 +255,8 @@
 .mube-col-bar {
   position: absolute; top: 0; left: 0;
   display: flex; align-items: center; gap: 2px;
-  background: #22c55e; border-radius: 0 0 4px 0;
+  background: #22c55e;
+  border-radius: 0 0 4px 0;
   padding: 3px 6px;
   opacity: 0; pointer-events: none;
   transition: opacity .12s;
@@ -324,12 +326,13 @@
 .mube-module:hover  { outline-color: #f59e0b; }   /* amber tint for modules */
 .mube-module.is-selected { outline-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
 
-/* Module controls bar — appears above module on hover/select */
+/* Module controls bar — appears at top-left of module on hover/select */
 .mube-mod-bar {
   position: absolute;
-  top: -30px; left: 0;
+  top: 0; left: 0;
   display: flex; align-items: center; gap: 1px;
-  background: #f59e0b; border-radius: 4px 4px 0 0;
+  background: #f59e0b;
+  border-radius: 0 0 4px 0;
   padding: 3px 5px;
   opacity: 0; pointer-events: none;
   transition: opacity .1s;
@@ -793,6 +796,8 @@
   .mube-section,
   .mube-column,
   .mube-ctrl-btn,
+.mube-col-bar,
+.mube-mod-bar { user-select: none; }
   .mube-section-bar,
   .mube-col-bar,
   .mube-mod-bar { animation: none !important; transition: none !important; }
@@ -829,8 +834,17 @@
    ============================================================ */
 /* Force no-select on controls */
 .mube-section-bar,
-.mube-col-bar,
-.mube-mod-bar { user-select: none; }
+/* ── Hover isolation: only show the innermost element's bar ──
+   When hovering a column, suppress the section bar.
+   When hovering a module, suppress both section and column bars. */
+.mube-section:hover .mube-column:hover .mube-section-bar { opacity: 0; pointer-events: none; }
+.mube-section:hover .mube-column:hover .mube-module:hover .mube-section-bar { opacity: 0; pointer-events: none; }
+.mube-section:hover .mube-column:hover .mube-module:hover .mube-col-bar { opacity: 0; pointer-events: none; }
+
+/* But always keep selected state visible regardless */
+.mube-section.is-selected > .mube-section-bar { opacity: 1; pointer-events: all; }
+.mube-column.is-selected > .mube-col-bar { opacity: 1; pointer-events: all; }
+.mube-module.is-selected > .mube-mod-bar { opacity: 1; pointer-events: all; }
 
 /* Focus-visible ring for accessibility */
 .mube-ctrl-btn:focus-visible,
