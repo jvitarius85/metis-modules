@@ -862,6 +862,7 @@ MetisBlockEditor.prototype._renderPropsPane = function() {
   body.innerHTML = this._propsPaneContent();
   var self = this;
   body.querySelectorAll('[data-bind]').forEach(function(el) { self._bindInput(el); });
+  this._loadDynamicSelects(body);
 };
 
 MetisBlockEditor.prototype._propsPaneContent = function() {
@@ -987,6 +988,69 @@ MetisBlockEditor.prototype._settingsPaneContent = function() {
 };
 
 /* Bind a page-meta input to _pageMeta and fire onPageMetaChange */
+/* =========================================================================
+   DYNAMIC SELECTS — load menus / forms / campaigns into dropdowns
+   ========================================================================= */
+MetisBlockEditor.prototype._loadDynamicSelects = function(container) {
+  var self = this;
+  var sels = (container || document).querySelectorAll('.mube-dynamic-sel');
+  if (!sels.length) return;
+
+  var ajaxUrl  = (window.metisAjax || {}).ajax_url || '/metis/api/ajax';
+  var nonces   = (window.metisAjax || {}).action_nonces || {};
+
+  /* Map action keys to their response data key */
+  var DATA_KEY = {
+    'metis_website_menus_list':      'menus',
+    'metis_forms_list':              'forms',
+    'metis_donations_campaign_list': 'campaigns'
+  };
+
+  /* Deduplicate: fetch each action key once */
+  var needed = {};
+  sels.forEach(function(sel) {
+    var k = sel.dataset.actionKey;
+    if (k && nonces[k]) needed[k] = true;
+  });
+
+  Object.keys(needed).forEach(function(actionKey) {
+    var nonce = nonces[actionKey] || '';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', ajaxUrl);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+      try {
+        var r = JSON.parse(xhr.responseText);
+        var dataKey = DATA_KEY[actionKey] || Object.keys(r.data || {})[0];
+        var items = (r.data && r.data[dataKey]) ? r.data[dataKey] : [];
+        /* Update all selects for this action key */
+        sels.forEach(function(sel) {
+          if (sel.dataset.actionKey !== actionKey) return;
+          var valField   = sel.dataset.valueField   || 'id';
+          var labelField = sel.dataset.labelField   || 'name';
+          var current    = sel.dataset.current      || '';
+          var html = '<option value="">— Select —</option>';
+          items.forEach(function(item) {
+            var v = String(item[valField] || '');
+            var l = String(item[labelField] || item.name || item.title || v);
+            html += '<option value="' + self._escA(v) + '"' + (v === current ? ' selected' : '') + '>' + self._escH(l) + '</option>';
+          });
+          sel.innerHTML = html;
+          /* Re-bind so selecting triggers _applyBind */
+          self._bindInput(sel);
+        });
+      } catch(e) {
+        sels.forEach(function(sel) {
+          if (sel.dataset.actionKey === actionKey)
+            sel.innerHTML = '<option value="">Error loading</option>';
+        });
+      }
+    };
+    xhr.onerror = function() {};
+    xhr.send('action=' + encodeURIComponent(actionKey) + '&nonce=' + encodeURIComponent(nonce));
+  });
+};
+
 MetisBlockEditor.prototype._bindPageMetaInput = function(el) {
   var self = this;
   var key = el.dataset.pageBind;
@@ -1128,18 +1192,31 @@ MetisBlockEditor.prototype._panelModule = function(sel, tab) {
   if (tab === 'general') {
     var html = '<div class="mube-ptype-label">' + escH(def.label||type) + '</div>';
     switch (type) {
+
+      /* ── TEXT ── */
       case 'text':
         html += '<div class="mube-pfield mube-pfield--info"><p>Double-click the block on the canvas to edit text inline.</p></div>';
+        html += this._fi('Font Size',   'module.data.font_size',   d.font_size||'',   'text', ' placeholder="e.g. 16px"', si, ci, mi);
+        html += this._fi('Line Height', 'module.data.line_height', d.line_height||'', 'text', ' placeholder="e.g. 1.6"',  si, ci, mi);
+        html += this._fsel('Align', 'module.data.align', d.align||'left',
+          [{v:'left',l:'Left'},{v:'center',l:'Center'},{v:'right',l:'Right'},{v:'justify',l:'Justify'}], si, ci, mi);
         break;
+
+      /* ── HEADING ── */
       case 'heading':
         html += '<div class="mube-pfield mube-pfield--info"><p>Double-click to edit inline.</p></div>';
-        html += this._fsel('Level', 'module.data.level', d.level||'h2', ['h1','h2','h3','h4','h5','h6'].map(function(t){return{v:t,l:t.toUpperCase()};}), si, ci, mi);
-        html += this._fsel('Align', 'module.data.align', d.align||'left', [{v:'left',l:'Left'},{v:'center',l:'Center'},{v:'right',l:'Right'}], si, ci, mi);
+        html += this._fsel('Level', 'module.data.level', d.level||'h2',
+          ['h1','h2','h3','h4','h5','h6'].map(function(t){return{v:t,l:t.toUpperCase()};}), si, ci, mi);
+        html += this._fsel('Align', 'module.data.align', d.align||'left',
+          [{v:'left',l:'Left'},{v:'center',l:'Center'},{v:'right',l:'Right'}], si, ci, mi);
+        html += this._fi('Font Size',   'module.data.font_size',   d.font_size||'',   'text', ' placeholder="e.g. 2rem"',  si, ci, mi);
+        html += this._fi('Font Weight', 'module.data.font_weight', d.font_weight||'', 'text', ' placeholder="e.g. 700"',   si, ci, mi);
+        html += this._fi('Color',       'module.data.color',       d.color||'',       'color', '', si, ci, mi);
         break;
+
+      /* ── IMAGE ── */
       case 'image':
-        /* Image picker — thumbnail preview + Choose from Media button */
-        html += '<div class="mube-pfield">';
-        html += '<label class="mube-plabel">Image</label>';
+        html += '<div class="mube-pfield"><label class="mube-plabel">Image</label>';
         if (d.src) {
           html += '<div class="mube-img-preview"><img src="' + escA(d.src) + '" alt=""></div>';
         } else {
@@ -1147,66 +1224,190 @@ MetisBlockEditor.prototype._panelModule = function(sel, tab) {
         }
         html += '<button type="button" class="mube-btn-choose-img" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '">Choose from Media</button>';
         if (d.src) {
-          html += '<button type="button" class="mube-btn-clear-img" data-bind="module.data.src" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '" style="margin-top:4px;">Remove Image</button>';
+          html += '<button type="button" class="mube-btn-clear-img" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '">Remove Image</button>';
         }
         html += '</div>';
-        html += this._fi('Alt Text',  'module.data.alt',  d.alt||'',  'text', ' placeholder="Describe the image"', si, ci, mi);
-        html += this._fi('Link URL',  'module.data.link', d.link||'', 'text', ' placeholder="https://…"', si, ci, mi);
-        html += this._fi('Width',     'module.data.width',d.width||'100%','text',' placeholder="100%"', si, ci, mi);
+        html += this._fi('Alt Text', 'module.data.alt',  d.alt||'',  'text', ' placeholder="Describe the image"', si, ci, mi);
+        html += this._fi('Link URL', 'module.data.link', d.link||'', 'text', ' placeholder="https://\u2026"', si, ci, mi);
+        html += this._fi('Width',    'module.data.width',d.width||'100%','text',' placeholder="100%"', si, ci, mi);
         break;
+
+      /* ── BUTTON ── */
       case 'button':
         html += this._fi('Label', 'module.data.label', d.label||'Click Here', 'text', '', si, ci, mi);
-        html += this._fi('URL',   'module.data.url',   d.url||'#',            'text', ' placeholder="https://…"', si, ci, mi);
+        html += this._fi('URL',   'module.data.url',   d.url||'#', 'text', ' placeholder="https://\u2026"', si, ci, mi);
         html += this._fsel('Style', 'module.data.style', d.style||'primary',
           [{v:'primary',l:'Primary'},{v:'secondary',l:'Secondary'},{v:'outline',l:'Outline'},{v:'ghost',l:'Ghost'}], si, ci, mi);
+        html += this._fsel('Size', 'module.data.size', d.size||'md',
+          [{v:'sm',l:'Small'},{v:'md',l:'Medium'},{v:'lg',l:'Large'}], si, ci, mi);
+        html += this._fsel('Target', 'module.data.target', d.target||'_self',
+          [{v:'_self',l:'Same window'},{v:'_blank',l:'New window'}], si, ci, mi);
         break;
+
+      /* ── SPACER ── */
       case 'spacer':
         html += this._fi('Height (px)', 'module.data.height', String(d.height||40), 'number', ' min="0" max="600"', si, ci, mi);
         break;
+
+      /* ── DIVIDER ── */
       case 'divider':
-        html += this._fi('Color',     'module.data.color',  d.color||'#e2e6ea', 'color', '', si, ci, mi);
-        html += this._fsel('Style',   'module.data.style',  d.style||'solid',   ['solid','dashed','dotted'], si, ci, mi);
-        html += this._fi('Height (px)','module.data.height',String(d.height||1),'number',' min="1" max="20"', si, ci, mi);
+        html += this._fi('Color',      'module.data.color',  d.color||'#e2e6ea', 'color', '', si, ci, mi);
+        html += this._fsel('Style',    'module.data.style',  d.style||'solid', ['solid','dashed','dotted'], si, ci, mi);
+        html += this._fi('Height (px)','module.data.height', String(d.height||1), 'number', ' min="1" max="20"', si, ci, mi);
         break;
+
+      /* ── HERO ── */
       case 'hero':
-        html += this._fi('Title',        'module.data.title',        d.title||'',        'text', '', si, ci, mi);
-        html += this._fi('Button Label', 'module.data.button_label', d.button_label||'', 'text', '', si, ci, mi);
-        html += this._fi('Button URL',   'module.data.button_url',   d.button_url||'',   'text', ' placeholder="https://…"', si, ci, mi);
-        html += this._fi('Background Image','module.data.background_image',d.background_image||'','text',' placeholder="https://…"', si, ci, mi);
+        html += this._fi('Title',          'module.data.title',          d.title||'',          'text', '', si, ci, mi);
+        html += this._fi('Subtitle',       'module.data.content',        (d.content||'').replace(/<[^>]*>/g,'').slice(0,120), 'text', ' placeholder="Supporting copy"', si, ci, mi);
+        html += this._fi('Button Label',   'module.data.button_label',   d.button_label||'',   'text', '', si, ci, mi);
+        html += this._fi('Button URL',     'module.data.button_url',     d.button_url||'',     'text', ' placeholder="https://\u2026"', si, ci, mi);
+        html += '<div class="mube-pfield"><label class="mube-plabel">Background Image</label>';
+        if (d.background_image) {
+          html += '<div class="mube-img-preview"><img src="' + escA(d.background_image) + '" alt=""></div>';
+        } else {
+          html += '<div class="mube-img-preview mube-img-preview--empty">No image</div>';
+        }
+        html += '<button type="button" class="mube-btn-choose-img" data-bind-target="background_image" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '">Choose from Media</button></div>';
+        html += this._fi('Overlay Color', 'module.data.overlay_color', d.overlay_color||'', 'color', '', si, ci, mi);
+        html += this._fsel('Text Color Scheme', 'module.data.text_scheme', d.text_scheme||'dark',
+          [{v:'dark',l:'Dark text'},{v:'light',l:'Light text'}], si, ci, mi);
         break;
+
+      /* ── CTA ── */
       case 'cta':
         html += this._fi('Title',        'module.data.title',        d.title||'',        'text', '', si, ci, mi);
+        html += this._fi('Subtitle',     'module.data.content',      (d.content||'').replace(/<[^>]*>/g,'').slice(0,120), 'text', ' placeholder="Supporting copy"', si, ci, mi);
         html += this._fi('Button Label', 'module.data.button_label', d.button_label||'', 'text', '', si, ci, mi);
-        html += this._fi('Button URL',   'module.data.button_url',   d.button_url||'',   'text', ' placeholder="https://…"', si, ci, mi);
+        html += this._fi('Button URL',   'module.data.button_url',   d.button_url||'',   'text', ' placeholder="https://\u2026"', si, ci, mi);
         break;
+
+      /* ── VIDEO ── */
       case 'video':
-        html += this._fi('Video URL', 'module.data.url', d.url||'', 'text', ' placeholder="https://youtube.com/…"', si, ci, mi);
+        html += this._fi('Video URL', 'module.data.url', d.url||'', 'text', ' placeholder="https://youtube.com/\u2026"', si, ci, mi);
         html += this._fsel('Provider', 'module.data.provider', d.provider||'youtube',
           [{v:'youtube',l:'YouTube'},{v:'vimeo',l:'Vimeo'},{v:'local',l:'Self-hosted'}], si, ci, mi);
         html += this._fsel('Aspect Ratio', 'module.data.aspect_ratio', d.aspect_ratio||'16:9',
-          ['16:9','4:3','1:1'].map(function(r){return{v:r,l:r};}), si, ci, mi);
+          ['16:9','4:3','1:1','21:9'].map(function(r){return{v:r,l:r};}), si, ci, mi);
         break;
+
+      /* ── HTML ── */
       case 'html':
         html += this._fta('HTML Content', 'module.data.content', d.content||'', si, ci, mi);
         html += '<div class="mube-pfield mube-pfield--info"><p>JavaScript execution is not allowed.</p></div>';
         break;
-      case 'form_embed':
-      case 'modal_trigger':
-      case 'popup_trigger':
-        html += this._fi('ID', 'module.data.' + (type === 'form_embed' ? 'form_id' : 'popup_id'),
-          String(d.form_id || d.popup_id || ''), 'text', ' placeholder="Select from list…"', si, ci, mi);
-        html += '<div class="mube-pfield mube-pfield--info"><p>Only existing forms/popups can be selected.</p></div>';
-        break;
-      case 'countdown':
-        html += this._fi('End Date/Time', 'module.data.end_at', d.end_at||'', 'datetime-local', '', si, ci, mi);
-        break;
-      case 'anchor':
-        html += this._fi('Anchor ID', 'module.data.anchor_id', d.anchor_id||'', 'text', ' placeholder="my-section"', si, ci, mi);
-        break;
+
+      /* ── MENU ── */
       case 'menu':
+        html += '<div class="mube-pfield"><label class="mube-plabel">Menu</label>';
+        html += '<select class="mube-fi mube-dynamic-sel" data-bind="module.data.menu_id" data-action-key="metis_website_menus_list" data-value-field="id" data-label-field="name" data-current="' + escA(String(d.menu_id||'')) + '" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '"><option value="">Loading\u2026</option></select></div>';
         html += this._fsel('Orientation', 'module.data.orientation', d.orientation||'horizontal',
           [{v:'horizontal',l:'Horizontal'},{v:'vertical',l:'Vertical'}], si, ci, mi);
         break;
+
+      /* ── FORM EMBED ── */
+      case 'form_embed':
+        html += '<div class="mube-pfield"><label class="mube-plabel">Form</label>';
+        html += '<select class="mube-fi mube-dynamic-sel" data-bind="module.data.form_id" data-action-key="metis_forms_list" data-value-field="id" data-label-field="title" data-current="' + escA(String(d.form_id||'')) + '" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '"><option value="">Loading\u2026</option></select></div>';
+        break;
+
+      /* ── POPUP / MODAL TRIGGER ── */
+      case 'popup_trigger':
+      case 'modal_trigger':
+        html += this._fi('Label', 'module.data.label', d.label||'Open', 'text', '', si, ci, mi);
+        html += this._fi('Popup / Modal ID', 'module.data.popup_id', String(d.popup_id||''), 'text', ' placeholder="Enter ID"', si, ci, mi);
+        break;
+
+      /* ── COUNTDOWN ── */
+      case 'countdown':
+        html += this._fi('End Date/Time', 'module.data.end_at', d.end_at||'', 'datetime-local', '', si, ci, mi);
+        html += this._fi('Timezone', 'module.data.timezone', d.timezone||'America/Chicago', 'text', ' placeholder="America/Chicago"', si, ci, mi);
+        break;
+
+      /* ── ANCHOR ── */
+      case 'anchor':
+        html += this._fi('Anchor ID', 'module.data.anchor_id', d.anchor_id||'', 'text', ' placeholder="my-section"', si, ci, mi);
+        break;
+
+      /* ── PAGE TITLE ── */
+      case 'page_title':
+        html += this._fsel('Tag', 'module.data.tag', d.tag||'h1',
+          ['h1','h2','h3','h4','p'].map(function(t){return{v:t,l:t.toUpperCase()};}), si, ci, mi);
+        html += this._fsel('Align', 'module.data.align', d.align||'left',
+          [{v:'left',l:'Left'},{v:'center',l:'Center'},{v:'right',l:'Right'}], si, ci, mi);
+        html += '<div class="mube-pfield mube-pfield--info"><p>Outputs the current page title dynamically.</p></div>';
+        break;
+
+      /* ── DONATION BLOCKS ── */
+      case 'donation_form':
+      case 'donation_progress':
+      case 'donation_description':
+      case 'donation_goal_summary':
+        html += '<div class="mube-pfield"><label class="mube-plabel">Campaign</label>';
+        html += '<select class="mube-fi mube-dynamic-sel" data-bind="module.data.campaign_id" data-action-key="metis_donations_campaign_list" data-value-field="id" data-label-field="name" data-current="' + escA(String(d.campaign_id||'')) + '" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '"><option value="">Loading\u2026</option></select></div>';
+        if (type === 'donation_form') {
+          html += this._fsel('Show Amount Buttons', 'module.data.show_amounts', String(d.show_amounts !== false),
+            [{v:'true',l:'Yes'},{v:'false',l:'No'}], si, ci, mi);
+          html += this._fsel('Allow Custom Amount', 'module.data.allow_custom', String(d.allow_custom !== false),
+            [{v:'true',l:'Yes'},{v:'false',l:'No'}], si, ci, mi);
+        }
+        break;
+
+      /* ── DONOR WALL ── */
+      case 'donor_wall':
+        html += this._fi('Max Donors', 'module.data.limit', String(d.limit||20), 'number', ' min="1" max="200"', si, ci, mi);
+        html += this._fsel('Order', 'module.data.order', d.order||'recent',
+          [{v:'recent',l:'Most Recent'},{v:'top',l:'Top Donors'},{v:'alpha',l:'Alphabetical'}], si, ci, mi);
+        html += this._fsel('Show Amount', 'module.data.show_amount', String(d.show_amount !== false),
+          [{v:'true',l:'Yes'},{v:'false',l:'No'}], si, ci, mi);
+        break;
+
+      /* ── POST LIST ── */
+      case 'post_list':
+      case 'posts_feed':
+        html += this._fi('Count', 'module.data.count', String(d.count||5), 'number', ' min="1" max="50"', si, ci, mi);
+        html += this._fsel('Layout', 'module.data.layout', d.layout||'list',
+          [{v:'list',l:'List'},{v:'grid',l:'Grid'},{v:'cards',l:'Cards'}], si, ci, mi);
+        html += this._fsel('Order', 'module.data.order', d.order||'newest',
+          [{v:'newest',l:'Newest first'},{v:'oldest',l:'Oldest first'}], si, ci, mi);
+        break;
+
+      /* ── EVENTS LIST ── */
+      case 'events_list':
+        html += this._fi('Count', 'module.data.count', String(d.count||5), 'number', ' min="1" max="50"', si, ci, mi);
+        html += this._fsel('Show', 'module.data.show', d.show||'upcoming',
+          [{v:'upcoming',l:'Upcoming'},{v:'past',l:'Past'},{v:'all',l:'All'}], si, ci, mi);
+        break;
+
+      /* ── TEAM ── */
+      case 'team':
+        html += this._fsel('Layout', 'module.data.layout', d.layout||'grid',
+          [{v:'grid',l:'Grid'},{v:'list',l:'List'}], si, ci, mi);
+        html += this._fi('Columns', 'module.data.columns', String(d.columns||3), 'number', ' min="1" max="6"', si, ci, mi);
+        html += '<div class="mube-pfield mube-pfield--info"><p>Members are managed in the People module.</p></div>';
+        break;
+
+      /* ── BUTTON GROUP ── */
+      case 'button_group':
+        html += this._fsel('Align', 'module.data.align', d.align||'left',
+          [{v:'left',l:'Left'},{v:'center',l:'Center'},{v:'right',l:'Right'}], si, ci, mi);
+        html += '<div class="mube-pfield mube-pfield--info"><p>Add buttons using the items editor.</p></div>';
+        break;
+
+      /* ── COMPLEX ITEM-BUILDER BLOCKS ── */
+      case 'card_grid':
+      case 'feature_grid':
+      case 'testimonials':
+      case 'accordion':
+      case 'faq':
+      case 'pricing':
+      case 'gallery':
+      case 'tabs':
+      case 'image_content':
+        html += '<div class="mube-pfield mube-pfield--info"><p>Click <strong>Edit Items</strong> to manage the content of this block.</p></div>';
+        html += '<button type="button" class="mube-btn-edit-items" data-sidx="' + si + '" data-cidx="' + ci + '" data-midx="' + mi + '">Edit Items\u2026</button>';
+        break;
+
       default:
         html += '<div class="mube-pfield mube-pfield--info"><p>Use the Style and Advanced tabs to customize this block.</p></div>';
     }
@@ -1214,12 +1415,12 @@ MetisBlockEditor.prototype._panelModule = function(sel, tab) {
   }
   if (tab === 'style') {
     return '<div class="mube-ptype-label">' + escH(def.label||type) + ' Style</div>'
-      + this._fi('Margin Top',     'module.style.margin_top',    s.margin_top||'',    'text', ' placeholder="e.g. 24px"', si, ci, mi)
-      + this._fi('Margin Bottom',  'module.style.margin_bottom', s.margin_bottom||'', 'text', ' placeholder="e.g. 24px"', si, ci, mi)
-      + this._fi('Padding',        'module.style.padding',       s.padding||'',       'text', ' placeholder="e.g. 16px 24px"', si, ci, mi)
-      + this._fi('Background',     'module.style.bg_color',      s.bg_color||'#ffffff','color','', si, ci, mi)
-      + this._fi('Text Color',     'module.style.color',         s.color||'#111827',  'color','', si, ci, mi)
-      + this._fi('Border Radius',  'module.style.border_radius', s.border_radius||'', 'text', ' placeholder="e.g. 8px"', si, ci, mi);
+      + this._fi('Margin Top',    'module.style.margin_top',    s.margin_top||'',    'text', ' placeholder="e.g. 24px"', si, ci, mi)
+      + this._fi('Margin Bottom', 'module.style.margin_bottom', s.margin_bottom||'', 'text', ' placeholder="e.g. 24px"', si, ci, mi)
+      + this._fi('Padding',       'module.style.padding',       s.padding||'',       'text', ' placeholder="e.g. 16px 24px"', si, ci, mi)
+      + this._fi('Background',    'module.style.bg_color',      s.bg_color||'',      'color', '', si, ci, mi)
+      + this._fi('Text Color',    'module.style.color',         s.color||'',         'color', '', si, ci, mi)
+      + this._fi('Border Radius', 'module.style.border_radius', s.border_radius||'', 'text', ' placeholder="e.g. 8px"', si, ci, mi);
   }
   if (tab === 'advanced') {
     return '<div class="mube-ptype-label">' + escH(def.label||type) + ' Advanced</div>'
