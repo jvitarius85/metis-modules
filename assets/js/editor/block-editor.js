@@ -676,7 +676,7 @@ MetisBlockEditor.prototype._moduleHtml = function(sIdx, cIdx, mod, mIdx) {
   html += '</div>';
 
   /* Vertical resize handle — shown for block types where height is meaningful */
-  var resizableTypes = ['image','hero','spacer','video','cta','html'];
+  var resizableTypes = ['image','hero','spacer','video','cta','html','heading','text','gallery','card_grid','feature_grid'];
   if (resizableTypes.indexOf(canonType(mod.type)) !== -1) {
     html += '<div class="mube-vresize" data-sidx="' + sIdx + '" data-cidx="' + cIdx + '" data-midx="' + mIdx + '" title="Drag to resize"></div>';
   }
@@ -761,16 +761,33 @@ MetisBlockEditor.prototype._modulePreview = function(mod) {
         + (data.button_label ? ' <span class="mube-prev-btn">' + escH(data.button_label) + '</span>' : '') + '</div>';
 
     case 'form_embed':
-      return this._placeholder('form_embed', 'Form Embed', data.form_id ? 'Form ID: ' + data.form_id : 'No form selected');
+      var formLabel = data.form_id
+        ? (this._dynamicCache && this._dynamicCache.forms && this._dynamicCache.forms[String(data.form_id)]
+            ? this._dynamicCache.forms[String(data.form_id)]
+            : 'Form #' + data.form_id)
+        : 'No form selected';
+      return this._placeholder('form_embed', 'Form Embed', formLabel);
 
     case 'donation_form':
-      return this._placeholder('donation_form', 'Donation Form', data.campaign_id ? 'Campaign: ' + data.campaign_id : 'Select a campaign');
-
     case 'donation_progress':
-      return this._placeholder('donation_progress', 'Donation Progress', data.campaign_id || 'Select a campaign');
+    case 'donation_description':
+    case 'donation_goal_summary':
+      var campLabel = data.campaign_id
+        ? (this._dynamicCache && this._dynamicCache.campaigns && this._dynamicCache.campaigns[String(data.campaign_id)]
+            ? this._dynamicCache.campaigns[String(data.campaign_id)]
+            : 'Campaign #' + data.campaign_id)
+        : 'Select a campaign';
+      var donLabel = {donation_form:'Donation Form',donation_progress:'Progress Bar',donation_description:'Description',donation_goal_summary:'Goal Summary'};
+      return this._placeholder(type, donLabel[type]||type, campLabel);
 
     case 'menu':
-      return this._placeholder('menu', 'Navigation Menu', data.menu_id ? 'Menu ID: ' + data.menu_id : 'No menu selected');
+      /* Show menu name if cached, otherwise show ID */
+      var menuLabel = data.menu_id
+        ? (this._dynamicCache && this._dynamicCache.menus && this._dynamicCache.menus[String(data.menu_id)]
+            ? this._dynamicCache.menus[String(data.menu_id)]
+            : 'Menu #' + data.menu_id)
+        : 'No menu selected';
+      return this._placeholder('menu', 'Navigation Menu', menuLabel);
 
     case 'gallery':
       var imgs = Array.isArray(data.images) ? data.images : [];
@@ -1040,6 +1057,17 @@ MetisBlockEditor.prototype._loadDynamicSelects = function(container) {
         var r = JSON.parse(xhr.responseText);
         var dataKey = DATA_KEY[actionKey] || Object.keys(r.data || {})[0];
         var items = (r.data && r.data[dataKey]) ? r.data[dataKey] : [];
+
+        /* Cache id→name map for live preview */
+        self._dynamicCache = self._dynamicCache || {};
+        var cacheKey = dataKey; /* 'menus', 'forms', 'campaigns' */
+        self._dynamicCache[cacheKey] = self._dynamicCache[cacheKey] || {};
+        items.forEach(function(item) {
+          var v = String(item.id || item.cid || '');
+          var l = String(item.name || item.title || item.cname || v);
+          if (v) self._dynamicCache[cacheKey][v] = l;
+        });
+
         /* Update all selects for this action key */
         sels.forEach(function(sel) {
           if (sel.dataset.actionKey !== actionKey) return;
@@ -1590,6 +1618,8 @@ MetisBlockEditor.prototype._duplicateSection = function(si) {
 
 MetisBlockEditor.prototype._setSectionCols = function(si, n) {
   var sec = this._getSection(si); if (!sec) return;
+  /* No-op if column count already matches — prevents accidental revert */
+  if ((sec.columns || []).length === n) return;
   this._push();
   var widths = DEFAULT_WIDTHS[n] || [100];
   var old = sec.columns || [];
@@ -2440,7 +2470,7 @@ MetisBlockEditor.prototype._renderItemBuilderList = function() {
     html += '<div class="mube-ib-list" id="mube-ib-list">';
     items.forEach(function(item, idx) {
       var label = String(item[labelField] || 'Item ' + (idx+1)).replace(/<[^>]*>/g,'').slice(0,40);
-      html += '<div class="mube-ib-row" data-ib-idx="' + idx + '">'
+      html += '<div class="mube-ib-row" draggable="true" data-ib-idx="' + idx + '">'
         + '<span class="mube-ib-row-drag" title="Drag to reorder">&#9776;</span>'
         + '<span class="mube-ib-row-label">' + escH(label) + '</span>'
         + '<div class="mube-ib-row-actions">'
@@ -2455,6 +2485,7 @@ MetisBlockEditor.prototype._renderItemBuilderList = function() {
 
   html += '<button type="button" class="mube-ib-add" data-action="ib-add">+ Add Item</button>';
   body.innerHTML = html;
+  this._bindIBDragSort(body, mod, type);
 };
 
 MetisBlockEditor.prototype._renderItemBuilderEdit = function(idx) {
@@ -2556,6 +2587,48 @@ MetisBlockEditor.prototype._ibDeleteItem = function(idx) {
   this._patchModulePreview(t.si, t.ci, t.mi);
   this._scheduleAutosave();
   this._renderItemBuilderList();
+};
+
+/* =========================================================================
+   ITEM BUILDER DRAG-SORT
+   ========================================================================= */
+MetisBlockEditor.prototype._bindIBDragSort = function(container, mod, type) {
+  var self = this;
+  var itemsKey = type === 'pricing' ? 'plans' : type === 'gallery' ? 'images' : 'items';
+  var dragIdx = null;
+
+  container.querySelectorAll('.mube-ib-row').forEach(function(row) {
+    row.addEventListener('dragstart', function(e) {
+      dragIdx = +row.dataset.ibIdx;
+      row.classList.add('mube-ib-row--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', function() {
+      row.classList.remove('mube-ib-row--dragging');
+      container.querySelectorAll('.mube-ib-row--over').forEach(function(r) {
+        r.classList.remove('mube-ib-row--over');
+      });
+      dragIdx = null;
+    });
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      if (dragIdx === null || +row.dataset.ibIdx === dragIdx) return;
+      container.querySelectorAll('.mube-ib-row--over').forEach(function(r) { r.classList.remove('mube-ib-row--over'); });
+      row.classList.add('mube-ib-row--over');
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      var toIdx = +row.dataset.ibIdx;
+      if (dragIdx === null || dragIdx === toIdx) return;
+      var items = mod.data[itemsKey];
+      var moved = items.splice(dragIdx, 1)[0];
+      items.splice(toIdx, 0, moved);
+      self._push();
+      self._patchModulePreview(self._itemBuilderTarget.si, self._itemBuilderTarget.ci, self._itemBuilderTarget.mi);
+      self._scheduleAutosave();
+      self._renderItemBuilderList();
+    });
+  });
 };
 
 MetisBlockEditor.prototype.getSaveLayout = function() {

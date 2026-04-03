@@ -1049,3 +1049,5 @@
 }
 .mube-ib-add:hover { background: #dbeafe; }
 .mube-ib-empty { font-size: 12px; color: #94a3b8; text-align: center; padding: 16px 0; }
+.mube-ib-row--dragging { opacity: .4; }
+.mube-ib-row--over { border-color: #3b82f6; background: #eff6ff; }
