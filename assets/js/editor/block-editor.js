@@ -785,6 +785,17 @@ MetisBlockEditor.prototype._modulePreview = function(mod) {
       var items = Array.isArray(data.items) ? data.items : [];
       return this._placeholder(type, type === 'faq' ? 'FAQ' : 'Accordion', items.length + ' item' + (items.length !== 1 ? 's' : ''));
 
+    case 'card_grid':
+    case 'feature_grid':
+    case 'testimonials':
+      var cItems = Array.isArray(data.items) ? data.items : [];
+      var cLabel = type === 'card_grid' ? 'Card Grid' : type === 'feature_grid' ? 'Feature Grid' : 'Testimonials';
+      return this._placeholder(type, cLabel, cItems.length + ' item' + (cItems.length !== 1 ? 's' : ''));
+
+    case 'pricing':
+      var plans = Array.isArray(data.plans) ? data.plans : [];
+      return this._placeholder('pricing', 'Pricing', plans.length + ' plan' + (plans.length !== 1 ? 's' : ''));
+
     case 'countdown':
       return this._placeholder('countdown', 'Countdown', data.end_at || 'No end date set');
 
@@ -1836,9 +1847,15 @@ MetisBlockEditor.prototype._bindEvents = function() {
   root.addEventListener('click', function(e) {
     /* Choose from Media button */
     var chooseBtn = e.target.closest('.mube-btn-choose-img');
-    if (chooseBtn) {
+    if (chooseBtn && !chooseBtn.classList.contains('mube-ib-img-pick')) {
       var bindTarget = chooseBtn.dataset.bindTarget || 'src';
       self._openMediaPicker(+chooseBtn.dataset.sidx, +chooseBtn.dataset.cidx, +chooseBtn.dataset.midx, bindTarget);
+      return;
+    }
+    /* Edit Items button (complex/repeater blocks) */
+    var editItemsBtn = e.target.closest('.mube-btn-edit-items');
+    if (editItemsBtn) {
+      self._openItemBuilder(+editItemsBtn.dataset.sidx, +editItemsBtn.dataset.cidx, +editItemsBtn.dataset.midx);
       return;
     }
     /* Section background image picker */
@@ -1879,6 +1896,20 @@ MetisBlockEditor.prototype._bindEvents = function() {
       /* Module field target */
       var t = self._mediaTarget;
       if (url && t) {
+        /* Item builder image field */
+        if (t.field === '__ib__' && self._ibImagePickerField) {
+          var ibMod = self._getModule(t.si, t.ci, t.mi);
+          var ibType = ibMod ? canonType(ibMod.type) : '';
+          var ibKey  = ibType === 'pricing' ? 'plans' : ibType === 'gallery' ? 'images' : 'items';
+          var ibIdx  = self._itemBuilderItemIdx;
+          if (ibMod && ibMod.data && ibMod.data[ibKey] && ibMod.data[ibKey][ibIdx]) {
+            ibMod.data[ibKey][ibIdx][self._ibImagePickerField] = url;
+          }
+          self._closeMediaPicker();
+          self._renderItemBuilderEdit(ibIdx);
+          return;
+        }
+        /* Regular module field */
         var tmod = self._getModule(t.si, t.ci, t.mi);
         if (tmod) {
           self._push();
@@ -1992,6 +2023,18 @@ MetisBlockEditor.prototype._handleAction = function(action, el) {
       break;
     case 'close-media-picker':
       this._closeMediaPicker(); break;
+    case 'ib-back':
+      this._itemBuilderTarget = null; this._renderPropsPane(); break;
+    case 'ib-list':
+      this._renderItemBuilderList(); break;
+    case 'ib-add':
+      this._renderItemBuilderEdit(-1); break;
+    case 'ib-save':
+      this._ibSaveItem(); break;
+    case 'ib-edit':
+      this._renderItemBuilderEdit(+el.dataset.idx); break;
+    case 'ib-delete':
+      this._ibDeleteItem(+el.dataset.idx); break;
     case 'drag-module': case 'drag-section': case 'drag-column': break;
   }
 };
@@ -2343,6 +2386,176 @@ MetisBlockEditor.prototype._bindVResize = function(root) {
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
+};
+
+/* =========================================================================
+   ITEM BUILDER (repeater editor for accordion, faq, tabs, gallery, etc.)
+   ========================================================================= */
+
+/* Schema definitions for each repeater block type */
+var ITEM_SCHEMAS = {
+  accordion:    [{key:'title',   label:'Title',   type:'text'}, {key:'content', label:'Content', type:'textarea'}],
+  faq:          [{key:'title',   label:'Question',type:'text'}, {key:'content', label:'Answer',  type:'textarea'}],
+  tabs:         [{key:'label',   label:'Tab Label',type:'text'},{key:'content', label:'Content', type:'textarea'}],
+  card_grid:    [{key:'title',   label:'Title',   type:'text'}, {key:'content', label:'Body',    type:'textarea'},
+                 {key:'image',   label:'Image',   type:'image'},{key:'link',    label:'Link URL',type:'text'}],
+  feature_grid: [{key:'icon',    label:'Icon',    type:'text'}, {key:'title',   label:'Title',   type:'text'},
+                 {key:'content', label:'Body',    type:'textarea'}],
+  testimonials: [{key:'quote',   label:'Quote',   type:'textarea'},{key:'author',label:'Author', type:'text'},
+                 {key:'role',    label:'Role',    type:'text'}, {key:'avatar',  label:'Avatar',  type:'image'}],
+  pricing:      [{key:'name',    label:'Plan Name',type:'text'},{key:'price',   label:'Price',   type:'text'},
+                 {key:'period',  label:'Period',   type:'text'},{key:'features',label:'Features (one per line)', type:'textarea'},
+                 {key:'cta_label',label:'Button Label',type:'text'},{key:'cta_url',label:'Button URL',type:'text'},
+                 {key:'highlighted',label:'Highlight',type:'checkbox'}],
+  gallery:      [{key:'src',     label:'Image',   type:'image'},{key:'alt',     label:'Alt Text',type:'text'},
+                 {key:'caption', label:'Caption', type:'text'}]
+};
+
+MetisBlockEditor.prototype._openItemBuilder = function(si, ci, mi) {
+  this._itemBuilderTarget = { si: si, ci: ci, mi: mi };
+  this._itemBuilderItemIdx = null; /* null = list view */
+  this._switchSidebarTab('properties');
+  this._renderItemBuilderList();
+};
+
+MetisBlockEditor.prototype._renderItemBuilderList = function() {
+  var body = document.getElementById('mube-props-body');
+  if (!body) return;
+  var t = this._itemBuilderTarget; if (!t) return;
+  var mod = this._getModule(t.si, t.ci, t.mi); if (!mod) return;
+  var type = canonType(mod.type);
+  var schema = ITEM_SCHEMAS[type];
+  if (!schema) return;
+  var itemsKey = type === 'pricing' ? 'plans' : type === 'gallery' ? 'images' : 'items';
+  var items = (mod.data && mod.data[itemsKey]) ? mod.data[itemsKey] : [];
+  var labelField = schema[0] ? schema[0].key : 'title';
+  var self = this;
+
+  var html = '<div class="mube-ib-head">'
+    + '<button type="button" class="mube-ib-back" data-action="ib-back">\u2190 Back</button>'
+    + '<span class="mube-ib-title">' + escH((this._defs[type]||{}).label||type) + ' Items</span>'
+    + '</div>';
+
+  if (items.length) {
+    html += '<div class="mube-ib-list" id="mube-ib-list">';
+    items.forEach(function(item, idx) {
+      var label = String(item[labelField] || 'Item ' + (idx+1)).replace(/<[^>]*>/g,'').slice(0,40);
+      html += '<div class="mube-ib-row" data-ib-idx="' + idx + '">'
+        + '<span class="mube-ib-row-drag" title="Drag to reorder">&#9776;</span>'
+        + '<span class="mube-ib-row-label">' + escH(label) + '</span>'
+        + '<div class="mube-ib-row-actions">'
+        + '<button type="button" class="mube-ib-btn" data-action="ib-edit" data-idx="' + idx + '" title="Edit">&#9998;</button>'
+        + '<button type="button" class="mube-ib-btn mube-ib-btn--del" data-action="ib-delete" data-idx="' + idx + '" title="Delete">&#215;</button>'
+        + '</div></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="mube-ib-empty">No items yet. Add one below.</div>';
+  }
+
+  html += '<button type="button" class="mube-ib-add" data-action="ib-add">+ Add Item</button>';
+  body.innerHTML = html;
+};
+
+MetisBlockEditor.prototype._renderItemBuilderEdit = function(idx) {
+  var body = document.getElementById('mube-props-body');
+  if (!body) return;
+  var t = this._itemBuilderTarget; if (!t) return;
+  var mod = this._getModule(t.si, t.ci, t.mi); if (!mod) return;
+  var type = canonType(mod.type);
+  var schema = ITEM_SCHEMAS[type]; if (!schema) return;
+  var itemsKey = type === 'pricing' ? 'plans' : type === 'gallery' ? 'images' : 'items';
+  mod.data = mod.data || {};
+  mod.data[itemsKey] = mod.data[itemsKey] || [];
+
+  var isNew = idx === -1;
+  if (isNew) {
+    /* Create blank item from schema */
+    var blank = {};
+    schema.forEach(function(f) { blank[f.key] = f.type === 'checkbox' ? false : ''; });
+    mod.data[itemsKey].push(blank);
+    idx = mod.data[itemsKey].length - 1;
+  }
+  this._itemBuilderItemIdx = idx;
+  var item = mod.data[itemsKey][idx] || {};
+  var self = this;
+
+  var html = '<div class="mube-ib-head">'
+    + '<button type="button" class="mube-ib-back" data-action="ib-list">\u2190 Items</button>'
+    + '<span class="mube-ib-title">Edit Item ' + (idx+1) + '</span>'
+    + '</div>';
+
+  schema.forEach(function(field) {
+    var val = item[field.key] !== undefined ? item[field.key] : '';
+    html += '<div class="mube-pfield"><label class="mube-plabel">' + escH(field.label) + '</label>';
+    if (field.type === 'textarea') {
+      html += '<textarea class="mube-fi mube-fita" rows="4" data-ib-field="' + escA(field.key) + '">' + escH(String(val)) + '</textarea>';
+    } else if (field.type === 'checkbox') {
+      html += '<label class="mube-check-label"><input type="checkbox" data-ib-field="' + escA(field.key) + '"' + (val ? ' checked' : '') + '><span>Yes</span></label>';
+    } else if (field.type === 'image') {
+      html += '<div class="mube-img-preview' + (val ? '' : ' mube-img-preview--empty') + '">'
+        + (val ? '<img src="' + escA(String(val)) + '" alt="">' : 'No image')
+        + '</div>'
+        + '<button type="button" class="mube-btn-choose-img mube-ib-img-pick" data-ib-field="' + escA(field.key) + '">Choose from Media</button>'
+        + (val ? '<button type="button" class="mube-ib-img-clear" data-ib-field="' + escA(field.key) + '">Remove</button>' : '');
+    } else {
+      html += '<input type="text" class="mube-fi" data-ib-field="' + escA(field.key) + '" value="' + escA(String(val)) + '">';
+    }
+    html += '</div>';
+  });
+
+  html += '<button type="button" class="mube-ib-add" data-action="ib-save">Save Item</button>';
+  body.innerHTML = html;
+
+  /* Bind image picker buttons */
+  body.querySelectorAll('.mube-ib-img-pick').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      self._ibImagePickerField = btn.dataset.ibField;
+      self._openMediaPicker(t.si, t.ci, t.mi, '__ib__');
+    });
+  });
+  body.querySelectorAll('.mube-ib-img-clear').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      item[btn.dataset.ibField] = '';
+      self._renderItemBuilderEdit(idx);
+    });
+  });
+};
+
+MetisBlockEditor.prototype._ibSaveItem = function() {
+  var body = document.getElementById('mube-props-body');
+  if (!body) return;
+  var t = this._itemBuilderTarget; if (!t) return;
+  var mod = this._getModule(t.si, t.ci, t.mi); if (!mod) return;
+  var type = canonType(mod.type);
+  var itemsKey = type === 'pricing' ? 'plans' : type === 'gallery' ? 'images' : 'items';
+  var idx = this._itemBuilderItemIdx;
+  if (idx === null || idx === undefined) return;
+  var item = mod.data[itemsKey][idx];
+  if (!item) return;
+
+  /* Read all field values from form */
+  body.querySelectorAll('[data-ib-field]').forEach(function(el) {
+    var key = el.dataset.ibField;
+    item[key] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+
+  this._push();
+  this._patchModulePreview(t.si, t.ci, t.mi);
+  this._scheduleAutosave();
+  this._renderItemBuilderList();
+};
+
+MetisBlockEditor.prototype._ibDeleteItem = function(idx) {
+  var t = this._itemBuilderTarget; if (!t) return;
+  var mod = this._getModule(t.si, t.ci, t.mi); if (!mod) return;
+  var type = canonType(mod.type);
+  var itemsKey = type === 'pricing' ? 'plans' : type === 'gallery' ? 'images' : 'items';
+  this._push();
+  mod.data[itemsKey].splice(idx, 1);
+  this._patchModulePreview(t.si, t.ci, t.mi);
+  this._scheduleAutosave();
+  this._renderItemBuilderList();
 };
 
 MetisBlockEditor.prototype.getSaveLayout = function() {
