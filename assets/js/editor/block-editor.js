@@ -713,16 +713,22 @@ MetisBlockEditor.prototype._modulePreview = function(mod) {
 
   switch (type) {
     case 'text':
-      /* content is richtext HTML — render directly, safe because it came from contenteditable */
       var textHtml = String(data.content || '<p><em>Double-click to edit text</em></p>');
-      return '<div class="mube-prev-richtext">' + textHtml + '</div>';
+      var textStyle = '';
+      if (data.font_size)   textStyle += 'font-size:'   + escA(data.font_size)   + ';';
+      if (data.line_height) textStyle += 'line-height:' + escA(data.line_height) + ';';
+      if (data.align)       textStyle += 'text-align:'  + escA(data.align)       + ';';
+      return '<div class="mube-prev-richtext"' + (textStyle ? ' style="' + textStyle + '"' : '') + '>' + textHtml + '</div>';
 
     case 'heading':
       var tag = /^h[1-6]$/.test(data.level || '') ? data.level : 'h2';
       var align = ['left','center','right'].indexOf(data.align) !== -1 ? data.align : 'left';
-      /* content may be plain text or richtext — strip any outer tags and render clean */
       var headingText = String(data.content || 'Your Heading').replace(/<[^>]+>/g, '').trim() || 'Your Heading';
-      return '<' + tag + ' class="mube-prev-heading" style="text-align:' + align + ';margin:0;font-size:inherit;">' + escH(headingText) + '</' + tag + '>';
+      var hStyle = 'text-align:' + align + ';margin:0;';
+      if (data.font_size)   hStyle += 'font-size:'   + escA(data.font_size)   + ';';
+      if (data.font_weight) hStyle += 'font-weight:' + escA(data.font_weight) + ';';
+      if (data.color)       hStyle += 'color:'       + escA(data.color)       + ';';
+      return '<' + tag + ' class="mube-prev-heading" style="' + hStyle + '">' + escH(headingText) + '</' + tag + '>';
 
     case 'image':
       if (!data.src) return this._placeholder('image', 'Image', 'No image selected');
@@ -1130,9 +1136,14 @@ MetisBlockEditor.prototype._panelSection = function(sel, tab) {
       + (s.width_mode === 'fixed' ? this._fi('Max Width', 'section.settings.max_width', s.max_width||'1200px', 'text', ' placeholder="1200px"', si) : '');
   }
   if (tab === 'style') {
+    var bgPickerBtn = '<div class="mube-pfield"><label class="mube-plabel">Background Image</label>'
+      + (s.bg_image ? '<div class="mube-img-preview"><img src="' + escA(s.bg_image) + '" alt=""></div>' : '<div class="mube-img-preview mube-img-preview--empty">No image</div>')
+      + '<button type="button" class="mube-btn-choose-img mube-btn-choose-sec-bg" data-sidx="' + si + '">Choose from Media</button>'
+      + (s.bg_image ? '<button type="button" class="mube-btn-clear-sec-bg" data-sidx="' + si + '">Remove</button>' : '')
+      + '</div>';
     return '<div class="mube-ptype-label">Row Style</div>'
-      + this._fi('Background Color', 'section.settings.bg_color', s.bg_color||'#ffffff', 'color', '', si)
-      + this._fi('Background Image', 'section.settings.bg_image', s.bg_image||'', 'text', ' placeholder="https://…"', si)
+      + this._fi('Background Color', 'section.settings.bg_color',      s.bg_color||'',      'color', '', si)
+      + bgPickerBtn
       + this._fi('Padding Top',    'section.settings.padding_top',    s.padding_top||'',    'text', ' placeholder="e.g. 60px"', si)
       + this._fi('Padding Bottom', 'section.settings.padding_bottom', s.padding_bottom||'', 'text', ' placeholder="e.g. 60px"', si)
       + this._fi('Padding Left',   'section.settings.padding_left',   s.padding_left||'',   'text', ' placeholder="e.g. 0"', si)
@@ -1167,8 +1178,9 @@ MetisBlockEditor.prototype._panelColumn = function(sel, tab) {
   }
   if (tab === 'style') {
     return '<div class="mube-ptype-label">Column Style</div>'
-      + this._fi('Background Color', 'column.settings.bg_color', s.bg_color||'#ffffff', 'color', '', si, ci)
-      + this._fi('Padding', 'column.settings.padding', s.padding||'', 'text', ' placeholder="e.g. 20px 16px"', si, ci);
+      + this._fi('Background Color', 'column.settings.bg_color', s.bg_color||'', 'color', '', si, ci)
+      + this._fi('Padding', 'column.settings.padding', s.padding||'', 'text', ' placeholder="e.g. 20px 16px"', si, ci)
+      + this._fi('Min Height', 'column.settings.min_height', s.min_height||'', 'text', ' placeholder="e.g. 200px"', si, ci);
   }
   if (tab === 'advanced') {
     return '<div class="mube-ptype-label">Column Advanced</div>'
@@ -1492,8 +1504,16 @@ MetisBlockEditor.prototype._patchModulePreview = function(si,ci,mi) {
 
 MetisBlockEditor.prototype._patchSectionStyle = function(si) {
   var sec=this._getSection(si); if(!sec)return;
-  var s=sec.settings||{}; var el=document.querySelector('[data-kind="section"][data-sidx="'+si+'"]'); if(!el)return;
-  var a=[]; if(s.bg_color)a.push('background-color:'+s.bg_color); if(s.padding)a.push('padding:'+s.padding); if(s.min_height)a.push('min-height:'+s.min_height+'px');
+  var s=sec.settings||{};
+  var el=document.querySelector('[data-kind="section"][data-sidx="'+si+'"]'); if(!el)return;
+  var a=[];
+  if(s.bg_color)      a.push('background-color:'+s.bg_color);
+  if(s.bg_image)      a.push('background-image:url('+s.bg_image+');background-size:cover;background-position:center');
+  if(s.padding_top)   a.push('padding-top:'+s.padding_top);
+  if(s.padding_bottom)a.push('padding-bottom:'+s.padding_bottom);
+  if(s.padding_left)  a.push('padding-left:'+s.padding_left);
+  if(s.padding_right) a.push('padding-right:'+s.padding_right);
+  if(s.min_height)    a.push('min-height:'+s.min_height+'px');
   el.style.cssText=a.join(';');
 };
 
@@ -1817,7 +1837,22 @@ MetisBlockEditor.prototype._bindEvents = function() {
     /* Choose from Media button */
     var chooseBtn = e.target.closest('.mube-btn-choose-img');
     if (chooseBtn) {
-      self._openMediaPicker(+chooseBtn.dataset.sidx, +chooseBtn.dataset.cidx, +chooseBtn.dataset.midx);
+      var bindTarget = chooseBtn.dataset.bindTarget || 'src';
+      self._openMediaPicker(+chooseBtn.dataset.sidx, +chooseBtn.dataset.cidx, +chooseBtn.dataset.midx, bindTarget);
+      return;
+    }
+    /* Section background image picker */
+    var secBgBtn = e.target.closest('.mube-btn-choose-sec-bg');
+    if (secBgBtn) {
+      self._openSectionBgPicker(+secBgBtn.dataset.sidx);
+      return;
+    }
+    /* Clear section background image */
+    var secBgClear = e.target.closest('.mube-btn-clear-sec-bg');
+    if (secBgClear) {
+      var csi = +secBgClear.dataset.sidx;
+      var csec = self._getSection(csi);
+      if (csec) { self._push(); csec.settings = csec.settings||{}; csec.settings.bg_image = ''; self._patchSectionStyle(csi); self._renderPropsPane(); self._scheduleAutosave(); }
       return;
     }
     /* Remove Image button */
@@ -1831,11 +1866,28 @@ MetisBlockEditor.prototype._bindEvents = function() {
     /* Media grid thumbnail selection */
     var mediaItem = e.target.closest('.mube-media-item');
     if (mediaItem) {
-      var url=mediaItem.dataset.url||'';
-      var t=self._mediaTarget;
+      var url = mediaItem.dataset.url || '';
+      /* Section background image target */
+      if (mediaItem.classList.contains('mube-media-item--sec-bg') && self._sectionBgTarget !== undefined && self._sectionBgTarget !== null) {
+        var bsi = self._sectionBgTarget;
+        var bsec = self._getSection(bsi);
+        if (bsec && url) { self._push(); bsec.settings = bsec.settings||{}; bsec.settings.bg_image = url; self._patchSectionStyle(bsi); self._renderPropsPane(); self._scheduleAutosave(); }
+        self._sectionBgTarget = null;
+        self._closeMediaPicker();
+        return;
+      }
+      /* Module field target */
+      var t = self._mediaTarget;
       if (url && t) {
-        var tmod=self._getModule(t.si,t.ci,t.mi);
-        if (tmod) { self._push(); tmod.data=tmod.data||{}; tmod.data.src=url; self._patchModulePreview(t.si,t.ci,t.mi); self._renderPropsPane(); self._scheduleAutosave(); }
+        var tmod = self._getModule(t.si, t.ci, t.mi);
+        if (tmod) {
+          self._push();
+          tmod.data = tmod.data || {};
+          tmod.data[t.field || 'src'] = url;
+          self._patchModulePreview(t.si, t.ci, t.mi);
+          self._renderPropsPane();
+          self._scheduleAutosave();
+        }
       }
       self._closeMediaPicker();
       return;
@@ -2169,9 +2221,9 @@ MetisBlockEditor.prototype.getBlocksPanelElement = function() {
 /* =========================================================================
    MEDIA PICKER
    ========================================================================= */
-MetisBlockEditor.prototype._openMediaPicker = function(si, ci, mi) {
+MetisBlockEditor.prototype._openMediaPicker = function(si, ci, mi, bindTarget) {
   var self = this;
-  this._mediaTarget = { si: si, ci: ci, mi: mi };
+  this._mediaTarget = { si: si, ci: ci, mi: mi, field: bindTarget || 'src' };
   var modal = document.getElementById('mube-media-modal');
   var grid  = document.getElementById('mube-media-grid');
   var status = document.getElementById('mube-media-status');
@@ -2213,6 +2265,44 @@ MetisBlockEditor.prototype._closeMediaPicker = function() {
   var modal = document.getElementById('mube-media-modal');
   if (modal) modal.hidden = true;
   this._mediaTarget = null;
+};
+
+MetisBlockEditor.prototype._openSectionBgPicker = function(si) {
+  /* Reuse the media modal but store a section target instead of module target */
+  this._sectionBgTarget = si;
+  this._mediaTarget = null; /* prevent module handler from firing */
+  var self = this;
+  var modal = document.getElementById('mube-media-modal');
+  var grid  = document.getElementById('mube-media-grid');
+  var status = document.getElementById('mube-media-status');
+  if (!modal) return;
+  modal.hidden = false;
+  grid.innerHTML = '<div class="mube-media-loading">Loading\u2026</div>';
+  if (status) status.textContent = '';
+  var ajaxCfg = window.metisAjax || {};
+  var ajaxUrl  = ajaxCfg.ajax_url || '/metis/api/ajax';
+  var nonce    = (ajaxCfg.action_nonces || {}).metis_media_library_list || '';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', ajaxUrl);
+  xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+  xhr.onload = function() {
+    try {
+      var r = JSON.parse(xhr.responseText);
+      var items = ((r.data && r.data.items) || []).filter(function(it){ return it.mime_type && it.mime_type.indexOf('image/')===0; });
+      if (!items.length) { grid.innerHTML='<div class="mube-media-empty">No images found.</div>'; return; }
+      var html = '<div class="mube-media-grid">';
+      items.forEach(function(it) {
+        html += '<div class="mube-media-item mube-media-item--sec-bg" data-url="' + self._escA(it.url||'') + '">'
+          + '<img src="' + self._escA(it.url||'') + '">'
+          + '<div class="mube-media-item-name">' + self._escH(it.file_name||'') + '</div></div>';
+      });
+      html += '</div>';
+      grid.innerHTML = html;
+      if (status) status.textContent = items.length + ' image' + (items.length!==1?'s':'') + ' found';
+    } catch(e) { grid.innerHTML='<div class="mube-media-empty">Error loading media.</div>'; }
+  };
+  xhr.onerror = function(){ grid.innerHTML='<div class="mube-media-empty">Network error.</div>'; };
+  xhr.send('action=metis_media_library_list&nonce='+encodeURIComponent(nonce)+'&per_page=60&mime_filter=image');
 };
 MetisBlockEditor.prototype._escA = function(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
 MetisBlockEditor.prototype._escH = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
