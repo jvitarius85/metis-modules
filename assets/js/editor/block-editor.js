@@ -94,7 +94,7 @@ var BLOCKS = {
   hero:          { label:'Hero',            cat:'content',     defs:{ title:'Hero Headline', content:'<p>Supporting copy.</p>', button_label:'Get Started', button_url:'#', background_image:'' } },
   card_grid:     { label:'Card Grid',       cat:'content',     defs:{ items:[] } },
   feature_grid:  { label:'Feature Grid',    cat:'content',     defs:{ items:[] } },
-  image_content: { label:'Image + Content', cat:'content',     defs:{ image:'', title:'', content:'' } },
+  image_content: { label:'Image + Content', cat:'content',     defs:{ items:[] } },
   testimonials:  { label:'Testimonials',    cat:'content',     defs:{ items:[] } },
   faq:           { label:'FAQ',             cat:'content',     defs:{ items:[] } },
   accordion:     { label:'Accordion',       cat:'content',     defs:{ items:[] } },
@@ -805,8 +805,9 @@ MetisBlockEditor.prototype._modulePreview = function(mod) {
     case 'card_grid':
     case 'feature_grid':
     case 'testimonials':
+    case 'image_content':
       var cItems = Array.isArray(data.items) ? data.items : [];
-      var cLabel = type === 'card_grid' ? 'Card Grid' : type === 'feature_grid' ? 'Feature Grid' : 'Testimonials';
+      var cLabel = type === 'card_grid' ? 'Card Grid' : type === 'feature_grid' ? 'Feature Grid' : type === 'image_content' ? 'Image + Content' : 'Testimonials';
       return this._placeholder(type, cLabel, cItems.length + ' item' + (cItems.length !== 1 ? 's' : ''));
 
     case 'pricing':
@@ -2172,6 +2173,11 @@ MetisBlockEditor.prototype._saveSectionWebpart = function(si) {
   if (typeof this.config.onSaveWebpart === 'function') this.config.onSaveWebpart({ name:name, section: cloneDeep(sec) });
 };
 
+MetisBlockEditor.prototype.setWebparts = function(items) {
+  this._webparts = Array.isArray(items) ? items : [];
+  this._renderWebparts();
+};
+
 MetisBlockEditor.prototype._insertWebpart = function(id) {
   var wp = (this._webparts||[]).filter(function(w){ return String(w.id)===String(id); })[0];
   if (!wp||!wp.section) return;
@@ -2438,7 +2444,9 @@ var ITEM_SCHEMAS = {
                  {key:'cta_label',label:'Button Label',type:'text'},{key:'cta_url',label:'Button URL',type:'text'},
                  {key:'highlighted',label:'Highlight',type:'checkbox'}],
   gallery:      [{key:'src',     label:'Image',   type:'image'},{key:'alt',     label:'Alt Text',type:'text'},
-                 {key:'caption', label:'Caption', type:'text'}]
+                 {key:'caption', label:'Caption', type:'text'}],
+  image_content:[{key:'image',   label:'Image',   type:'image'},{key:'title',   label:'Title',  type:'text'},
+                 {key:'content', label:'Content', type:'textarea'},{key:'link', label:'Link URL',type:'text'}]
 };
 
 MetisBlockEditor.prototype._openItemBuilder = function(si, ci, mi) {

@@ -156,6 +156,7 @@ var MetisPageBuilder = {
                 }
                 var template = r.data.template || {};
                 self.currentId = template.id || null;
+                self.currentKey = String(template.template_key || key);
                 self._templateStructure = self._normalizeTemplateStructureFromEntity(template);
                 var kind = (self._templateStructure.layout && self._templateStructure.layout.template_kind) || '';
                 if (kind !== 'header' && kind !== 'footer' && kind !== 'body') {
@@ -169,6 +170,7 @@ var MetisPageBuilder = {
                     suppress_home_header: self._templateStructure.layout && self._templateStructure.layout.suppress_header_on_homepage ? 1 : 0
                 };
                 self._templateActiveRegion = kind === 'header' ? 'header' : (kind === 'footer' ? 'footer' : 'main');
+                self._syncTemplateEditorUrl(self._templateMeta.template_key);
                 self._openEditor(self._templateRegionBlocks(self._templateActiveRegion), template);
             },
             error: function() {
@@ -543,8 +545,25 @@ var MetisPageBuilder = {
                         }
                         self._setSidebarTab('blocks');
                     },
-                    onRequestReusableLibrary: function(done) {
-                        self._loadReusableBlocks(done);
+                    onRequestReusableLibrary: function() {
+                        self._loadReusableBlocks(function(items) {
+                            /* Map server items to the editor's webpart format */
+                            var webparts = (items || []).map(function(it) {
+                                var sec = null;
+                                try {
+                                    var lj = it.layout_json || it.blocks_json || null;
+                                    var parsed = lj ? (typeof lj === 'string' ? JSON.parse(lj) : lj) : null;
+                                    if (parsed && parsed.sections && parsed.sections[0]) sec = parsed.sections[0];
+                                } catch(e) {}
+                                return { id: String(it.id || it.block_code || ''), name: String(it.name || it.block_code || 'Untitled'), section: sec };
+                            });
+                            if (self.editor && typeof self.editor.setWebparts === 'function') {
+                                self.editor.setWebparts(webparts);
+                            }
+                        });
+                    },
+                    onSaveWebpart: function(payload) {
+                        self._saveWebpart(payload);
                     },
                     onSaveBlockAsReusable: function(path, block) {
                         self._promptSaveReusableBlock(path, block);
@@ -873,15 +892,18 @@ var MetisPageBuilder = {
         if (context === 'template') return '';
         var meta = this._entityMeta || {};
         var slug = this._safeSlug(meta.slug || '');
-        var origin = String(window.location.origin || '');
+        /* Use metisAjax.site_url if available (includes base path), fall back to origin */
+        var base = (window.metisAjax && window.metisAjax.site_url)
+            ? String(window.metisAjax.site_url).replace(/\/$/, '')
+            : String(window.location.origin || '');
         if (context === 'post') {
             if (!slug) return '';
-            return origin + '/blog/' + encodeURIComponent(slug) + '/';
+            return base + '/blog/' + encodeURIComponent(slug) + '/';
         }
-        if (!slug || meta.is_homepage) {
-            return origin + '/';
+        if (meta.is_homepage || !slug) {
+            return base + '/';
         }
-        return origin + '/' + encodeURIComponent(slug) + '/';
+        return base + '/' + encodeURIComponent(slug) + '/';
     },
 
     _openPreview: function() {
@@ -2350,6 +2372,45 @@ var MetisPageBuilder = {
                 self._reusableItems = [];
                 if (typeof done === 'function') done([]);
             }
+        });
+    },
+
+    _saveWebpart: function(payload) {
+        var self = this;
+        var name = String((payload && payload.name) || '').trim();
+        var sec  = (payload && payload.section) ? payload.section : null;
+        if (!name || !sec) return;
+        var action = 'metis_website_reusable_block_save';
+        var ajaxCfg = this._ajaxConfigForAction(action);
+        var layout = { sections: [sec] };
+        $.ajax({
+            url: ajaxCfg.ajax_url, type: 'POST',
+            data: {
+                action: action,
+                nonce: ajaxCfg.nonce,
+                metis_action_nonce: ajaxCfg.action_nonce || '',
+                metis_csrf_action: ajaxCfg.csrf_action || ('metis_ajax:' + action),
+                name: name,
+                block_code: '',
+                category: 'section',
+                is_global: 1,
+                context: self._editorRegistryContext(),
+                render_mode: 'standard',
+                block_json: '{}',
+                layout_json: JSON.stringify(layout)
+            },
+            success: function(r) {
+                if (r && r.success) {
+                    self._toast('Section saved.', 'success');
+                    /* Refresh the webparts library */
+                    if (self.editor && typeof self.editor.config.onRequestReusableLibrary === 'function') {
+                        self.editor.config.onRequestReusableLibrary();
+                    }
+                } else {
+                    self._toast((r && r.data && r.data.message) || 'Save failed.', 'error');
+                }
+            },
+            error: function() { self._toast('Could not save section.', 'error'); }
         });
     },
 
