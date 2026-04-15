@@ -1,0 +1,651 @@
+/* =========================================================
+   FORMS MODULE — CSS
+   Module-specific only. Layout, buttons, inputs, badges,
+   and modals come from core.css via mw-* classes.
+   ========================================================= */
+
+/* ── Public form per-form design tokens (set inline by FormRenderer) ── */
+:root {
+    --metis-form-accent:      #126497;
+    --metis-form-button-bg:   #126497;
+    --metis-form-button-text: #ffffff;
+    --metis-form-radius:      10px;
+}
+
+/* =========================================================
+   SHARED LAYOUT HELPERS
+   ========================================================= */
+
+.metis-forms-hero,
+.metis-forms-detail-head,
+.metis-forms-builder-topbar,
+.metis-forms-home-card-head,
+.metis-forms-canvas-card-head,
+.metis-forms-entry-card-head,
+.metis-forms-detail-actions,
+.metis-forms-home-card-actions,
+.metis-forms-home-card-stats,
+.metis-form-totals > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.metis-forms-kpis,
+.metis-forms-home-grid,
+.metis-forms-detail-grid,
+.metis-forms-version-list,
+.metis-forms-field-outline,
+.metis-forms-entries-table,
+.metis-forms-palette-grid,
+.metis-forms-canvas-dropzone,
+.metis-forms-inline-checks,
+.metis-form-repeater,
+.metis-form-repeater-grid,
+.metis-forms-public-form {
+    display: grid;
+    gap: 14px;
+}
+
+/* =========================================================
+   KPI TILES
+   ========================================================= */
+
+.metis-forms-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-bottom: 20px;
+}
+
+.metis-forms-kpi {
+    padding: 16px 18px;
+    background: var(--mw-surface);
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius-lg);
+    box-shadow: var(--mw-shadow);
+}
+
+.metis-forms-kpi span {
+    color: var(--mw-text-muted);
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.metis-forms-kpi strong {
+    font-size: 26px;
+    color: var(--mw-text);
+}
+
+/* =========================================================
+   GRID CARDS — home / detail / entry / empty state
+   ========================================================= */
+
+.metis-forms-home-grid,
+.metis-forms-detail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.metis-forms-home-card,
+.metis-forms-detail-card,
+.metis-forms-entry-card,
+.metis-forms-empty-state {
+    padding: 20px;
+    background: var(--mw-surface);
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius-lg);
+    box-shadow: var(--mw-shadow);
+}
+
+.metis-forms-home-card h2,
+.metis-forms-detail-card h2 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--mw-text);
+}
+
+.metis-forms-home-card p,
+.metis-forms-home-card small,
+.metis-forms-detail-card p,
+.metis-forms-detail-card small,
+.metis-forms-entry-card small {
+    color: var(--mw-text-muted);
+}
+
+.metis-forms-home-card-stats,
+.metis-forms-canvas-card-meta {
+    flex-wrap: wrap;
+    margin: 12px 0;
+    color: var(--mw-text-muted);
+}
+
+/* =========================================================
+   DEFINITION LIST
+   ========================================================= */
+
+.metis-forms-definition-list,
+.metis-forms-field-outline {
+    margin-top: 12px;
+}
+
+.metis-forms-definition-list > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-top: 1px solid var(--mw-border);
+    font-size: 14px;
+}
+
+/* =========================================================
+   FIELD OUTLINE (detail view)
+   ========================================================= */
+
+.metis-forms-field-outline-item {
+    padding: 12px 14px;
+    border-radius: var(--mw-radius-lg);
+    background: var(--mw-bg);
+    border: 1px solid var(--mw-border);
+}
+
+.metis-forms-field-outline-item span,
+.metis-forms-field-outline-item small {
+    display: block;
+    color: var(--mw-text-muted);
+    margin-top: 3px;
+    font-size: 12px;
+}
+
+/* =========================================================
+   BUILDER SHELL
+   ========================================================= */
+
+.metis-forms-builder-meta {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 16px;
+}
+
+.metis-forms-builder-shell .mw-list-content,
+.metis-forms-settings-shell .mw-list-content {
+    display: grid;
+    gap: 16px;
+}
+
+.metis-forms-builder-shell .mw-list-sidebar-nav-item,
+.metis-forms-settings-shell .mw-list-sidebar-nav-item {
+    width: 100%;
+}
+
+.metis-forms-settings-shell button.mw-list-sidebar-nav-item {
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.metis-forms-builder-topbar {
+    margin-bottom: 16px;
+}
+
+/* =========================================================
+   CANVAS STAGE
+   ========================================================= */
+
+.metis-forms-canvas-stage {
+    padding: 20px;
+    background: var(--mw-surface);
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius-lg);
+    box-shadow: var(--mw-shadow);
+}
+
+.metis-forms-canvas-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.metis-forms-canvas-head .mw-muted {
+    color: var(--mw-text-muted);
+    font-size: 13px;
+}
+
+/* =========================================================
+   TRASH ZONE
+   ========================================================= */
+
+.metis-forms-trash-zone {
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: var(--mw-radius-lg);
+    border: 2px dashed #d8b7b7;
+    background: #fff7f7;
+    color: #6e3d3d;
+    font-size: 13px;
+}
+
+.metis-forms-trash-zone.is-over {
+    border-color: #bf3c3c;
+    background: #ffecec;
+}
+
+/* =========================================================
+   FIELD PALETTE (sidebar library)
+   ========================================================= */
+
+.metis-forms-palette-grid { margin-top: 14px; }
+
+.metis-forms-palette-card {
+    padding: 12px 14px;
+    border-radius: var(--mw-radius-lg);
+    border: 1px solid var(--mw-border);
+    background: var(--mw-surface);
+    cursor: grab;
+}
+
+.metis-forms-palette-card small {
+    display: block;
+    margin-top: 4px;
+    color: var(--mw-text-muted);
+    font-size: 12px;
+}
+
+.metis-forms-library-nav { margin-top: 10px; }
+
+.metis-forms-library-item {
+    display: grid;
+    gap: 3px;
+    cursor: grab;
+}
+
+.metis-forms-library-item small {
+    color: var(--mw-text-muted);
+    font-size: 12px;
+}
+
+/* =========================================================
+   CANVAS DROP SLOTS & FIELD CARDS
+   ========================================================= */
+
+.metis-forms-canvas-dropzone { margin-top: 16px; }
+
+.metis-forms-drop-slot {
+    min-height: 48px;
+    border: 2px dashed var(--mw-border);
+    border-radius: var(--mw-radius-lg);
+    display: grid;
+    place-items: center;
+    color: var(--mw-text-muted);
+    background: var(--mw-bg);
+    font-size: 13px;
+}
+
+.metis-forms-drop-slot.is-over {
+    border-color: var(--mw-primary);
+    background: #eceeff;
+}
+
+.metis-forms-canvas-card {
+    padding: 16px;
+    border-radius: var(--mw-radius-lg);
+    border: 1px solid var(--mw-border);
+    background: var(--mw-surface);
+    cursor: pointer;
+}
+
+.metis-forms-canvas-card.is-active {
+    border-color: var(--mw-primary);
+    box-shadow: 0 0 0 3px rgba(72, 91, 199, 0.15);
+}
+
+.metis-forms-canvas-card small,
+.metis-forms-canvas-card-meta {
+    margin-top: 5px;
+    color: var(--mw-text-muted);
+    font-size: 12px;
+}
+
+.metis-forms-canvas-card-tools,
+.metis-forms-card-head,
+.metis-forms-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.metis-forms-field-cog {
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius-pill);
+    background: var(--mw-surface);
+    color: var(--mw-text-muted);
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--mw-transition), border-color var(--mw-transition);
+}
+
+.metis-forms-field-cog:hover {
+    color: var(--mw-primary);
+    border-color: var(--mw-primary);
+}
+
+/* =========================================================
+   INSPECTOR SECTIONS
+   ========================================================= */
+
+.metis-forms-inspector-section,
+.metis-forms-meta-group {
+    display: grid;
+    gap: 7px;
+}
+
+.metis-forms-inspector-section { margin-top: 14px; }
+
+.metis-forms-inline-checks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 12px;
+}
+
+.metis-forms-inline-checks label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--mw-text);
+    font-size: 14px;
+}
+
+/* =========================================================
+   VERSION STRIP
+   ========================================================= */
+
+.metis-forms-version-strip {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--mw-border);
+}
+
+.metis-forms-version-list { margin-top: 12px; }
+
+.metis-forms-version-badge {
+    padding: 10px 12px;
+    border-radius: var(--mw-radius-lg);
+    background: var(--mw-bg);
+    border: 1px solid var(--mw-border);
+    font-size: 13px;
+}
+
+.metis-forms-version-badge small {
+    display: block;
+    margin-top: 3px;
+    color: var(--mw-text-muted);
+    font-size: 12px;
+}
+
+/* =========================================================
+   RULE / SUBFIELD ROWS
+   ========================================================= */
+
+.metis-forms-rule-list {
+    display: grid;
+    gap: 10px;
+    margin: 14px 0;
+}
+
+.metis-forms-rule-row {
+    display: grid;
+    gap: 9px;
+    padding: 12px;
+    border-radius: var(--mw-radius-lg);
+    border: 1px solid var(--mw-border);
+    background: var(--mw-bg);
+}
+
+.metis-forms-subfield-row { cursor: grab; }
+
+.metis-forms-subfield-row.is-over {
+    border-color: var(--mw-primary);
+    background: #eceeff;
+}
+
+/* =========================================================
+   ENTRY JSON
+   ========================================================= */
+
+.metis-forms-entry-json {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: var(--mw-radius-lg);
+    background: #10202c;
+    color: #d8e4ee;
+    overflow: auto;
+    max-height: 240px;
+    font: 12px/1.55 "IBM Plex Mono", monospace;
+}
+
+/* =========================================================
+   STYLE PREVIEW CARD (settings)
+   ========================================================= */
+
+.metis-forms-style-preview-card {
+    padding: 16px;
+    border-radius: var(--mw-radius-lg);
+    border: 1px solid var(--mw-border);
+    background: var(--mw-surface);
+}
+
+.metis-forms-style-preview-card.is-soft {
+    background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
+}
+
+.metis-forms-style-preview-card.is-outline {
+    border-width: 2px;
+    box-shadow: none;
+}
+
+.metis-forms-style-preview-card .mw-input {
+    border-radius: var(--metis-form-radius, 10px);
+    border-color: color-mix(in srgb, var(--metis-form-accent, #126497) 18%, var(--mw-border));
+}
+
+.metis-forms-style-preview-card .mw-btn {
+    border-radius: var(--metis-form-radius, 10px);
+    background: var(--metis-form-button-bg, #126497);
+    border-color: var(--metis-form-button-bg, #126497);
+    color: var(--metis-form-button-text, #ffffff);
+}
+
+/* =========================================================
+   RICH TEXT TOOLBAR (notifications)
+   ========================================================= */
+
+.metis-forms-rich-toolbar,
+.metis-forms-merge-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.metis-forms-rich-editor {
+    min-height: 160px;
+    padding: 12px;
+    border: 1px solid var(--mw-border);
+    border-radius: var(--mw-radius-lg);
+    background: var(--mw-surface);
+    font-size: 14px;
+}
+
+.metis-forms-rich-editor:focus {
+    outline: none;
+    border-color: var(--mw-primary);
+    box-shadow: 0 0 0 3px rgba(72, 91, 199, 0.15);
+}
+
+/* =========================================================
+   SETTINGS PREVIEW
+   ========================================================= */
+
+.metis-forms-settings-preview { display: grid; gap: 14px; }
+
+/* =========================================================
+   PUBLIC FORM PAGE (standalone — outside admin shell)
+   ========================================================= */
+
+.metis-forms-public-shell {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top left, rgba(18, 100, 151, 0.2), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(20, 40, 59, 0.18), transparent 22%),
+        #edf5fa;
+    font-family: "Figtree", system-ui, sans-serif;
+    color: #14283b;
+}
+
+.metis-forms-public-wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 20px;
+}
+
+.metis-forms-public-card {
+    padding: 28px;
+    background: #ffffff;
+    border: 1px solid #dde6ee;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(16, 39, 59, 0.08);
+    --metis-form-accent: #126497;
+    --metis-form-button-bg: #126497;
+    --metis-form-button-text: #ffffff;
+    --metis-form-radius: 10px;
+}
+
+.metis-forms-public-card--soft {
+    background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
+}
+
+.metis-forms-public-card--outline {
+    box-shadow: none;
+    border-width: 2px;
+}
+
+.metis-forms-public-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.metis-forms-public-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--metis-form-accent);
+    font-size: 12px;
+}
+
+.metis-forms-public-form {
+    margin-top: 22px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metis-form-field { display: grid; gap: 7px; }
+.metis-form-select-search { margin-bottom: 3px; }
+.metis-form-field.is-half { grid-column: span 1; }
+.metis-form-field:not(.is-half) { grid-column: 1 / -1; }
+
+.metis-form-choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: var(--metis-form-radius);
+    border: 1px solid #dde6ee;
+    background: #fafcff;
+}
+
+.metis-form-help {
+    margin: 0;
+    color: #617487;
+    font-size: 13px;
+}
+
+.metis-form-repeater-row {
+    padding: 14px;
+    border-radius: var(--metis-form-radius);
+    border: 1px dashed #bfd1de;
+    background: #fbfdff;
+}
+
+.metis-form-totals {
+    grid-column: 1 / -1;
+    border-top: 1px solid #dde6ee;
+    padding-top: 14px;
+}
+
+.metis-form-totals .is-grand {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.metis-forms-public-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.metis-forms-stripe-panel {
+    display: none;
+    grid-column: 1 / -1;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #dde6ee;
+    background: #f5f9fc;
+}
+
+.metis-forms-stripe-panel.is-active { display: grid; gap: 12px; }
+
+.metis-forms-public-card .mw-input,
+.metis-forms-public-card .mw-select,
+.metis-forms-public-card textarea {
+    border-radius: var(--metis-form-radius);
+}
+
+.metis-forms-public-card .mw-btn {
+    background: var(--metis-form-button-bg);
+    color: var(--metis-form-button-text);
+    border-color: var(--metis-form-button-bg);
+    border-radius: var(--metis-form-radius);
+}
+
+.metis-forms-public-card a { color: var(--metis-form-accent); }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 760px) {
+    .metis-forms-builder-meta,
+    .metis-forms-inline-checks,
+    .metis-forms-public-form {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-forms-hero,
+    .metis-forms-detail-head,
+    .metis-forms-builder-topbar,
+    .metis-forms-detail-actions,
+    .metis-forms-home-card-actions,
+    .metis-forms-home-card-stats {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
