@@ -13,7 +13,8 @@
     "forms",
     "board",
     "website",
-    "hermes"
+    "hermes",
+    "help"
   ],
    "required_modules": [
     "portal",
