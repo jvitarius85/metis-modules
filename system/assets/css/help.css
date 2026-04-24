@@ -1,0 +1,656 @@
+.help-search-modal .metis-modal {
+    max-width: 840px;
+}
+
+.help-search-container {
+    display: grid;
+    gap: 14px;
+}
+
+.help-search-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 12px;
+}
+
+.help-search-bar .metis-input {
+    border-radius: 5px;
+    box-shadow: none;
+    min-height: 40px;
+}
+
+.help-results {
+    display: grid;
+    gap: 10px;
+    max-height: 58vh;
+    overflow: auto;
+}
+
+.help-result-item {
+    appearance: none;
+    width: 100%;
+    border: 1px solid var(--metis-border);
+    background: var(--metis-surface);
+    color: var(--metis-text);
+    border-radius: 5px;
+    padding: 14px 16px;
+    text-align: left;
+    display: grid;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.help-result-item:hover,
+.help-result-item:focus {
+    border-color: var(--metis-primary);
+    outline: none;
+}
+
+.help-result-title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.help-result-summary {
+    color: var(--metis-text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.help-result-meta {
+    font-size: 12px;
+    color: var(--metis-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 700;
+}
+
+.help-loading,
+.help-empty {
+    border: 1px solid var(--metis-border);
+    background: var(--metis-surface);
+    border-radius: 5px;
+    padding: 14px 16px;
+    color: var(--metis-text-muted);
+}
+
+.help-loading.hidden,
+.help-empty.hidden {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .help-search-bar {
+        grid-template-columns: 1fr;
+    }
+}
+
+.metis-help-route {
+    background: var(--metis-bg);
+    color: var(--metis-text);
+}
+
+.metis-help-header {
+    border-bottom: 1px solid var(--metis-border);
+    background: var(--metis-surface);
+}
+
+.metis-help-header__inner,
+.metis-help-main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.metis-help-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.metis-help-header__brand {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--metis-text);
+    text-decoration: none;
+}
+
+.metis-help-header__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.metis-help-header__nav a {
+    color: var(--metis-text-muted);
+    text-decoration: none;
+}
+
+.metis-help-hero,
+.metis-help-card,
+.metis-help-article {
+    background: var(--metis-surface);
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(17, 24, 39, 0.05);
+}
+
+.metis-help-hero {
+    margin-bottom: 24px;
+}
+
+.metis-help-hero--compact {
+    padding-top: 18px;
+}
+
+.metis-help-hero--dashboard {
+    display: grid;
+    gap: 20px;
+}
+
+.metis-help-hero-copy {
+    display: grid;
+    gap: 8px;
+}
+
+.metis-help-hero-title {
+    margin: 0;
+    font-size: clamp(30px, 4vw, 48px);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    color: #1f2a44;
+}
+
+.metis-help-hero-text {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--metis-text-muted);
+}
+
+.metis-help-eyebrow,
+.metis-help-admin-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--metis-text-muted);
+    margin: 0 0 10px;
+}
+
+.metis-help-search-form,
+.metis-help-admin-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px 180px auto auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.metis-help-search-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.metis-help-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.metis-help-article-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 24px;
+    align-items: start;
+}
+
+.metis-help-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.metis-help-stat-card {
+    display: grid;
+    gap: 2px;
+    padding: 16px 18px;
+    border: 1px solid #dbe3f4;
+    border-radius: 12px;
+    background: var(--metis-surface, #fff);
+}
+
+.metis-help-stat-card strong {
+    display: block;
+    font-size: 30px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #1f2a44;
+}
+
+.metis-help-stat-card span {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--metis-text-muted);
+}
+
+.metis-help-search-fallback {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--metis-border);
+}
+
+.metis-help-search-fallback h3 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    color: #1f2a44;
+}
+
+.metis-help-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.metis-help-workspace .metis-module-layout-shell {
+    align-items: start;
+}
+
+.metis-help-workspace-sidebar {
+    display: grid;
+    gap: 0;
+}
+
+.metis-help-workspace-content {
+    display: grid;
+    gap: 24px;
+    min-width: 0;
+}
+
+.metis-help-search-form--stacked {
+    grid-template-columns: 1fr;
+}
+
+.metis-help-tree-group {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+    padding-top: 8px;
+}
+
+.metis-help-tree-group:first-child {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+}
+
+.metis-help-tree-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    list-style: none;
+    cursor: pointer;
+}
+
+.metis-help-tree-summary::-webkit-details-marker {
+    display: none;
+}
+
+.metis-help-tree-summary-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.metis-help-tree-caret {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 10px;
+    border-right: 2px solid var(--metis-text-muted);
+    border-bottom: 2px solid var(--metis-text-muted);
+    transform: rotate(-45deg);
+    transition: transform var(--metis-transition);
+    margin-left: 2px;
+}
+
+.metis-help-tree-group[open] .metis-help-tree-caret {
+    transform: rotate(45deg);
+}
+
+.metis-help-tree-category {
+    flex: 1 1 auto;
+    font-weight: 700;
+    min-width: 0;
+    margin: 0;
+}
+
+.metis-help-tree-count {
+    display: inline-flex;
+    min-width: 24px;
+    min-height: 24px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(72, 91, 199, 0.12);
+    color: var(--metis-primary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.metis-help-tree-nav {
+    padding-left: 18px;
+}
+
+.metis-help-tree-article {
+    padding-left: 16px;
+}
+
+.metis-help-link-list,
+.metis-help-result-list,
+.metis-help-empty-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 14px;
+}
+
+.metis-help-link-list li,
+.metis-help-result-card {
+    border: 1px solid var(--metis-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.metis-help-link-list a,
+.metis-help-result-card a,
+.metis-help-category-card {
+    color: var(--metis-text);
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.metis-help-result-link {
+    display: grid;
+    gap: 8px;
+    padding: 14px 16px;
+}
+
+.metis-help-result-title {
+    display: block;
+}
+
+.metis-help-result-summary {
+    display: block;
+    color: var(--metis-text-muted);
+    font-weight: 400;
+}
+
+.metis-help-result-card:hover,
+.metis-help-result-card:focus-within,
+.metis-help-category-card:hover,
+.metis-help-category-card:focus-visible {
+    border-color: rgba(72, 91, 199, 0.35);
+    background: rgba(238, 242, 255, 0.72);
+}
+
+.metis-help-link-list span,
+.metis-help-result-card small,
+.metis-help-muted,
+.metis-help-results-count,
+.metis-help-row-meta,
+.metis-help-updated {
+    color: var(--metis-text-muted);
+}
+
+.metis-help-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.metis-help-category-card {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--metis-border);
+    border-radius: 8px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.metis-help-back-link {
+    display: inline-block;
+    margin-bottom: 12px;
+    color: var(--metis-primary);
+    text-decoration: none;
+}
+
+.metis-help-article {
+    margin-bottom: 24px;
+}
+
+.metis-help-article--embedded {
+    margin-bottom: 0;
+    padding: 28px 28px 32px;
+    border-radius: 16px;
+    border-color: rgba(72, 91, 199, 0.14);
+    background: var(--metis-surface, #fff);
+    box-shadow: 0 12px 30px rgba(17, 24, 39, 0.08);
+}
+
+.metis-help-article__meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.metis-help-article__body {
+    line-height: 1.65;
+    color: #26324d;
+}
+
+.metis-help-article__body h1 {
+    display: none;
+}
+
+.metis-help-article__body h2 {
+    margin-top: 32px;
+    margin-bottom: 12px;
+    font-size: 34px;
+    line-height: 1.06;
+    letter-spacing: -0.04em;
+    color: #18233f;
+}
+
+.metis-help-article__body ul,
+.metis-help-article__body ol {
+    padding-left: 22px;
+}
+
+.metis-help-article__body p {
+    margin: 0 0 18px;
+    font-size: 17px;
+    line-height: 1.72;
+}
+
+.metis-help-article__body li {
+    margin-bottom: 10px;
+    color: #31415f;
+}
+
+.metis-help-article__body ol {
+    counter-reset: item;
+}
+
+.metis-help-article__body code {
+    background: rgba(72, 91, 199, 0.08);
+    color: #263ea3;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.92em;
+}
+
+.metis-help-article-rail {
+    display: grid;
+    gap: 18px;
+    align-content: start;
+}
+
+.metis-help-card--accent {
+    background: var(--metis-surface, #fff);
+    border-color: rgba(72, 91, 199, 0.18);
+}
+
+.metis-help-card--accent h2 {
+    margin: 0 0 12px;
+    font-size: 26px;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    color: #1c2a4d;
+}
+
+.metis-help-card--accent p:last-of-type {
+    margin-bottom: 18px;
+}
+
+.metis-help-support-modal {
+    max-width: 680px;
+    width: min(92vw, 680px);
+}
+
+.metis-help-support-form {
+    display: grid;
+    gap: 14px;
+}
+
+.metis-help-support-form label {
+    display: grid;
+    gap: 8px;
+    font-weight: 700;
+    color: #1c2a4d;
+}
+
+.metis-help-support-form textarea {
+    min-height: 168px;
+    resize: vertical;
+}
+
+.metis-help-support-context {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    background: rgba(248, 250, 255, 0.9);
+}
+
+.metis-help-support-context div {
+    display: grid;
+    gap: 4px;
+}
+
+.metis-help-support-context strong {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--metis-text-muted);
+}
+
+.metis-help-empty-state {
+    border: 1px dashed var(--metis-border);
+    border-radius: 10px;
+    padding: 24px;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.metis-help-admin-shell {
+    display: grid;
+    gap: 24px;
+}
+
+.metis-help-editor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metis-help-editor-grid label {
+    display: grid;
+    gap: 8px;
+}
+
+.metis-help-editor-grid__full {
+    grid-column: 1 / -1;
+}
+
+.metis-help-editor-actions,
+.metis-help-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.metis-help-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(72, 91, 199, 0.12);
+    color: var(--metis-primary);
+}
+
+#metis-help-admin-confirm.is-open {
+    display: flex;
+}
+
+@media (max-width: 900px) {
+    .metis-help-grid,
+    .metis-help-article-layout,
+    .metis-help-editor-grid,
+    .metis-help-stat-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-help-workspace .metis-sidebar-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-help-admin-filters {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .metis-help-header__inner,
+    .metis-help-main {
+        padding: 18px;
+    }
+
+    .metis-help-search-form {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-help-support-context {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-help-article__body h2 {
+        font-size: 28px;
+    }
+}

@@ -5,7 +5,7 @@ DirectoryIndex index.php
 RewriteEngine On
 
 ErrorDocument 403 /assets/error-pages/error.php?code=403
-ErrorDocument 404 /assets/error-pages/404.html
+ErrorDocument 404 /assets/error-pages/error.php?code=404
 ErrorDocument 500 /assets/error-pages/error.php?code=500
 ErrorDocument 503 /assets/error-pages/error.php?code=503
 
@@ -15,7 +15,14 @@ RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 # Canonical service entry wrappers live under /system.
 RewriteRule ^system/ajax/?$ system/ajax.php [L,QSA,NC]
 RewriteRule ^system/cron/?$ system/cron.php [L,QSA,NC]
-RewriteRule ^system/webhook/([A-Za-z0-9_-]+)/?$ system/webhook.php?provider=$1 [L,QSA,NC]
+RewriteRule ^system/webhook/([A-Za-z0-9_-]+)/?$ system/webhooks.php?provider=$1 [L,QSA,NC]
+
+# Module and runtime assets are protected by the front controller so module
+# asset policy, content type, and cache headers remain consistent.
+RewriteRule ^assets/(?:modules|runtime)(?:/|$) index.php [L,QSA,NC]
+
+# Static public assets are stored under /system to keep the root compact.
+RewriteRule ^assets/(.+)$ system/assets/$1 [L,QSA,NC]
 
 # Portal-scoped AJAX endpoint must resolve before the front controller fallback.
 RewriteRule ^metis/api/ajax/?$ index.php?metis_api_ajax=1 [L,QSA,NC]
@@ -23,7 +30,7 @@ RewriteRule ^api/ajax/?$ index.php?metis_api_ajax=1 [L,QSA,NC]
 
 # Block direct requests into application internals and non-public storage.
 RewriteRule (^|/)\.(?!well-known/) - [F,L]
-RewriteRule ^(?:config|includes|logs|modules|tests|tools|cloudflare|\.metis-integrity)(?:/|$) - [F,L,NC]
+RewriteRule ^(?:includes|logs|\.metis-integrity|system/(?:config|docs|modules|src|tests|tools|cloudflare|vendor))(?:/|$) - [F,L,NC]
 RewriteRule ^storage/(?!uploads/).*$ - [F,L,NC]
 RewriteRule ^(?:vendor)(?:/|$) - [F,L,NC]
 

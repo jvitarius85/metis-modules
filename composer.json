@@ -11,12 +11,13 @@
   },
   "autoload": {
     "psr-4": {
-      "Metis\\": "src/Metis/"
+      "Metis\\": "system/src/Metis/"
     }
   },
   "config": {
     "optimize-autoloader": true,
     "sort-packages": true,
+    "vendor-dir": "system/vendor",
     "platform": {
       "php": "8.1.0"
     }

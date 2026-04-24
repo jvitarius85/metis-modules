@@ -1,0 +1,360 @@
+{
+    "create_deposit": {
+        "title": "Creating a Deposit",
+        "description": "Walk through the donations deposit workflow.",
+        "module": "donations",
+        "topic": "donations.deposits",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-help=\"donations.dashboard\"]",
+                "message": "Open the Donations module from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": "[data-help=\"donations.deposits\"]",
+                "message": "Switch to the Deposits screen.",
+                "advance": "click"
+            },
+            {
+                "target": "#create-deposit, #metis-create-deposit, [data-help=\"donations.deposits\"] .metis-btn",
+                "message": "Use the create controls to start a new deposit record.",
+                "advance": "click"
+            }
+        ]
+    },
+    "manage_contacts": {
+        "title": "Managing Contacts",
+        "description": "Guide for reviewing and updating contact profiles.",
+        "module": "contacts",
+        "topic": "contacts.dashboard",
+        "trigger": "first_login",
+        "steps": [
+            {
+                "target": "[data-help=\"contacts.dashboard\"]",
+                "message": "Open Contacts from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": ".metis-main [data-metis-topic=\"contacts.dashboard\"]",
+                "message": "Use filters and list controls to locate a contact.",
+                "advance": "next"
+            }
+        ]
+    },
+    "newsletter_campaign": {
+        "title": "Launching a Newsletter Campaign",
+        "description": "Guide for creating and sending a newsletter campaign.",
+        "module": "newsletter",
+        "topic": "newsletter.campaigns",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-help=\"newsletter.dashboard\"]",
+                "message": "Open Newsletter from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": "[data-help=\"newsletter.campaigns\"]",
+                "message": "Go to Campaigns.",
+                "advance": "click"
+            },
+            {
+                "target": ".metis-main [data-metis-topic=\"newsletter.campaigns\"] .metis-btn",
+                "message": "Use the campaign actions to draft, test, and queue a send.",
+                "advance": "click"
+            }
+        ]
+    },
+    "finance_reconciliation": {
+        "title": "Reconciling Accounts",
+        "description": "Guide for reviewing ledger balances against statements.",
+        "module": "finance",
+        "topic": "finance.reconciliations",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-help=\"finance.dashboard\"]",
+                "message": "Open Finance from the sidebar.",
+                "advance": "click"
+            },
+            {
+                "target": "[data-help=\"finance.reconciliations\"]",
+                "message": "Open Reconcile.",
+                "advance": "click"
+            },
+            {
+                "target": ".metis-main [data-metis-topic=\"finance.reconciliations\"]",
+                "message": "Review statement balance, timing items, and follow-up notes before saving the reconciliation.",
+                "advance": "next"
+            }
+        ]
+    },
+    "finance_gl_entry": {
+        "title": "Creating a GL Entry",
+        "description": "Guide for opening the GL entry workflow and entering balanced lines.",
+        "module": "finance",
+        "topic": "finance.gl_entry",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-finance-v2-app .metis-list-sidebar-nav-item.is-active, .metis-finance-v2-app [data-open-gl-modal=\"1\"]",
+                "message": "You are in the GL Entry area. Use this section for journal and ledger entries.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-finance-v2-app [data-open-gl-modal=\"1\"]",
+                "message": "Start a new GL entry from the Quick GL Entry action.",
+                "advance": "click"
+            },
+            {
+                "target": ".metis-finance-v2-app .metis-settings-body",
+                "message": "Review the entry list and confirm debits, credits, memo, and date before saving or submitting.",
+                "advance": "next"
+            }
+        ]
+    },
+    "donations_create_donation": {
+        "title": "Recording a Donation",
+        "description": "Guide for finding the donation entry workflow and preparing a gift record.",
+        "module": "donations",
+        "topic": "donations.transactions",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-transactions-view, .metis-tx-table",
+                "message": "This is the donation transactions workflow where gift entry and deposit batch work begins.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-list-sidebar",
+                "message": "Use the sidebar filters to confirm you are on the right transaction set before entering or reviewing a donation.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-tx-table",
+                "message": "Use the main transaction table to review gifts and batch-ready rows, then continue the donation workflow from here.",
+                "advance": "next"
+            }
+        ]
+    },
+    "donations_edit_donation": {
+        "title": "Editing a Donation",
+        "description": "Guide for locating an existing donation and opening its detail record for review or change.",
+        "module": "donations",
+        "topic": "donations.transactions",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-list-sidebar input, .metis-tx-filters input, .metis-tx-filters select",
+                "message": "Start by narrowing the transaction list so you can find the correct donation quickly.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-tx-table .metis-premium-row, .metis-tx-table",
+                "message": "Open the matching donation row from the transaction list to review its current status and detail record.",
+                "advance": "click"
+            }
+        ]
+    },
+    "website_publish_page": {
+        "title": "Publishing a Website Page",
+        "description": "Guide for locating page actions and reviewing the publish workflow.",
+        "module": "website",
+        "topic": "website.pages",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-pages-list-shell .metis-page-header",
+                "message": "Start from the Website pages list so you can create, edit, or publish the correct page record.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-create-page-btn, .metis-pages-table .metis-publish-page, .metis-pages-table .metis-edit-page",
+                "message": "Use the page actions here to create a draft, open the editor, or publish an existing page.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-pages-table",
+                "message": "Confirm the page status and choose the matching action for draft, edit, or publish.",
+                "advance": "next"
+            }
+        ]
+    },
+    "calendar_create_event": {
+        "title": "Creating a Calendar Event",
+        "description": "Guide for locating the calendar creation controls.",
+        "module": "calendar",
+        "topic": "calendar.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-calendar-toolbar-left",
+                "message": "Use the calendar toolbar to confirm the correct calendar and date range first.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-calendar-new",
+                "message": "Start the event workflow from the New Event button.",
+                "advance": "click"
+            }
+        ]
+    },
+    "people_create_user": {
+        "title": "Creating a User",
+        "description": "Guide for opening the People list and adding a new person record.",
+        "module": "people",
+        "topic": "people.people_list",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-people-search",
+                "message": "Start on the People list and use search first if you want to confirm the person does not already exist.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-people-add-open",
+                "message": "Start the new person workflow from Add Person.",
+                "advance": "click"
+            },
+            {
+                "target": "#metis-people-add-form",
+                "message": "Enter first name, last name, and email, then save the record before assigning roles or workspace access.",
+                "advance": "next"
+            }
+        ]
+    },
+    "people_find_person": {
+        "title": "Finding a Person",
+        "description": "Guide for using the People dashboard search to locate a person record.",
+        "module": "people",
+        "topic": "people.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-people-dashboard-search",
+                "message": "Search by last name, email, or PID to narrow directly to the right person record.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-people-dashboard-results, .metis-people-search-tile",
+                "message": "Choose the best match from the live results to open the full person profile.",
+                "advance": "click"
+            }
+        ]
+    },
+    "people_assign_role": {
+        "title": "Assigning a Role",
+        "description": "Guide for locating people, roles, and access tools.",
+        "module": "people",
+        "topic": "people.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-people-search-tile",
+                "message": "Start by locating the person record you want to review or update.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-tile[href*=\"/people/roles\"], .metis-tile[href*=\"/people/access-requests\"], .metis-tile[href*=\"/people/permissions\"]",
+                "message": "Open the matching role or access tool from these people workspace shortcuts.",
+                "advance": "click"
+            }
+        ]
+    },
+    "reports_run_report": {
+        "title": "Running a Report",
+        "description": "Guide for choosing report filters and launching the report workflow.",
+        "module": "reports",
+        "topic": "reports.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#report_run, [data-finance-report-render=\"1\"]",
+                "message": "Use the report action to generate the current report after confirming the visible filters.",
+                "advance": "click"
+            },
+            {
+                "target": ".metis-report-controls, [data-finance-report-form=\"1\"], .metis-settings-card",
+                "message": "Review the report filters and period settings here before rerunning with a different scope.",
+                "advance": "next"
+            }
+        ]
+    },
+    "reports_export_report": {
+        "title": "Exporting a Report",
+        "description": "Guide for exporting the currently rendered report.",
+        "module": "reports",
+        "topic": "reports.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#report_export_csv, #report_export_pdf, #report_export_png, [data-finance-report-pdf=\"1\"]",
+                "message": "Use the export controls here after the report has rendered successfully.",
+                "advance": "click"
+            },
+            {
+                "target": "#metis-report-actions, .metis-report-status, .metis-settings-card",
+                "message": "If the export controls are hidden, run the report first and wait for the results to finish loading.",
+                "advance": "next"
+            }
+        ]
+    },
+    "settings_save_settings": {
+        "title": "Saving Settings",
+        "description": "Guide for checking the form section and saving the current settings page.",
+        "module": "settings",
+        "topic": "settings.identity",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-metis-settings-form]",
+                "message": "Review the visible settings section and make sure all required values are complete before saving.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-settings-actions button[type=\"submit\"], .metis-settings-actions .metis-btn",
+                "message": "Save the current settings section from this action area.",
+                "advance": "click"
+            }
+        ]
+    },
+    "drive_upload_file": {
+        "title": "Uploading a File",
+        "description": "Guide for selecting the right Drive location and starting a file upload.",
+        "module": "drive",
+        "topic": "drive.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-drive-path-bar, #metis-drive-tree",
+                "message": "Confirm you are in the correct folder before uploading so the file lands in the right place.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-drive-upload",
+                "message": "Start the upload from this button.",
+                "advance": "click"
+            }
+        ]
+    },
+    "drive_find_file": {
+        "title": "Finding a File",
+        "description": "Guide for searching the Drive view and locating the current file list.",
+        "module": "drive",
+        "topic": "drive.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-drive-search",
+                "message": "Search by file name first to narrow the current Drive view.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-drive-rows, .metis-drive-table-wrap",
+                "message": "Review the filtered file list here and open the best match.",
+                "advance": "click"
+            }
+        ]
+    }
+}

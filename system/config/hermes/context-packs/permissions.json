@@ -1,0 +1,60 @@
+{
+  "type": "context_pack",
+  "key": "permissions",
+  "version": 1,
+  "module_slug": "people",
+  "title": "Permissions Context Pack",
+  "description": "Structured permission surfaces, grants, inheritance, and remediation guidance for Hermes diagnostics.",
+  "source_modules": [
+    "people",
+    "hermes"
+  ],
+  "objects": [
+    {
+      "key": "permission_grant",
+      "name": "Permission Grant",
+      "description": "A module-specific permission expressed through roles, overrides, or inferred access.",
+      "identifiers": [
+        "permission_key",
+        "role"
+      ],
+      "important_fields": [
+        "module",
+        "action",
+        "source",
+        "granted"
+      ]
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "system.diagnostics.view",
+      "allowed_roles": [
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "permissions.diagnose",
+      "category": "diagnostic",
+      "description": "Inspect grants, inheritance, and module-role mismatches.",
+      "required_permission": "view"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "permission_inheritance_validation",
+      "purpose": "Catch mismatches between expected role grants and effective permissions.",
+      "evidence": [
+        "module grants",
+        "role policy",
+        "inheritance path"
+      ],
+      "severity": "high"
+    }
+  ]
+}

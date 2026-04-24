@@ -1,0 +1,121 @@
+{
+    "slug": "board",
+    "name": "board",
+    "label": "Board Administration",
+    "version": "1.0.0",
+    "domain": "board",
+    "default_view": "dashboard",
+    "dependencies": [],
+    "entity_prefixes": [
+        {
+            "entity_type": "meeting",
+            "prefix": "MTG",
+            "description": "Meeting",
+            "table_key": "board_meetings",
+            "uid_column": "meeting_uid",
+            "legacy_columns": [
+                "meeting_code"
+            ]
+        },
+        {
+            "entity_type": "board_packet",
+            "prefix": "BDP",
+            "description": "Board Packet",
+            "table_key": "board_documents",
+            "uid_column": "board_packet_uid",
+            "legacy_columns": [],
+            "where": "doc_type = 'board_packet'"
+        },
+        {
+            "entity_type": "board_financial",
+            "prefix": "BDF",
+            "description": "Board Financial",
+            "table_key": "board_documents",
+            "uid_column": "board_financial_uid",
+            "legacy_columns": [],
+            "where": "doc_type = 'financial_report'"
+        },
+        {
+            "entity_type": "board_minutes",
+            "prefix": "BDM",
+            "description": "Board Minutes",
+            "table_key": "board_documents",
+            "uid_column": "board_minutes_uid",
+            "legacy_columns": [],
+            "where": "doc_type = 'minutes'"
+        },
+        {
+            "entity_type": "board_action_item",
+            "prefix": "BDA",
+            "description": "Board Action Items",
+            "table_key": "board_action_items",
+            "uid_column": "board_action_uid",
+            "legacy_columns": [
+                "action_code"
+            ]
+        },
+        {
+            "entity_type": "board_decision_point",
+            "prefix": "BDD",
+            "description": "Board Decision Points",
+            "table_key": "board_decisions",
+            "uid_column": "board_decision_uid",
+            "legacy_columns": [
+                "decision_code"
+            ]
+        }
+    ],
+    "parent_views": {
+        "meeting": "dashboard"
+    },
+    "menu_order": 1,
+    "description": "Plan meetings, track decisions, and keep board work organized.",
+    "icon": "<svg viewBox=\"0 0 502.642 502.642\" fill=\"currentColor\" stroke=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"251.364\" cy=\"76.188\" r=\"65.359\"/><polygon points=\"343.817,168.662 287.237,156.129 275.61,144.503 258.483,163.097 268.686,248.366 366.121,248.366\"/><polygon points=\"215.363,156.129 158.826,168.662 136.629,248.323 234,248.323 244.203,163.075 227.011,144.503\"/><circle cx=\"108.264\" cy=\"329.364\" r=\"61.714\"/><polygon points=\"142.108,404.797 131.215,393.796 115.015,411.312 124.593,491.792 216.506,491.792 195.518,416.553\"/><polygon points=\"74.354,404.797 21.032,416.553 0,491.814 91.892,491.814 101.491,411.312 85.334,393.839\"/><path d=\"M456.179,329.386c0-34.082-27.632-61.671-61.779-61.671c-33.996,0-61.628,27.589-61.628,61.671s27.654,61.649,61.628,61.649C428.504,391.035,456.179,363.468,456.179,329.386z\"/><polygon points=\"481.654,416.553 428.288,404.797 417.351,393.796 401.173,411.269 410.794,491.771 502.642,491.771\"/><polygon points=\"360.534,404.797 307.168,416.553 286.158,491.814 378.071,491.814 387.692,411.312 371.427,393.839\"/></svg>",
+    "permissions": {
+        "view": [
+            "board",
+            "donor_admin",
+            "newsletter_admin"
+        ],
+        "edit": [
+            "board"
+        ],
+        "create": [
+            "board"
+        ],
+        "delete": [
+            "board"
+        ]
+    },
+    "views": {
+        "dashboard": "dashboard.php",
+        "meeting": "meeting.php"
+    },
+    "help_topics": [
+        "board.dashboard",
+        "board.meeting"
+    ],
+    "assets": {
+        "css": [
+            "board.css"
+        ],
+        "js": [
+            "board.js"
+        ],
+        "ajax": "board.ajax.php"
+    },
+    "ajax_object": "metisBoardAjax",
+    "category": "administration",
+    "default_parent": null,
+    "order": 100,
+    "navigation": {
+        "enabled": true,
+        "label": "Board Administration",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Board Administration",
+    "entry": "Module.php",
+    "routes": [],
+    "services": []
+}

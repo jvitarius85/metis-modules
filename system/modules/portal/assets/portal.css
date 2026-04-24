@@ -1,0 +1,850 @@
+/* Portal dashboard */
+.metis-panel { padding: 20px; background: #fff; border-radius: 8px; }
+
+.metis-portal-hub-shell {
+    border: 1px solid var(--metis-border);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.metis-portal-hub-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.metis-portal-hub-kpi {
+    border: 1px solid var(--metis-border);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--metis-surface, #fff);
+}
+
+.metis-portal-hub-kpi-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--metis-text-muted);
+    font-weight: 700;
+}
+
+.metis-portal-hub-kpi-value {
+    margin-top: 6px;
+    font-size: 28px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--metis-primary);
+}
+
+.metis-portal-hub-kpi-note {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-priority-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.metis-portal-priority-btn {
+    appearance: none;
+    border: 1px solid var(--metis-border);
+    border-radius: 12px;
+    background: #fff;
+    padding: 12px 14px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 96px;
+    transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.metis-portal-priority-btn:hover {
+    border-color: var(--metis-primary);
+    background: #f7f9ff;
+}
+
+.metis-portal-priority-btn:focus-visible {
+    outline: none;
+    border-color: var(--metis-primary);
+    box-shadow: 0 0 0 2px rgba(70, 90, 220, 0.12);
+}
+
+.metis-portal-priority-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--metis-text-muted);
+    font-weight: 700;
+}
+
+.metis-portal-priority-value {
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--metis-primary);
+}
+
+.metis-portal-priority-note {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-hub-main {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.metis-portal-hub-attention,
+.metis-portal-hub-snapshots {
+    border: 1px solid var(--metis-border);
+    border-radius: 12px;
+    background: #fff;
+    padding: 14px;
+}
+
+.metis-portal-hub-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.metis-portal-hub-section-head h2 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--metis-primary-dark);
+}
+
+.metis-portal-hub-attention-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.metis-portal-attention-group {
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.metis-portal-attention-group > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.metis-portal-attention-group > summary::-webkit-details-marker {
+    display: none;
+}
+
+.metis-portal-attention-count {
+    font-size: 12px;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-hub-attention-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 10px 10px;
+}
+
+.metis-portal-hub-attention-item {
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.metis-portal-hub-attention-item.level-critical {
+    border-left: 3px solid #ef4444;
+}
+
+.metis-portal-hub-attention-item.level-soon {
+    border-left: 3px solid #f59e0b;
+}
+
+.metis-portal-hub-attention-item.level-info {
+    border-left: 3px solid #60a5fa;
+}
+
+.metis-portal-hub-attention-item h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.metis-portal-hub-attention-item p {
+    margin: 4px 0 0;
+    color: var(--metis-text-muted);
+    font-size: 12px;
+}
+
+.metis-portal-hub-empty {
+    color: var(--metis-text-muted);
+    font-size: 13px;
+    border: 1px dashed var(--metis-border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.metis-portal-action-head {
+    margin-top: 12px;
+}
+
+.metis-portal-action-filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.metis-portal-action-filter {
+    appearance: none;
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    background: #fff;
+    padding: 9px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    line-height: 1.2;
+    min-height: 40px;
+    transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+    color: var(--metis-text);
+}
+
+.metis-portal-action-filter span {
+    color: var(--metis-text);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+.metis-portal-action-filter.is-active {
+    border-color: var(--metis-primary);
+    background: #f7f9ff;
+    box-shadow: inset 0 0 0 1px rgba(70, 90, 220, 0.14);
+    color: var(--metis-primary-dark);
+}
+
+.metis-portal-action-filter.is-active span {
+    color: var(--metis-primary-dark);
+}
+
+.metis-portal-action-filter:hover {
+    border-color: var(--metis-primary);
+}
+
+.metis-portal-action-filter:focus-visible {
+    outline: none;
+    border-color: var(--metis-primary);
+    box-shadow: 0 0 0 2px rgba(70, 90, 220, 0.12);
+}
+
+.metis-portal-action-filter[disabled] {
+    opacity: .6;
+    cursor: wait;
+}
+
+.metis-portal-my-actions-wrap.is-loading {
+    opacity: .55;
+    transition: opacity .18s ease;
+}
+
+.metis-portal-my-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.metis-portal-my-action-item {
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.metis-portal-my-action-item.is-overdue {
+    border-left: 3px solid #ef4444;
+}
+
+.metis-portal-my-action-main h3 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+
+.metis-portal-my-action-main p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-my-action-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.metis-portal-focus-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.metis-portal-focus-card {
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 166px;
+}
+
+.metis-portal-focus-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.metis-portal-focus-head:hover {
+    background: #f7f9ff;
+}
+
+.metis-portal-focus-head h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.metis-portal-focus-head p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-focus-updated {
+    font-size: 11px;
+    color: var(--metis-text-muted);
+    white-space: nowrap;
+}
+
+.metis-portal-focus-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.metis-portal-focus-metric {
+    border: 1px solid var(--metis-border);
+    border-radius: 8px;
+    padding: 8px;
+    background: #fafcff;
+    min-height: 62px;
+}
+
+.metis-portal-focus-metric-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-focus-metric-value {
+    display: block;
+    margin-top: 4px;
+    font-size: 16px;
+    color: var(--metis-text);
+}
+
+.metis-portal-card-empty {
+    margin-top: auto;
+}
+
+.metis-portal-system-head {
+    margin-top: 12px;
+}
+
+.metis-portal-system-watch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.metis-portal-system-item {
+    border: 1px solid var(--metis-border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #fff;
+}
+
+.metis-portal-system-item.state-ok {
+    border-left: 3px solid #22c55e;
+}
+
+.metis-portal-system-item.state-warn {
+    border-left: 3px solid #f59e0b;
+}
+
+.metis-portal-system-item.state-alert {
+    border-left: 3px solid #ef4444;
+}
+
+.metis-portal-system-label {
+    display: block;
+    font-size: 12px;
+    color: var(--metis-text-muted);
+}
+
+.metis-portal-system-value {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    color: var(--metis-text);
+}
+
+@media (max-width: 1200px) {
+    .metis-portal-hub-main {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-portal-hub-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .metis-portal-hub-kpis,
+    .metis-portal-priority-strip,
+    .metis-portal-action-filters,
+    .metis-portal-focus-metrics,
+    .metis-portal-system-watch {
+        grid-template-columns: 1fr;
+    }
+}
+
+.metis-portal-my-action-status,
+.metis-portal-my-action-due {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--metis-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.metis-portal-dashboard-intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 18px;
+    margin-bottom: 0;
+}
+
+.metis-portal-dashboard-subtitle {
+    margin: 0;
+    max-width: 720px;
+}
+
+.metis-portal-dashboard-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.metis-portal-dashboard-stat {
+    min-width: 110px;
+    padding: 12px 14px;
+    border-radius: var(--metis-radius);
+    border: 1px solid var(--metis-border);
+    background: var(--metis-surface, #fff);
+}
+
+.metis-portal-dashboard-stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--metis-primary);
+    line-height: 1;
+}
+
+.metis-portal-dashboard-stat-label {
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--metis-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.metis-portal-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.metis-portal-dashboard-card {
+    height: auto;
+    min-height: 240px;
+    gap: 16px;
+    justify-content: flex-start;
+}
+
+.metis-portal-dashboard-card-top {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 150px;
+}
+
+.metis-portal-dashboard-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.metis-portal-dashboard-card-icon {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: #eef3ff;
+    color: var(--metis-primary);
+    border: 1px solid #dce4fb;
+}
+
+.metis-portal-dashboard-card-icon svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.metis-portal-dashboard-card-icon svg [stroke]:not([stroke="none"]) {
+    stroke-width: var(--metis-icon-stroke-width, 1.85) !important;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.metis-portal-dashboard-card-icon svg [fill]:not([fill="none"]):not([stroke]) {
+    stroke: currentColor;
+    stroke-width: 0.35;
+    paint-order: stroke fill;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.metis-portal-dashboard-card-title {
+    margin-bottom: 2px;
+}
+
+.metis-portal-dashboard-card-desc {
+    margin: 0;
+}
+
+.metis-portal-dashboard-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.metis-portal-dashboard-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.metis-portal-dashboard-metric {
+    padding: 12px;
+    border: 1px solid var(--metis-border);
+    border-radius: 12px;
+    background: var(--metis-surface, #fff);
+}
+
+.metis-portal-dashboard-metric-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--metis-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.metis-portal-dashboard-metric-value {
+    margin-top: 6px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--metis-text);
+    line-height: 1.1;
+}
+
+.metis-portal-dashboard-metric-note {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--metis-text-muted);
+    line-height: 1.4;
+}
+
+.metis-portal-dashboard-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+}
+
+@media (max-width: 1220px) {
+    .metis-portal-hub-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .metis-portal-hub-main {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-portal-focus-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-portal-system-watch {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .metis-portal-hub-kpis {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-portal-my-action-item {
+        flex-direction: column;
+    }
+
+    .metis-portal-my-action-meta {
+        justify-content: flex-start;
+    }
+}
+
+/* ── Settings cards ──────────────────────────────────────── */
+
+.metis-settings-card {
+    background: var(--metis-surface);
+    border: 1px solid var(--metis-border);
+    border-radius: var(--metis-radius-lg);
+    margin-top: 16px;
+    overflow: hidden;
+}
+
+.metis-settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px;
+    background: var(--metis-header-bg);
+    border-bottom: 1px solid #d5d9f0;
+}
+
+.metis-settings-header h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--metis-primary-dark);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.metis-settings-status {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--metis-radius-pill);
+}
+
+.metis-settings-status.is-ok {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.metis-settings-status.is-missing {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.metis-settings-body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ── Settings field rows ─────────────────────────────────── */
+
+.metis-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.metis-field label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--metis-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.metis-help {
+    font-size: 12px;
+    color: var(--metis-text-muted);
+    margin: 2px 0 0;
+    line-height: 1.5;
+}
+
+/* ── Settings tabs ───────────────────────────────────────── */
+
+.metis-settings-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.metis-settings-tabs .metis-profile-tab-btn {
+    border: 1px solid var(--metis-border);
+    background: #eef2fb;
+    color: #2a3350;
+    font-weight: 600;
+}
+
+.metis-settings-tabs .metis-profile-tab-btn.is-active {
+    background: var(--metis-primary);
+    color: #fff;
+}
+
+.metis-settings-panel { display: none; }
+.metis-settings-panel.is-active { display: block; }
+
+/* ── Input width helper ──────────────────────────────────── */
+
+.metis-input-wide {
+    width: 100%;
+    max-width: 480px;
+    box-sizing: border-box;
+}
+
+.metis-settings-card .metis-input {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* ── Shortcode display ───────────────────────────────────── */
+
+.metis-shortcode-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--metis-bg); border: 1px solid var(--metis-border);
+    border-radius: var(--metis-radius); padding: 10px 14px; max-width: 480px;
+}
+
+.metis-shortcode {
+    font-size: 13px; color: var(--metis-text); flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: monospace;
+}
+
+.metis-settings-actions { padding: 8px 0 16px; }
+
+.metis-settings-repeatable {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.metis-settings-repeatable-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.metis-settings-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 200px) minmax(240px, 1fr) auto auto auto;
+    gap: 12px;
+    align-items: end;
+    padding: 14px;
+    border: 1px solid var(--metis-border);
+    border-radius: var(--metis-radius);
+    background: #f8faff;
+}
+
+.metis-settings-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--metis-text);
+}
+
+@media (max-width: 1000px) {
+    .metis-settings-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .metis-portal-dashboard-intro {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .metis-portal-dashboard-stats {
+        justify-content: flex-start;
+    }
+}
+
+/* ── Email usage page ────────────────────────────────────── */
+/* Reuses the shared newsletter stat grid from core.css */
+
+@media (max-width: 900px) {
+    .metis-newsletter-stats { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .metis-portal-dashboard-grid { grid-template-columns: 1fr; }
+    .metis-portal-dashboard-metrics { grid-template-columns: 1fr; }
+    .metis-portal-dashboard-card-top { min-height: 0; }
+}

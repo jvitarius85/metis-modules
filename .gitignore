@@ -34,9 +34,9 @@ desktop.ini
 .env.production
 .env.*.local
 
-config/secrets.php
-config/credentials.php
-config/private/
+system/config/secrets.php
+system/config/credentials.php
+system/config/private/
 
 ############################################
 # RUNTIME STORAGE
@@ -103,12 +103,13 @@ package-lock.json
 ############################################
 
 vendor/
+system/vendor/
 
 ############################################
 # TESTING
 ############################################
 
-tests/output/
+system/tests/output/
 coverage/
 
 ############################################

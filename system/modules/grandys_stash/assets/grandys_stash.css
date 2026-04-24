@@ -1,0 +1,434 @@
+/* ─── Grandy's Stash ────────────────────────────────── */
+
+
+.metis-stash-ticket-page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.metis-stash-ticket-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.95fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.metis-stash-ticket-main,
+.metis-stash-ticket-sidecard {
+    background: #fff;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 10px 24px rgba(18, 41, 58, 0.06);
+}
+
+.metis-stash-ticket-sidebar {
+    display: grid;
+    gap: 20px;
+}
+
+.metis-stash-ticket-main .metis-stash-ticket-section:first-of-type,
+.metis-stash-ticket-sidecard .metis-stash-ticket-section:first-of-type {
+    margin-top: 0;
+}
+
+
+/* Table column layout */
+.metis-stash-table .metis-premium-header,
+.metis-stash-table .metis-premium-row {
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-table--manageable .metis-premium-header,
+.metis-stash-table--manageable .metis-premium-row {
+    grid-template-columns: minmax(110px, 130px) minmax(0, 1.2fr) 90px 105px 95px minmax(0, 1fr) 70px 105px 90px;
+}
+
+.metis-stash-table--readonly .metis-premium-header,
+.metis-stash-table--readonly .metis-premium-row {
+    grid-template-columns: minmax(110px, 130px) minmax(0, 1.2fr) 90px 105px 95px minmax(0, 1fr) 70px 105px;
+}
+
+
+/* Items table inside ticket detail modal */
+.metis-stash-ticket-section .metis-premium-header,
+.metis-stash-ticket-section .metis-premium-row {
+    grid-template-columns: minmax(0, 1.5fr) minmax(120px, 1fr) 60px 110px minmax(220px, 1.35fr);
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.metis-stash-item-actions .metis-btn-xs {
+    flex: 0 0 auto;
+}
+
+/* Sidebar filter buttons stack vertically */
+.metis-list-sidebar-section .metis-stash-sidebar-filter {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 4px;
+}
+
+.metis-list-sidebar-section .metis-stash-sidebar-filter.is-active {
+    background: var(--metis-primary, #485bc7);
+    color: #fff;
+    border-color: var(--metis-primary, #485bc7);
+}
+
+/* Reuse People stat strip */
+.metis-stash-stats {
+    margin-bottom: 20px;
+}
+
+/* Type badges */
+.metis-stash-type-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.metis-stash-type-request {
+    background: #edf6e3;
+    border: 1px solid #b7d08f;
+    color: #3d5a1e;
+}
+
+.metis-stash-type-donation {
+    background: #f4ecd9;
+    border: 1px solid #d1bb84;
+    color: #5a4a22;
+}
+
+/* Status badges */
+.metis-stash-status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: #f0f2f5;
+    border: 1px solid #d0d5dd;
+    color: #344054;
+}
+
+.metis-stash-status-new { background: #eff8ff; border-color: #b2ddff; color: #175cd3; }
+.metis-stash-status-reviewing { background: #fef3f2; border-color: #fecdca; color: #b42318; }
+.metis-stash-status-waitlist { background: #fffaeb; border-color: #fedf89; color: #b54708; }
+.metis-stash-status-ready { background: #ecfdf3; border-color: #abefc6; color: #067647; }
+.metis-stash-status-completed { background: #f0f2f5; border-color: #d0d5dd; color: #344054; }
+.metis-stash-status-closed { background: #f0f2f5; border-color: #d0d5dd; color: #667085; }
+
+/* Item statuses */
+.metis-stash-status-pending { background: #eff8ff; border-color: #b2ddff; color: #175cd3; }
+.metis-stash-status-available { background: #ecfdf3; border-color: #abefc6; color: #067647; }
+.metis-stash-status-fulfilled { background: #f0f2f5; border-color: #d0d5dd; color: #344054; }
+.metis-stash-status-unavailable { background: #fffaeb; border-color: #fedf89; color: #b54708; }
+
+/* Modal (reused from before, matches Metis pattern) */
+.metis-stash-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(16, 30, 40, 0.38);
+    z-index: 1200;
+}
+
+@media (max-width: 1100px) {
+    .metis-stash-ticket-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.metis-stash-modal.metis-open {
+    display: flex;
+}
+
+.metis-stash-modal-dialog {
+    background: #fff;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 18px;
+    box-shadow: 0 18px 38px rgba(18, 41, 58, 0.12);
+    padding: 24px;
+    width: min(640px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+}
+
+.metis-stash-modal-wide {
+    width: min(900px, 100%);
+}
+
+.metis-stash-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.metis-stash-modal-head h2 {
+    margin: 0;
+}
+
+/* Ticket detail sections */
+.metis-stash-ticket-section {
+    padding-top: 16px;
+    margin-top: 16px;
+    border-top: 1px solid var(--metis-border, #d7dfe5);
+}
+
+.metis-stash-ticket-section h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #667085;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.metis-stash-ticket-actions {
+    padding-top: 16px;
+    margin-top: 16px;
+    border-top: 1px solid var(--metis-border, #d7dfe5);
+}
+
+.metis-stash-reply-form {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.metis-stash-reply-form > label {
+    display: grid;
+    gap: 6px;
+}
+
+.metis-stash-reply-form > label > span {
+    font-size: 13px;
+    color: #667085;
+}
+
+/* Detail grid (key-value pairs in ticket header) */
+.metis-stash-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px 16px;
+    padding: 16px;
+    background: var(--metis-bg-soft, #f5f8fa);
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 12px;
+}
+
+/* Notes */
+.metis-stash-note-form {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 10px;
+}
+
+.metis-stash-note-form textarea {
+    flex: 1;
+}
+
+.metis-stash-note-entry {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--metis-border, #d7dfe5);
+}
+
+.metis-stash-note-entry p {
+    margin: 4px 0 0;
+}
+
+.metis-stash-conversation-entry {
+    padding: 14px 16px;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 14px;
+    background: #fff;
+    margin-bottom: 10px;
+}
+
+.metis-stash-conversation-inbound {
+    background: #f8fbff;
+    border-color: #d6e4ff;
+}
+
+.metis-stash-conversation-outbound {
+    background: #f5fbf7;
+    border-color: #d2f0dd;
+}
+
+.metis-stash-conversation-head,
+.metis-stash-conversation-foot {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.metis-stash-conversation-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.metis-stash-conversation-subject {
+    margin-top: 10px;
+    font-weight: 700;
+    color: #101828;
+}
+
+.metis-stash-conversation-body {
+    margin-top: 8px;
+    color: #344054;
+    line-height: 1.55;
+    white-space: normal;
+}
+
+.metis-stash-conversation-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.metis-stash-conversation-attachment {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 999px;
+    background: #ffffff;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.metis-stash-conversation-foot {
+    margin-top: 10px;
+}
+
+/* Activity */
+.metis-stash-activity-entry {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--metis-border, #d7dfe5);
+    flex-wrap: wrap;
+}
+
+/* Form layout for ticket edit */
+.metis-stash-form {
+    display: grid;
+    gap: 14px;
+}
+
+.metis-stash-form-row {
+    display: flex;
+    gap: 14px;
+}
+
+.metis-stash-form-row > label {
+    flex: 1 1 0;
+    display: grid;
+    gap: 6px;
+}
+
+.metis-stash-form-row > label > span {
+    font-size: 13px;
+    color: #667085;
+}
+
+.metis-stash-form-actions {
+    display: flex;
+    gap: 14px;
+    justify-content: flex-end;
+}
+
+/* Clickable rows */
+.metis-stash-row {
+    cursor: pointer;
+}
+
+.metis-stash-row:hover {
+    background: var(--metis-bg-soft, #f5f8fa);
+}
+
+/* Responsive */
+@media (max-width: 720px) {
+    .metis-stash-form-row {
+        flex-direction: column;
+    }
+
+    .metis-stash-modal {
+        padding: 12px;
+    }
+
+    .metis-stash-detail-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Email prefs table */
+.metis-stash-email-table .metis-premium-header,
+.metis-stash-email-table .metis-premium-row {
+    grid-template-columns: minmax(160px, 1fr) minmax(200px, 1.5fr) 140px;
+    align-items: center;
+    column-gap: 0;
+}
+
+/* Report tables */
+.metis-stash-report-cat-table .metis-premium-header,
+.metis-stash-report-cat-table .metis-premium-row {
+    grid-template-columns: minmax(180px, 1.5fr) 120px 120px;
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-report-month-table .metis-premium-header,
+.metis-stash-report-month-table .metis-premium-row {
+    grid-template-columns: 140px repeat(4, 1fr);
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-report-small-table .metis-premium-header,
+.metis-stash-report-small-table .metis-premium-row {
+    grid-template-columns: 1fr 80px;
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-report-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 720px) {
+    .metis-stash-report-split {
+        grid-template-columns: 1fr !important;
+    }
+}
