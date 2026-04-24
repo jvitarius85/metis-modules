@@ -130,7 +130,7 @@
             "label": "Create Form",
             "icon": "square-pen",
             "type": "route",
-            "route": "/forms/",
+            "route": "/admin/forms/build/",
             "permission": "forms.create",
             "group": "communications"
         }

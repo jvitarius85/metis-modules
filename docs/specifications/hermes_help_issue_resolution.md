@@ -99,6 +99,9 @@ The Hermes response payload includes:
 - related articles
 - proposed action payloads
 - a preformatted markdown response block
+- guidance links and walkthrough ids for supported playbooks
+
+Walkthrough overlays must stay within the visible viewport, clamp their callout position near the highlighted control, and prefer specific UI controls over broad page containers when a playbook defines step targets.
 
 The Help admin area now includes `/admin/help/issue-resolution` for reviewing frequent unresolved phrases, failed matches, and missing article coverage. It reuses existing Help admin rebuild patterns and does not add inline CSS or inline JavaScript.
 
@@ -129,6 +132,8 @@ Hermes help issue resolution writes to `metis_hermes_help_issue_logs` with:
 - publish page issue resolves to website publish action
 - newsletter test send issue classifies as system-related and returns proposed actions
 - report issue resolves to report execution guidance
+- instructional prompts reuse the same issue playbook matching through normalized core issue phrases
+- guided playbooks remain available for user creation, person search, donation editing, reports, file workflows, settings, and existing finance / website / newsletter flows
 - Help search matches natural-language issue phrases through seeded search terms
 - proposed actions return enclave payloads but do not execute
 - help issue resolutions are audit logged

@@ -166,7 +166,7 @@ metis_on( 'init', static function (): void {
 
     if ( function_exists( 'metis_get_option' ) && function_exists( 'metis_update_option' ) && function_exists( 'metis_flush_rewrite_rules' ) ) {
         $key      = 'metis_website_editor_rewrite_signature';
-        $current  = sha1( 'website-editor-routes-v13:' . $slug );
+        $current  = sha1( 'website-editor-routes-v14:' . $slug );
         $previous = (string) metis_get_option( $key, '' );
         if ( $previous !== $current ) {
             metis_flush_rewrite_rules( false );

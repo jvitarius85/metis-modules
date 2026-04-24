@@ -31,6 +31,59 @@ function metis_calendar_selected_configs_from_request(): array {
     return $configs;
 }
 
+function metis_calendar_quick_action_event_form( array $action = [] ): array {
+    unset( $action );
+
+    metis_calendar_ensure_schema();
+    $workspace = metis_calendar_workspace_settings_all();
+    if ( empty( $workspace['ok'] ) ) {
+        return [
+            'title' => 'Create Event',
+            'html' => '<div class="mw-alert mw-alert-error">Workspace calendar configuration is unavailable.</div>',
+            'submit_action' => '',
+            'submit_label' => 'Save Event',
+            'redirect' => function_exists( 'metis_portal_url' ) ? (string) metis_portal_url( 'calendar' ) : '',
+        ];
+    }
+
+    $calendarRows = (array) ( $workspace['calendars'] ?? [] );
+    $start = date( 'Y-m-d\TH:00', strtotime( '+1 hour' ) );
+    $end = date( 'Y-m-d\TH:00', strtotime( '+2 hours' ) );
+    $calendarOptions = '';
+    foreach ( $calendarRows as $row ) {
+        $calendarId = (string) ( $row['calendar_id'] ?? '' );
+        if ( $calendarId === '' ) {
+            continue;
+        }
+        $label = trim( (string) ( $row['calendar_label'] ?? '' ) );
+        if ( $label === '' ) {
+            $label = (string) ( $row['calendar_name'] ?? $calendarId );
+        }
+        $calendarOptions .= '<option value="' . metis_escape_attr( $calendarId ) . '">' . metis_escape_html( $label ) . '</option>';
+    }
+
+    $html = '<form class="metis-contact-form mw-quick-action-form" data-quick-action-form="calendar_create_event">'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-event-calendar">Calendar</label><select id="qa-event-calendar" name="calendar_id" class="mw-input">' . $calendarOptions . '</select></div>'
+        . '<div class="metis-contact-field metis-contact-field-full"><label for="qa-event-summary">Title</label><input id="qa-event-summary" name="summary" class="mw-input" type="text" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-event-start">Start</label><input id="qa-event-start" name="start_dt" class="mw-input" type="datetime-local" value="' . metis_escape_attr( $start ) . '" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-event-end">End</label><input id="qa-event-end" name="end_dt" class="mw-input" type="datetime-local" value="' . metis_escape_attr( $end ) . '" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-event-type">Event Type</label><select id="qa-event-type" name="event_type" class="mw-input"><option value="general">General</option><option value="meeting">Meeting</option><option value="deadline">Deadline</option><option value="task">Task</option><option value="public">Public</option></select></div>'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-event-module">Module</label><select id="qa-event-module" name="event_module" class="mw-input"><option value="general">General</option><option value="board">Board</option><option value="calendar">Calendar</option><option value="contacts">Contacts</option><option value="newsletter">Newsletter</option><option value="people">People</option><option value="portal">Portal</option></select></div>'
+        . '<div class="metis-contact-field metis-contact-field-full"><label for="qa-event-location">Location</label><input id="qa-event-location" name="location" class="mw-input" type="text"></div>'
+        . '<div class="metis-contact-field metis-contact-field-full"><label for="qa-event-description">Description</label><textarea id="qa-event-description" name="description" class="mw-input" rows="5"></textarea></div>'
+        . '</form>';
+
+    return [
+        'title' => 'Create Event',
+        'html' => $html,
+        'submit_action' => 'metis_calendar_save_event',
+        'submit_nonce_action' => function_exists( 'metis_ajax_nonce_action' ) ? metis_ajax_nonce_action( 'metis_calendar_save_event' ) : 'metis_calendar_save_event',
+        'submit_label' => 'Save Event',
+        'success_message' => 'Event created.',
+        'redirect' => function_exists( 'metis_portal_url' ) ? (string) metis_portal_url( 'calendar' ) : '',
+    ];
+}
+
 function metis_calendar_register_ajax_controllers(): void {
     $actions = [
         'metis_calendar_list_events' => 'view',

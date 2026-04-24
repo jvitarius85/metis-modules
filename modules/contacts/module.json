@@ -78,8 +78,11 @@
             "key": "contacts_add_contact",
             "label": "Add Contact",
             "icon": "user-plus",
-            "type": "route",
+            "type": "modal",
             "route": "/contacts/",
+            "handler": "metis_contacts_quick_action_contact_form",
+            "submit_action": "metis_contacts_save",
+            "submit_label": "Save Contact",
             "permission": "contacts.create",
             "group": "contacts"
         }

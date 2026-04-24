@@ -81,6 +81,7 @@ final class ModuleValidator {
                 $label = trim( (string) ( $action['label'] ?? '' ) );
                 $type = $this->sanitizeKey( (string) ( $action['type'] ?? 'route' ) );
                 $route = trim( (string) ( $action['route'] ?? '' ) );
+                $handler = trim( (string) ( $action['handler'] ?? '' ) );
 
                 if ( $key === '' || $label === '' ) {
                     throw new \RuntimeException( sprintf( 'Module quick_actions[%d] must include key and label: %s', $index, $manifestPath ) );
@@ -95,8 +96,12 @@ final class ModuleValidator {
                     throw new \RuntimeException( sprintf( 'Module quick_actions[%d] type must be modal|route: %s', $index, $manifestPath ) );
                 }
 
-                if ( $route === '' ) {
+                if ( $type === 'route' && $route === '' ) {
                     throw new \RuntimeException( sprintf( 'Module quick_actions[%d] route is required: %s', $index, $manifestPath ) );
+                }
+
+                if ( $type === 'modal' && $handler === '' ) {
+                    throw new \RuntimeException( sprintf( 'Module quick_actions[%d] handler is required for modal actions: %s', $index, $manifestPath ) );
                 }
 
                 if ( $key === 'create_campaign' || str_contains( strtolower( $label ), 'create campaign' ) ) {

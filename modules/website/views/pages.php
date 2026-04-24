@@ -31,7 +31,7 @@ $editor_page_id = (int) metis_get_query_var( 'metis_editor_page_id' );
 $editor_key = (string) metis_get_query_var( 'metis_editor_key' );
 $editor_new = (string) metis_get_query_var( 'metis_editor_new' );
 $request_path = (string) ( parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH ) ?? '' );
-if ( $editor_new === '' && preg_match( '#/website/pages/editor/new/?$#i', $request_path ) === 1 ) {
+if ( $editor_new === '' && preg_match( '#/website/page(?:s)?/editor/new/?$#i', $request_path ) === 1 ) {
     $editor_new = 'page';
 }
 if ( $editor_page_id < 1 && $editor_key === '' ) {

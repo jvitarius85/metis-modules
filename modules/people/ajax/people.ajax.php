@@ -13,6 +13,28 @@ function metis_people_workspace_ajax_verify(): void {
     metis_people_seed_permissions_and_roles();
 }
 
+function metis_people_quick_action_person_form( array $action = [] ): array {
+    unset( $action );
+
+    $html = '<form class="metis-contact-form mw-quick-action-form" data-quick-action-form="people_add_person">'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-person-first-name">First Name</label><input id="qa-person-first-name" name="first_name" class="mw-input" type="text" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-person-last-name">Last Name</label><input id="qa-person-last-name" name="last_name" class="mw-input" type="text" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-full"><label for="qa-person-email">Email</label><input id="qa-person-email" name="email" class="mw-input" type="email" required></div>'
+        . '<input type="hidden" name="status" value="active">'
+        . '<input type="hidden" name="lifecycle_status" value="active">'
+        . '</form>';
+
+    return [
+        'title' => 'Add Person',
+        'html' => $html,
+        'submit_action' => 'metis_people_save_person',
+        'submit_nonce_action' => function_exists( 'metis_ajax_nonce_action' ) ? metis_ajax_nonce_action( 'metis_people_save_person' ) : 'metis_people_save_person',
+        'submit_label' => 'Create Person',
+        'success_message' => 'Person created.',
+        'redirect' => function_exists( 'metis_portal_url' ) ? (string) metis_portal_url( 'people', 'people_list' ) : '',
+    ];
+}
+
 if ( function_exists( 'metis_ajax_register_controller' ) ) {
     $metis_people_actions = [
         'metis_people_save_person' => 'edit',

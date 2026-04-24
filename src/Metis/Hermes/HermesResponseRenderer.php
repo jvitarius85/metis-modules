@@ -53,6 +53,9 @@ final class HermesResponseRenderer {
         // Propagate inner result status — never claim success when the service returned an error
         $innerStatus = (string) ( $result['status'] ?? '' );
         $topStatus   = ( $innerStatus === 'error' || $innerStatus === 'failed' ) ? 'error' : 'success';
+        if ( $innerStatus === 'warning' ) {
+            $topStatus = 'warning';
+        }
 
         $innerMessage = (string) ( $result['message'] ?? '' );
         $opTitle      = (string) ( $plan['title'] ?? $command['key'] ?? '' );

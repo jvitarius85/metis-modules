@@ -77,6 +77,46 @@ return String(value==null?"":value)
 .replace(/'/g,"&#39;")
 }
 
+function humanizeKey(value){
+return String(value||"")
+.replace(/[_-]+/g," ")
+.replace(/\s+/g," ")
+.trim()
+.replace(/\b\w/g,letter=>letter.toUpperCase())
+}
+
+function formatHermesValue(value){
+if(value==null){
+return ""
+}
+if(typeof value==="string" || typeof value==="number" || typeof value==="boolean"){
+return String(value)
+}
+if(Array.isArray(value)){
+return value.map(formatHermesValue).filter(Boolean).join(", ")
+}
+if(typeof value==="object"){
+if(value.message){
+return String(value.message)
+}
+if(value.title){
+return String(value.title)
+}
+if(value.check && value.status){
+return `${humanizeKey(value.check)}: ${String(value.status).toUpperCase()}`
+}
+if(value.status){
+return String(value.status)
+}
+try{
+return JSON.stringify(value)
+}catch(_error){
+return ""
+}
+}
+return String(value)
+}
+
 container.onclick=function(){
 
 if(open) return
@@ -178,14 +218,31 @@ value.classification ||
 )
 }
 
+function responseAnswerText(data,structured,helpResult){
+if(helpResult && helpResult.summary){
+return String(helpResult.summary)
+}
+if(structured && structured.result && typeof structured.result==="object" && structured.result.message){
+return String(structured.result.message)
+}
+if(structured && structured.message){
+return String(structured.message)
+}
+if(data && data.message){
+return String(data.message)
+}
+if(data && data.reasoning && data.reasoning.answer){
+return formatHermesValue(data.reasoning.answer)
+}
+return "Operation request received."
+}
+
 function buildConversationMarkup(data){
 const structured=(data && data.reasoning && data.reasoning.structured && typeof data.reasoning.structured==="object"
 ? data.reasoning.structured
 : (data && typeof data==="object" ? data : null))
 const helpResult=structured && isHelpIssuePayload(structured.result) ? structured.result : (structured && isHelpIssuePayload(structured) ? structured : null)
-const answer=helpResult && helpResult.summary
-? String(helpResult.summary)
-: (data && data.reasoning && data.reasoning.answer ? String(data.reasoning.answer) : "Operation request received.")
+const answer=responseAnswerText(data,structured,helpResult)
 let html=`<div class="hermes-answer">${escapeHtml(answer)}</div>`
 
 if(data && data.reasoning && data.reasoning.grounding && Array.isArray(data.reasoning.grounding.grounded) && data.reasoning.grounding.grounded.length){
@@ -559,6 +616,48 @@ html+=`</div>`
 return html
 }
 
+if(Array.isArray(result.checks) && result.checks.length){
+let html=``
+if(result.summary && typeof result.summary==="object"){
+const summaryParts=[]
+if(typeof result.summary.passed!=="undefined"){
+summaryParts.push(`${Number(result.summary.passed||0)} passed`)
+}
+if(typeof result.summary.warnings!=="undefined"){
+summaryParts.push(`${Number(result.summary.warnings||0)} warning(s)`)
+}
+if(typeof result.summary.failed!=="undefined"){
+summaryParts.push(`${Number(result.summary.failed||0)} failed`)
+}
+if(summaryParts.length){
+html+=`<div class="hermes-grounding">${escapeHtml(summaryParts.join(", "))}</div>`
+}
+}
+html+=`<div class="hermes-findings">`
+result.checks.forEach(check=>{
+const label=humanizeKey(check && typeof check==="object" ? (check.check || check.name || check.title || "Check") : "Check")
+const status=check && typeof check==="object" && check.status ? ` [${String(check.status).toUpperCase()}]` : ""
+const detail=formatHermesValue(check && typeof check==="object" ? (check.message || check.detail || check.result || check) : check)
+html+=`<div class="hermes-finding"><strong>${escapeHtml(label + status)}</strong><span>${escapeHtml(detail)}</span></div>`
+})
+html+=`</div>`
+return html
+}
+
+if(result.status && result.message && typeof result.message==="string"){
+let html=`<div class="hermes-grounding">${escapeHtml(result.message)}</div>`
+const hiddenKeys=new Set(["status","message","enclave_request_id","release_status"])
+const rows=Object.keys(result).filter(key=>!hiddenKeys.has(key) && result[key]!=null && typeof result[key]!=="object")
+if(rows.length){
+html+=`<div class="hermes-findings">`
+rows.slice(0,8).forEach(key=>{
+html+=`<div class="hermes-finding"><strong>${escapeHtml(humanizeKey(key))}</strong><span>${escapeHtml(formatHermesValue(result[key]))}</span></div>`
+})
+html+=`</div>`
+}
+return html
+}
+
 if(result.status==="success" && result.user){
 const user=result.user || {}
 let html=`<div class="hermes-findings">`
@@ -659,7 +758,7 @@ if(Array.isArray(result.checks) && result.checks.length){
 html+=`<div class="hermes-grounding">${escapeHtml(checksLabel)}</div>`
 html+=`<ul class="hermes-rich-list">`
 result.checks.slice(0,6).forEach(check=>{
-html+=`<li>${escapeHtml(String(check))}</li>`
+html+=`<li>${escapeHtml(formatHermesValue(check))}</li>`
 })
 html+=`</ul>`
 }

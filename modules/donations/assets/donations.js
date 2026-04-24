@@ -184,6 +184,225 @@ function initMetisDonationsModule( context ) {
     // TRANSACTIONS LIST (transactions.php)
     // =========================================================================
 
+    const offlineDonationForm = document.querySelector( '.mw-offline-donation-form' );
+    if ( offlineDonationForm ) {
+        const modal         = document.getElementById( 'mw-offline-donation-modal' );
+        const openBtn       = document.getElementById( 'mw-open-offline-donation-modal' );
+        const closeBtn      = document.getElementById( 'mw-offline-donation-close' );
+        const cancelBtn     = document.getElementById( 'mw-offline-donation-cancel' );
+        const methodSelect  = offlineDonationForm.querySelector( '[data-offline-method]' );
+        const checkField    = offlineDonationForm.querySelector( '[data-offline-check-field]' );
+        const checkInput    = checkField ? checkField.querySelector( 'input[name="chk_num"]' ) : null;
+        const lookupInput   = document.getElementById( 'mw-offline-donor-lookup' );
+        const donorDidInput = document.getElementById( 'mw-offline-donor-did' );
+        const donorStatus   = document.getElementById( 'mw-offline-donor-status' );
+        const donorResults  = document.getElementById( 'mw-offline-donor-results' );
+        const firstName     = offlineDonationForm.querySelector( 'input[name="first_name"]' );
+        const lastName      = offlineDonationForm.querySelector( 'input[name="last_name"]' );
+        const emailInput    = offlineDonationForm.querySelector( 'input[name="email"]' );
+        const phoneInput    = offlineDonationForm.querySelector( 'input[name="phone"]' );
+        const lookupNonce   = lookupInput ? String( lookupInput.getAttribute( 'data-lookup-nonce' ) || '' ) : '';
+
+        let lookupTimer = null;
+        let selectedDonorLabel = '';
+
+        function openOfflineModal() {
+            if ( ! modal ) return;
+            if ( window.MetisCore && MetisCore.modal && typeof MetisCore.modal.open === 'function' ) {
+                MetisCore.modal.open( 'mw-offline-donation-modal' );
+            } else {
+                modal.style.display = 'block';
+                modal.setAttribute( 'aria-hidden', 'false' );
+            }
+            document.body.classList.add( 'mw-modal-open' );
+            setTimeout( function () {
+                if ( lookupInput ) lookupInput.focus();
+            }, 0 );
+        }
+
+        function closeOfflineModal() {
+            if ( ! modal ) return;
+            if ( window.MetisCore && MetisCore.modal && typeof MetisCore.modal.close === 'function' ) {
+                MetisCore.modal.close( 'mw-offline-donation-modal' );
+            } else {
+                modal.style.display = 'none';
+                modal.setAttribute( 'aria-hidden', 'true' );
+            }
+            document.body.classList.remove( 'mw-modal-open' );
+            hideLookupResults();
+        }
+
+        function hideLookupResults() {
+            if ( donorResults ) {
+                donorResults.hidden = true;
+                donorResults.innerHTML = '';
+            }
+        }
+
+        function donorFullName() {
+            return [ firstName?.value || '', lastName?.value || '' ].join( ' ' ).trim();
+        }
+
+        function syncDonorStatus() {
+            if ( ! donorStatus ) return;
+            if ( donorDidInput && donorDidInput.value ) {
+                donorStatus.textContent = 'Using existing donor: ' + ( selectedDonorLabel || donorDidInput.value );
+                donorStatus.dataset.mode = 'selected';
+                return;
+            }
+
+            const hasDraftIdentity = donorFullName() || ( emailInput && emailInput.value.trim() ) || ( phoneInput && phoneInput.value.trim() );
+            donorStatus.textContent = hasDraftIdentity
+                ? 'No existing donor selected. A new donor will be created when you save.'
+                : 'No donor selected. Search for a donor or enter new donor details.';
+            donorStatus.dataset.mode = hasDraftIdentity ? 'new' : 'empty';
+        }
+
+        function clearSelectedDonor() {
+            if ( donorDidInput ) donorDidInput.value = '';
+            selectedDonorLabel = '';
+            syncDonorStatus();
+        }
+
+        function selectDonor( donor ) {
+            if ( ! donor ) return;
+            if ( donorDidInput ) donorDidInput.value = donor.did || '';
+            if ( lookupInput ) lookupInput.value = donor.name || donor.did || '';
+            if ( firstName && donor.first_name !== undefined ) firstName.value = donor.first_name || '';
+            if ( lastName && donor.last_name !== undefined ) lastName.value = donor.last_name || '';
+            if ( emailInput && donor.email !== undefined ) emailInput.value = donor.email || '';
+            if ( phoneInput && donor.phone !== undefined && ! phoneInput.value ) phoneInput.value = donor.phone || '';
+            selectedDonorLabel = donor.name || donor.did || '';
+            hideLookupResults();
+            syncDonorStatus();
+        }
+
+        function renderLookupResults( matches ) {
+            if ( ! donorResults ) return;
+            if ( ! Array.isArray( matches ) || ! matches.length ) {
+                donorResults.hidden = false;
+                donorResults.innerHTML = '<div class="mw-offline-donor-empty">No matching donors found. Continue entering a new donor.</div>';
+                return;
+            }
+
+            donorResults.hidden = false;
+            donorResults.innerHTML = matches.map( function (item, index) {
+                const meta = [];
+                if ( item.email ) meta.push( Metis.util.escapeHtml( item.email ) );
+                if ( item.did ) meta.push( 'DID: ' + Metis.util.escapeHtml( item.did ) );
+                meta.push( Metis.util.escapeHtml( String( item.gift_count || 0 ) + ' gifts' ) );
+                meta.push( Metis.util.escapeHtml( '$' + Number( item.total_raised || 0 ).toFixed( 2 ) ) );
+                return '' +
+                    '<button type="button" class="mw-offline-donor-result" data-index="' + index + '">' +
+                        '<strong>' + Metis.util.escapeHtml( item.name || item.did || 'Donor' ) + '</strong>' +
+                        '<span>' + meta.join( ' · ' ) + '</span>' +
+                    '</button>';
+            } ).join( '' );
+
+            donorResults.querySelectorAll( '.mw-offline-donor-result' ).forEach( function (button) {
+                button.addEventListener( 'click', function () {
+                    const idx = parseInt( button.getAttribute( 'data-index' ) || '-1', 10 );
+                    if ( idx >= 0 && matches[ idx ] ) {
+                        selectDonor( matches[ idx ] );
+                    }
+                } );
+            } );
+        }
+
+        function runDonorLookup() {
+            if ( ! lookupInput || ! donorResults ) return;
+            const query = String( lookupInput.value || '' ).trim();
+            if ( query.length < 2 ) {
+                hideLookupResults();
+                syncDonorStatus();
+                return;
+            }
+
+            donorResults.hidden = false;
+            donorResults.innerHTML = '<div class="mw-offline-donor-empty">Searching donors…</div>';
+
+            const body = new FormData();
+            body.append( 'action', 'metis_donations_lookup_donors' );
+            body.append( 'nonce', lookupNonce );
+            body.append( 'q', query );
+
+            fetch( metisAjax.ajax_url, { method: 'POST', body: body, credentials: 'same-origin' } )
+                .then( function (res) { return res.json(); } )
+                .then( function (res) {
+                    if ( ! res || ! res.success ) {
+                        throw new Error( res && res.data && res.data.message ? res.data.message : 'Lookup failed.' );
+                    }
+                    renderLookupResults( res.data && Array.isArray( res.data.matches ) ? res.data.matches : [] );
+                } )
+                .catch( function (error) {
+                    donorResults.hidden = false;
+                    donorResults.innerHTML = '<div class="mw-offline-donor-empty mw-offline-donor-empty-error">' + Metis.util.escapeHtml( error.message || 'Lookup failed.' ) + '</div>';
+                } );
+        }
+
+        function queueDonorLookup() {
+            if ( lookupTimer ) {
+                clearTimeout( lookupTimer );
+            }
+            lookupTimer = setTimeout( runDonorLookup, 180 );
+        }
+
+        function syncOfflineDonationForm() {
+            const method = ( methodSelect && methodSelect.value ? methodSelect.value : '' ).toLowerCase();
+            const showCheck = method === 'ck';
+            if ( checkField ) {
+                checkField.style.display = showCheck ? '' : 'none';
+            }
+            if ( checkInput && ! showCheck ) {
+                checkInput.value = '';
+            }
+        }
+
+        [ firstName, lastName, emailInput, phoneInput ].forEach( function (field) {
+            if ( ! field ) return;
+            field.addEventListener( 'input', syncDonorStatus );
+        } );
+
+        if ( lookupInput ) {
+            lookupInput.addEventListener( 'input', function () {
+                clearSelectedDonor();
+                queueDonorLookup();
+            } );
+            lookupInput.addEventListener( 'focus', function () {
+                if ( String( lookupInput.value || '' ).trim().length >= 2 ) {
+                    queueDonorLookup();
+                }
+            } );
+        }
+
+        if ( methodSelect ) {
+            methodSelect.addEventListener( 'change', syncOfflineDonationForm );
+            syncOfflineDonationForm();
+        }
+        if ( openBtn ) openBtn.addEventListener( 'click', openOfflineModal );
+        if ( closeBtn ) closeBtn.addEventListener( 'click', closeOfflineModal );
+        if ( cancelBtn ) cancelBtn.addEventListener( 'click', closeOfflineModal );
+        if ( modal ) {
+            modal.addEventListener( 'click', function (event) {
+                if ( event.target === modal ) closeOfflineModal();
+            } );
+            if ( modal.getAttribute( 'data-auto-open' ) === '1' ) {
+                openOfflineModal();
+            }
+        }
+        document.addEventListener( 'keydown', function (event) {
+            if ( event.key === 'Escape' && modal && modal.getAttribute( 'aria-hidden' ) === 'false' ) {
+                closeOfflineModal();
+            }
+        } );
+
+        syncDonorStatus();
+        if ( donorDidInput && donorDidInput.value ) {
+            selectedDonorLabel = donorFullName() || donorDidInput.value;
+        }
+        syncDonorStatus();
+    }
+
     const txRows = Array.from( document.querySelectorAll( '.mw-tx-row' ) );
 
     if ( txRows.length ) {

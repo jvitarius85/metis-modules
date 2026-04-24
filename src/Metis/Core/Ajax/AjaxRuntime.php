@@ -520,6 +520,15 @@ function metis_core_register_ajax_controllers(): void {
             'code' => [ 'type' => 'string', 'required' => true ],
         ],
     ] );
+
+    metis_ajax_register_controller( 'metis_quick_action_form', [
+        'module' => 'core',
+        'permission' => 'view',
+        'nonce_action' => 'metis_core',
+        'schema' => [
+            'key' => [ 'type' => 'string', 'required' => true ],
+        ],
+    ] );
 }
 
 metis_ajax_register_handler( 'metis_resolve_code', function () {
@@ -860,6 +869,34 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
         'url' => (string) ( $resolved['resolve_url'] ?? '' ),
         'matches' => array_slice( $matches, 0, $max_results ),
     ] );
+} );
+
+metis_ajax_register_handler( 'metis_quick_action_form', function () {
+    if ( ! function_exists( 'metis_quick_actions_service' ) ) {
+        metis_runtime_send_json_error( 'Quick actions are unavailable.', 404 );
+    }
+
+    $nonce = isset( $_POST['nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['nonce'] ) ) : '';
+    $actionNonce = isset( $_POST['metis_action_nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['metis_action_nonce'] ) ) : '';
+    $valid = metis_runtime_verify_nonce( $nonce, 'metis_core' )
+        || metis_runtime_verify_nonce( $actionNonce, 'metis_core' )
+        || ( function_exists( 'metis_ajax_nonce_action' ) && metis_runtime_verify_nonce( $actionNonce, metis_ajax_nonce_action( 'metis_quick_action_form' ) ) )
+        || ( function_exists( 'metis_ajax_nonce_action' ) && metis_runtime_verify_nonce( $nonce, metis_ajax_nonce_action( 'metis_quick_action_form' ) ) );
+    if ( ! $valid ) {
+        metis_runtime_send_json_error( 'Invalid nonce.', 403 );
+    }
+
+    $key = metis_key_clean( (string) ( $_POST['key'] ?? '' ) );
+    if ( $key === '' ) {
+        metis_runtime_send_json_error( 'Quick action key is required.', 422 );
+    }
+
+    $payload = metis_quick_actions_service()->modalPayload( $key );
+    if ( $payload === null ) {
+        metis_runtime_send_json_error( 'Quick action modal is unavailable.', 404 );
+    }
+
+    metis_runtime_send_json_success( $payload );
 } );
 
 if ( function_exists( 'metis_ajax_register_controller' ) ) {

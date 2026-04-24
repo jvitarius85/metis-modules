@@ -1,129 +1,68 @@
 {
+    "metis_people_maintenance_last_run": 1777044374,
     "metis_board_workflow_defaults_v2": "1",
     "metis_newsletter_editor_rewrite_signature": "e39d72aa4dfaf507df132642beb6e0bc57d37957",
-    "metis_website_editor_rewrite_signature": "28d1be5fcb02f5475378e57d671e17a5b99e41b7",
-    "metis_people_maintenance_last_run": 1777037170,
-    "metis_drive_cache_version": 203,
+    "metis_website_editor_rewrite_signature": "15aaa1fad7a9e09c7af3ee38ef704052e3bd5b80",
+    "metis_drive_cache_version": 9,
     "metis_cron_task_state_integrity_scan": {
-        "last_started_at": "2026-04-24 06:43:53",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
+        "last_started_at": "2026-04-24 10:26:55",
+        "last_request_id": "12f31d4d-4c1f-473c-ba67-6b962fae275f",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-04-24 06:43:53",
+        "last_finished_at": "2026-04-24 10:26:55",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_cache_cleanup": {
-        "last_started_at": "2026-04-24 06:43:56",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
+        "last_started_at": "2026-04-24 10:26:58",
+        "last_request_id": "12f31d4d-4c1f-473c-ba67-6b962fae275f",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-04-24 06:43:56",
+        "last_finished_at": "2026-04-24 10:26:58",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_security_audit_digest": {
-        "last_started_at": "2026-04-24 05:30:05",
-        "last_request_id": "deb6b3dd-7970-4a71-888c-6397f66479c3",
+        "last_started_at": "2026-04-24 10:26:58",
+        "last_request_id": "12f31d4d-4c1f-473c-ba67-6b962fae275f",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-04-24 05:30:05",
+        "last_finished_at": "2026-04-24 10:26:58",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_security_audit_digest_last": {
         "window_hours": 24,
-        "generated_at": "2026-04-24 10:30:05",
+        "generated_at": "2026-04-24 15:26:58",
         "total_events": 0,
         "top_actions": [],
         "by_severity": [],
         "by_outcome": []
     },
     "metis_cron_task_state_release_update_check": {
-        "last_started_at": "2026-04-24 06:31:56",
-        "last_request_id": "8377832b-9736-4021-afa2-816e67a9ff5d",
+        "last_started_at": "2026-04-24 10:26:58",
+        "last_request_id": "12f31d4d-4c1f-473c-ba67-6b962fae275f",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-04-24 06:31:56",
+        "last_finished_at": "2026-04-24 10:26:58",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_module_compliance_audit": {
-        "last_started_at": "2026-04-24 06:43:56",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
+        "last_started_at": "2026-04-24 10:26:58",
+        "last_request_id": "12f31d4d-4c1f-473c-ba67-6b962fae275f",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-04-24 06:43:56",
+        "last_finished_at": "2026-04-24 10:26:58",
         "last_status": "ok",
         "last_error": ""
     },
     "metis_cron_task_state_drive_listing_sync": {
-        "last_started_at": "2026-04-24 06:44:04",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
+        "last_started_at": "2026-04-24 10:27:00",
+        "last_request_id": "12f31d4d-4c1f-473c-ba67-6b962fae275f",
         "last_trigger": "scheduled",
         "running": false,
-        "last_finished_at": "2026-04-24 06:44:05",
-        "last_status": "ok",
-        "last_error": ""
-    },
-    "metis_last_route_signature": "admin|metis-webhooks|/api/ajax",
-    "metis_cron_task_state_system_backup_snapshot": {
-        "last_finished_at": "2026-04-24 06:03:02",
-        "last_status": "failed",
-        "running": false,
-        "last_error": "Task reported failure."
-    },
-    "metis_cron_task_state_calendar_listing_sync": {
-        "last_started_at": "2026-04-24 06:44:05",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
-        "last_trigger": "scheduled",
-        "running": false,
-        "last_finished_at": "2026-04-24 06:44:06",
-        "last_status": "ok",
-        "last_error": ""
-    },
-    "metis_cron_task_state_newsletter_email_processing": {
-        "last_started_at": "2026-04-24 06:44:06",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
-        "last_trigger": "scheduled",
-        "running": false,
-        "last_finished_at": "2026-04-24 06:44:06",
-        "last_status": "ok",
-        "last_error": ""
-    },
-    "metis_cron_task_state_newsletter_analytics_updates": {
-        "last_started_at": "2026-04-24 06:44:06",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
-        "last_trigger": "scheduled",
-        "running": false,
-        "last_finished_at": "2026-04-24 06:44:07",
-        "last_status": "ok",
-        "last_error": ""
-    },
-    "metis_cron_task_state_communications_inbound_watch_renewal": {
-        "last_started_at": "2026-04-24 06:03:04",
-        "last_request_id": "dbb2f0e6-f088-4ff5-9c80-6e9c487accd4",
-        "last_trigger": "scheduled",
-        "running": false,
-        "last_finished_at": "2026-04-24 06:03:04",
-        "last_status": "ok",
-        "last_error": ""
-    },
-    "metis_cron_task_state_hermes_scheduled_diagnostics": {
-        "last_started_at": "2026-04-24 06:44:07",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
-        "last_trigger": "scheduled",
-        "running": false,
-        "last_finished_at": "2026-04-24 06:44:07",
-        "last_status": "ok",
-        "last_error": ""
-    },
-    "metis_cron_task_state_people_workspace_sync": {
-        "last_started_at": "2026-04-24 06:44:07",
-        "last_request_id": "24074716-a0c6-47e8-a86f-93b483075052",
-        "last_trigger": "scheduled",
-        "running": false,
-        "last_finished_at": "2026-04-24 06:44:07",
+        "last_finished_at": "2026-04-24 10:27:02",
         "last_status": "ok",
         "last_error": ""
     }

@@ -173,7 +173,7 @@
             "label": "Create Newsletter",
             "icon": "mail-plus",
             "type": "route",
-            "route": "/newsletter/campaigns/",
+            "route": "/admin/newsletter/campaigns/new/",
             "permission": "newsletter.create",
             "group": "communications"
         }

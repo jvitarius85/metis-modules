@@ -225,6 +225,222 @@ final class DonationsModule {
         return $batch_code;
     }
 
+    public static function recordOfflineDonation( array $input, int $requestedBy = 0 ): array {
+        $transactions_table = \Metis_Tables::get( 'transactions' );
+        $campaigns_table    = \Metis_Tables::get( 'campaigns' );
+
+        if ( $transactions_table === '' ) {
+            return [ 'ok' => false, 'status' => 500, 'message' => 'Donation transactions table is not available.' ];
+        }
+
+        $campaign_code = trim( \metis_text_clean( (string) ( $input['campaign_code'] ?? '' ) ) );
+        if ( $campaign_code === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Choose a campaign for the donation.' ];
+        }
+
+        $campaign_exists = (int) self::db()->scalar(
+            "SELECT COUNT(*) FROM {$campaigns_table} WHERE cid = %s LIMIT 1",
+            [ $campaign_code ]
+        );
+        if ( $campaign_exists < 1 ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'The selected campaign could not be found.' ];
+        }
+
+        $amount = round( abs( (float) ( $input['amount'] ?? 0 ) ), 2 );
+        if ( $amount <= 0 ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Donation amount must be greater than zero.' ];
+        }
+
+        $tran_date = self::normalizeOfflineDonationDate( (string) ( $input['tran_date'] ?? '' ) );
+        if ( $tran_date === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Enter a valid donation date.' ];
+        }
+
+        $payment_method = self::normalizeOfflinePaymentMethod( (string) ( $input['payment_method'] ?? '' ) );
+        $check_number   = trim( \metis_text_clean( (string) ( $input['chk_num'] ?? '' ) ) );
+        if ( $payment_method !== 'ck' ) {
+            $check_number = '';
+        }
+
+        $donor_did = trim( \metis_text_clean( (string) ( $input['donor_did'] ?? '' ) ) );
+        $contact_input = [
+            'first_name' => (string) ( $input['first_name'] ?? '' ),
+            'last_name'  => (string) ( $input['last_name'] ?? '' ),
+            'email'      => (string) ( $input['email'] ?? '' ),
+            'phone'      => (string) ( $input['phone'] ?? '' ),
+        ];
+        $contact = $donor_did !== ''
+            ? self::hydrateOfflineDonorContactByDid( $donor_did, $contact_input )
+            : self::upsertOfflineDonorContact( $contact_input );
+
+        if ( $donor_did !== '' && ! is_array( $contact ) ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'The selected donor could not be found. Please search again.' ];
+        }
+
+        $has_donor_identity = trim(
+            (string) ( $contact['did'] ?? '' )
+            . (string) ( $input['first_name'] ?? '' )
+            . (string) ( $input['last_name'] ?? '' )
+            . (string) ( $input['email'] ?? '' )
+        ) !== '';
+        if ( ! $has_donor_identity ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Enter at least a donor name or email address.' ];
+        }
+
+        $notes = trim( \metis_textarea_clean( (string) ( $input['notes'] ?? '' ) ) );
+        $now   = \metis_current_time( 'mysql' );
+        $payload = [
+            'did'                => (string) ( $contact['did'] ?? '' ) !== '' ? (string) $contact['did'] : null,
+            'platform'           => 'OL',
+            'campaign_code'      => $campaign_code,
+            'plan_id'            => null,
+            'fund_code'          => null,
+            'status'             => 'completed',
+            'payment_method'     => $payment_method,
+            'chk_num'            => $check_number !== '' ? $check_number : null,
+            'amount'             => $amount,
+            'fee'                => 0.00,
+            'fee_covered'        => 0.00,
+            'pl_fee'             => 0.00,
+            'payout'             => $amount,
+            'tran_date'          => $tran_date,
+            'deposit_date'       => null,
+            'deposit_batch_id'   => null,
+            'giving_space_id'    => null,
+            'giving_space_name'  => null,
+            'giving_space_msg'   => null,
+            'refunded'           => 0,
+            'refunded_at'        => null,
+            'notes'              => $notes !== '' ? $notes : null,
+            'stripe_pay_int'     => null,
+            'stripe_charge_id'   => null,
+            'stripe_balance_txn' => null,
+            'stripe_payout_id'   => null,
+            'stripe_refund_id'   => null,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+        ];
+
+        if ( function_exists( 'metis_entity_id_service' ) ) {
+            $payload = \metis_entity_id_service()->assignForInsert( 'donation_transaction', $payload );
+        } else {
+            $payload['tid'] = \metis_generate_code( 'TR', $transactions_table, 'tid' );
+        }
+
+        $tid = (string) ( $payload['transaction_uid'] ?? $payload['tid'] ?? '' );
+        $inserted = self::db()->insert( $transactions_table, $payload );
+        if ( ! $inserted ) {
+            return [ 'ok' => false, 'status' => 500, 'message' => 'Could not save the offline donation.' ];
+        }
+
+        $transaction_id = self::db()->lastInsertId();
+        if ( $transaction_id > 0 && function_exists( 'metis_entity_id_service' ) ) {
+            \metis_entity_id_service()->register( 'donation_transaction', $transaction_id, $tid );
+        }
+
+        if ( \class_exists( \Metis\Modules\Finance\FinanceV2Service::class ) ) {
+            \Metis\Modules\Finance\FinanceV2Service::recordOfflineDonationReceipt(
+                [
+                    'event_date'   => substr( $tran_date, 0, 10 ),
+                    'reference_id' => $tid,
+                    'amount'       => $amount,
+                    'description'  => 'Offline donation receipt',
+                ],
+                $requestedBy
+            );
+        }
+
+        if ( \Metis\Core\Application::has_service( 'events' ) ) {
+            \Metis\Core\Application::service( 'events' )->publish(
+                'donation.received',
+                [
+                    'event_id'      => 0,
+                    'reference_id'  => $tid,
+                    'amount'        => $amount,
+                    'currency'      => 'usd',
+                    'transaction_id'=> $transaction_id,
+                    'payment_method'=> $payment_method,
+                    'source'        => 'offline',
+                ]
+            );
+        }
+
+        \Metis_Logger::info( 'Offline donation recorded', [
+            'tid'           => $tid,
+            'campaign_code' => $campaign_code,
+            'amount'        => $amount,
+            'payment_method'=> $payment_method,
+        ] );
+
+        return [
+            'ok'      => true,
+            'status'  => 200,
+            'tid'     => $tid,
+            'message' => 'Offline donation recorded.',
+        ];
+    }
+
+    public static function lookupOfflineDonors( string $query, int $limit = 8 ): array {
+        $contacts_table     = \Metis_Tables::get( 'contacts' );
+        $transactions_table = \Metis_Tables::get( 'transactions' );
+        $query = trim( \metis_text_clean( $query ) );
+        if ( $contacts_table === '' || $query === '' ) {
+            return [];
+        }
+
+        $limit = max( 1, min( 15, $limit ) );
+        $like  = '%' . $query . '%';
+        $rows = self::db()->fetchAll(
+            "SELECT
+                c.did,
+                c.first_name,
+                c.last_name,
+                c.email,
+                MAX(cd.phone) AS phone,
+                COUNT(t.id) AS gift_count,
+                COALESCE(SUM(t.amount), 0) AS total_raised
+             FROM {$contacts_table} c
+             LEFT JOIN " . \Metis_Tables::get( 'contact_details' ) . " cd
+               ON cd.contact_id = c.id OR cd.did = c.did
+             LEFT JOIN {$transactions_table} t
+               ON t.did = c.did
+             WHERE c.did IS NOT NULL
+               AND c.did <> ''
+               AND (
+                    c.did LIKE %s
+                    OR c.email LIKE %s
+                    OR c.first_name LIKE %s
+                    OR c.last_name LIKE %s
+                    OR CONCAT(TRIM(COALESCE(c.first_name, '')), ' ', TRIM(COALESCE(c.last_name, ''))) LIKE %s
+               )
+             GROUP BY c.did, c.first_name, c.last_name, c.email
+             ORDER BY total_raised DESC, gift_count DESC, c.last_name ASC, c.first_name ASC
+             LIMIT {$limit}",
+            [ $like, $like, $like, $like, $like ]
+        );
+
+        if ( ! is_array( $rows ) ) {
+            return [];
+        }
+
+        return array_map(
+            static function ( array $row ): array {
+                $name = trim( (string) ( $row['first_name'] ?? '' ) . ' ' . (string) ( $row['last_name'] ?? '' ) );
+                return [
+                    'did'         => (string) ( $row['did'] ?? '' ),
+                    'first_name'  => (string) ( $row['first_name'] ?? '' ),
+                    'last_name'   => (string) ( $row['last_name'] ?? '' ),
+                    'name'        => $name !== '' ? $name : (string) ( $row['did'] ?? '' ),
+                    'email'       => (string) ( $row['email'] ?? '' ),
+                    'phone'       => (string) ( $row['phone'] ?? '' ),
+                    'gift_count'  => (int) ( $row['gift_count'] ?? 0 ),
+                    'total_raised'=> round( (float) ( $row['total_raised'] ?? 0 ), 2 ),
+                ];
+            },
+            $rows
+        );
+    }
+
     public static function addBatchNote( string $batch_code, string $text ): bool|int {
         return self::db()->insert(
             \Metis_Tables::get( 'batch_notes' ),
@@ -254,6 +470,209 @@ final class DonationsModule {
                 'event_type'   => $type,
                 'event_detail' => $detail,
                 'created_at'   => \metis_current_time( 'mysql' ),
+            ]
+        );
+    }
+
+    private static function normalizeOfflineDonationDate( string $raw ): string {
+        $raw = trim( \metis_text_clean( $raw ) );
+        if ( $raw === '' ) {
+            return '';
+        }
+
+        if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw ) === 1 ) {
+            return $raw . ' 00:00:00';
+        }
+
+        if ( preg_match( '/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/', $raw ) === 1 ) {
+            $ts = strtotime( $raw );
+            return $ts ? date( 'Y-m-d H:i:s', $ts ) : '';
+        }
+
+        $ts = strtotime( $raw );
+        return $ts ? date( 'Y-m-d H:i:s', $ts ) : '';
+    }
+
+    private static function normalizeOfflinePaymentMethod( string $raw ): string {
+        $raw = strtolower( trim( \metis_key_clean( $raw ) ) );
+        return in_array( $raw, [ 'cash', 'ck', 'ach', 'other' ], true ) ? $raw : 'other';
+    }
+
+    private static function hydrateOfflineDonorContactByDid( string $did, array $input ): array {
+        $contacts_table = \Metis_Tables::get( 'contacts' );
+        if ( $contacts_table === '' ) {
+            return [];
+        }
+
+        $did = trim( \metis_text_clean( $did ) );
+        if ( $did === '' ) {
+            return [];
+        }
+
+        $contact = self::db()->fetchOne( "SELECT * FROM {$contacts_table} WHERE did = %s LIMIT 1", [ $did ] );
+        if ( ! is_array( $contact ) ) {
+            return [];
+        }
+
+        $updates = [];
+        $first = trim( \metis_text_clean( (string) ( $input['first_name'] ?? '' ) ) );
+        $last  = trim( \metis_text_clean( (string) ( $input['last_name'] ?? '' ) ) );
+        $email = strtolower( trim( \metis_email_clean( (string) ( $input['email'] ?? '' ) ) ) );
+
+        if ( $first !== '' && (string) ( $contact['first_name'] ?? '' ) === '' ) {
+            $updates['first_name'] = $first;
+        }
+        if ( $last !== '' && (string) ( $contact['last_name'] ?? '' ) === '' ) {
+            $updates['last_name'] = $last;
+        }
+        if ( $email !== '' && (string) ( $contact['email'] ?? '' ) === '' ) {
+            $updates['email'] = $email;
+        }
+
+        if ( $updates !== [] ) {
+            $updates['updated_at'] = \metis_current_time( 'mysql' );
+            self::db()->update( $contacts_table, $updates, [ 'id' => (int) $contact['id'] ] );
+            $contact = self::db()->fetchOne( "SELECT * FROM {$contacts_table} WHERE id = %d LIMIT 1", [ (int) $contact['id'] ] );
+        }
+
+        self::syncOfflineDonorDetails( $contact, $input );
+        return is_array( $contact ) ? $contact : [];
+    }
+
+    private static function upsertOfflineDonorContact( array $input ): array {
+        $contacts_table = \Metis_Tables::get( 'contacts' );
+        if ( $contacts_table === '' ) {
+            return [];
+        }
+
+        $first = trim( \metis_text_clean( (string) ( $input['first_name'] ?? '' ) ) );
+        $last  = trim( \metis_text_clean( (string) ( $input['last_name'] ?? '' ) ) );
+        $email = strtolower( trim( \metis_email_clean( (string) ( $input['email'] ?? '' ) ) ) );
+        $phone = trim( \metis_text_clean( (string) ( $input['phone'] ?? '' ) ) );
+
+        if ( $first === '' && $last === '' && $email === '' && $phone === '' ) {
+            return [];
+        }
+
+        $db = self::db();
+        $existing = null;
+        if ( $email !== '' ) {
+            $existing = $db->fetchOne( "SELECT * FROM {$contacts_table} WHERE email = %s LIMIT 1", [ $email ] );
+        }
+
+        if ( ! is_array( $existing ) && $first !== '' && $last !== '' ) {
+            $existing = $db->fetchOne(
+                "SELECT * FROM {$contacts_table} WHERE first_name = %s AND last_name = %s ORDER BY id DESC LIMIT 1",
+                [ $first, $last ]
+            );
+        }
+
+        if ( is_array( $existing ) ) {
+            $updates = [];
+            if ( $first !== '' && (string) ( $existing['first_name'] ?? '' ) === '' ) {
+                $updates['first_name'] = $first;
+            }
+            if ( $last !== '' && (string) ( $existing['last_name'] ?? '' ) === '' ) {
+                $updates['last_name'] = $last;
+            }
+            if ( $email !== '' && (string) ( $existing['email'] ?? '' ) === '' ) {
+                $updates['email'] = $email;
+            }
+            if ( (string) ( $existing['did'] ?? '' ) === '' ) {
+                $updates['did'] = \metis_generate_code( 'MW', $contacts_table, 'did' );
+            }
+            if ( (string) ( $existing['cid'] ?? '' ) === '' ) {
+                $updates['cid'] = \metis_generate_code( 'CN', $contacts_table, 'cid' );
+            }
+            if ( (string) ( $existing['contact_uid'] ?? '' ) === '' ) {
+                $updates['contact_uid'] = \metis_generate_code( 'CN', $contacts_table, 'contact_uid' );
+            }
+            if ( (string) ( $existing['donor_uid'] ?? '' ) === '' ) {
+                $updates['donor_uid'] = \metis_generate_code( 'DN', $contacts_table, 'donor_uid' );
+            }
+            if ( $updates !== [] ) {
+                $updates['updated_at'] = \metis_current_time( 'mysql' );
+                $db->update( $contacts_table, $updates, [ 'id' => (int) $existing['id'] ] );
+                $existing = $db->fetchOne( "SELECT * FROM {$contacts_table} WHERE id = %d LIMIT 1", [ (int) $existing['id'] ] );
+            }
+        } else {
+            $payload = [
+                'did'         => \metis_generate_code( 'MW', $contacts_table, 'did' ),
+                'email'       => $email !== '' ? $email : null,
+                'first_name'  => $first !== '' ? $first : null,
+                'last_name'   => $last !== '' ? $last : null,
+                'created_at'  => \metis_current_time( 'mysql' ),
+                'updated_at'  => \metis_current_time( 'mysql' ),
+                'cid'         => \metis_generate_code( 'CN', $contacts_table, 'cid' ),
+                'contact_uid' => \metis_generate_code( 'CN', $contacts_table, 'contact_uid' ),
+                'donor_uid'   => \metis_generate_code( 'DN', $contacts_table, 'donor_uid' ),
+            ];
+            $db->insert( $contacts_table, $payload );
+            $existing = $db->fetchOne( "SELECT * FROM {$contacts_table} WHERE id = %d LIMIT 1", [ $db->lastInsertId() ] );
+        }
+
+        self::syncOfflineDonorDetails( $existing, $input );
+
+        return is_array( $existing ) ? $existing : [];
+    }
+
+    private static function syncOfflineDonorDetails( array $contact, array $input ): void {
+        $details_table = \Metis_Tables::get( 'contact_details' );
+        if ( $details_table === '' || ! is_array( $contact ) ) {
+            return;
+        }
+
+        $phone = trim( \metis_text_clean( (string) ( $input['phone'] ?? '' ) ) );
+        $db = self::db();
+        $detail = $db->fetchOne(
+            "SELECT * FROM {$details_table} WHERE contact_id = %d OR did = %s LIMIT 1",
+            [ (int) ( $contact['id'] ?? 0 ), (string) ( $contact['did'] ?? '' ) ]
+        );
+
+        if ( is_array( $detail ) ) {
+            $patch = [];
+            if ( $phone !== '' && (string) ( $detail['phone'] ?? '' ) === '' ) {
+                $patch['phone'] = $phone;
+            }
+            if ( (int) ( $detail['contact_id'] ?? 0 ) < 1 ) {
+                $patch['contact_id'] = (int) ( $contact['id'] ?? 0 );
+            }
+            if ( (string) ( $detail['contact_cid'] ?? '' ) === '' && (string) ( $contact['cid'] ?? '' ) !== '' ) {
+                $patch['contact_cid'] = (string) $contact['cid'];
+            }
+            if ( $patch !== [] ) {
+                $patch['updated_at'] = \metis_current_time( 'mysql' );
+                $db->update( $details_table, $patch, [ 'id' => (int) $detail['id'] ] );
+            }
+            return;
+        }
+
+        $db->insert(
+            $details_table,
+            [
+                'did'                      => (string) ( $contact['did'] ?? '' ),
+                'phone'                    => $phone !== '' ? $phone : null,
+                'address'                  => null,
+                'city'                     => null,
+                'state'                    => null,
+                'zip'                      => null,
+                'birthday'                 => null,
+                'spouse_name'              => null,
+                'household_id'             => null,
+                'preferred_contact_method' => null,
+                'preferred_name'           => null,
+                'do_not_contact'           => 0,
+                'volunteer_status'         => 0,
+                'anonymous_donor'          => 0,
+                'source_code'              => 'offline_donation',
+                'first_contacted'          => \metis_current_time( 'mysql' ),
+                'staff_owner'              => null,
+                'created_at'               => \metis_current_time( 'mysql' ),
+                'updated_at'               => \metis_current_time( 'mysql' ),
+                'contact_id'               => (int) ( $contact['id'] ?? 0 ),
+                'additional_emails_json'   => null,
+                'relationships_json'       => null,
+                'contact_cid'              => (string) ( $contact['cid'] ?? '' ),
             ]
         );
     }

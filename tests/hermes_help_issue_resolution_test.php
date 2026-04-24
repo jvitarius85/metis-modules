@@ -72,6 +72,40 @@ $assert( (string) ( $instructional['response_mode'] ?? '' ) === 'instructional',
 $assert( (string) ( $instructional['section_labels']['steps'] ?? '' ) === 'Step-by-step instructions', 'Instructional responses should use instructional section labels.' );
 $assert( ! str_contains( (string) ( $instructional['formatted_response'] ?? '' ), '## Step-by-step fix' ), 'Instructional responses should not use troubleshooting headers.' );
 
+$userInstructional = $resolver->resolve( 'how do I create a new user?', 0, '/admin/people/dashboard', 'people', [] );
+$assert( (string) ( $userInstructional['action'] ?? '' ) === 'create_user', 'Instructional user question should resolve to create_user.' );
+$assert( (string) ( $userInstructional['module'] ?? '' ) === 'People & Permissions', 'Instructional user question should resolve to People & Permissions.' );
+$assert( (string) ( $userInstructional['confidence'] ?? '' ) === 'high', 'Instructional user question should resolve with high confidence.' );
+$assert( (string) ( $userInstructional['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'people_create_user', 'Instructional user question should offer the create-user walkthrough.' );
+
+$findPerson = $resolver->resolve( 'how do I find a person record?', 0, '/admin/people/dashboard', 'people', [] );
+$assert( (string) ( $findPerson['action'] ?? '' ) === 'find_person_record', 'Instructional person lookup should resolve to find_person_record.' );
+$assert( (string) ( $findPerson['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'people_find_person', 'Instructional person lookup should offer the people search walkthrough.' );
+
+$glInstructional = $resolver->resolve( 'how do I create a GL entry?', 0, '/admin/donations/transactions/', 'donations', [] );
+$assert( (string) ( $glInstructional['module'] ?? '' ) === 'Accounting', 'Instructional GL question should resolve to Accounting even from Donations.' );
+$assert( (string) ( $glInstructional['action'] ?? '' ) === 'create_gl_entry', 'Instructional GL question should resolve to create_gl_entry even from Donations.' );
+
+$editDonation = $resolver->resolve( 'how do I edit a donation?', 0, '/admin/donations/transactions/', 'donations', [] );
+$assert( (string) ( $editDonation['action'] ?? '' ) === 'edit_donation', 'Instructional donation edit question should resolve to edit_donation.' );
+$assert( (string) ( $editDonation['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'donations_edit_donation', 'Instructional donation edit question should offer the donation edit walkthrough.' );
+
+$runReport = $resolver->resolve( 'how do I run a report?', 0, '/admin/donations/reports/', 'donations', [] );
+$assert( (string) ( $runReport['action'] ?? '' ) === 'run_report', 'Instructional run-report question should resolve to run_report.' );
+$assert( (string) ( $runReport['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'reports_run_report', 'Instructional run-report question should offer the reports run walkthrough.' );
+
+$exportReport = $resolver->resolve( 'how do I export a report?', 0, '/admin/donations/reports/', 'donations', [] );
+$assert( (string) ( $exportReport['action'] ?? '' ) === 'export_report', 'Instructional export-report question should resolve to export_report.' );
+$assert( (string) ( $exportReport['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'reports_export_report', 'Instructional export-report question should offer the reports export walkthrough.' );
+
+$uploadFile = $resolver->resolve( 'how do I upload a file?', 0, '/admin/drive/dashboard/', 'drive', [] );
+$assert( (string) ( $uploadFile['action'] ?? '' ) === 'upload_file', 'Instructional file-upload question should resolve to upload_file.' );
+$assert( (string) ( $uploadFile['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'drive_upload_file', 'Instructional file-upload question should offer the drive upload walkthrough.' );
+
+$saveSettings = $resolver->resolve( 'how do I save settings?', 0, '/admin/settings/identity/', 'settings', [] );
+$assert( (string) ( $saveSettings['action'] ?? '' ) === 'save_settings', 'Instructional settings question should resolve to save_settings.' );
+$assert( (string) ( $saveSettings['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'settings_save_settings', 'Instructional settings question should offer the settings save walkthrough.' );
+
 $search = $store->search( "newsletter test email won't send", '', 5, 1, false );
 $topTitle = strtolower( (string) ( $search['results'][0]['title'] ?? '' ) );
 $assert( str_contains( $topTitle, 'test email' ), 'Help search should prioritize the test email issue article for natural-language phrase matches.' );
@@ -81,7 +115,13 @@ $assert( $logs !== [], 'Help issue resolutions should be logged.' );
 $foundLoggedIssue = false;
 foreach ( $logs as $log ) {
     $normalizedIssue = strtolower( (string) ( $log['normalized_issue'] ?? '' ) );
-    if ( str_contains( $normalizedIssue, "can't run a report" ) || str_contains( $normalizedIssue, 'newsletter test email' ) || str_contains( $normalizedIssue, 'create a new donation' ) ) {
+    if (
+        str_contains( $normalizedIssue, "can't run a report" )
+        || str_contains( $normalizedIssue, 'newsletter test email' )
+        || str_contains( $normalizedIssue, 'create a new donation' )
+        || str_contains( $normalizedIssue, 'how do i upload a file' )
+        || str_contains( $normalizedIssue, 'how do i save settings' )
+    ) {
         $foundLoggedIssue = true;
         break;
     }

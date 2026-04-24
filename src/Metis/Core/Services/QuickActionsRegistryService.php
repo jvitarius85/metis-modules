@@ -85,6 +85,65 @@ final class QuickActionsRegistryService {
         return $available;
     }
 
+    public function availableAction( string $key ): ?array {
+        $this->bootstrap();
+
+        $key = \metis_key_clean( $key );
+        if ( $key === '' || ! isset( $this->actions[ $key ] ) ) {
+            return null;
+        }
+
+        $action = $this->actions[ $key ];
+        $permission = (string) ( $action['permission'] ?? '' );
+        if ( $permission !== '' && ! $this->userCan( $permission ) ) {
+            return null;
+        }
+
+        return $action;
+    }
+
+    public function modalPayload( string $key ): ?array {
+        $action = $this->availableAction( $key );
+        if ( $action === null || (string) ( $action['type'] ?? '' ) !== 'modal' ) {
+            return null;
+        }
+
+        $handler = (string) ( $action['handler'] ?? '' );
+        if ( $handler === '' || ! is_callable( $handler ) ) {
+            return null;
+        }
+
+        $payload = call_user_func( $handler, $action );
+        if ( ! is_array( $payload ) ) {
+            return null;
+        }
+
+        $html = trim( (string) ( $payload['html'] ?? '' ) );
+        if ( $html === '' ) {
+            return null;
+        }
+
+        $submitAction = \metis_key_clean( (string) ( $payload['submit_action'] ?? ( $action['submit_action'] ?? '' ) ) );
+        $submitNonceAction = trim( (string) ( $payload['submit_nonce_action'] ?? $submitAction ) );
+        $submitControllerNonceAction = $this->ajaxNonceAction( $submitAction );
+
+        return [
+            'key' => (string) $action['key'],
+            'title' => trim( (string) ( $payload['title'] ?? $action['label'] ) ),
+            'html' => $html,
+            'submit_action' => $submitAction,
+            'submit_nonce' => $submitNonceAction !== '' && function_exists( 'metis_runtime_create_nonce' )
+                ? (string) \metis_runtime_create_nonce( $submitNonceAction )
+                : '',
+            'submit_action_nonce' => $submitControllerNonceAction !== '' && function_exists( 'metis_runtime_create_nonce' )
+                ? (string) \metis_runtime_create_nonce( $submitControllerNonceAction )
+                : '',
+            'submit_label' => trim( (string) ( $payload['submit_label'] ?? ( $action['submit_label'] ?? 'Save' ) ) ),
+            'success_message' => trim( (string) ( $payload['success_message'] ?? 'Action completed.' ) ),
+            'redirect' => trim( (string) ( $payload['redirect'] ?? $action['route'] ?? '' ) ),
+        ];
+    }
+
     private function normalize( array $action ): ?array {
         $key = \metis_key_clean( (string) ( $action['key'] ?? '' ) );
         $label = trim( (string) ( $action['label'] ?? '' ) );
@@ -102,6 +161,8 @@ final class QuickActionsRegistryService {
 
         $permission = trim( (string) ( $action['permission'] ?? '' ) );
         $handler = trim( (string) ( $action['handler'] ?? '' ) );
+        $submitAction = \metis_key_clean( (string) ( $action['submit_action'] ?? '' ) );
+        $submitLabel = trim( (string) ( $action['submit_label'] ?? '' ) );
         $module = \metis_key_clean( (string) ( $action['module'] ?? '' ) );
         $route = $this->normalizeRoute( $route, $module );
 
@@ -115,6 +176,8 @@ final class QuickActionsRegistryService {
             'module' => $module,
             'permission' => $permission,
             'group' => $group !== '' ? $group : 'other',
+            'submit_action' => $submitAction,
+            'submit_label' => $submitLabel,
         ];
     }
 
@@ -125,7 +188,7 @@ final class QuickActionsRegistryService {
                 'label' => 'Create Page',
                 'icon' => 'file-plus',
                 'type' => 'route',
-                'route' => $this->portalRoute( 'website', 'pages' ) . '?qa=create_page',
+                'route' => '/admin/website/pages/editor/new/',
                 'permission' => 'website.create',
                 'group' => 'website',
                 'module' => 'website',
@@ -135,7 +198,7 @@ final class QuickActionsRegistryService {
                 'label' => 'Create Post',
                 'icon' => 'square-pen',
                 'type' => 'route',
-                'route' => $this->portalRoute( 'website', 'posts' ) . '?qa=create_post',
+                'route' => '/admin/website/posts/editor/new/',
                 'permission' => 'website.create',
                 'group' => 'website',
                 'module' => 'website',
@@ -144,8 +207,11 @@ final class QuickActionsRegistryService {
                 'key' => 'donations_record_offline_donation',
                 'label' => 'Record Offline Donation',
                 'icon' => 'hand-heart',
-                'type' => 'route',
+                'type' => 'modal',
                 'route' => $this->portalRoute( 'donations', 'transactions' ),
+                'handler' => 'metis_donations_quick_action_offline_donation_form',
+                'submit_action' => 'metis_donations_record_offline_donation',
+                'submit_label' => 'Record Donation',
                 'permission' => 'donations.edit',
                 'group' => 'donations',
                 'module' => 'donations',
@@ -155,7 +221,7 @@ final class QuickActionsRegistryService {
                 'label' => 'Create Newsletter',
                 'icon' => 'mail-plus',
                 'type' => 'route',
-                'route' => $this->portalRoute( 'newsletter', 'campaigns' ),
+                'route' => '/admin/newsletter/campaigns/new/',
                 'permission' => 'newsletter.create',
                 'group' => 'communications',
                 'module' => 'newsletter',
@@ -165,7 +231,7 @@ final class QuickActionsRegistryService {
                 'label' => 'Create Form',
                 'icon' => 'square-pen',
                 'type' => 'route',
-                'route' => $this->portalRoute( 'forms' ),
+                'route' => '/admin/forms/build/',
                 'permission' => 'forms.create',
                 'group' => 'communications',
                 'module' => 'forms',
@@ -174,8 +240,11 @@ final class QuickActionsRegistryService {
                 'key' => 'calendar_create_event',
                 'label' => 'Create Event',
                 'icon' => 'calendar-plus',
-                'type' => 'route',
+                'type' => 'modal',
                 'route' => $this->portalRoute( 'calendar' ),
+                'handler' => 'metis_calendar_quick_action_event_form',
+                'submit_action' => 'metis_calendar_save_event',
+                'submit_label' => 'Save Event',
                 'permission' => 'calendar.create',
                 'group' => 'calendar',
                 'module' => 'calendar',
@@ -184,8 +253,11 @@ final class QuickActionsRegistryService {
                 'key' => 'contacts_add_contact',
                 'label' => 'Add Contact',
                 'icon' => 'user-plus',
-                'type' => 'route',
+                'type' => 'modal',
                 'route' => $this->portalRoute( 'contacts' ),
+                'handler' => 'metis_contacts_quick_action_contact_form',
+                'submit_action' => 'metis_contacts_save',
+                'submit_label' => 'Save Contact',
                 'permission' => 'contacts.create',
                 'group' => 'contacts',
                 'module' => 'contacts',
@@ -194,8 +266,11 @@ final class QuickActionsRegistryService {
                 'key' => 'people_add_person',
                 'label' => 'Add Person',
                 'icon' => 'user-round-plus',
-                'type' => 'route',
+                'type' => 'modal',
                 'route' => $this->portalRoute( 'people', 'people_list' ),
+                'handler' => 'metis_people_quick_action_person_form',
+                'submit_action' => 'metis_people_save_person',
+                'submit_label' => 'Create Person',
                 'permission' => 'people.create',
                 'group' => 'people',
                 'module' => 'people',
@@ -251,12 +326,8 @@ final class QuickActionsRegistryService {
         }
 
         $path = $route;
-        if ( preg_match( '#(?:^|/)admin/([^/]+)(?:/([^/]+))?#', $path, $adminMatches ) === 1 ) {
-            $domain = \metis_key_clean( (string) ( $adminMatches[1] ?? '' ) );
-            $view = \metis_key_clean( (string) ( $adminMatches[2] ?? '' ) );
-            if ( $domain !== '' ) {
-                return $this->portalRoute( $domain, $view ) . $query . $fragment;
-            }
+        if ( preg_match( '#^/?admin/(.+)$#i', $path, $adminMatches ) === 1 ) {
+            $path = (string) ( $adminMatches[1] ?? '' );
         }
 
         if ( \function_exists( 'metis_portal_slug' ) ) {
@@ -286,13 +357,18 @@ final class QuickActionsRegistryService {
 
         $domain = $parts[0];
         $view = $parts[1] ?? '';
+        $extra = array_slice( $parts, 2 );
 
         if ( $domain === '' && $module !== '' ) {
             $domain = $module;
         }
 
         if ( $domain !== '' ) {
-            return $this->portalRoute( $domain, $view ) . $query . $fragment;
+            $route = $this->portalRoute( $domain, $view );
+            if ( $extra !== [] ) {
+                $route = rtrim( $route, '/' ) . '/' . implode( '/', $extra ) . '/';
+            }
+            return $route . $query . $fragment;
         }
 
         return $route . $query . $fragment;
@@ -337,6 +413,27 @@ final class QuickActionsRegistryService {
         }
 
         return false;
+    }
+
+    private function ajaxNonceAction( string $submitAction ): string {
+        $submitAction = \metis_key_clean( $submitAction );
+        if ( $submitAction === '' ) {
+            return '';
+        }
+
+        if ( \function_exists( 'metis_ajax_registry' ) ) {
+            $controller = \metis_ajax_registry()->get( $submitAction );
+            if ( is_array( $controller ) ) {
+                $nonceAction = trim( (string) ( $controller['nonce_action'] ?? '' ) );
+                if ( $nonceAction !== '' ) {
+                    return $nonceAction;
+                }
+            }
+        }
+
+        return \function_exists( 'metis_ajax_nonce_action' )
+            ? (string) \metis_ajax_nonce_action( $submitAction )
+            : $submitAction;
     }
 
     private function userCan( string $permission ): bool {

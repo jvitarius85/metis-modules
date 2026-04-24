@@ -132,8 +132,11 @@
             "key": "donations_record_offline_donation",
             "label": "Record Offline Donation",
             "icon": "hand-heart",
-            "type": "route",
+            "type": "modal",
             "route": "/donations/transactions/",
+            "handler": "metis_donations_quick_action_offline_donation_form",
+            "submit_action": "metis_donations_record_offline_donation",
+            "submit_label": "Record Donation",
             "permission": "donations.edit",
             "group": "donations"
         }

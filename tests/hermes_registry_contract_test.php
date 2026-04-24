@@ -10,6 +10,7 @@ $root = dirname( __DIR__ );
 
 require_once $root . '/src/Metis/Hermes/HermesCommandRegistry.php';
 require_once $root . '/src/Metis/Hermes/HermesToolRegistry.php';
+require_once $root . '/src/Metis/Services/HermesCapabilityService.php';
 
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
@@ -24,8 +25,8 @@ $tools = ( new \Metis\Hermes\HermesToolRegistry() )->definitions();
 $required = [
     'create_user', 'update_user', 'disable_user', 'enable_user', 'assign_role', 'remove_role', 'list_users', 'get_user',
     'lookup_profile', 'get_entity_attribute', 'resolve_help_issue', 'diagnose_permissions', 'query_giving_summary', 'query_capability_actors',
-    'clear_cache', 'rebuild_indexes', 'reload_config', 'get_system_status',
-    'run_full_diagnostics', 'scan_integrity', 'check_db', 'check_workers',
+    'clear_cache', 'rebuild_indexes', 'reload_config', 'get_system_status', 'check_system_updates',
+    'run_full_diagnostics', 'check_modules', 'scan_integrity', 'check_db', 'check_workers',
     'recover_module', 'restore_file', 'rollback_module',
     'enable_module', 'disable_module', 'install_module', 'update_module',
     'export_data', 'import_data', 'deduplicate',
@@ -50,13 +51,30 @@ foreach ( $tools as $toolKey => $tool ) {
     $dispatch = (array) ( $tool['dispatch'] ?? [] );
     $assert( (string) ( $dispatch['service'] ?? '' ) !== '', sprintf( 'Tool [%s] is missing dispatch service.', $toolKey ) );
     $assert( (string) ( $dispatch['method'] ?? '' ) !== '', sprintf( 'Tool [%s] is missing dispatch method.', $toolKey ) );
+    if ( (string) ( $dispatch['service'] ?? '' ) === 'hermes_capabilities' ) {
+        $assert(
+            method_exists( \Metis\Services\HermesCapabilityService::class, (string) ( $dispatch['method'] ?? '' ) ),
+            sprintf( 'Tool [%s] dispatches to missing HermesCapabilityService method [%s].', $toolKey, (string) ( $dispatch['method'] ?? '' ) )
+        );
+    }
 }
 
 $engineSource = file_get_contents( $root . '/src/Metis/Hermes/HermesExecutionEngine.php' ) ?: '';
 $toolExecutorSource = file_get_contents( $root . '/src/Metis/Hermes/HermesToolExecutor.php' ) ?: '';
+$capabilitySource = file_get_contents( $root . '/src/Metis/Services/HermesCapabilityService.php' ) ?: '';
 $assert( str_contains( $toolExecutorSource, "require_once METIS_PATH . 'core/enclave/execute.php'" ), 'Tool executor must route through core/enclave/execute.php.' );
 $assert( ! str_contains( $engineSource, 'Application::service' ), 'Execution engine should not directly resolve Hermes services.' );
 $assert( ! str_contains( $toolExecutorSource, 'Application::service' ), 'Tool executor should not directly resolve Hermes services.' );
+$assert( str_contains( $capabilitySource, 'registeredWorkers()' ), 'Hermes queued jobs must verify that a worker is registered.' );
+
+preg_match_all( "/queueGenericJob\\(\\s*'([^']+)'/", $capabilitySource, $queuedTypes );
+$allowedQueuedTypes = [ 'hermes.diagnostics' ];
+foreach ( (array) ( $queuedTypes[1] ?? [] ) as $queuedType ) {
+    $assert(
+        in_array( (string) $queuedType, $allowedQueuedTypes, true ),
+        sprintf( 'Hermes capability queues unregistered or unsupported job type [%s].', (string) $queuedType )
+    );
+}
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

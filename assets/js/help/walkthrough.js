@@ -6,6 +6,11 @@ Metis.walkthrough = (function () {
     let overlay = null;
     let tooltip = null;
     let state = null;
+    let viewportEventsBound = false;
+    let repositionFrame = 0;
+    const VIEWPORT_PADDING = 16;
+    const HIGHLIGHT_PADDING = 8;
+    const TOOLTIP_GAP = 14;
 
     function requestConfig() {
         const helpConfig = window.metisHelp || {};
@@ -28,16 +33,79 @@ Metis.walkthrough = (function () {
         document.body.appendChild(tooltip);
     }
 
+    function clamp(value, min, max) {
+        if (max < min) return min;
+        return Math.min(Math.max(value, min), max);
+    }
+
+    function positionMissingTooltip() {
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const left = clamp((window.innerWidth - tooltipRect.width) / 2, VIEWPORT_PADDING, window.innerWidth - tooltipRect.width - VIEWPORT_PADDING);
+        const top = clamp((window.innerHeight - tooltipRect.height) / 2, VIEWPORT_PADDING, window.innerHeight - tooltipRect.height - VIEWPORT_PADDING);
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+        tooltip.setAttribute('data-placement', 'center');
+    }
+
     function position(target) {
+        if (!overlay || !tooltip || !target) return;
         const rect = target.getBoundingClientRect();
         const highlight = overlay.querySelector('.metis-walkthrough-highlight');
-        highlight.style.left = (window.scrollX + rect.left - 8) + 'px';
-        highlight.style.top = (window.scrollY + rect.top - 8) + 'px';
-        highlight.style.width = (rect.width + 16) + 'px';
-        highlight.style.height = (rect.height + 16) + 'px';
+        const highlightLeft = clamp(rect.left - HIGHLIGHT_PADDING, VIEWPORT_PADDING / 2, window.innerWidth - VIEWPORT_PADDING);
+        const highlightTop = clamp(rect.top - HIGHLIGHT_PADDING, VIEWPORT_PADDING / 2, window.innerHeight - VIEWPORT_PADDING);
+        const highlightWidth = clamp(rect.width + (HIGHLIGHT_PADDING * 2), 32, window.innerWidth - highlightLeft - (VIEWPORT_PADDING / 2));
+        const highlightHeight = clamp(rect.height + (HIGHLIGHT_PADDING * 2), 32, window.innerHeight - highlightTop - (VIEWPORT_PADDING / 2));
 
-        tooltip.style.left = (window.scrollX + rect.left) + 'px';
-        tooltip.style.top = (window.scrollY + rect.bottom + 12) + 'px';
+        highlight.style.left = highlightLeft + 'px';
+        highlight.style.top = highlightTop + 'px';
+        highlight.style.width = highlightWidth + 'px';
+        highlight.style.height = highlightHeight + 'px';
+
+        tooltip.style.maxHeight = Math.max(180, window.innerHeight - (VIEWPORT_PADDING * 2)) + 'px';
+
+        let tooltipRect = tooltip.getBoundingClientRect();
+        const availableBelow = window.innerHeight - rect.bottom - TOOLTIP_GAP - VIEWPORT_PADDING;
+        const availableAbove = rect.top - TOOLTIP_GAP - VIEWPORT_PADDING;
+        let placement = 'bottom';
+
+        if (tooltipRect.height > availableBelow && availableAbove > availableBelow) {
+            placement = 'top';
+        }
+
+        const placementHeight = placement === 'top' ? availableAbove : availableBelow;
+        if (placementHeight > 0 && tooltipRect.height > placementHeight) {
+            tooltip.style.maxHeight = Math.max(180, placementHeight) + 'px';
+            tooltipRect = tooltip.getBoundingClientRect();
+            if (tooltipRect.height > availableBelow && availableAbove > availableBelow) {
+                placement = 'top';
+            }
+        }
+
+        const tooltipLeft = clamp(rect.left, VIEWPORT_PADDING, window.innerWidth - tooltipRect.width - VIEWPORT_PADDING);
+        const tooltipTop = placement === 'top'
+            ? rect.top - tooltipRect.height - TOOLTIP_GAP
+            : rect.bottom + TOOLTIP_GAP;
+
+        tooltip.style.left = tooltipLeft + 'px';
+        tooltip.style.top = clamp(tooltipTop, VIEWPORT_PADDING, window.innerHeight - tooltipRect.height - VIEWPORT_PADDING) + 'px';
+        tooltip.setAttribute('data-placement', placement);
+    }
+
+    function schedulePosition() {
+        if (!state || !state.targetElement) return;
+        if (repositionFrame) {
+            window.cancelAnimationFrame(repositionFrame);
+        }
+        repositionFrame = window.requestAnimationFrame(function () {
+            position(state.targetElement);
+        });
+    }
+
+    function bindViewportEvents() {
+        if (viewportEventsBound) return;
+        viewportEventsBound = true;
+        window.addEventListener('resize', schedulePosition);
+        window.addEventListener('scroll', schedulePosition, true);
     }
 
     function renderStep() {
@@ -50,22 +118,25 @@ Metis.walkthrough = (function () {
 
         const target = document.querySelector(step.target);
         if (!target) {
+            state.targetElement = null;
             tooltip.innerHTML = '' +
                 '<div class="metis-walkthrough-tooltip__title">' + Metis.util.escapeHtml(state.walkthrough.title || 'Walkthrough') + '</div>' +
                 '<div class="metis-walkthrough-tooltip__message">Target not found for this step. You can continue manually.</div>' +
                 controlsHtml();
             bindControls();
+            positionMissingTooltip();
             return;
         }
-
-        position(target);
-        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
 
         tooltip.innerHTML = '' +
             '<div class="metis-walkthrough-tooltip__title">' + Metis.util.escapeHtml(state.walkthrough.title || 'Walkthrough') + '</div>' +
             '<div class="metis-walkthrough-tooltip__message">' + Metis.util.escapeHtml(step.message || '') + '</div>' +
             controlsHtml();
         bindControls();
+        state.targetElement = target;
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        position(target);
+        window.setTimeout(schedulePosition, 180);
 
         if (String(step.advance || 'click') === 'click') {
             state.targetCleanup = function () {
@@ -164,6 +235,7 @@ Metis.walkthrough = (function () {
                 overlay.classList.add('is-open');
                 tooltip.classList.add('is-open');
                 document.body.classList.add('metis-walkthrough-active');
+                bindViewportEvents();
                 renderStep();
             })
             .catch(function (error) {

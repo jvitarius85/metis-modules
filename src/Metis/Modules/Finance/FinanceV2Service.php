@@ -1629,6 +1629,36 @@ final class FinanceV2Service {
         ];
     }
 
+    public static function recordOfflineDonationReceipt( array $input, int $requestedBy = 0 ): array {
+        SchemaManager::ensureSchema();
+
+        $eventDate = metis_text_clean( (string) ( $input['event_date'] ?? '' ) );
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $eventDate ) ) {
+            $eventDate = gmdate( 'Y-m-d' );
+        }
+
+        $referenceId = metis_text_clean( (string) ( $input['reference_id'] ?? '' ) );
+        $description = metis_text_clean( (string) ( $input['description'] ?? '' ) );
+        $amount = round( abs( (float) ( $input['amount'] ?? 0 ) ), 2 );
+        if ( $amount <= 0 ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Amount must be greater than zero.' ];
+        }
+
+        $memo = $description !== '' ? $description : 'Offline donation receipt';
+        if ( $referenceId !== '' ) {
+            $memo .= ' (' . $referenceId . ')';
+        }
+
+        self::insertSystemGlEntry( $eventDate, 'operating_cash', $memo, $amount, 'debit', 'donations', 'offline_donation', $requestedBy );
+        self::insertSystemGlEntry( $eventDate, 'donations_income', $memo, $amount, 'credit', 'donations', 'offline_donation', $requestedBy );
+
+        return [
+            'ok' => true,
+            'status' => 200,
+            'message' => 'Offline donation receipt recorded.',
+        ];
+    }
+
     public static function createExpectedPayout( array $input, int $requestedBy = 0 ): array {
         SchemaManager::ensureSchema();
 

@@ -123,8 +123,7 @@ $max_trend = max( 1, (int) ( $trends['max_finding_count'] ?? 1 ) );
     </section>
 
     <section class="metis-hermes-layout">
-        <div class="metis-hermes-main-column">
-            <article class="metis-hermes-panel">
+            <article class="metis-hermes-panel metis-hermes-panel-wide">
                 <div class="metis-hermes-panel-head">
                     <div>
                         <span class="metis-hermes-panel-kicker">Module Health Summaries</span>
@@ -289,7 +288,7 @@ $max_trend = max( 1, (int) ( $trends['max_finding_count'] ?? 1 ) );
                 </div>
             </article>
 
-            <article class="metis-hermes-panel">
+            <article class="metis-hermes-panel metis-hermes-panel-wide">
                 <div class="metis-hermes-panel-head">
                     <div>
                         <span class="metis-hermes-panel-kicker">Diagnostic Reports</span>
@@ -365,9 +364,6 @@ $max_trend = max( 1, (int) ( $trends['max_finding_count'] ?? 1 ) );
                     </div>
                 </div>
             </article>
-        </div>
-
-        <aside class="metis-hermes-side-column">
             <article class="metis-hermes-panel">
                 <div class="metis-hermes-panel-head">
                     <div>
@@ -522,9 +518,9 @@ $max_trend = max( 1, (int) ( $trends['max_finding_count'] ?? 1 ) );
                                     <strong><?php echo metis_escape_html( strtoupper( (string) ( $point['report_type'] ?? 'report' ) ) ); ?></strong>
                                     <span><?php echo metis_escape_html( $format_date( (string) ( $point['label'] ?? '' ) ) ); ?></span>
                                 </div>
-                                <div class="metis-hermes-trend-bar">
-                                    <span style="width: <?php echo metis_escape_attr( (string) $bar_width ); ?>%;"></span>
-                                </div>
+                                <progress class="metis-hermes-trend-bar" value="<?php echo metis_escape_attr( (string) $bar_width ); ?>" max="100">
+                                    <?php echo metis_escape_html( (string) $bar_width ); ?>%
+                                </progress>
                                 <div class="metis-hermes-trend-counts">
                                     <strong><?php echo metis_escape_html( metis_number_format( (int) ( $point['finding_count'] ?? 0 ) ) ); ?></strong>
                                     <span><?php echo metis_escape_html( metis_number_format( (int) ( $point['high_severity'] ?? 0 ) ) ); ?> high</span>
@@ -536,6 +532,5 @@ $max_trend = max( 1, (int) ( $trends['max_finding_count'] ?? 1 ) );
                     <p class="metis-hermes-empty">Hermes does not have enough recent reports to chart a trend yet.</p>
                 <?php endif; ?>
             </article>
-        </aside>
     </section>
 </div>

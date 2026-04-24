@@ -24,7 +24,7 @@ if ( function_exists( 'metis_home_url' ) ) {
 }
 
 if ( $editor_new === '' ) {
-    if ( preg_match( '#/website/pages/editor/new/?$#i', $request_path ) === 1 ) {
+    if ( preg_match( '#/website/page(?:s)?/editor/new/?$#i', $request_path ) === 1 ) {
         $editor_new = 'page';
     } elseif ( preg_match( '#/website/posts/editor/new/?$#i', $request_path ) === 1 ) {
         $editor_new = 'post';

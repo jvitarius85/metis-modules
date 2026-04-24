@@ -265,7 +265,6 @@ if ( $help_ui_enabled ) {
                 <div class="header-avatar" id="hermesHeaderAvatar"></div>
                 <div class="metis-hermes-header-copy">
                     <span class="metis-hermes-header-title">Hermes</span>
-                    <span class="metis-hermes-header-subtitle">Approval-first secure assistant</span>
                 </div>
             </div>
             <div class="metis-hermes-header-links">

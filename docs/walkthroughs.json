@@ -138,6 +138,25 @@
             }
         ]
     },
+    "donations_edit_donation": {
+        "title": "Editing a Donation",
+        "description": "Guide for locating an existing donation and opening its detail record for review or change.",
+        "module": "donations",
+        "topic": "donations.transactions",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".mw-list-sidebar input, .mw-tx-filters input, .mw-tx-filters select",
+                "message": "Start by narrowing the transaction list so you can find the correct donation quickly.",
+                "advance": "next"
+            },
+            {
+                "target": ".mw-tx-table .mw-premium-row, .mw-tx-table",
+                "message": "Open the matching donation row from the transaction list to review its current status and detail record.",
+                "advance": "click"
+            }
+        ]
+    },
     "website_publish_page": {
         "title": "Publishing a Website Page",
         "description": "Guide for locating page actions and reviewing the publish workflow.",
@@ -181,6 +200,49 @@
             }
         ]
     },
+    "people_create_user": {
+        "title": "Creating a User",
+        "description": "Guide for opening the People list and adding a new person record.",
+        "module": "people",
+        "topic": "people.people_list",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-people-search",
+                "message": "Start on the People list and use search first if you want to confirm the person does not already exist.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-people-add-open",
+                "message": "Start the new person workflow from Add Person.",
+                "advance": "click"
+            },
+            {
+                "target": "#metis-people-add-form",
+                "message": "Enter first name, last name, and email, then save the record before assigning roles or workspace access.",
+                "advance": "next"
+            }
+        ]
+    },
+    "people_find_person": {
+        "title": "Finding a Person",
+        "description": "Guide for using the People dashboard search to locate a person record.",
+        "module": "people",
+        "topic": "people.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-people-dashboard-search",
+                "message": "Search by last name, email, or PID to narrow directly to the right person record.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-people-dashboard-results, .metis-people-search-tile",
+                "message": "Choose the best match from the live results to open the full person profile.",
+                "advance": "click"
+            }
+        ]
+    },
     "people_assign_role": {
         "title": "Assigning a Role",
         "description": "Guide for locating people, roles, and access tools.",
@@ -196,6 +258,101 @@
             {
                 "target": ".mw-tile[href*=\"/people/roles\"], .mw-tile[href*=\"/people/access-requests\"], .mw-tile[href*=\"/people/permissions\"]",
                 "message": "Open the matching role or access tool from these people workspace shortcuts.",
+                "advance": "click"
+            }
+        ]
+    },
+    "reports_run_report": {
+        "title": "Running a Report",
+        "description": "Guide for choosing report filters and launching the report workflow.",
+        "module": "reports",
+        "topic": "reports.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#report_run, [data-finance-report-render=\"1\"]",
+                "message": "Use the report action to generate the current report after confirming the visible filters.",
+                "advance": "click"
+            },
+            {
+                "target": ".mw-report-controls, [data-finance-report-form=\"1\"], .mw-settings-card",
+                "message": "Review the report filters and period settings here before rerunning with a different scope.",
+                "advance": "next"
+            }
+        ]
+    },
+    "reports_export_report": {
+        "title": "Exporting a Report",
+        "description": "Guide for exporting the currently rendered report.",
+        "module": "reports",
+        "topic": "reports.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#report_export_csv, #report_export_pdf, #report_export_png, [data-finance-report-pdf=\"1\"]",
+                "message": "Use the export controls here after the report has rendered successfully.",
+                "advance": "click"
+            },
+            {
+                "target": "#mw-report-actions, .mw-report-status, .mw-settings-card",
+                "message": "If the export controls are hidden, run the report first and wait for the results to finish loading.",
+                "advance": "next"
+            }
+        ]
+    },
+    "settings_save_settings": {
+        "title": "Saving Settings",
+        "description": "Guide for checking the form section and saving the current settings page.",
+        "module": "settings",
+        "topic": "settings.identity",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "[data-metis-settings-form]",
+                "message": "Review the visible settings section and make sure all required values are complete before saving.",
+                "advance": "next"
+            },
+            {
+                "target": ".mw-settings-actions button[type=\"submit\"], .mw-settings-actions .mw-btn",
+                "message": "Save the current settings section from this action area.",
+                "advance": "click"
+            }
+        ]
+    },
+    "drive_upload_file": {
+        "title": "Uploading a File",
+        "description": "Guide for selecting the right Drive location and starting a file upload.",
+        "module": "drive",
+        "topic": "drive.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-drive-path-bar, #metis-drive-tree",
+                "message": "Confirm you are in the correct folder before uploading so the file lands in the right place.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-drive-upload",
+                "message": "Start the upload from this button.",
+                "advance": "click"
+            }
+        ]
+    },
+    "drive_find_file": {
+        "title": "Finding a File",
+        "description": "Guide for searching the Drive view and locating the current file list.",
+        "module": "drive",
+        "topic": "drive.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-drive-search",
+                "message": "Search by file name first to narrow the current Drive view.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-drive-rows, .metis-drive-table-wrap",
+                "message": "Review the filtered file list here and open the best match.",
                 "advance": "click"
             }
         ]

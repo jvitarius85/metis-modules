@@ -8,6 +8,7 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 $metis_ajax_modules = [
     __DIR__ . '/notes.ajax.php',
+    __DIR__ . '/offline.ajax.php',
     __DIR__ . '/donor_intelligence.ajax.php',
     __DIR__ . '/reports.ajax.php',
     __DIR__ . '/deposits.ajax.php',

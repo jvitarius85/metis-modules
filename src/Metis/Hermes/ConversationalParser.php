@@ -19,6 +19,10 @@ final class ConversationalParser {
         'that job',
     ];
 
+    private const HELP_STYLE_PATTERN = '/\b(how do i|how can i|where do i|show me how|walk me through|why can\'?t i|i can\'?t|i cant|i don\'?t see|i dont see|won\'t|will not|button does nothing|search shows no results|permission denied)\b/';
+    private const INSTRUCTIONAL_PATTERN = '/\b(how do i|how can i|where do i|show me how|walk me through)\b/';
+    private const FRAGMENT_START_PATTERN = '(?:disable|enable|reactivate|offboard|create|add|update|edit|change|assign|remove|revoke|list|show|get|find|look up|lookup|clear|rebuild|reload|run|scan|check|recover|restore|rollback|install|export|import|deduplicate|dedupe|cancel|retry|audit|verify|rotate|who is|what is|who has|how do i|how can i|where do i|why can\'?t i|i can\'?t|i cant|i don\'?t see|i dont see|search shows no results|button does nothing)';
+
     public function __construct(
         private readonly HermesCommandRegistry $commands,
         private readonly ?EntityResolver $entityResolver = null,
@@ -129,10 +133,11 @@ final class ConversationalParser {
             $normalized
         );
         $normalized = str_replace(
-            [ 'usr ', 'uesr ', 'diagnotics', 'restroe ', 'rol back', 'enbale ', 'disbale ' ],
-            [ 'user ', 'user ', 'diagnostics', 'restore ', 'rollback', 'enable ', 'disable ' ],
+            [ 'usr ', 'uesr ', 'diagnotics', 'diagnotic', 'restroe ', 'rol back', 'enbale ', 'disbale ' ],
+            [ 'user ', 'user ', 'diagnostics', 'diagnostics', 'restore ', 'rollback', 'enable ', 'disable ' ],
             $normalized
         );
+        $normalized = preg_replace( '/\bdiagnostic\b/', 'diagnostics', $normalized ) ?? $normalized;
 
         return trim( preg_replace( '/\s+/', ' ', $normalized ) ?? $normalized );
     }
@@ -145,13 +150,23 @@ final class ConversationalParser {
             return [];
         }
 
-        $parts = preg_split( '/\s+(?:and then|then|and)\s+|,\s*/', $normalized ) ?: [];
-        $parts = array_values( array_filter( array_map(
-            static fn ( string $part ): string => trim( $part ),
-            $parts
-        ) ) );
+        $parts = preg_split( '/\s+(?:and then|then)\s+/', $normalized ) ?: [];
+        $fragments = [];
 
-        return $parts === [] ? [ $normalized ] : $parts;
+        foreach ( $parts as $part ) {
+            $commaParts = preg_split( '/,\s*(?=' . self::FRAGMENT_START_PATTERN . ')/', $part ) ?: [];
+            foreach ( $commaParts as $commaPart ) {
+                $andParts = preg_split( '/\s+and\s+(?=' . self::FRAGMENT_START_PATTERN . ')/', $commaPart ) ?: [];
+                foreach ( $andParts as $candidate ) {
+                    $candidate = trim( $candidate );
+                    if ( $candidate !== '' ) {
+                        $fragments[] = $candidate;
+                    }
+                }
+            }
+        }
+
+        return $fragments === [] ? [ $normalized ] : $fragments;
     }
 
     /**
@@ -266,6 +281,13 @@ final class ConversationalParser {
         }
 
         if ( $candidates !== [] ) {
+            $candidates = array_values( array_map(
+                fn ( array $candidate ): array => $this->adjustCandidateConfidence( $fragment, $candidate ),
+                $candidates
+            ) );
+        }
+
+        if ( $candidates !== [] ) {
             $deduped = [];
             foreach ( $candidates as $candidate ) {
                 $intentKey = strtolower( trim( (string) ( $candidate['intent'] ?? '' ) ) );
@@ -280,6 +302,7 @@ final class ConversationalParser {
         }
 
         usort( $candidates, static fn ( array $a, array $b ): int => ( $b['confidence'] <=> $a['confidence'] ) );
+        $candidates = $this->prioritizeHelpCandidate( $fragment, $candidates );
 
         $selected = $candidates[0] ?? [];
         $second = $candidates[1] ?? [];
@@ -339,7 +362,7 @@ final class ConversationalParser {
             $score += 0.1;
         }
 
-        if ( $commandKey === 'resolve_help_issue' && preg_match( '/\b(how do i|how can i|where do i|why can\'?t i|i can\'?t|i dont|i don\'t|won\'t|will not|missing|button)\b/', $fragment ) === 1 ) {
+        if ( $commandKey === 'resolve_help_issue' && $this->isHelpStyleFragment( $fragment ) ) {
             $score += 0.75;
         }
 
@@ -364,13 +387,20 @@ final class ConversationalParser {
             $payload['email'] = strtolower( $match[1] );
         }
 
-        if ( preg_match( '/\b(module|file|job)\s+([a-z0-9._-]+)\b/i', $fragment, $match ) ) {
+        if (
+            preg_match( '/\b(module|file|job)\s+([a-z0-9._-]+)\b/i', $fragment, $match )
+            && $this->commandAcceptsKeyPayload( $command_name, strtolower( $match[1] ), strtolower( $match[2] ) )
+        ) {
             $payload[ strtolower( $match[1] ) . '_key' ] = $match[2];
         }
 
-        if ( preg_match( '/\b(role|roles?)\s+([a-z0-9_, -]+)\b/i', $fragment, $match ) ) {
-            $roles = preg_split( '/\s*,\s*|\s+and\s+/', strtolower( trim( $match[2] ) ) ) ?: [];
+        if ( preg_match( '/\broles?\s+([a-z0-9_-]+(?:\s*,\s*[a-z0-9_-]+)*(?:\s+and\s+[a-z0-9_-]+)*)\b(?=(?:\s+to\b|\s+for\b|$))/i', $fragment, $match ) ) {
+            $roles = preg_split( '/\s*,\s*|\s+and\s+/', strtolower( trim( $match[1] ) ) ) ?: [];
             $payload['roles'] = array_values( array_filter( array_map( static fn ( string $role ): string => trim( $role ), $roles ) ) );
+        }
+
+        if ( ! isset( $payload['subject'] ) && preg_match( '/\b(?:for|to)\s+([a-z][a-z0-9._-]*(?:\s+[a-z][a-z0-9._-]*){0,2})\b(?=(?:\s+(?:with|using|via|in)\b|$))/i', $fragment, $match ) ) {
+            $payload['subject'] = trim( $match[1] );
         }
 
         if ( str_starts_with( $command_name, 'list_' ) || str_starts_with( $command_name, 'get_' ) ) {
@@ -387,6 +417,115 @@ final class ConversationalParser {
         }
 
         return $payload;
+    }
+
+    private function commandAcceptsKeyPayload( string $command_name, string $kind, string $value ): bool {
+        if ( in_array( $value, [ 'diagnostic', 'diagnostics', 'health', 'status', 'scan', 'integrity', 'test' ], true ) ) {
+            return false;
+        }
+
+        return match ( $kind ) {
+            'module' => in_array( $command_name, [ 'recover_module', 'rollback_module', 'enable_module', 'disable_module', 'install_module', 'update_module' ], true ),
+            'file' => $command_name === 'restore_file',
+            'job' => in_array( $command_name, [ 'cancel_job', 'retry_job' ], true ),
+            default => false,
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $candidate
+     * @return array<string,mixed>
+     */
+    private function adjustCandidateConfidence( string $fragment, array $candidate ): array {
+        $intent = strtolower( trim( (string) ( $candidate['intent'] ?? '' ) ) );
+        $command = (array) ( $candidate['command'] ?? [] );
+        $payload = (array) ( $candidate['payload'] ?? [] );
+        $score = (float) ( $candidate['confidence'] ?? 0.0 );
+        $helpStyle = $this->isHelpStyleFragment( $fragment );
+        $instructional = $this->isInstructionalFragment( $fragment );
+
+        if ( $intent === 'resolve_help_issue' ) {
+            if ( $helpStyle ) {
+                $score = max( $score, $instructional ? 0.98 : 0.92 );
+            }
+        } elseif ( $helpStyle ) {
+            $score *= ( ! empty( $command['requires_approval'] ) || empty( $command['read_only'] ) )
+                ? ( $instructional ? 0.25 : 0.4 )
+                : 0.6;
+        }
+
+        $score = $this->applyPayloadReadinessPenalty( $intent, $payload, $score );
+        $candidate['confidence'] = min( 1.0, max( 0.0, $score ) );
+        $candidate['confidence_label'] = $this->confidenceLabel( (float) $candidate['confidence'] );
+
+        return $candidate;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $candidates
+     * @return array<int,array<string,mixed>>
+     */
+    private function prioritizeHelpCandidate( string $fragment, array $candidates ): array {
+        if ( ! $this->isHelpStyleFragment( $fragment ) || $candidates === [] ) {
+            return $candidates;
+        }
+
+        foreach ( $candidates as $index => $candidate ) {
+            if ( strtolower( trim( (string) ( $candidate['intent'] ?? '' ) ) ) !== 'resolve_help_issue' ) {
+                continue;
+            }
+
+            if ( $index === 0 ) {
+                return $candidates;
+            }
+
+            $topScore = (float) ( $candidates[0]['confidence'] ?? 0.0 );
+            $helpScore = (float) ( $candidate['confidence'] ?? 0.0 );
+            if ( $helpScore < max( 0.75, $topScore - 0.15 ) ) {
+                return $candidates;
+            }
+
+            unset( $candidates[ $index ] );
+            array_unshift( $candidates, $candidate );
+            return array_values( $candidates );
+        }
+
+        return $candidates;
+    }
+
+    private function applyPayloadReadinessPenalty( string $intent, array $payload, float $score ): float {
+        $subject = trim( (string) ( $payload['subject'] ?? '' ) );
+        $email = trim( (string) ( $payload['email'] ?? '' ) );
+        $roles = array_values( array_filter( array_map( 'strval', (array) ( $payload['roles'] ?? [] ) ) ) );
+        $moduleKey = trim( (string) ( $payload['module_key'] ?? '' ) );
+        $fileKey = trim( (string) ( $payload['file_key'] ?? '' ) );
+        $jobKey = trim( (string) ( $payload['job_key'] ?? $payload['job_code'] ?? '' ) );
+
+        return match ( true ) {
+            in_array( $intent, [ 'create_user', 'update_user', 'disable_user', 'offboard_user', 'enable_user', 'get_user' ], true )
+                && $subject === ''
+                && $email === '' => $score * 0.55,
+            in_array( $intent, [ 'assign_role', 'remove_role', 'manage_user_roles' ], true )
+                && $subject === ''
+                && $roles === [] => $score * 0.45,
+            in_array( $intent, [ 'assign_role', 'remove_role', 'manage_user_roles' ], true )
+                && ( $subject === '' || $roles === [] ) => $score * 0.65,
+            in_array( $intent, [ 'recover_module', 'rollback_module', 'enable_module', 'disable_module', 'install_module', 'update_module' ], true )
+                && $moduleKey === '' => $score * 0.55,
+            $intent === 'restore_file'
+                && $fileKey === '' => $score * 0.55,
+            in_array( $intent, [ 'cancel_job', 'retry_job' ], true )
+                && $jobKey === '' => $score * 0.55,
+            default => $score,
+        };
+    }
+
+    private function isHelpStyleFragment( string $fragment ): bool {
+        return preg_match( self::HELP_STYLE_PATTERN, $fragment ) === 1;
+    }
+
+    private function isInstructionalFragment( string $fragment ): bool {
+        return preg_match( self::INSTRUCTIONAL_PATTERN, $fragment ) === 1;
     }
 
     private function confidenceLabel( float $score ): string {

@@ -73,8 +73,11 @@
             "key": "calendar_create_event",
             "label": "Create Event",
             "icon": "calendar-plus",
-            "type": "route",
+            "type": "modal",
             "route": "/calendar/",
+            "handler": "metis_calendar_quick_action_event_form",
+            "submit_action": "metis_calendar_save_event",
+            "submit_label": "Save Event",
             "permission": "calendar.create",
             "group": "calendar"
         }

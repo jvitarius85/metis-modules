@@ -146,8 +146,11 @@
             "key": "people_add_person",
             "label": "Add Person",
             "icon": "user-round-plus",
-            "type": "route",
+            "type": "modal",
             "route": "/people/people_list/",
+            "handler": "metis_people_quick_action_person_form",
+            "submit_action": "metis_people_save_person",
+            "submit_label": "Create Person",
             "permission": "people.create",
             "group": "people"
         }

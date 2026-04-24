@@ -1753,6 +1753,96 @@ a.mw-chip:hover,
     border-top: 1px solid var(--mw-border);
 }
 
+.mw-quick-action-dialog {
+    position: relative;
+    padding: 32px;
+}
+
+.mw-quick-action-dialog .mw-modal-header {
+    display: block;
+    padding: 0;
+    border: 0;
+}
+
+.mw-quick-action-dialog .mw-modal-title {
+    margin: 0 48px 24px 0;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.mw-quick-action-dialog .mw-modal-body {
+    padding: 0;
+}
+
+.mw-quick-action-dialog .mw-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--mw-border);
+}
+
+.mw-quick-action-dialog .mw-quick-action-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--mw-primary);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.mw-quick-action-dialog .mw-quick-action-close:hover,
+.mw-quick-action-dialog .mw-quick-action-close:focus-visible {
+    color: var(--mw-primary-dark);
+    background: color-mix(in srgb, var(--mw-primary) 10%, transparent);
+    outline: none;
+}
+
+.mw-quick-action-close-icon {
+    width: 24px;
+    height: 24px;
+    display: block;
+    background: currentColor;
+    -webkit-mask: var(--mw-quick-action-close-icon) center / contain no-repeat;
+    mask: var(--mw-quick-action-close-icon) center / contain no-repeat;
+}
+
+.mw-quick-action-close-icon.is-inline {
+    background: transparent;
+    -webkit-mask: none;
+    mask: none;
+}
+
+.mw-quick-action-close-icon svg {
+    width: 24px;
+    height: 24px;
+    display: block;
+    color: currentColor;
+}
+
+.mw-quick-action-close-icon svg [fill]:not([fill="none"]) {
+    fill: currentColor;
+}
+
+.mw-quick-action-close-icon svg [stroke]:not([stroke="none"]) {
+    stroke: currentColor;
+}
+
+.mw-quick-action-modal-error[hidden] {
+    display: none !important;
+}
+
 /* ============================================================
    TOAST
    ============================================================ */
@@ -2698,9 +2788,11 @@ body.metis-help-mode [data-help-fallback] {
 }
 
 .metis-walkthrough-tooltip {
-    position: absolute;
+    position: fixed;
     z-index: 99995;
-    max-width: 340px;
+    width: min(360px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
     background: #fff;
     color: var(--mw-text);
     border-radius: 16px;
@@ -2708,6 +2800,8 @@ body.metis-help-mode [data-help-fallback] {
     border: 1px solid var(--mw-border);
     padding: 16px;
     display: none;
+    overflow: auto;
+    overscroll-behavior: contain;
 }
 
 .metis-walkthrough-tooltip.is-open {
@@ -2728,9 +2822,24 @@ body.metis-help-mode [data-help-fallback] {
     gap: 8px;
     margin-top: 14px;
     justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+@media (max-height: 760px) {
+    .metis-walkthrough-tooltip {
+        max-height: calc(100vh - 24px);
+    }
 }
 
 @media (max-width: 720px) {
+    .metis-walkthrough-tooltip {
+        width: calc(100vw - 24px);
+        max-width: calc(100vw - 24px);
+        max-height: calc(100vh - 24px);
+        border-radius: 14px;
+        padding: 14px;
+    }
+
     .mw-help-actions {
         margin-left: 0;
     }

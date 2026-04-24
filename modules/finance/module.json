@@ -67,7 +67,20 @@
         "label": "Finance",
         "visible": true
     },
-    "quick_actions": [],
+    "quick_actions": [
+        {
+            "key": "finance_make_gl_entry",
+            "label": "Make GL Entry",
+            "icon": "accounting",
+            "type": "modal",
+            "route": "/finance/gl_entry/",
+            "handler": "metis_finance_quick_action_gl_entry_form",
+            "submit_action": "metis_finance_v2_gl_create",
+            "submit_label": "Save Entry",
+            "permission": "finance.edit",
+            "group": "finance"
+        }
+    ],
     "title": "Finance",
     "entry": "Module.php",
     "routes": [],

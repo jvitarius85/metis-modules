@@ -1354,3 +1354,155 @@
     font-weight: 700;
     color: #b91c1c;
 }
+
+.mw-offline-donation-subtitle {
+    margin: 0;
+}
+
+.mw-offline-donation-modal {
+    display: none;
+}
+
+.mw-offline-donation-modal[aria-hidden="false"],
+.mw-offline-donation-modal.is-open,
+.mw-offline-donation-modal.metis-open {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.mw-offline-donation-modal-dialog {
+    width: min(960px, calc(100vw - 32px));
+    margin: 0 auto;
+}
+
+.mw-offline-donation-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.mw-offline-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    grid-column: span 3;
+    min-width: 0;
+}
+
+.mw-offline-field span {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4c5468;
+}
+
+.mw-offline-field-notes {
+    grid-column: span 12;
+}
+
+.mw-offline-field-lookup {
+    grid-column: span 12;
+    position: relative;
+}
+
+.mw-offline-donor-status {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.mw-offline-donor-status[data-mode="selected"] {
+    color: #166534;
+    font-weight: 700;
+}
+
+.mw-offline-donor-status[data-mode="new"] {
+    color: #92400e;
+}
+
+.mw-offline-donor-results {
+    border: 1px solid #d9dfeb;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+}
+
+.mw-offline-donor-result {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #edf1f7;
+    background: transparent;
+    text-align: left;
+    padding: 11px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.mw-offline-donor-result:last-child {
+    border-bottom: 0;
+}
+
+.mw-offline-donor-result:hover,
+.mw-offline-donor-result:focus {
+    background: #f8fafc;
+    outline: none;
+}
+
+.mw-offline-donor-result strong {
+    font-size: 13px;
+    color: #172033;
+}
+
+.mw-offline-donor-result span,
+.mw-offline-donor-empty {
+    font-size: 12px;
+    color: #667085;
+}
+
+.mw-offline-donor-empty {
+    padding: 12px 14px;
+}
+
+.mw-offline-donor-empty-error {
+    color: #b91c1c;
+}
+
+.mw-offline-donation-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+    gap: 10px;
+}
+
+@media (max-width: 1100px) {
+    .mw-offline-field {
+        grid-column: span 6;
+    }
+}
+
+@media (max-width: 700px) {
+    .mw-offline-donation-modal[aria-hidden="false"],
+    .mw-offline-donation-modal.is-open,
+    .mw-offline-donation-modal.metis-open {
+        padding: 12px;
+    }
+
+    .mw-offline-donation-modal-dialog {
+        width: calc(100vw - 16px);
+    }
+
+    .mw-offline-field {
+        grid-column: span 12;
+    }
+
+    .mw-offline-donation-actions {
+        justify-content: stretch;
+    }
+
+    .mw-offline-donation-actions .mw-btn {
+        width: 100%;
+    }
+}

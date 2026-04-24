@@ -1658,6 +1658,12 @@ Metis.quickActions = (function() {
     var trigger = null;
     var root = null;
     var closeTimer = null;
+    var modal = null;
+    var modalTitle = null;
+    var modalBody = null;
+    var modalSubmit = null;
+    var modalError = null;
+    var activePayload = null;
 
     function titleCase(value) {
         return String(value || '')
@@ -1683,9 +1689,194 @@ Metis.quickActions = (function() {
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
     }
 
+    function registryIconUrl(slug) {
+        var key = String(slug || '').replace(/_/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (!key) return '';
+        var ajaxUrl = (window.Metis && Metis.ajax && Metis.ajax.url) ? Metis.ajax.url : metisResolveAjaxUrl();
+        try {
+            var url = new URL(String(ajaxUrl || '/api/ajax'), window.location.href);
+            var basePath = url.pathname.replace(/\/api\/ajax\/?$/, '').replace(/\/+$/, '');
+            url.pathname = basePath + '/svg/' + encodeURIComponent(key) + '/';
+            url.search = '';
+            url.hash = '';
+            return url.toString();
+        } catch (error) {
+            return '/svg/' + encodeURIComponent(key) + '/';
+        }
+    }
+
+    function ensureModal() {
+        if (modal) return modal;
+
+        modal = document.createElement('div');
+        modal.id = 'mw-quick-action-modal';
+        modal.className = 'mw-modal-backdrop mw-quick-action-modal';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML =
+            '<div class="mw-modal mw-modal-lg mw-quick-action-dialog" role="dialog" aria-modal="true" aria-labelledby="mw-quick-action-modal-title">' +
+                '<div class="mw-modal-header">' +
+                    '<h2 class="mw-modal-title" id="mw-quick-action-modal-title">Quick Action</h2>' +
+                    '<button type="button" class="mw-modal-close mw-quick-action-close" data-qa-modal-close aria-label="Close" title="Close"><span class="mw-quick-action-close-icon" aria-hidden="true"></span></button>' +
+                '</div>' +
+                '<div class="mw-modal-body">' +
+                    '<div class="mw-alert mw-alert-error mw-quick-action-modal-error" data-qa-modal-error hidden></div>' +
+                    '<div data-qa-modal-body></div>' +
+                '</div>' +
+                '<div class="mw-modal-footer">' +
+                    '<button type="button" class="mw-btn mw-btn-ghost" data-qa-modal-close>Cancel</button>' +
+                    '<button type="button" class="mw-btn" data-qa-modal-submit>Save</button>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(modal);
+        modalTitle = modal.querySelector('#mw-quick-action-modal-title');
+        modalBody = modal.querySelector('[data-qa-modal-body]');
+        modalSubmit = modal.querySelector('[data-qa-modal-submit]');
+        modalError = modal.querySelector('[data-qa-modal-error]');
+        var closeIcon = modal.querySelector('.mw-quick-action-close-icon');
+        if (closeIcon) {
+            var closeIconUrl = registryIconUrl('close-outline');
+            closeIcon.style.setProperty('--mw-quick-action-close-icon', 'url("' + closeIconUrl + '")');
+            fetch(closeIconUrl, { credentials: 'same-origin' }).then(function(response) {
+                if (!response.ok) return '';
+                return response.text();
+            }).then(function(markup) {
+                if (!markup) return;
+                closeIcon.innerHTML = markup;
+                closeIcon.classList.add('is-inline');
+            }).catch(function() {
+                /* Keep the CSS mask fallback when the registry fetch fails. */
+            });
+        }
+
+        modal.querySelectorAll('[data-qa-modal-close]').forEach(function(button) {
+            button.addEventListener('click', closeModal);
+        });
+        modalSubmit.addEventListener('click', submitModal);
+        if (window.Metis && Metis.modal && typeof Metis.modal.init === 'function') {
+            Metis.modal.init(document);
+        }
+
+        return modal;
+    }
+
+    function setModalError(message) {
+        ensureModal();
+        var text = String(message || '').trim();
+        if (!text) {
+            modalError.hidden = true;
+            modalError.textContent = '';
+            return;
+        }
+        modalError.textContent = text;
+        modalError.hidden = false;
+    }
+
+    function closeModal() {
+        if (!modal) return;
+        if (window.Metis && Metis.modal && typeof Metis.modal.close === 'function') {
+            Metis.modal.close(modal);
+        }
+        activePayload = null;
+        setModalError('');
+    }
+
+    function openModal(payload) {
+        ensureModal();
+        activePayload = payload || {};
+        modalTitle.textContent = String(activePayload.title || 'Quick Action');
+        modalBody.innerHTML = String(activePayload.html || '');
+        modalSubmit.textContent = String(activePayload.submit_label || 'Save');
+        modalSubmit.disabled = !String(activePayload.submit_action || '').trim();
+        setModalError('');
+
+        if (window.Metis && Metis.modal && typeof Metis.modal.open === 'function') {
+            Metis.modal.open(modal);
+        }
+
+        var first = modalBody.querySelector('input, select, textarea, button');
+        if (first && typeof first.focus === 'function') {
+            window.setTimeout(function() { first.focus(); }, 80);
+        }
+    }
+
+    function submitModal() {
+        if (!activePayload || !modalBody || !modalSubmit) return;
+        var submitAction = String(activePayload.submit_action || '').trim();
+        var form = modalBody.querySelector('form');
+        if (!submitAction || !form) return;
+
+        if (typeof form.reportValidity === 'function' && !form.reportValidity()) {
+            return;
+        }
+
+        var body = new FormData(form);
+        body.set('action', submitAction);
+        var nonce = String(activePayload.submit_nonce || '').trim();
+        var actionNonce = String(activePayload.submit_action_nonce || nonce).trim();
+        if (nonce) body.set('nonce', nonce);
+        if (actionNonce) body.set('metis_action_nonce', actionNonce);
+        var csrf = actionNonce || nonce || '';
+
+        modalSubmit.disabled = true;
+        setModalError('');
+        fetch(Metis.ajax.url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: metisCsrfHeaders(csrf),
+            body: body
+        }).then(function(response) {
+            return Metis.ajax.parseJson(response);
+        }).then(function(payload) {
+            var completedPayload = activePayload || {};
+            closeModal();
+            if (window.Metis && Metis.toast && typeof Metis.toast.success === 'function') {
+                Metis.toast.success(String(completedPayload.success_message || payload.message || 'Action completed.'));
+            }
+            if (completedPayload.redirect) {
+                window.setTimeout(function() { Metis.navigation.go(String(completedPayload.redirect)); }, 450);
+            }
+        }).catch(function(error) {
+            setModalError(error && error.message ? error.message : 'Quick action failed.');
+        }).finally(function() {
+            modalSubmit.disabled = false;
+        });
+    }
+
+    function loadModal(action) {
+        if (!Metis.ajax || !Metis.ajax.url) {
+            Metis.navigation.go(String(action.route || ''));
+            return;
+        }
+
+        Metis.ajax.post({
+            action: 'metis_quick_action_form',
+            key: action.key || '',
+            nonce: Metis.ajax.nonce || ''
+        }).then(function(payload) {
+            if (!payload || !payload.success) {
+                throw new Error(Metis.ajax.message(payload));
+            }
+            openModal(payload.data || {});
+        }).catch(function(error) {
+            if (action.route) {
+                if (window.Metis && Metis.toast && typeof Metis.toast.error === 'function') {
+                    Metis.toast.error(error && error.message ? error.message : 'Opening the modal failed. Redirecting instead.');
+                }
+                Metis.navigation.go(String(action.route || ''));
+                return;
+            }
+            setModalError(error && error.message ? error.message : 'Quick action modal failed.');
+        });
+    }
+
     function execute(action) {
         if (!action || typeof action !== 'object') return;
         var route = String(action.route || '').trim();
+        if (String(action.type || '') === 'modal') {
+            loadModal(action);
+            return;
+        }
         if (!route) return;
         Metis.navigation.go(route);
     }

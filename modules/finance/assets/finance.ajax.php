@@ -90,6 +90,55 @@ function metis_finance_ajax_send_service_result( array $result ): void {
     metis_runtime_send_json_success( $result );
 }
 
+function metis_finance_quick_action_gl_entry_form( array $action = [] ): array {
+    unset( $action );
+
+    metis_finance_ensure_schema();
+    $accounts = \Metis\Modules\Finance\FinanceV2Service::accounts();
+    $categories = \Metis\Modules\Finance\FinanceV2Service::categories();
+
+    $accountOptions = '<option value="">Select account</option>';
+    foreach ( $accounts as $account ) {
+        $code = (string) ( $account['account_code'] ?? '' );
+        if ( $code === '' ) {
+            continue;
+        }
+        $label = trim( $code . ' - ' . (string) ( $account['account_name'] ?? '' ) );
+        $accountOptions .= '<option value="' . metis_escape_attr( $code ) . '">' . metis_escape_html( $label ) . '</option>';
+    }
+
+    $categoryOptions = '<option value="">None</option>';
+    foreach ( $categories as $category ) {
+        $code = (string) ( $category['category_code'] ?? '' );
+        if ( $code === '' ) {
+            continue;
+        }
+        $label = trim( $code . ' - ' . (string) ( $category['category_name'] ?? '' ) );
+        $categoryOptions .= '<option value="' . metis_escape_attr( $code ) . '">' . metis_escape_html( $label ) . '</option>';
+    }
+
+    $html = '<form class="metis-finance-v2-form mw-quick-action-form" data-quick-action-form="finance_gl_entry">'
+        . '<div class="metis-finance-v2-form-grid">'
+        . '<div class="mw-field"><label for="qa-gl-entry-date">Date</label><input id="qa-gl-entry-date" name="entry_date" type="date" class="mw-input" value="' . metis_escape_attr( date( 'Y-m-d' ) ) . '" required></div>'
+        . '<div class="mw-field"><label for="qa-gl-account-code">Account</label><select id="qa-gl-account-code" name="account_code" class="mw-input" required>' . $accountOptions . '</select></div>'
+        . '<div class="mw-field"><label for="qa-gl-amount">Amount</label><input id="qa-gl-amount" name="amount" type="number" min="0.01" step="0.01" class="mw-input" required></div>'
+        . '<div class="mw-field"><label for="qa-gl-dc-type">Type</label><select id="qa-gl-dc-type" name="dc_type" class="mw-input" required><option value="debit">Debit</option><option value="credit">Credit</option></select></div>'
+        . '<div class="mw-field"><label for="qa-gl-category-code">Category</label><select id="qa-gl-category-code" name="category_code" class="mw-input">' . $categoryOptions . '</select></div>'
+        . '<div class="mw-field mw-field-full"><label for="qa-gl-description">Description</label><input id="qa-gl-description" name="description" type="text" class="mw-input" required></div>'
+        . '</div>'
+        . '</form>';
+
+    return [
+        'title' => 'Make GL Entry',
+        'html' => $html,
+        'submit_action' => 'metis_finance_v2_gl_create',
+        'submit_nonce_action' => 'metis_finance_v2_gl_create',
+        'submit_label' => 'Save Entry',
+        'success_message' => 'GL entry saved.',
+        'redirect' => function_exists( 'metis_portal_url' ) ? (string) metis_portal_url( 'finance', 'gl_entry' ) : '',
+    ];
+}
+
 function metis_finance_register_ajax_controllers(): void {
     if ( ! function_exists( 'metis_ajax_register_controller' ) ) {
         return;

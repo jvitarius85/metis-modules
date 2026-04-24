@@ -728,6 +728,8 @@ final class ModuleLoader {
                 'permission' => trim( (string) ( $quickAction['permission'] ?? '' ) ),
                 'group' => \metis_key_clean( (string) ( $quickAction['group'] ?? 'other' ) ),
                 'handler' => trim( (string) ( $quickAction['handler'] ?? '' ) ),
+                'submit_action' => \metis_key_clean( (string) ( $quickAction['submit_action'] ?? '' ) ),
+                'submit_label' => trim( (string) ( $quickAction['submit_label'] ?? '' ) ),
             ];
         }
 

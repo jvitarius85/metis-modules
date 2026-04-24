@@ -104,29 +104,41 @@ final class HelpIssueResolver {
     private function matchIssue( string $normalized, string $currentModule ): array {
         $best = [];
         $bestScore = 0.0;
+        $variants = $this->issueVariants( $normalized );
 
         foreach ( $this->catalog() as $entry ) {
             $score = 0.0;
             $matchedContent = false;
             $title = strtolower( \metis_help_plain_text( (string) ( $entry['title'] ?? '' ) ) );
 
-            if ( $title !== '' && $title === $normalized ) {
-                $score += 1.0;
+            $titleScore = $this->variantMatchScore( $variants, $title, 1.0, 0.7 );
+            if ( $titleScore > 0.0 ) {
+                $score += $titleScore;
                 $matchedContent = true;
             }
 
             foreach ( (array) ( $entry['phrases'] ?? [] ) as $phrase ) {
-                $phrase = strtolower( \metis_help_plain_text( (string) $phrase ) );
-                if ( $phrase !== '' && str_contains( $normalized, $phrase ) ) {
-                    $score += 0.85;
+                $phraseScore = $this->variantMatchScore(
+                    $variants,
+                    strtolower( \metis_help_plain_text( (string) $phrase ) ),
+                    0.85,
+                    0.7
+                );
+                if ( $phraseScore > 0.0 ) {
+                    $score += $phraseScore;
                     $matchedContent = true;
                 }
             }
 
             foreach ( (array) ( $entry['search_terms'] ?? [] ) as $term ) {
-                $term = strtolower( \metis_help_plain_text( (string) $term ) );
-                if ( $term !== '' && str_contains( $normalized, $term ) ) {
-                    $score += 0.45;
+                $termScore = $this->variantMatchScore(
+                    $variants,
+                    strtolower( \metis_help_plain_text( (string) $term ) ),
+                    0.45,
+                    0.3
+                );
+                if ( $termScore > 0.0 ) {
+                    $score += $termScore;
                     $matchedContent = true;
                 }
             }
@@ -150,12 +162,15 @@ final class HelpIssueResolver {
      * @return array<int,array<string,mixed>>
      */
     private function searchArticles( string $message, array $match ): array {
-        $queries = array_values( array_unique( array_filter( [
-            $message,
-            $this->normalize( $message ),
-            (string) ( $match['title'] ?? '' ),
-            trim( (string) ( $match['module'] ?? '' ) . ' ' . (string) ( $match['action'] ?? '' ) ),
-        ] ) ) );
+        $normalized = $this->normalize( $message );
+        $queries = array_values( array_unique( array_filter( array_merge(
+            [ $message, $normalized ],
+            $this->issueVariants( $normalized ),
+            [
+                (string) ( $match['title'] ?? '' ),
+                trim( (string) ( $match['module'] ?? '' ) . ' ' . (string) ( $match['action'] ?? '' ) ),
+            ]
+        ) ) ) );
 
         $results = [];
         foreach ( $queries as $query ) {
@@ -170,6 +185,68 @@ final class HelpIssueResolver {
         }
 
         return array_values( $results );
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function issueVariants( string $normalized ): array {
+        $variants = [];
+        $base = trim( strtolower( \metis_help_plain_text( $normalized ) ) );
+        if ( $base !== '' ) {
+            $variants[] = $base;
+        }
+
+        $core = preg_replace(
+            '/^(?:how do i|how can i|where do i|show me how(?: to)?|walk me through|why can\'?t i|why cant i|i can\'?t|i cant|i don\'?t see|i dont see|cannot|can not|can\'t|cant)\s+/',
+            '',
+            $base
+        );
+        $core = trim( (string) $core );
+        if ( $core !== '' && $core !== $base && strlen( $core ) >= 6 ) {
+            $variants[] = $core;
+        }
+
+        $simplified = trim( preg_replace( '/\b(?:a|an|the)\b\s+/', ' ', $core !== '' ? $core : $base ) ?? ( $core !== '' ? $core : $base ) );
+        $simplified = trim( preg_replace( '/\s+/', ' ', $simplified ) ?? $simplified );
+        if ( $simplified !== '' && ! in_array( $simplified, $variants, true ) && strlen( $simplified ) >= 6 ) {
+            $variants[] = $simplified;
+        }
+
+        return $variants;
+    }
+
+    private function variantMatchScore( array $inputVariants, string $candidate, float $exactScore, float $containsScore ): float {
+        $candidate = trim( strtolower( \metis_help_plain_text( $candidate ) ) );
+        if ( $candidate === '' ) {
+            return 0.0;
+        }
+
+        $candidateVariants = $this->issueVariants( $candidate );
+        foreach ( $inputVariants as $inputVariant ) {
+            $inputVariant = trim( strtolower( \metis_help_plain_text( (string) $inputVariant ) ) );
+            if ( $inputVariant === '' ) {
+                continue;
+            }
+
+            foreach ( $candidateVariants as $candidateVariant ) {
+                if ( $candidateVariant === '' ) {
+                    continue;
+                }
+                if ( $inputVariant === $candidateVariant ) {
+                    return $exactScore;
+                }
+                if (
+                    strlen( $inputVariant ) >= 6
+                    && strlen( $candidateVariant ) >= 6
+                    && ( str_contains( $inputVariant, $candidateVariant ) || str_contains( $candidateVariant, $inputVariant ) )
+                ) {
+                    return $containsScore;
+                }
+            }
+        }
+
+        return 0.0;
     }
 
     /**
@@ -436,7 +513,7 @@ final class HelpIssueResolver {
                 'highlight_selector' => '.mw-transactions-view, .mw-tx-table, .mw-list-content',
                 'highlight_label' => 'Donation entry workflow',
                 'topic' => 'donations.transactions',
-                'walkthrough_id' => 'donations_create_donation',
+                'walkthrough_id' => $action === 'edit_donation' ? 'donations_edit_donation' : 'donations_create_donation',
             ],
             'create_deposit_batch', 'balance_deposit_batch' => [
                 'label' => 'Open Deposits',
@@ -462,14 +539,6 @@ final class HelpIssueResolver {
                 'topic' => 'website.pages',
                 'walkthrough_id' => 'website_publish_page',
             ],
-            'upload_file', 'find_file' => [
-                'label' => 'Open Drive',
-                'route' => $routeFor( 'drive', 'dashboard' ),
-                'highlight_selector' => '[data-metis-topic="drive.dashboard"], .mw-page-header, .mw-main',
-                'highlight_label' => 'Drive workspace',
-                'topic' => 'drive.dashboard',
-                'walkthrough_id' => '',
-            ],
             'create_calendar_event' => [
                 'label' => 'Open Calendar',
                 'route' => $routeFor( 'calendar', 'dashboard' ),
@@ -478,7 +547,15 @@ final class HelpIssueResolver {
                 'topic' => 'calendar.dashboard',
                 'walkthrough_id' => 'calendar_create_event',
             ],
-            'assign_role', 'find_person_record' => [
+            'create_user', 'update_user', 'disable_user', 'enable_user', 'get_user' => [
+                'label' => 'Open People List',
+                'route' => $routeFor( 'people', 'people_list' ),
+                'highlight_selector' => '#metis-people-add-open, #metis-people-search, #metis-people-rows, .metis-people',
+                'highlight_label' => 'People management tools',
+                'topic' => 'people.people_list',
+                'walkthrough_id' => $action === 'create_user' ? 'people_create_user' : '',
+            ],
+            'assign_role' => [
                 'label' => 'Open People',
                 'route' => $routeFor( 'people', 'dashboard' ),
                 'highlight_selector' => '.metis-people-search-tile, .mw-tile[href*="/people/roles"], .metis-people-dashboard',
@@ -486,21 +563,45 @@ final class HelpIssueResolver {
                 'topic' => 'people.dashboard',
                 'walkthrough_id' => 'people_assign_role',
             ],
+            'find_person_record' => [
+                'label' => 'Open People',
+                'route' => $routeFor( 'people', 'dashboard' ),
+                'highlight_selector' => '#metis-people-dashboard-search, #metis-people-dashboard-results, .metis-people-search-tile',
+                'highlight_label' => 'People search tools',
+                'topic' => 'people.dashboard',
+                'walkthrough_id' => 'people_find_person',
+            ],
             'run_report', 'export_report' => [
                 'label' => 'Open Reports',
                 'route' => $this->reportRoute( $currentRoute, $currentModule ),
                 'highlight_selector' => '[data-metis-topic$=".reports"], .mw-page-header, .mw-main',
                 'highlight_label' => 'Report workflow',
                 'topic' => $this->reportTopic( $currentModule ),
-                'walkthrough_id' => '',
+                'walkthrough_id' => $action === 'export_report' ? 'reports_export_report' : 'reports_run_report',
             ],
             'save_settings' => [
                 'label' => 'Open Settings',
                 'route' => $this->settingsRoute( $currentRoute ),
-                'highlight_selector' => '.mw-form-card, form, .mw-page-header, .mw-main',
+                'highlight_selector' => '[data-metis-settings-form], .mw-settings-actions .mw-btn, .mw-main',
                 'highlight_label' => 'Settings form',
                 'topic' => 'settings.identity',
-                'walkthrough_id' => '',
+                'walkthrough_id' => 'settings_save_settings',
+            ],
+            'upload_file' => [
+                'label' => 'Open Drive',
+                'route' => $routeFor( 'drive', 'dashboard' ),
+                'highlight_selector' => '#metis-drive-upload, #metis-drive-browser, .metis-drive',
+                'highlight_label' => 'Drive upload controls',
+                'topic' => 'drive.dashboard',
+                'walkthrough_id' => 'drive_upload_file',
+            ],
+            'find_file' => [
+                'label' => 'Open Drive',
+                'route' => $routeFor( 'drive', 'dashboard' ),
+                'highlight_selector' => '#metis-drive-search, #metis-drive-path-bar, #metis-drive-rows',
+                'highlight_label' => 'Drive search tools',
+                'topic' => 'drive.dashboard',
+                'walkthrough_id' => 'drive_find_file',
             ],
             default => [],
         };

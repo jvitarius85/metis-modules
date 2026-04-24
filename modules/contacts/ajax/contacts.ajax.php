@@ -43,6 +43,27 @@ function metis_contacts_ajax_format_row( object $row, ?object $details = null ):
     ];
 }
 
+function metis_contacts_quick_action_contact_form( array $action = [] ): array {
+    unset( $action );
+
+    $html = '<form class="metis-contact-form mw-quick-action-form" data-quick-action-form="contacts_add_contact">'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-contact-first-name">First Name</label><input id="qa-contact-first-name" name="first_name" class="mw-input" type="text" maxlength="120" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-half"><label for="qa-contact-last-name">Last Name</label><input id="qa-contact-last-name" name="last_name" class="mw-input" type="text" maxlength="120" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-full"><label for="qa-contact-email">Email <span class="metis-required">*</span></label><input id="qa-contact-email" name="email" class="mw-input" type="email" maxlength="180" required></div>'
+        . '<div class="metis-contact-field metis-contact-field-full"><label for="qa-contact-phone">Phone</label><input id="qa-contact-phone" name="phone" class="mw-input" type="text" maxlength="50" placeholder="Optional"></div>'
+        . '</form>';
+
+    return [
+        'title' => 'Add Contact',
+        'html' => $html,
+        'submit_action' => 'metis_contacts_save',
+        'submit_nonce_action' => 'metis_contacts',
+        'submit_label' => 'Save Contact',
+        'success_message' => 'Contact created.',
+        'redirect' => function_exists( 'metis_portal_url' ) ? (string) metis_portal_url( 'contacts' ) : '',
+    ];
+}
+
 function metis_contacts_normalize_relationships( array $raw, string $self_cid ): array {
     $normalized = [];
     $seen = [];
