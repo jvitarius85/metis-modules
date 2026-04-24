@@ -1,0 +1,6 @@
+{
+  "type": "object",
+  "properties": {
+    "campaign_id": { "type": "string", "default": "" }
+  }
+}

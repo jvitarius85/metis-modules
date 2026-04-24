@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "items": { "type": "array", "default": [] },
+    "ordered": { "type": "boolean", "default": false }
+  }
+}

@@ -1,0 +1,79 @@
+{
+    "slug": "hermes",
+    "name": "hermes",
+    "label": "Hermes",
+    "version": "1.0.0",
+    "domain": "hermes",
+    "default_view": "dashboard",
+    "dependencies": [
+        "people",
+        "settings"
+    ],
+    "menu_order": 2,
+    "description": "Monitor system health, review recommendations, and run approved actions.",
+    "icon": "<img src='https://www.vitarius.org/metis/assets/modules/hermes/hermes.png' width=44 height=44>",
+    "permissions": {
+        "view": {
+            "key": "hermes.view",
+            "action": "view",
+            "name": "Hermes View",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "edit": {
+            "key": "hermes.edit",
+            "action": "edit",
+            "name": "Hermes Execute",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "create": {
+            "key": "hermes.create",
+            "action": "create",
+            "name": "Hermes Create",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        }
+    },
+    "views": {
+        "dashboard": "dashboard.php"
+    },
+    "assets": {
+        "css": [
+            "hermes.css",
+            "hermes-dashboard.css"
+        ],
+        "js": [
+            "hermes.js",
+            "hermes-dashboard.js"
+        ],
+        "ajax": "hermes.ajax.php"
+    },
+    "ajax_object": "metisHermesAjax",
+    "category": "administration",
+    "default_parent": "administration",
+    "order": 20,
+    "navigation": {
+        "enabled": true,
+        "label": "Hermes",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Hermes",
+    "entry": "Module.php",
+    "routes": [],
+    "controllers": [],
+    "services": []
+}

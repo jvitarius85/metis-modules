@@ -1,0 +1,25 @@
+{
+  "id": "msg-normal-001",
+  "threadId": "thr-normal-001",
+  "historyId": "3101",
+  "internalDate": "1712109600000",
+  "labelIds": ["INBOX", "UNREAD"],
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      { "name": "From", "value": "\"Jane Donor\" <jane@example.org>" },
+      { "name": "To", "value": "newsletter@example.org" },
+      { "name": "Subject", "value": "Re: Spring Update" },
+      { "name": "Message-ID", "value": "<msg-normal-001@example.org>" },
+      { "name": "Date", "value": "Wed, 3 Apr 2024 10:00:00 -0500" }
+    ],
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "body": {
+          "data": "VGhhbmsgeW91IGZvciB0aGUgdXBkYXRlLg"
+        }
+      }
+    ]
+  }
+}

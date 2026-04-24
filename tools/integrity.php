@@ -10,7 +10,6 @@ $root = dirname( __DIR__ );
 
 define( 'METIS_STANDALONE', true );
 define( 'METIS_PREFIX', 'metis' );
-define( 'METIS_VERSION', '1.5.1' );
 define( 'METIS_PATH', $root . '/' );
 define( 'METIS_URL', 'http://localhost/metis/' );
 
@@ -20,7 +19,8 @@ $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
 
-require_once $root . '/includes/core/bootstrap.php';
+require_once $root . '/src/Metis/Core/CoreBootstrap.php';
+metis_define_system_version( $root . '/' );
 metis_core_bootstrap( 'standalone_bootstrap' );
 
 function metis_integrity_cli_usage(): never {
@@ -135,7 +135,7 @@ switch ( $command ) {
             'command' => 'baseline',
             'reason' => $reason,
             'ok' => $ok,
-            'storage' => METIS_PATH . '.metis-integrity',
+            'storage' => METIS_PATH . 'storage/runtime/integrity',
         ];
         echo json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . PHP_EOL;
         exit( $ok ? 0 : 1 );
@@ -149,7 +149,7 @@ switch ( $command ) {
             'reason' => $reason,
             'baseline_built' => $built,
             'manifest_signed' => $signed,
-            'storage' => METIS_PATH . '.metis-integrity',
+            'storage' => METIS_PATH . 'storage/runtime/integrity',
             'config_path' => METIS_PATH . 'config/integrity.php',
         ];
         echo json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . PHP_EOL;
@@ -160,20 +160,20 @@ switch ( $command ) {
         $result = Metis_Integrity_Manager::scan_and_heal( $trigger );
         $result['command'] = 'scan';
         $result['trigger'] = $trigger;
-        $result['storage'] = METIS_PATH . '.metis-integrity';
+        $result['storage'] = METIS_PATH . 'storage/runtime/integrity';
         echo json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . PHP_EOL;
         exit( 0 );
 
     case 'verify':
         $result = Metis_Integrity_Manager::verify_baseline();
         $result['command'] = 'verify';
-        $result['storage'] = METIS_PATH . '.metis-integrity';
+        $result['storage'] = METIS_PATH . 'storage/runtime/integrity';
         echo json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . PHP_EOL;
         exit( ! empty( $result['ok'] ) ? 0 : 1 );
 
     case 'keygen':
-        $private_key_path = (string) ( $argv[2] ?? ( METIS_PATH . '.metis-integrity/keys/integrity-private.pem' ) );
-        $public_key_path = (string) ( $argv[3] ?? ( METIS_PATH . '.metis-integrity/keys/integrity-public.pem' ) );
+        $private_key_path = (string) ( $argv[2] ?? ( METIS_PATH . 'storage/runtime/integrity/keys/integrity-private.pem' ) );
+        $public_key_path = (string) ( $argv[3] ?? ( METIS_PATH . 'storage/runtime/integrity/keys/integrity-public.pem' ) );
         $result = metis_integrity_cli_keygen( $private_key_path, $public_key_path );
         echo json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . PHP_EOL;
         exit( 0 );
@@ -183,7 +183,7 @@ switch ( $command ) {
         $result = [
             'command' => 'runtime',
             'ok' => true,
-            'storage' => METIS_PATH . '.metis-integrity',
+            'storage' => METIS_PATH . 'storage/runtime/integrity',
         ];
         echo json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . PHP_EOL;
         exit( 0 );

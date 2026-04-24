@@ -1,0 +1,50 @@
+name: Release Compliance Gate
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  release:
+    types:
+      - published
+      - prereleased
+      - released
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: curl, json, mbstring
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Lint PHP files
+        run: |
+          set -euo pipefail
+          find . -type f -name "*.php" -not -path "./vendor/*" -print0 | xargs -0 -n1 php -l >/tmp/php-lint.log
+          cat /tmp/php-lint.log
+
+      - name: Verify module compliance (main gate)
+        run: php tools/module_compliance.php verify --refresh
+
+      - name: Run application regression suite
+        run: php tools/test_suite.php
+
+      - name: Run internal security audit
+        run: php tools/security_audit.php --internal

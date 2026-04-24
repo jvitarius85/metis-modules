@@ -3,7 +3,11 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
+use Metis\Core\Cache\CacheService;
+
 final class HermesGateway {
+    private const SECRET_REVEAL_TTL_SECONDS = 600;
+
     public function __construct(
         private readonly HermesRepository $repository,
         private readonly HermesReasoner $reasoner,
@@ -19,24 +23,50 @@ final class HermesGateway {
 
     public function dashboardPayload(): array {
         $user_id       = \metis_current_user_id();
+        $this->repository->purgeExpiredConversationData( 24 );
         $can_manage    = \Metis\Modules\Hermes\Access::canManage();
         $library       = \Metis\Core\Application::service( 'hermes_library' );
         $context_packs = array_values( $library->contextPacks() );
-        $reports       = $this->repository->recentReports( 10 );
         $pending       = $user_id > 0 ? $this->repository->pendingActionsForUser( $user_id, 8 ) : [];
         $sessions      = $user_id > 0 ? $this->repository->recentSessions( $user_id, 6 ) : [];
-        $queue         = $this->repository->queueSummary();
-        $diagnostics   = $this->diagnostics->run( [ 'context_packs' => $context_packs ] );
-        $cron          = $this->cronSnapshot();
-        $reconciliation = $this->reconciliationSnapshot();
-        $permission_issues = $this->permissionInconsistencies( $context_packs );
-        $integration_failures = $this->integrationFailures( $cron, $queue, $reconciliation, $permission_issues, $diagnostics );
-        $alerts = $this->alerts( $cron, $queue, $reconciliation, $permission_issues, $diagnostics );
-        $module_summaries = $this->moduleSummaries( $context_packs, $alerts, $permission_issues, $reconciliation, $cron, $queue, $diagnostics );
+        $chat_session  = $user_id > 0 ? $this->repository->latestSessionForUser( $user_id ) : null;
+        $chat_history  = is_array( $chat_session ) ? $this->repository->sessionMessages( (int) ( $chat_session['id'] ?? 0 ), 80 ) : [];
+        $dashboard = CacheService::remember( 'dashboard.kpis', 60, function () use ( $context_packs ): array {
+            $reports = $this->repository->recentReports( 10 );
+            $queue = $this->repository->queueSummary();
+            $diagnostics = $this->diagnostics->run( [ 'context_packs' => $context_packs ] );
+            $cron = $this->cronSnapshot();
+            $reconciliation = $this->reconciliationSnapshot();
+            $permission_issues = $this->permissionInconsistencies( $context_packs );
+            $integration_failures = $this->integrationFailures( $cron, $queue, $reconciliation, $permission_issues, $diagnostics );
+            $alerts = $this->alerts( $cron, $queue, $reconciliation, $permission_issues, $diagnostics );
+            $module_summaries = $this->moduleSummaries( $context_packs, $alerts, $permission_issues, $reconciliation, $cron, $queue, $diagnostics );
+
+            return [
+                'reports' => $reports,
+                'queue' => $queue,
+                'diagnostics' => $diagnostics,
+                'workers' => $cron,
+                'reconciliation' => $reconciliation,
+                'permission_issues' => $permission_issues,
+                'integration_failures' => $integration_failures,
+                'alerts' => $alerts,
+                'module_summaries' => $module_summaries,
+            ];
+        } );
+        $reports = (array) ( $dashboard['reports'] ?? [] );
+        $queue = (array) ( $dashboard['queue'] ?? [] );
+        $diagnostics = (array) ( $dashboard['diagnostics'] ?? [] );
+        $cron = (array) ( $dashboard['workers'] ?? [] );
+        $reconciliation = (array) ( $dashboard['reconciliation'] ?? [] );
+        $permission_issues = (array) ( $dashboard['permission_issues'] ?? [] );
+        $integration_failures = (array) ( $dashboard['integration_failures'] ?? [] );
+        $alerts = (array) ( $dashboard['alerts'] ?? [] );
+        $module_summaries = (array) ( $dashboard['module_summaries'] ?? [] );
         $trends = $this->diagnosticTrends( $reports );
 
         return [
-            'generated_at' => \current_time( 'mysql' ),
+            'generated_at' => \metis_current_time( 'mysql' ),
             'view_mode' => $can_manage ? 'operator' : 'observer',
             'capabilities' => [
                 'can_manage' => $can_manage,
@@ -54,6 +84,8 @@ final class HermesGateway {
                 'permission_issue_count' => count( $permission_issues ),
             ],
             'sessions' => $sessions,
+            'chat_session' => $chat_session,
+            'chat_history' => $chat_history,
             'reports' => $reports,
             'pending_actions' => $pending,
             'missions' => array_values( $library->missions() ),
@@ -75,84 +107,126 @@ final class HermesGateway {
         $user_id = \metis_current_user_id();
         $session = $this->repository->ensureSession( $user_id, $session_code, $this->deriveTitle( $query ) );
         $user_message = $this->repository->saveMessage( (int) $session['id'], 'user', $query );
-        $processed = $this->operations->process( $query );
-        $response = (array) ( $processed['response'] ?? [] );
-        $actions = [];
-        if ( (string) ( $response['status'] ?? '' ) === 'awaiting_approval' && is_array( $processed['command'] ?? null ) ) {
-            $payload = [
-                'intent' => (array) ( $processed['intent'] ?? [] ),
-                'query' => $query,
-                'operation' => (string) ( $processed['action_plan']['operation'] ?? '' ),
-                'command_payload' => (array) ( $processed['intent']['payload'] ?? [] ),
-                'action_plan' => (array) ( $processed['action_plan'] ?? [] ),
-                'context_packs' => (array) ( $processed['context_packs'] ?? [] ),
-                'required_permission' => (string) ( $processed['action_plan']['required_permission'] ?? '' ),
+
+        try {
+            $processed = $this->operations->process( $query );
+            $response = (array) ( $processed['response'] ?? [] );
+            $actions = [];
+            if ( (string) ( $response['status'] ?? '' ) === 'awaiting_approval' && is_array( $processed['command'] ?? null ) ) {
+                $payload = [
+                    'intent' => (array) ( $processed['intent'] ?? [] ),
+                    'query' => $query,
+                    'operation' => (string) ( $processed['action_plan']['operation'] ?? '' ),
+                    'command_payload' => (array) ( $processed['intent']['payload'] ?? [] ),
+                    'action_plan' => (array) ( $processed['action_plan'] ?? [] ),
+                    'context_packs' => (array) ( $processed['context_packs'] ?? [] ),
+                    'required_permission' => (string) ( $processed['action_plan']['required_permission'] ?? '' ),
+                ];
+                $preview = $this->preview->preview( 'hermes_command', $payload, [
+                    'title' => (string) ( $processed['action_plan']['title'] ?? 'Hermes Command' ),
+                    'summary' => (string) ( $response['message'] ?? 'Approval required.' ),
+                ] );
+
+                $actions[] = $this->repository->createAction(
+                    (int) $session['id'],
+                    0,
+                    'hermes_command',
+                    (string) ( $processed['action_plan']['title'] ?? 'Hermes Action' ),
+                    $payload,
+                    $preview
+                );
+            }
+            $reasoning = [
+                'intent' => (string) ( $processed['intent']['action'] ?? 'unknown' ),
+                'answer' => (string) ( $response['message'] ?? '' ),
+                'structured' => $response,
             ];
-            $preview = $this->preview->preview( 'hermes_command', $payload, [
-                'title' => (string) ( $processed['action_plan']['title'] ?? 'Hermes Command' ),
-                'summary' => (string) ( $response['message'] ?? 'Approval required.' ),
+            $assistant_message = $this->repository->saveMessage( (int) $session['id'], 'hermes', (string) ( $response['message'] ?? '' ), $reasoning );
+
+            if ( $actions !== [] ) {
+                foreach ( $actions as &$action ) {
+                    if ( ! is_array( $action ) ) {
+                        continue;
+                    }
+                    $response['ui_components'][] = [
+                        'type' => 'ApprovalPrompt',
+                        'action_code' => (string) ( $action['action_code'] ?? '' ),
+                        'buttons' => [ 'Approve', 'Cancel' ],
+                    ];
+                }
+            }
+
+            $this->repository->touchSession( (int) $session['id'], (string) ( $processed['intent']['action'] ?? 'conversation' ) );
+            $this->memory->rememberConversation( (string) ( $session['session_code'] ?? '' ), [
+                'query' => $query,
+                'answer' => (string) ( $response['message'] ?? '' ),
+                'intent' => (string) ( $processed['intent']['action'] ?? '' ),
+            ] );
+            $this->audit->conversation( 'query', [
+                'session_code' => (string) ( $session['session_code'] ?? '' ),
+                'intent' => (string) ( $processed['intent']['action'] ?? '' ),
             ] );
 
-            $actions[] = $this->repository->createAction(
-                (int) $session['id'],
-                0,
-                'hermes_command',
-                (string) ( $processed['action_plan']['title'] ?? 'Hermes Action' ),
-                $payload,
-                $preview
-            );
+            return array_merge( $response, [
+                'session' => $session,
+                'user_message' => $user_message,
+                'assistant_message' => $assistant_message,
+                'history' => $this->repository->sessionMessages( (int) $session['id'], 80 ),
+                'reasoning' => $reasoning,
+                'actions' => $actions,
+            ] );
+        } catch ( \Throwable $e ) {
+            $message = 'Hermes could not complete that request.';
+            $reasoning = [
+                'intent' => 'error',
+                'answer' => $message,
+                'structured' => [
+                    'status' => 'error',
+                    'message' => $message,
+                    'detail' => $e->getMessage(),
+                ],
+            ];
+            $assistant_message = $this->repository->saveMessage( (int) $session['id'], 'hermes', $message, $reasoning );
+
+            return [
+                'status' => 'error',
+                'message' => $message,
+                'session' => $session,
+                'user_message' => $user_message,
+                'assistant_message' => $assistant_message,
+                'history' => $this->repository->sessionMessages( (int) $session['id'], 80 ),
+                'reasoning' => $reasoning,
+                'actions' => [],
+            ];
         }
-        $reasoning = [
-            'intent' => (string) ( $processed['intent']['action'] ?? 'unknown' ),
-            'answer' => (string) ( $response['message'] ?? '' ),
-            'structured' => $response,
-        ];
-        $assistant_message = $this->repository->saveMessage( (int) $session['id'], 'hermes', (string) ( $response['message'] ?? '' ), $reasoning );
-
-        if ( $actions !== [] ) {
-            foreach ( $actions as &$action ) {
-                if ( ! is_array( $action ) ) {
-                    continue;
-                }
-                $response['ui_components'][] = [
-                    'type' => 'ApprovalPrompt',
-                    'action_code' => (string) ( $action['action_code'] ?? '' ),
-                    'buttons' => [ 'Approve', 'Cancel' ],
-                ];
-            }
-        }
-
-        $this->repository->touchSession( (int) $session['id'], (string) ( $processed['intent']['action'] ?? 'conversation' ) );
-        $this->memory->rememberConversation( (string) ( $session['session_code'] ?? '' ), [
-            'query' => $query,
-            'answer' => (string) ( $response['message'] ?? '' ),
-            'intent' => (string) ( $processed['intent']['action'] ?? '' ),
-        ] );
-        $this->audit->conversation( 'query', [
-            'session_code' => (string) ( $session['session_code'] ?? '' ),
-            'intent' => (string) ( $processed['intent']['action'] ?? '' ),
-        ] );
-
-        return array_merge( $response, [
-            'session' => $session,
-            'user_message' => $user_message,
-            'assistant_message' => $assistant_message,
-            'reasoning' => $reasoning,
-            'actions' => $actions,
-        ] );
     }
 
     public function diagnostics( string $query, string $session_code = '' ): array {
         $session = $this->repository->ensureSession( \metis_current_user_id(), $session_code, 'Hermes Diagnostics' );
-        $reasoning = $this->reasoner->reason( $query !== '' ? $query : 'system health diagnostic', $session );
-        $report = $this->repository->saveReport( 'diagnostic', (string) ( $reasoning['intent'] ?? 'diagnostic' ), (array) ( $reasoning['diagnostics'] ?? [] ), (int) ( $session['id'] ?? 0 ) );
-        $this->memory->rememberReport( (string) ( $report['report_code'] ?? '' ), (array) ( $reasoning['diagnostics'] ?? [] ) );
 
-        return [
-            'session' => $session,
-            'diagnostics' => $reasoning['diagnostics'],
-            'report' => $report,
-        ];
+        try {
+            $reasoning = $this->reasoner->reason( $query !== '' ? $query : 'system health diagnostic', $session );
+            $report = $this->repository->saveReport( 'diagnostic', (string) ( $reasoning['intent'] ?? 'diagnostic' ), (array) ( $reasoning['diagnostics'] ?? [] ), (int) ( $session['id'] ?? 0 ) );
+            $this->memory->rememberReport( (string) ( $report['report_code'] ?? '' ), (array) ( $reasoning['diagnostics'] ?? [] ) );
+
+            return [
+                'session' => $session,
+                'diagnostics' => $reasoning['diagnostics'],
+                'report' => $report,
+            ];
+        } catch ( \Throwable $e ) {
+            return [
+                'session' => $session,
+                'diagnostics' => [
+                    'summary' => [ 'finding_count' => 0, 'high_severity' => 0 ],
+                    'findings' => [],
+                ],
+                'report' => null,
+                'status' => 'error',
+                'message' => 'Hermes diagnostics failed.',
+                'detail' => $e->getMessage(),
+            ];
+        }
     }
 
     public function previewAction( string $action_code ): array {
@@ -168,6 +242,20 @@ final class HermesGateway {
     }
 
     public function approveAction( string $action_code, string $note = '' ): array {
+        $action = $this->repository->getActionByCode( $action_code );
+        if ( ! is_array( $action ) ) {
+            throw new \RuntimeException( 'Hermes action could not be approved.' );
+        }
+
+        $payload = (array) ( $action['payload'] ?? [] );
+        if ( (string) ( $action['action_type'] ?? '' ) === 'hermes_command' || ! empty( $payload['operation'] ) ) {
+            $prepared = $this->operations->validatePreparedAction( $payload );
+            $permission = (array) ( $prepared['permission'] ?? [] );
+            if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
+                throw new \RuntimeException( (string) ( $permission['reason'] ?? 'Permission denied.' ) );
+            }
+        }
+
         $action = $this->repository->approveAction( $action_code, \metis_current_user_id(), $note );
         if ( ! is_array( $action ) ) {
             throw new \RuntimeException( 'Hermes action could not be approved.' );
@@ -195,41 +283,104 @@ final class HermesGateway {
             throw new \RuntimeException( 'Hermes action requires approval before execution.' );
         }
 
-        $request = \metis_security_runtime_request_context( [
-            'action_code' => $action_code,
-            'action_type' => (string) ( $action['action_type'] ?? '' ),
-            'metis_action_nonce' => $this->requestNonce(),
-            'nonce' => $this->requestNonce(),
-        ] );
+        try {
+            $request = \metis_security_runtime_request_context( [
+                'action_code' => $action_code,
+                'action_type' => (string) ( $action['action_type'] ?? '' ),
+                'metis_action_nonce' => $this->requestNonce(),
+                'nonce' => $this->requestNonce(),
+            ] );
 
-        $result = \metis_security_enclave()->handle(
-            'hermes.action.execute',
-            $request,
-            function () use ( $action ): array {
-                $payload = (array) ( $action['payload'] ?? [] );
-                $type = (string) ( $action['action_type'] ?? '' );
+            $result = \metis_security_enclave()->execute(
+                'hermes.action.execute',
+                $request,
+                function ( array $input, array $context ) use ( $action ): array {
+                    $payload = (array) ( $action['payload'] ?? [] );
+                    $type = (string) ( $action['action_type'] ?? '' );
+                    $actor = (array) ( $context['actor'] ?? [] );
 
-                if ( $type === 'hermes_command' || ! empty( $payload['operation'] ) ) {
-                    return $this->operations->executePreparedAction( $payload );
+                    if ( $type === 'hermes_command' || ! empty( $payload['operation'] ) ) {
+                        return $this->operations->executePreparedAction( $payload, $actor );
+                    }
+
+                    return match ( $type ) {
+                        'run_diagnostic' => $this->diagnostics( (string) ( $payload['query'] ?? 'system health diagnostic' ), '' ),
+                        'open_help_topic' => [ 'help_topic' => \Metis\Core\Application::service( 'hermes_help_resolver' )->topic( (string) ( $payload['topic_id'] ?? '' ) ) ],
+                        'launch_walkthrough' => $this->launchWalkthrough( (string) ( $payload['walkthrough_id'] ?? '' ) ),
+                        'execute_mission' => $this->executeMission( (string) ( $payload['mission_key'] ?? '' ), (string) ( $payload['query'] ?? '' ) ),
+                        'queue_scheduled_diagnostics' => $this->enqueueScheduledDiagnostics(),
+                        default => throw new \RuntimeException( 'Unsupported Hermes action.' ),
+                    };
                 }
+            );
+        } catch ( \Throwable $e ) {
+            $result = [
+                'status' => 'error',
+                'message' => 'Action execution failed.',
+                'detail' => $e->getMessage(),
+            ];
+        }
 
-                return match ( $type ) {
-                    'run_diagnostic' => $this->diagnostics( (string) ( $payload['query'] ?? 'system health diagnostic' ), '' ),
-                    'open_help_topic' => [ 'help_topic' => \Metis\Core\Application::service( 'hermes_help_resolver' )->topic( (string) ( $payload['topic_id'] ?? '' ) ) ],
-                    'launch_walkthrough' => $this->launchWalkthrough( (string) ( $payload['walkthrough_id'] ?? '' ) ),
-                    'execute_mission' => $this->executeMission( (string) ( $payload['mission_key'] ?? '' ), (string) ( $payload['query'] ?? '' ) ),
-                    'queue_scheduled_diagnostics' => $this->enqueueScheduledDiagnostics(),
-                    default => throw new \RuntimeException( 'Unsupported Hermes action.' ),
-                };
-            }
-        );
+        $redacted = $this->redactSensitiveActionResult( $result, $action );
+        $storedResult = (array) ( $redacted['stored'] ?? [] );
+        $responseResult = (array) ( $redacted['response'] ?? [] );
 
-        $saved = $this->repository->markActionExecuted( $action_code, $result );
-        $this->audit->approval( 'action_executed', $action_code, [ 'status' => 'executed' ] );
+        try {
+            $saved = $this->repository->markActionExecuted( $action_code, $storedResult );
+        } catch ( \Throwable $e ) {
+            $saved = $action;
+            $responseResult = [
+                'status' => 'error',
+                'message' => 'Action executed but result persistence failed.',
+                'detail' => $e->getMessage(),
+                ];
+        }
+        try {
+            $this->audit->approval( 'action_executed', $action_code, [ 'status' => 'executed' ] );
+        } catch ( \Throwable ) {
+            // Never fail an action response due to audit write issues.
+        }
 
         return [
             'action' => $saved,
-            'result' => $result,
+            'result' => $responseResult,
+        ];
+    }
+
+    public function revealSecret( string $reveal_token ): array {
+        $reveal_token = \metis_key_clean( trim( $reveal_token ) );
+        if ( $reveal_token === '' ) {
+            throw new \RuntimeException( 'Missing reveal token.' );
+        }
+
+        $cacheKey = $this->secretRevealCacheKey( $reveal_token );
+        $payload = CacheService::get( $cacheKey );
+        if ( ! is_array( $payload ) ) {
+            throw new \RuntimeException( 'This secret is no longer available. Re-run the reset action to generate a new one.' );
+        }
+
+        $actorId = \metis_current_user_id();
+        $approvedBy = (int) ( $payload['approved_by'] ?? 0 );
+        if ( $actorId < 1 || $approvedBy < 1 || $actorId !== $approvedBy ) {
+            throw new \RuntimeException( 'Only the approving operator can reveal this secret.' );
+        }
+
+        $secret = (string) ( $payload['secret'] ?? '' );
+        if ( $secret === '' ) {
+            CacheService::forget( $cacheKey );
+            throw new \RuntimeException( 'Secret payload is invalid.' );
+        }
+
+        CacheService::forget( $cacheKey );
+        $actionCode = (string) ( $payload['action_code'] ?? '' );
+        $this->audit->approval( 'secret_revealed', $actionCode, [ 'status' => 'revealed_once' ] );
+
+        return [
+            'status' => 'success',
+            'label' => (string) ( $payload['label'] ?? 'Temporary password' ),
+            'secret' => $secret,
+            'message' => 'Secret revealed. This value will not be shown again.',
+            'consumed' => true,
         ];
     }
 
@@ -237,7 +388,7 @@ final class HermesGateway {
         foreach ( [ 'metis_action_nonce', '_wpnonce', 'security', '_ajax_nonce', 'nonce' ] as $field ) {
             $value = $_REQUEST[ $field ] ?? '';
             if ( is_string( $value ) ) {
-                $value = \trim( \metis_unslash( $value ) );
+                $value = \trim( \metis_runtime_unslash( $value ) );
                 if ( $value !== '' ) {
                     return $value;
                 }
@@ -245,6 +396,95 @@ final class HermesGateway {
         }
 
         return '';
+    }
+
+    private function redactSensitiveActionResult( array $result, array $action ): array {
+        $stored = $result;
+        $response = $result;
+        $reveals = [];
+        $approvedBy = (int) ( $action['approved_by'] ?? 0 );
+        if ( $approvedBy < 1 ) {
+            $approvedBy = \metis_current_user_id();
+        }
+        $actionCode = (string) ( $action['action_code'] ?? '' );
+
+        $this->redactSecretPath( $stored, $response, 'credential_package.password', 'Temporary password', $actionCode, $approvedBy, $reveals );
+        $this->redactSecretPath( $stored, $response, 'workspace.password', 'Workspace temporary password', $actionCode, $approvedBy, $reveals );
+        if ( isset( $stored['result'] ) && is_array( $stored['result'] ) ) {
+            $nestedReveals = [];
+            $this->redactSecretPath( $stored['result'], $response['result'], 'credential_package.password', 'Temporary password', $actionCode, $approvedBy, $nestedReveals );
+            $this->redactSecretPath( $stored['result'], $response['result'], 'workspace.password', 'Workspace temporary password', $actionCode, $approvedBy, $nestedReveals );
+            if ( $nestedReveals !== [] ) {
+                $stored['result']['secret_reveals'] = array_map(
+                    static fn ( array $item ): array => [
+                        'label' => (string) ( $item['label'] ?? 'Secret' ),
+                        'field' => (string) ( $item['field'] ?? '' ),
+                        'revealed' => false,
+                    ],
+                    $nestedReveals
+                );
+                $response['result']['secret_reveals'] = $nestedReveals;
+            }
+            $reveals = array_merge( $reveals, $nestedReveals );
+        }
+
+        if ( $reveals !== [] && ( empty( $response['message'] ) || ! is_string( $response['message'] ) ) ) {
+            $response['message'] = 'Sensitive credentials were generated. Use "Reveal once" to view them securely.';
+        }
+
+        return [
+            'stored' => $stored,
+            'response' => $response,
+        ];
+    }
+
+    private function issueSecretRevealToken( string $secret, string $label, string $field, string $actionCode, int $approvedBy ): string {
+        $token = strtolower( \metis_generate_code( 'HSR', \Metis_Tables::get( 'hermes_actions' ), 'action_code' ) );
+        $token = preg_replace( '/[^a-z0-9]/', '', $token ) ?? '';
+        if ( $token === '' ) {
+            $token = strtolower( bin2hex( random_bytes( 10 ) ) );
+        }
+
+        CacheService::set( $this->secretRevealCacheKey( $token ), [
+            'secret' => $secret,
+            'label' => $label,
+            'field' => $field,
+            'action_code' => $actionCode,
+            'approved_by' => $approvedBy,
+            'created_at' => \metis_current_time( 'mysql' ),
+        ], self::SECRET_REVEAL_TTL_SECONDS );
+
+        return $token;
+    }
+
+    private function secretRevealCacheKey( string $token ): string {
+        return 'hermes.secret_reveal.' . strtolower( trim( $token ) );
+    }
+
+    private function redactSecretPath( array &$stored, array &$response, string $path, string $label, string $actionCode, int $approvedBy, array &$reveals ): void {
+        $parts = explode( '.', $path );
+        if ( count( $parts ) !== 2 ) {
+            return;
+        }
+
+        $section = (string) $parts[0];
+        $field = (string) $parts[1];
+        $secret = trim( (string) ( $stored[ $section ][ $field ] ?? '' ) );
+        if ( $secret === '' ) {
+            return;
+        }
+
+        $token = $this->issueSecretRevealToken( $secret, $label, $path, $actionCode, $approvedBy );
+        $stored[ $section ][ $field ] = '';
+        $response[ $section ][ $field ] = '';
+        $response[ $section ]['password_masked'] = true;
+        $response[ $section ]['reveal_once'] = true;
+        $response[ $section ]['reveal_ttl_seconds'] = self::SECRET_REVEAL_TTL_SECONDS;
+        $reveals[] = [
+            'token' => $token,
+            'label' => $label,
+            'field' => $path,
+        ];
     }
 
     public function launchWalkthrough( string $walkthrough_id ): array {
@@ -271,7 +511,7 @@ final class HermesGateway {
         $report = $this->repository->saveReport( 'mission', $mission_key, [
             'mission' => $plan,
             'query' => $query,
-            'executed_at' => \current_time( 'mysql' ),
+            'executed_at' => \metis_current_time( 'mysql' ),
         ] );
 
         return [
@@ -305,12 +545,12 @@ final class HermesGateway {
 
     private function cronSnapshot(): array {
         $tasks = \Metis_Cron_Manager::registered_tasks();
-        $now   = \current_time( 'timestamp' );
+        $now   = \metis_current_time( 'timestamp' );
         $rows  = [];
         $issue_count = 0;
 
         foreach ( $tasks as $slug => $task ) {
-            $state = \get_option( 'metis_cron_task_state_' . $slug, [] );
+            $state = \metis_get_option( 'metis_cron_task_state_' . $slug, [] );
             $state = \is_array( $state ) ? $state : [];
             $last_finished = $this->timestampFromString( (string) ( $state['last_finished_at'] ?? '' ) );
             $next_due = $last_finished > 0 ? $last_finished + (int) ( $task['interval'] ?? 0 ) : $now;
@@ -365,9 +605,9 @@ final class HermesGateway {
     }
 
     private function reconciliationSnapshot(): array {
-        global $wpdb;
+        $db = \metis_db();
 
-        $recons_table = \Metis_Tables::get( 'finance_reconciliations' );
+        $recons_table = \Metis_Tables::get( 'finance_v2_recon_months' );
         if ( ! $this->tableExists( $recons_table ) ) {
             return [
                 'summary' => [
@@ -379,30 +619,26 @@ final class HermesGateway {
             ];
         }
 
-        $summary = $wpdb->get_row(
+        $summary = $db->fetchOne(
             "SELECT
                 COUNT(*) AS total_count,
-                SUM(CASE WHEN status <> 'matched' THEN 1 ELSE 0 END) AS open_count,
-                SUM(CASE WHEN ABS(COALESCE(variance, 0)) > 0.009 THEN 1 ELSE 0 END) AS variance_count
+                SUM(CASE WHEN status <> 'finalized' THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN ABS(COALESCE(difference_amount, 0)) > 0.009 THEN 1 ELSE 0 END) AS variance_count
              FROM {$recons_table}",
-            ARRAY_A
         );
 
-        $rows = $wpdb->get_results(
+        $rows = $db->fetchAll(
             "SELECT
-                account_key,
-                period_start,
-                period_end,
+                recon_month,
                 status,
-                COALESCE(book_balance, 0) AS book_balance,
-                COALESCE(statement_balance, 0) AS statement_balance,
-                COALESCE(variance, 0) AS variance,
-                COALESCE(matched_count, 0) AS matched_count
+                COALESCE(expected_ending_balance, 0) AS book_balance,
+                COALESCE(statement_ending_balance, 0) AS statement_balance,
+                COALESCE(difference_amount, 0) AS variance,
+                0 AS matched_count
              FROM {$recons_table}
-             WHERE status <> 'matched' OR ABS(COALESCE(variance, 0)) > 0.009
-             ORDER BY period_end DESC, id DESC
+             WHERE status <> 'finalized' OR ABS(COALESCE(difference_amount, 0)) > 0.009
+             ORDER BY recon_month DESC, id DESC
              LIMIT 6",
-            ARRAY_A
         ) ?: [];
 
         $open_count = (int) ( $summary['open_count'] ?? 0 );
@@ -429,7 +665,7 @@ final class HermesGateway {
                 continue;
             }
 
-            $module_slug = \sanitize_key( (string) ( $pack['module_slug'] ?? '' ) );
+            $module_slug = \metis_key_clean( (string) ( $pack['module_slug'] ?? '' ) );
             if ( $module_slug === '' ) {
                 continue;
             }
@@ -442,7 +678,7 @@ final class HermesGateway {
                     continue;
                 }
 
-                $action = \sanitize_key( (string) ( $definition['action'] ?? '' ) );
+                $action = \metis_key_clean( (string) ( $definition['action'] ?? '' ) );
                 if ( $action === '' ) {
                     continue;
                 }
@@ -457,7 +693,7 @@ final class HermesGateway {
                     continue;
                 }
 
-                $action = \sanitize_key( (string) ( $permission['action'] ?? '' ) );
+                $action = \metis_key_clean( (string) ( $permission['action'] ?? '' ) );
                 $expected = array_values( array_filter( array_map( 'strval', (array) ( $permission['allowed_roles'] ?? [] ) ) ) );
                 sort( $expected );
                 $actual = $declared[ $action ] ?? [];
@@ -654,7 +890,7 @@ final class HermesGateway {
                 continue;
             }
 
-            $module_slug = \sanitize_key( (string) ( $pack['module_slug'] ?? '' ) );
+            $module_slug = \metis_key_clean( (string) ( $pack['module_slug'] ?? '' ) );
             if ( $module_slug === '' ) {
                 continue;
             }
@@ -761,9 +997,7 @@ final class HermesGateway {
     }
 
     private function tableExists( string $table ): bool {
-        global $wpdb;
-
-        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        $exists = \metis_db()->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
         return $exists === $table;
     }
 

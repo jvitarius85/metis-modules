@@ -21,7 +21,7 @@ final class Support {
             return true;
         }
 
-        $user = \metis_current_user();
+        $user = \metis_runtime_current_user();
         if ( ! $user || empty( $user->roles ) ) {
             return false;
         }
@@ -60,9 +60,9 @@ final class Support {
             }
         }
 
-        $wp_tz = \get_option( 'timezone_string' );
-        if ( is_string( $wp_tz ) && trim( $wp_tz ) !== '' ) {
-            $candidates[] = trim( $wp_tz );
+        $configured_tz = \metis_get_option( 'timezone_string' );
+        if ( is_string( $configured_tz ) && trim( $configured_tz ) !== '' ) {
+            $candidates[] = trim( $configured_tz );
         }
 
         foreach ( $candidates as $tz_name ) {
@@ -73,7 +73,7 @@ final class Support {
             }
         }
 
-        return \metis_timezone();
+        return \metis_runtime_timezone();
     }
 
     public static function formatDatetime( string $mysql_datetime, string $format = 'm/d/y g:ia' ): string {
@@ -85,7 +85,7 @@ final class Support {
         $tz = self::resolvedTimezone();
         $dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $mysql_datetime, $tz );
         if ( $dt instanceof \DateTimeImmutable ) {
-            return \metis_date( $format, $dt->getTimestamp(), $tz );
+            return \metis_runtime_date( $format, $dt->getTimestamp(), $tz );
         }
 
         $ts = strtotime( $mysql_datetime );
@@ -93,6 +93,6 @@ final class Support {
             return '';
         }
 
-        return \metis_date( $format, $ts, $tz );
+        return \metis_runtime_date( $format, $ts, $tz );
     }
 }

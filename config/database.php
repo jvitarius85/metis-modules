@@ -1,6 +1,6 @@
 <?php
 return array (
-  'host' => 'localhost',
+  'host' => '10.0.4.130',
   'port' => 3306,
   'database' => 'metis',
   'username' => 'root',

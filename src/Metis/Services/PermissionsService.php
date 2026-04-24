@@ -8,11 +8,11 @@ use Metis\Core\ModuleLoader;
 
 final class PermissionsService {
     public function can( ?string $module, string $permission = 'view', array $actor = [] ): bool {
-        if ( function_exists( 'current_user_can' ) && \current_user_can( 'manage_options' ) ) {
+        if ( function_exists( 'metis_current_user_can' ) && \metis_current_user_can( 'manage_options' ) ) {
             return true;
         }
 
-        $module = \sanitize_key( (string) $module );
+        $module = \metis_key_clean( (string) $module );
         if ( $module === '' ) {
             return true;
         }

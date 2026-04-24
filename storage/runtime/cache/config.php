@@ -1,19 +1,29 @@
 <?php
 return array (
-  'generated_at' => 1773493178,
+  'generated_at' => 1776967526,
   'manifest' => 
   array (
     'database' => 
     array (
-      'path' => '/volume1/Web/metis/config/database.php',
-      'mtime' => 1773491967,
+      'path' => '/Users/jvitarius85/Library/CloudStorage/CloudMounter-TheHRDeptNAS/Web/metis/config/database.php',
+      'mtime' => 1776896552,
+    ),
+    'login' => 
+    array (
+      'path' => '/Users/jvitarius85/Library/CloudStorage/CloudMounter-TheHRDeptNAS/Web/metis/config/login.php',
+      'mtime' => 1773530124,
+    ),
+    'update' => 
+    array (
+      'path' => '/Users/jvitarius85/Library/CloudStorage/CloudMounter-TheHRDeptNAS/Web/metis/config/update.php',
+      'mtime' => 1773587520,
     ),
   ),
   'config' => 
   array (
     'database' => 
     array (
-      'host' => 'localhost',
+      'host' => '10.0.4.130',
       'port' => 3306,
       'database' => 'metis',
       'username' => 'root',
@@ -23,6 +33,26 @@ return array (
       'collation' => 'utf8mb4_unicode_ci',
       'app_key' => 'fff7e8591b03ca5a18e32fdeb710cdfb23afa5ff100de15a',
       'base_url' => '',
+    ),
+    'login' => 
+    array (
+      'logo' => NULL,
+      'background_image' => NULL,
+      'background_color' => '#edf2f7',
+      'welcome_text' => 'Use a passkey first, Google Workspace next, or your local password if needed.',
+      'organization_name' => 'Metis',
+      'footer_text' => 'Secure access powered by Metis.',
+    ),
+    'update' => 
+    array (
+      'github' => 
+      array (
+        'owner' => 'jvitarius85',
+        'repo' => 'metis',
+        'ref' => 'stable',
+        'token' => '',
+        'token_enc' => 'wZQgNwGmaXPuKjrO+PhobJzIxLqRJZ662iTiNaQUMNxL2p8o9AwVsHiXsRHSC12tVclypF19ziQXDg1K+zXxYJ9lMIOjGCuQekWZDXQO4/08+C6c7T/EcbYeefXX2zq+n1ZqQOyj9k2kRTQzmyqoUg==',
+      ),
     ),
   ),
 );

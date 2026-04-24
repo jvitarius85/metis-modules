@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "entity": "donor",
+  "label": "Donor",
+  "plural": "donors",
+  "prefix": "DNR",
+  "table_key": "contacts",
+  "primary_key": "id",
+  "uid_column": "contact_uid",
+  "module": "donations",
+  "aliases": ["donors", "supporter", "supporters", "giver", "givers"],
+  "where_clause": "COALESCE(did, '') <> ''",
+
+  "fields": {
+    "id":             { "type": "integer",  "label": "ID",             "filterable": true,  "sortable": true  },
+    "contact_uid":    { "type": "string",   "label": "UID",            "filterable": true,  "sortable": false },
+    "first_name":     { "type": "string",   "label": "First name",     "filterable": true,  "sortable": true  },
+    "last_name":      { "type": "string",   "label": "Last name",      "filterable": true,  "sortable": true  },
+    "email":          { "type": "string",   "label": "Email",          "filterable": true,  "sortable": true  },
+    "phone":          { "type": "string",   "label": "Phone",          "filterable": true,  "sortable": false },
+    "lifetime_total": { "type": "decimal",  "label": "Lifetime total", "filterable": true,  "sortable": true,  "aggregatable": true },
+    "last_gift_at":   { "type": "datetime", "label": "Last gift date", "filterable": true,  "sortable": true,  "date_field": true   },
+    "first_gift_at":  { "type": "datetime", "label": "First gift",     "filterable": true,  "sortable": true,  "date_field": true   },
+    "gift_count":     { "type": "integer",  "label": "Gift count",     "filterable": true,  "sortable": true,  "aggregatable": true },
+    "status":         { "type": "string",   "label": "Status",         "filterable": true,  "sortable": true,  "groupable": true    },
+    "household":      { "type": "string",   "label": "Household",      "filterable": true,  "sortable": true,  "groupable": true    },
+    "created_at":     { "type": "datetime", "label": "Created",        "filterable": true,  "sortable": true,  "date_field": true   }
+  },
+
+  "relationships": {
+    "transactions": { "entity": "donation_transaction", "foreign_key": "contact_id", "type": "has_many" }
+  },
+
+  "reporting": {
+    "aggregate_fields":  ["lifetime_total", "gift_count"],
+    "groupable_fields":  ["status", "household"],
+    "filterable_fields": ["status", "household", "last_gift_at", "first_gift_at", "created_at"],
+    "date_fields":       ["last_gift_at", "first_gift_at", "created_at"],
+    "default_sort":      "last_gift_at",
+    "default_sort_dir":  "desc"
+  },
+
+  "permissions": { "view": "donations.view", "edit": "donations.edit" }
+}

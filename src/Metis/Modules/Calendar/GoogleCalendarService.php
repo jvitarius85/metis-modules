@@ -21,7 +21,7 @@ final class GoogleCalendarService {
         }
 
         $cache_key = 'metis_calendar_token_' . md5( $client_email . '|' . $subject . '|' . implode( ' ', $scopes ) );
-        $cached    = \get_transient( $cache_key );
+        $cached    = \metis_get_transient( $cache_key );
         if ( is_array( $cached ) && ! empty( $cached['access_token'] ) ) {
             return [ 'ok' => true, 'access_token' => (string) $cached['access_token'] ];
         }
@@ -44,7 +44,7 @@ final class GoogleCalendarService {
         }
 
         $assertion = $jwt_input . '.' . self::b64urlEncode( $signature );
-        $response  = \metis_remote_post( $token_uri, [
+        $response  = \metis_runtime_remote_post( $token_uri, [
             'timeout' => 20,
             'body'    => [
                 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -52,19 +52,19 @@ final class GoogleCalendarService {
             ],
         ] );
 
-        if ( \metis_is_error( $response ) ) {
-            return [ 'ok' => false, 'error' => $response->get_error_message() ];
+        if ( \metis_runtime_is_error( $response ) ) {
+            return [ 'ok' => false, 'error' => 'Workspace token request failed.' ];
         }
 
-        $code = (int) \metis_remote_retrieve_response_code( $response );
-        $body = json_decode( (string) \metis_remote_retrieve_body( $response ), true );
+        $code = (int) \metis_runtime_remote_retrieve_response_code( $response );
+        $body = json_decode( (string) \metis_runtime_remote_retrieve_body( $response ), true );
         if ( $code < 200 || $code >= 300 || ! is_array( $body ) || empty( $body['access_token'] ) ) {
             return [ 'ok' => false, 'error' => 'Workspace token request failed (' . $code . ').' ];
         }
 
         $access_token = (string) $body['access_token'];
         $ttl          = max( 120, ( (int) ( $body['expires_in'] ?? 3600 ) ) - 60 );
-        \set_transient( $cache_key, [ 'access_token' => $access_token ], $ttl );
+        \metis_set_transient( $cache_key, [ 'access_token' => $access_token ], $ttl );
 
         return [ 'ok' => true, 'access_token' => $access_token ];
     }
@@ -72,7 +72,7 @@ final class GoogleCalendarService {
     public static function googleRequest( string $method, string $url, ?string $raw_body, array $cfg ): array {
         $token = self::googleAccessToken( $cfg );
         if ( empty( $token['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $token['error'] ?? 'Workspace token error.' ) ];
+            return [ 'ok' => false, 'error' => 'Workspace token error.' ];
         }
 
         $args = [
@@ -88,34 +88,16 @@ final class GoogleCalendarService {
             $args['body'] = $raw_body;
         }
 
-        $response = \metis_remote_request( $url, $args );
-        if ( \metis_is_error( $response ) ) {
-            return [ 'ok' => false, 'error' => $response->get_error_message() ];
+        $response = \metis_runtime_remote_request( $url, $args );
+        if ( \metis_runtime_is_error( $response ) ) {
+            return [ 'ok' => false, 'error' => 'Google Calendar API request failed.' ];
         }
 
-        $code    = (int) \metis_remote_retrieve_response_code( $response );
-        $raw     = (string) \metis_remote_retrieve_body( $response );
+        $code    = (int) \metis_runtime_remote_retrieve_response_code( $response );
+        $raw     = (string) \metis_runtime_remote_retrieve_body( $response );
         $decoded = json_decode( $raw, true );
         if ( $code < 200 || $code >= 300 ) {
-            $msg    = is_array( $decoded ) ? (string) ( $decoded['error']['message'] ?? '' ) : '';
-            $reason = '';
-            if ( is_array( $decoded ) && ! empty( $decoded['error']['errors'][0] ) && is_array( $decoded['error']['errors'][0] ) ) {
-                $first = (array) $decoded['error']['errors'][0];
-                $r     = (string) ( $first['reason'] ?? '' );
-                $loc   = (string) ( $first['location'] ?? '' );
-                if ( $r !== '' && $loc !== '' ) {
-                    $reason = $r . ' at ' . $loc;
-                } elseif ( $r !== '' ) {
-                    $reason = $r;
-                }
-            }
-            if ( $msg === '' ) {
-                $msg = 'Google Calendar API request failed (' . $code . ').';
-            }
-            if ( $reason !== '' ) {
-                $msg .= ' [' . $reason . ']';
-            }
-            return [ 'ok' => false, 'error' => $msg, 'status' => $code, 'raw' => $raw ];
+            return [ 'ok' => false, 'error' => 'Google Calendar API request failed (' . $code . ').', 'status' => $code, 'raw' => $raw ];
         }
 
         return [ 'ok' => true, 'status' => $code, 'body' => is_array( $decoded ) ? $decoded : [] ];
@@ -123,11 +105,11 @@ final class GoogleCalendarService {
 
     public static function getCalendarMeta( array $cfg, bool $allow_remote = false ): array {
         if ( empty( $cfg['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $cfg['error'] ?? 'Calendar is not configured.' ) ];
+            return [ 'ok' => false, 'error' => 'Calendar is not configured.' ];
         }
 
         $cache_key = 'metis_calendar_meta_' . md5( (string) ( $cfg['calendar_id'] ?? '' ) );
-        $cached    = \get_transient( $cache_key );
+        $cached    = \metis_get_transient( $cache_key );
         if ( is_array( $cached ) && ! empty( $cached['summary'] ) ) {
             return [ 'ok' => true, 'summary' => (string) $cached['summary'], 'time_zone' => (string) ( $cached['time_zone'] ?? '' ) ];
         }
@@ -151,7 +133,7 @@ final class GoogleCalendarService {
         if ( empty( $resp['ok'] ) ) {
             return [
                 'ok'        => false,
-                'error'     => (string) ( $resp['error'] ?? 'Failed to load calendar metadata.' ),
+                'error'     => 'Failed to load calendar metadata.',
                 'summary'   => (string) ( $cfg['calendar_id'] ?? '' ),
                 'time_zone' => '',
             ];
@@ -165,12 +147,12 @@ final class GoogleCalendarService {
             'time_zone' => $time_zone,
         ];
 
-        \set_transient( $cache_key, $payload, 15 * MINUTE_IN_SECONDS );
+        \metis_set_transient( $cache_key, $payload, 15 * MINUTE_IN_SECONDS );
         $state = SyncStore::syncState( (string) ( $cfg['calendar_id'] ?? '' ) );
         SyncStore::updateSyncState( (string) ( $cfg['calendar_id'] ?? '' ), [
             'calendar_name'     => (string) $payload['summary'],
             'last_synced_at'    => (string) ( $state['last_synced_at'] ?? '' ),
-            'last_requested_at' => \current_time( 'mysql' ),
+            'last_requested_at' => \metis_current_time( 'mysql' ),
             'sync_status'       => (string) ( $state['sync_status'] ?? 'idle' ),
             'item_count'        => (int) ( $state['item_count'] ?? 0 ),
             'last_error'        => (string) ( $state['last_error'] ?? '' ),
@@ -195,10 +177,10 @@ final class GoogleCalendarService {
                 $params['pageToken'] = $page_token;
             }
 
-            $url  = \add_query_arg( $params, 'https://www.googleapis.com/calendar/v3/users/me/calendarList' );
+            $url  = \metis_add_query_arg( $params, 'https://www.googleapis.com/calendar/v3/users/me/calendarList' );
             $resp = self::googleRequest( 'GET', $url, null, $cfg );
             if ( empty( $resp['ok'] ) ) {
-                return [ 'ok' => false, 'error' => (string) ( $resp['error'] ?? 'Failed to load calendars.' ) ];
+                return [ 'ok' => false, 'error' => 'Failed to load calendars.' ];
             }
 
             foreach ( (array) ( $resp['body']['items'] ?? [] ) as $item ) {
@@ -241,10 +223,10 @@ final class GoogleCalendarService {
                 $params['pageToken'] = $page_token;
             }
 
-            $url  = \add_query_arg( $params, 'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode( (string) $cfg['calendar_id'] ) . '/events' );
+            $url  = \metis_add_query_arg( $params, 'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode( (string) $cfg['calendar_id'] ) . '/events' );
             $resp = self::googleRequest( 'GET', $url, null, $cfg );
             if ( empty( $resp['ok'] ) ) {
-                return [ 'ok' => false, 'error' => (string) ( $resp['error'] ?? 'Failed to load events.' ), 'status' => (int) ( $resp['status'] ?? 0 ) ];
+                return [ 'ok' => false, 'error' => 'Failed to load events.', 'status' => (int) ( $resp['status'] ?? 0 ) ];
             }
 
             foreach ( (array) ( $resp['body']['items'] ?? [] ) as $item ) {

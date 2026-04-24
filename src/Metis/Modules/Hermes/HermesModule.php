@@ -29,6 +29,17 @@ use Metis\Hermes\HermesResponseRenderer;
 use Metis\Hermes\HermesToolRegistry;
 use Metis\Hermes\HermesWalkthroughResolver;
 use Metis\Hermes\HermesWorkerManager;
+use Metis\Hermes\EntityRegistryBuilder;
+use Metis\Hermes\DataCapabilityBuilder;
+use Metis\Hermes\HermesSafetyGovernor;
+use Metis\Hermes\HermesQueryBuilder;
+use Metis\Hermes\EntityResolver;
+use Metis\Hermes\AttributeResolver;
+use Metis\Hermes\HermesDebugLogger;
+use Metis\Hermes\HermesReportingService;
+use Metis\Hermes\HermesUniversalActionRegistry;
+use Metis\Hermes\HermesPlaybookValidator;
+use Metis\Hermes\HermesSecurityIntegration;
 
 final class HermesModule {
     private static bool $booted = false;
@@ -41,8 +52,8 @@ final class HermesModule {
         self::$booted = true;
         self::registerServices();
 
-        \metis_add_action( 'init', [ SchemaManager::class, 'ensureSchema' ], 5 );
-        \metis_add_action( 'init', static function (): void {
+        \metis_on( 'init', [ SchemaManager::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', static function (): void {
             Application::service( 'hermes_worker_manager' )->register();
         }, 8 );
 
@@ -50,6 +61,9 @@ final class HermesModule {
         if ( ! $enclave->has_policy( 'hermes.action.execute' ) ) {
             $enclave->register_policy( new \Metis_Security_Policy( 'hermes.action.execute', 'hermes', 'edit', true, true, true, 'metis_ajax:metis_hermes_execute_action', 60, 60 ) );
         }
+
+        // Chunk 6: register all Hermes enclave policies in one pass
+        HermesSecurityIntegration::registerPolicies();
 
         \Metis_Logger::info( 'Hermes bootstrap loaded' );
     }
@@ -93,7 +107,10 @@ final class HermesModule {
             $registry->singleton( 'hermes_command_registry', static fn (): HermesCommandRegistry => new HermesCommandRegistry() );
         }
         if ( ! $registry->has( 'hermes_intent_parser' ) ) {
-            $registry->singleton( 'hermes_intent_parser', static fn (): HermesIntentParser => new HermesIntentParser( Application::service( 'hermes_command_registry' ) ) );
+            $registry->singleton( 'hermes_intent_parser', static fn (): HermesIntentParser => new HermesIntentParser(
+                Application::service( 'hermes_command_registry' ),
+                Application::service( 'hermes_entity_registry' )
+            ) );
         }
         if ( ! $registry->has( 'hermes_context_pack_loader' ) ) {
             $registry->singleton( 'hermes_context_pack_loader', static fn (): HermesContextPackLoader => new HermesContextPackLoader( Application::service( 'hermes_library' ) ) );
@@ -108,13 +125,27 @@ final class HermesModule {
             $registry->singleton( 'hermes_response_renderer', static fn (): HermesResponseRenderer => new HermesResponseRenderer() );
         }
         if ( ! $registry->has( 'hermes_operational_engine' ) ) {
+            $registry->singleton( 'hermes_entity_resolver', static fn (): EntityResolver => new EntityResolver(
+                Application::service( 'entity_resolver_service' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_attribute_resolver' ) ) {
+            $registry->singleton( 'hermes_attribute_resolver', static fn (): AttributeResolver => new AttributeResolver() );
+        }
+        if ( ! $registry->has( 'hermes_debug_logger' ) ) {
+            $registry->singleton( 'hermes_debug_logger', static fn (): HermesDebugLogger => new HermesDebugLogger() );
+        }
+        if ( ! $registry->has( 'hermes_operational_engine' ) ) {
             $registry->singleton( 'hermes_operational_engine', static fn (): HermesOperationalEngine => new HermesOperationalEngine(
                 Application::service( 'hermes_intent_parser' ),
                 Application::service( 'hermes_context_pack_loader' ),
                 Application::service( 'hermes_command_registry' ),
                 Application::service( 'hermes_permission_validator' ),
                 Application::service( 'hermes_execution_engine' ),
-                Application::service( 'hermes_response_renderer' )
+                Application::service( 'hermes_response_renderer' ),
+                Application::service( 'hermes_entity_resolver' ),
+                Application::service( 'hermes_attribute_resolver' ),
+                Application::service( 'hermes_debug_logger' )
             ) );
         }
         if ( ! $registry->has( 'hermes_context_builder' ) ) {
@@ -127,8 +158,22 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_diagnostic_engine' ) ) {
             $registry->singleton( 'hermes_diagnostic_engine', static fn (): HermesDiagnosticEngine => new HermesDiagnosticEngine( Application::service( 'hermes_repository' ) ) );
         }
+        // Chunk 5: universal action registry + playbook validator
+        if ( ! $registry->has( 'hermes_universal_actions' ) ) {
+            $registry->singleton( 'hermes_universal_actions', static fn (): HermesUniversalActionRegistry => new HermesUniversalActionRegistry() );
+        }
+        if ( ! $registry->has( 'hermes_playbook_validator' ) ) {
+            $registry->singleton( 'hermes_playbook_validator', static fn (): HermesPlaybookValidator => new HermesPlaybookValidator(
+                Application::service( 'hermes_universal_actions' ),
+                Application::service( 'hermes_safety_governor' ),
+                Application::service( 'hermes_library' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_playbook_engine' ) ) {
-            $registry->singleton( 'hermes_playbook_engine', static fn (): HermesPlaybookEngine => new HermesPlaybookEngine( Application::service( 'hermes_library' ) ) );
+            $registry->singleton( 'hermes_playbook_engine', static fn (): HermesPlaybookEngine => new HermesPlaybookEngine(
+                Application::service( 'hermes_library' ),
+                Application::service( 'hermes_playbook_validator' )
+            ) );
         }
         if ( ! $registry->has( 'hermes_mission_engine' ) ) {
             $registry->singleton( 'hermes_mission_engine', static fn (): HermesMissionEngine => new HermesMissionEngine( Application::service( 'hermes_library' ) ) );
@@ -169,6 +214,43 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_worker_manager' ) ) {
             $registry->singleton( 'hermes_worker_manager', static fn (): HermesWorkerManager => new HermesWorkerManager(
                 Application::service( 'hermes_gateway' )
+            ) );
+        }
+
+        // Chunk 2: entity registry + capability map
+        if ( ! $registry->has( 'hermes_entity_registry' ) ) {
+            $registry->singleton( 'hermes_entity_registry', static fn (): EntityRegistryBuilder => new EntityRegistryBuilder() );
+        }
+        if ( ! $registry->has( 'hermes_data_capability' ) ) {
+            $registry->singleton( 'hermes_data_capability', static fn (): DataCapabilityBuilder => new DataCapabilityBuilder(
+                Application::service( 'hermes_entity_registry' )
+            ) );
+        }
+
+        // Chunk 3: safety governor + query builder
+        if ( ! $registry->has( 'hermes_safety_governor' ) ) {
+            $registry->singleton( 'hermes_safety_governor', static fn (): HermesSafetyGovernor => new HermesSafetyGovernor(
+                Application::service( 'hermes_audit_logger' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_query_builder' ) ) {
+            $registry->singleton( 'hermes_query_builder', static fn (): HermesQueryBuilder => new HermesQueryBuilder(
+                Application::service( 'hermes_entity_registry' ),
+                Application::service( 'hermes_data_capability' ),
+                Application::service( 'hermes_safety_governor' ),
+                Application::service( 'hermes_permission_validator' ),
+                Application::service( 'hermes_audit_logger' )
+            ) );
+        }
+
+        // Chunk 4: reporting service
+        if ( ! $registry->has( 'hermes_reporting' ) ) {
+            $registry->singleton( 'hermes_reporting', static fn (): HermesReportingService => new HermesReportingService(
+                Application::service( 'hermes_query_builder' ),
+                Application::service( 'hermes_entity_registry' ),
+                Application::service( 'hermes_data_capability' ),
+                Application::service( 'hermes_safety_governor' ),
+                Application::service( 'hermes_audit_logger' )
             ) );
         }
     }

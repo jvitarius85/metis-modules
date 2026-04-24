@@ -35,4 +35,49 @@ final class HermesAuditLogger {
             'context'  => $context,
         ] );
     }
+
+    public function violation( string $violation_key, string $detail = '' ): void {
+        \metis_audit_log_security( 'hermes_safety_violation', [
+            'module'    => 'hermes',
+            'severity'  => 'warning',
+            'outcome'   => 'rejected',
+            'violation' => $violation_key,
+            'detail'    => $detail,
+        ] );
+    }
+
+    public function queryExecuted( string $entity, string $report_type, int $row_count, array $context = [] ): void {
+        \metis_audit_log_activity( 'hermes_query_executed', [
+            'module'   => 'hermes',
+            'resource' => [
+                'type'  => 'entity',
+                'id'    => $entity,
+                'label' => $report_type,
+            ],
+            'context'  => array_merge( [ 'row_count' => $row_count ], $context ),
+        ] );
+    }
+
+    public function permissionDenied( string $operation, string $permission, array $context = [] ): void {
+        \metis_audit_log_security( 'hermes_permission_denied', [
+            'module'    => 'hermes',
+            'severity'  => 'warning',
+            'outcome'   => 'denied',
+            'operation' => $operation,
+            'permission'=> $permission,
+            'context'   => $context,
+        ] );
+    }
+
+    public function enclaveExecution( string $operation, string $status, array $context = [] ): void {
+        \metis_audit_log_activity( 'hermes_enclave_execution', [
+            'module'   => 'hermes',
+            'resource' => [
+                'type'  => 'enclave_operation',
+                'id'    => $operation,
+                'label' => $status,
+            ],
+            'context'  => $context,
+        ] );
+    }
 }

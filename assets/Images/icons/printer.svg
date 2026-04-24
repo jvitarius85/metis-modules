@@ -1,0 +1,9 @@
+<svg id="Printer--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Printer Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>printer</title>
+  <path d="M14 4.5h-1.5V1.5H3.5v3H2a1 1 0 0 0 -1 1v5a1 1 0 0 0 1 1h1.5v3h9v-3h1.5a1 1 0 0 0 1 -1V5.5a1 1 0 0 0 -1 -1ZM4.5 2.5h7v2H4.5Zm7 11H4.5V8.5h7Zm2.5 -3h-1.5v-3H3.5v3H2V5.5h12Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

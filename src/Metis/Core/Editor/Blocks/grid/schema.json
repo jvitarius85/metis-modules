@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "columns": { "type": "number", "default": 2 },
+    "gap": { "type": "string", "default": "24px" },
+    "ratios": { "type": "array", "default": [1, 1] },
+    "col_blocks": { "type": "array", "default": [] }
+  }
+}

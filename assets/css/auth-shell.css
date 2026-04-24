@@ -1,0 +1,163 @@
+body.metis-auth-shell {
+    margin: 0;
+    font-family: Figtree, Segoe UI, sans-serif;
+    color: #1f2330;
+}
+
+body.metis-auth-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(12, 21, 39, 0.12), rgba(255, 255, 255, 0.28));
+    pointer-events: none;
+}
+
+.metis-auth-shell .wrap {
+    position: relative;
+    max-width: 720px;
+    margin: 40px auto;
+    padding: 32px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid #d7dee7;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(26, 34, 50, 0.12);
+    backdrop-filter: blur(8px);
+}
+
+.metis-auth-shell .auth-brand {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.metis-auth-shell .auth-brand img {
+    max-height: 64px;
+    max-width: 220px;
+}
+
+.metis-auth-shell .auth-brand-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #485bc7;
+}
+
+.metis-auth-shell h1 {
+    margin: 0 0 6px;
+}
+
+.metis-auth-shell h2 {
+    font-size: 1.1rem;
+    margin: 28px 0 8px;
+}
+
+.metis-auth-shell p {
+    line-height: 1.5;
+}
+
+.metis-auth-shell label {
+    display: block;
+    font-weight: 600;
+    margin: 12px 0 6px;
+}
+
+.metis-auth-shell input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    border: 1px solid #bcc8d6;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.metis-auth-shell button {
+    margin-top: 18px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 10px;
+    background: #1f3556;
+    color: #fff;
+    cursor: pointer;
+}
+
+.metis-auth-shell .mw-btn-secondary {
+    background: #fff;
+    color: #1f3556;
+    border: 1px solid #bcc8d6;
+}
+
+.metis-auth-shell .error {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    background: #fff2f0;
+    border: 1px solid #e1b0a9;
+    color: #8a2a1f;
+    border-radius: 10px;
+}
+
+.metis-auth-shell .muted {
+    color: #6b7280;
+}
+
+.metis-auth-shell .split {
+    display: grid;
+    gap: 26px;
+}
+
+.metis-auth-shell .card {
+    padding-top: 6px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.metis-auth-shell .auth-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.metis-auth-shell .auth-actions button {
+    margin-top: 0;
+}
+
+.metis-auth-shell .auth-actions form {
+    margin: 0;
+}
+
+.metis-auth-shell .auth-or {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #6b7280;
+    text-transform: uppercase;
+}
+
+.metis-auth-shell .auth-footer {
+    margin-top: 24px;
+    font-size: 12px;
+    color: #6b7280;
+    text-align: center;
+}
+
+@media (max-width: 720px) {
+    .metis-auth-shell .wrap {
+        margin: 20px;
+        padding: 24px;
+    }
+
+    .metis-auth-shell .auth-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .metis-auth-shell .auth-actions form,
+    .metis-auth-shell .auth-actions button {
+        width: 100%;
+    }
+
+    .metis-auth-shell .auth-or {
+        text-align: center;
+    }
+}

@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace Metis\Release;
 
+use Metis\Core\Version;
+
 final class ReleaseManager {
-    private const STORAGE_DIR = '.metis-release';
+    private const STORAGE_DIR = 'storage/runtime/release';
     private const CACHE_DIR = 'cache';
     private const HISTORY_DIR = 'history';
     private const CACHE_FILE = 'release-cache.json';
@@ -28,7 +30,7 @@ final class ReleaseManager {
         $status = [
             'ok' => true,
             'status' => empty( $releases_payload['releases'] ) ? 'no_releases' : 'ready',
-            'installed_version' => (string) ( $state['installed_version'] ?? ( \defined( 'METIS_VERSION' ) ? (string) \METIS_VERSION : '' ) ),
+            'installed_version' => Version::current(),
             'installed_tag' => (string) ( $state['installed_tag'] ?? '' ),
             'current' => $current,
             'latest' => $latest,
@@ -37,7 +39,10 @@ final class ReleaseManager {
                 : ( $latest !== null && $current === null ),
             'repository' => [
                 'available' => $repository !== null,
-                'clean' => $repository !== null ? empty( $repository['dirty'] ) : false,
+                'clean' => $repository !== null
+                    ? ( ( $repository['dirty_known'] ?? true ) ? empty( $repository['dirty'] ) : null )
+                    : false,
+                'dirty_known' => $repository !== null ? (bool) ( $repository['dirty_known'] ?? true ) : false,
                 'head' => $repository['commit'] ?? '',
                 'tag' => $repository['exact_tag'] ?? '',
                 'remote' => $repository['remote'] ?? '',
@@ -74,6 +79,13 @@ final class ReleaseManager {
     }
 
     public function checkForUpdates( bool $force_refresh = false, string $trigger = 'manual' ): array {
+        $this->releaseExecution()->assertEnabled();
+        $this->releaseExecution()->assertSystemAdministrator();
+        $this->releaseExecution()->auditAction( 'check', [
+            'force_refresh' => $force_refresh,
+            'trigger' => $trigger,
+        ] );
+
         $status = $this->status( $force_refresh );
         $status['trigger'] = $trigger;
 
@@ -91,7 +103,14 @@ final class ReleaseManager {
     }
 
     public function applyRelease( string $tag, string $trigger = 'manual' ): array {
+        $this->releaseExecution()->assertEnabled();
+        $this->releaseExecution()->assertSystemAdministrator();
         $tag = $this->normalizeTag( $tag );
+        $this->releaseExecution()->auditAction( 'apply', [
+            'tag' => $tag,
+            'trigger' => $trigger,
+        ] );
+
         if ( $tag === '' ) {
             return [
                 'ok' => false,
@@ -150,12 +169,22 @@ final class ReleaseManager {
             ];
         }
 
+        $compliance = $this->preflightModuleComplianceCheck();
+        if ( ! empty( $compliance['blocked'] ) ) {
+            return [
+                'ok' => false,
+                'status' => 'module_compliance_blocked',
+                'message' => 'Module compliance verification must pass before an update can be applied.',
+                'module_compliance' => $compliance,
+            ];
+        }
+
         $backup = $this->runPreUpdateBackup( $trigger );
         if ( empty( $backup['ok'] ) ) {
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
-                'message' => (string) ( $backup['error'] ?? 'Pre-update backup failed.' ),
+                'message' => 'Pre-update backup failed.',
                 'backup' => $backup,
             ];
         }
@@ -163,7 +192,7 @@ final class ReleaseManager {
         $previous = [
             'tag' => (string) ( $repository['exact_tag'] ?? '' ),
             'commit' => (string) ( $repository['commit'] ?? '' ),
-            'version' => (string) ( $this->readState()['installed_version'] ?? ( \defined( 'METIS_VERSION' ) ? (string) \METIS_VERSION : '' ) ),
+            'version' => Version::current(),
         ];
 
         if ( ! $this->ensureLocalTagAvailable( $tag, $repository ) ) {
@@ -216,6 +245,12 @@ final class ReleaseManager {
     }
 
     public function rollback( string $trigger = 'manual' ): array {
+        $this->releaseExecution()->assertEnabled();
+        $this->releaseExecution()->assertSystemAdministrator();
+        $this->releaseExecution()->auditAction( 'rollback', [
+            'trigger' => $trigger,
+        ] );
+
         $this->ensureRuntime();
 
         $repository = $this->repositoryState( true );
@@ -256,12 +291,22 @@ final class ReleaseManager {
             ];
         }
 
+        $compliance = $this->preflightModuleComplianceCheck();
+        if ( ! empty( $compliance['blocked'] ) ) {
+            return [
+                'ok' => false,
+                'status' => 'module_compliance_blocked',
+                'message' => 'Module compliance verification must pass before rollback can continue.',
+                'module_compliance' => $compliance,
+            ];
+        }
+
         $backup = $this->runPreUpdateBackup( $trigger . '_rollback' );
         if ( empty( $backup['ok'] ) ) {
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
-                'message' => (string) ( $backup['error'] ?? 'Pre-rollback backup failed.' ),
+                'message' => 'Pre-rollback backup failed.',
                 'backup' => $backup,
             ];
         }
@@ -325,12 +370,12 @@ final class ReleaseManager {
         $combined = $this->combineReleases( $local_releases, $remote_payload['releases'] ?? [] );
 
         $payload = [
-            'checked_at' => \current_time( 'mysql' ),
+            'checked_at' => \metis_current_time( 'mysql' ),
             'context' => $context,
             'releases' => $combined,
             'remote_releases' => $remote_payload['releases'] ?? [],
             'remote_status' => (string) ( $remote_payload['status'] ?? 'disabled' ),
-            'remote_error' => (string) ( $remote_payload['error'] ?? '' ),
+            'remote_error' => '',
             'cache_age_seconds' => 0,
         ];
 
@@ -354,6 +399,40 @@ final class ReleaseManager {
             'blocked' => $blocked,
             'status' => (string) ( $result['status'] ?? 'unknown' ),
             'result' => $result,
+        ];
+    }
+
+    private function preflightModuleComplianceCheck(): array {
+        if ( ! \function_exists( 'metis_module_compliance_report' ) ) {
+            return [
+                'blocked' => false,
+                'status' => 'unavailable',
+                'summary' => [ 'checked' => 0, 'failed' => 0, 'passed' => 0 ],
+                'failures' => [],
+            ];
+        }
+
+        $report = (array) \metis_module_compliance_report( true );
+        $summary = is_array( $report['summary'] ?? null ) ? $report['summary'] : [];
+        $results = is_array( $report['results'] ?? null ) ? $report['results'] : [];
+        $failures = array_values(
+            array_filter(
+                $results,
+                static fn ( mixed $row ): bool => is_array( $row ) && (string) ( $row['status'] ?? '' ) === 'failed'
+            )
+        );
+        $failed = (int) ( $summary['failed'] ?? count( $failures ) );
+
+        return [
+            'blocked' => $failed > 0,
+            'status' => $failed > 0 ? 'failed' : 'ok',
+            'summary' => [
+                'checked' => (int) ( $summary['checked'] ?? 0 ),
+                'failed' => $failed,
+                'passed' => (int) ( $summary['passed'] ?? 0 ),
+            ],
+            'failures' => $failures,
+            'report' => $report,
         ];
     }
 
@@ -409,7 +488,7 @@ final class ReleaseManager {
                     'previous_version' => (string) ( $previous['version'] ?? '' ),
                     'previous_commit' => (string) ( $previous['commit'] ?? '' ),
                     'last_action' => $reason,
-                    'last_action_at' => \current_time( 'mysql' ),
+                    'last_action_at' => \metis_current_time( 'mysql' ),
                     'last_backup_run_uuid' => (string) ( $backup['run_uuid'] ?? '' ),
                 ]
             )
@@ -422,7 +501,7 @@ final class ReleaseManager {
             'version' => (string) ( $release['version'] ?? '' ),
             'commit' => $installed_commit,
             'backup_run_uuid' => (string) ( $backup['run_uuid'] ?? '' ),
-            'occurred_at' => \current_time( 'mysql' ),
+            'occurred_at' => \metis_current_time( 'mysql' ),
         ] );
 
         if ( \class_exists( 'Metis_Logger' ) ) {
@@ -462,7 +541,7 @@ final class ReleaseManager {
             'installed_tag' => (string) ( $previous['tag'] ?? '' ),
             'installed_commit' => (string) ( $previous['commit'] ?? '' ),
             'last_action' => $reason,
-            'last_action_at' => \current_time( 'mysql' ),
+            'last_action_at' => \metis_current_time( 'mysql' ),
             'last_backup_run_uuid' => (string) ( $backup['run_uuid'] ?? '' ),
         ] + $this->readState() );
     }
@@ -514,7 +593,7 @@ final class ReleaseManager {
         ] );
 
         if ( (int) ( $result['exit_code'] ?? 1 ) !== 0 ) {
-            return [];
+            return $this->discoverLocalReleasesFromGitFiles();
         }
 
         $releases = [];
@@ -569,6 +648,14 @@ final class ReleaseManager {
         ] );
 
         if ( (int) ( $result['exit_code'] ?? 1 ) !== 0 ) {
+            $github_releases = $this->discoverRemoteReleasesFromGitHub();
+            if ( $github_releases !== [] ) {
+                return [
+                    'status' => 'api',
+                    'releases' => $github_releases,
+                ];
+            }
+
             return [
                 'status' => $cached !== [] && ! empty( $cached['remote_releases'] ) ? 'cached' : 'error',
                 'error' => trim( (string) ( $result['stderr'] ?? '' ) ),
@@ -605,6 +692,14 @@ final class ReleaseManager {
             'status' => 'live',
             'releases' => array_values( $releases ),
         ];
+    }
+
+    private function releaseExecution(): \Metis\Core\Services\ReleaseExecutionService {
+        if ( \class_exists( '\Metis\Core\Application' ) && \Metis\Core\Application::has_service( 'release_execution' ) ) {
+            return \Metis\Core\Application::service( 'release_execution' );
+        }
+
+        return new \Metis\Core\Services\ReleaseExecutionService();
     }
 
     private function combineReleases( array $local, array $remote ): array {
@@ -657,19 +752,16 @@ final class ReleaseManager {
         if ( $installed_tag !== '' ) {
             return $this->findReleaseByTag( $installed_tag, $releases ) ?? [
                 'tag' => $installed_tag,
-                'version' => (string) ( $state['installed_version'] ?? $this->versionFromTag( $installed_tag ) ),
+                'version' => Version::current(),
                 'commit' => (string) ( $state['installed_commit'] ?? '' ),
                 'source' => 'state',
                 'trusted' => true,
             ];
         }
 
-        $installed_version = trim( (string) ( $state['installed_version'] ?? '' ) );
-        if ( $installed_version === '' && \defined( 'METIS_VERSION' ) ) {
-            $installed_version = (string) \METIS_VERSION;
-        }
+        $installed_version = Version::current();
 
-        if ( $installed_version === '' ) {
+        if ( $installed_version === '' || $installed_version === '0.0.0' ) {
             return null;
         }
 
@@ -677,7 +769,7 @@ final class ReleaseManager {
             'tag' => '',
             'version' => $installed_version,
             'commit' => (string) ( $repository['commit'] ?? '' ),
-            'source' => 'version_constant',
+            'source' => 'version_service',
             'trusted' => false,
         ];
     }
@@ -698,7 +790,7 @@ final class ReleaseManager {
 
     private function syncInstalledVersion(): void {
         $state = $this->readState();
-        $version = \defined( 'METIS_VERSION' ) ? (string) \METIS_VERSION : '';
+        $version = Version::current();
         $repository = $this->repositoryState();
         $tag = $this->normalizeTag( (string) ( $repository['exact_tag'] ?? ( $state['installed_tag'] ?? '' ) ) );
         $commit = (string) ( $repository['commit'] ?? ( $state['installed_commit'] ?? '' ) );
@@ -718,7 +810,7 @@ final class ReleaseManager {
                     'installed_version' => $version,
                     'installed_tag' => $tag,
                     'installed_commit' => $commit,
-                    'synced_at' => \current_time( 'mysql' ),
+                    'synced_at' => \metis_current_time( 'mysql' ),
                 ]
             )
         );
@@ -733,7 +825,7 @@ final class ReleaseManager {
 
         foreach ( $directories as $directory ) {
             if ( ! \is_dir( $directory ) ) {
-                \metis_make_dir( $directory );
+                \metis_runtime_make_dir( $directory );
             }
 
             $this->writeDirectoryGuards( $directory );
@@ -853,7 +945,8 @@ final class ReleaseManager {
         $top_level = $this->runCommand( [ $this->gitBinary(), '-C', \METIS_PATH, 'rev-parse', '--show-toplevel' ] );
         $commit = $this->runCommand( [ $this->gitBinary(), '-C', \METIS_PATH, 'rev-parse', 'HEAD' ] );
         if ( (int) ( $top_level['exit_code'] ?? 1 ) !== 0 || (int) ( $commit['exit_code'] ?? 1 ) !== 0 ) {
-            return null;
+            $cached = $this->repositoryStateFromGitFiles();
+            return $cached;
         }
 
         $status = $this->runCommand( [
@@ -898,9 +991,32 @@ final class ReleaseManager {
             'dirty' => trim( (string) ( $status['stdout'] ?? '' ) ),
             'exact_tag' => $this->normalizeTag( trim( (string) ( $exact_tag['stdout'] ?? '' ) ) ),
             'remote' => $first_remote,
+            'dirty_known' => true,
         ];
 
         return $cached;
+    }
+
+    private function repositoryStateFromGitFiles(): ?array {
+        $git_dir = $this->gitDirectoryPath();
+        if ( $git_dir === '' ) {
+            return null;
+        }
+
+        $head = $this->readGitHead();
+        $commit = (string) ( $head['commit'] ?? '' );
+        if ( $commit === '' ) {
+            return null;
+        }
+
+        return [
+            'top_level' => rtrim( (string) \METIS_PATH, '/' ),
+            'commit' => $commit,
+            'dirty' => '',
+            'exact_tag' => $this->tagForCommit( $commit ),
+            'remote' => $this->gitRemoteNameFromConfig( $git_dir ),
+            'dirty_known' => false,
+        ];
     }
 
     private function normalizeTag( string $tag ): string {
@@ -922,7 +1038,7 @@ final class ReleaseManager {
     }
 
     private function persistState( array $state ): void {
-        $state['updated_at'] = \current_time( 'mysql' );
+        $state['updated_at'] = \metis_current_time( 'mysql' );
         $this->writeJsonFile( $this->statePath(), $state );
     }
 
@@ -954,7 +1070,7 @@ final class ReleaseManager {
     private function writeJsonFile( string $path, array $payload ): void {
         $dir = dirname( $path );
         if ( ! \is_dir( $dir ) ) {
-            \metis_make_dir( $dir );
+            \metis_runtime_make_dir( $dir );
         }
 
         \file_put_contents(
@@ -972,11 +1088,7 @@ final class ReleaseManager {
 
     private function runCommand( array $command ): array {
         if ( ! \function_exists( 'proc_open' ) ) {
-            return [
-                'exit_code' => 1,
-                'stdout' => '',
-                'stderr' => 'proc_open unavailable',
-            ];
+            return $this->runCommandWithExec( $command );
         }
 
         $descriptors = [
@@ -987,11 +1099,7 @@ final class ReleaseManager {
 
         $process = @\proc_open( $command, $descriptors, $pipes, \METIS_PATH );
         if ( ! \is_resource( $process ) ) {
-            return [
-                'exit_code' => 1,
-                'stdout' => '',
-                'stderr' => 'proc_open failed',
-            ];
+            return $this->runCommandWithExec( $command );
         }
 
         \fclose( $pipes[0] );
@@ -1005,5 +1113,225 @@ final class ReleaseManager {
             'stdout' => \is_string( $stdout ) ? $stdout : '',
             'stderr' => \is_string( $stderr ) ? $stderr : '',
         ];
+    }
+
+    private function runCommandWithExec( array $command ): array {
+        return [
+            'exit_code' => 1,
+            'stdout' => '',
+            'stderr' => 'proc_open unavailable',
+        ];
+    }
+
+    private function discoverLocalReleasesFromGitFiles(): array {
+        $tags = $this->gitTagMap();
+        if ( $tags === [] ) {
+            return [];
+        }
+
+        $releases = [];
+        foreach ( $tags as $tag => $commit ) {
+            $tag = $this->normalizeTag( (string) $tag );
+            $version = $this->versionFromTag( $tag );
+            if ( $tag === '' || $version === '' ) {
+                continue;
+            }
+
+            $releases[ $tag ] = [
+                'tag' => $tag,
+                'version' => $version,
+                'commit' => trim( (string) $commit ),
+                'source' => 'local_tag',
+                'trusted' => true,
+                'cached' => false,
+            ];
+        }
+
+        return array_values( $releases );
+    }
+
+    private function discoverRemoteReleasesFromGitHub(): array {
+        if ( ! \class_exists( \Metis\Core\Application::class ) || ! \Metis\Core\Application::has_service( 'github_update' ) ) {
+            return [];
+        }
+
+        try {
+            $payload = \Metis\Core\Application::service( 'github_update' )->checkForUpdates( true );
+        } catch ( \Throwable ) {
+            return [];
+        }
+
+        $tag = $this->normalizeTag( (string) ( $payload['tag_name'] ?? '' ) );
+        $version = $this->versionFromTag( $tag );
+        if ( $tag === '' || $version === '' ) {
+            return [];
+        }
+
+        return [
+            [
+                'tag' => $tag,
+                'version' => $version,
+                'commit' => '',
+                'source' => 'remote_tag',
+                'trusted' => true,
+                'cached' => false,
+            ],
+        ];
+    }
+
+    private function gitDirectoryPath(): string {
+        $git_path = rtrim( (string) \METIS_PATH, '/' ) . '/.git';
+        if ( \is_dir( $git_path ) ) {
+            return $git_path;
+        }
+
+        if ( ! \is_file( $git_path ) ) {
+            return '';
+        }
+
+        $pointer = @\file_get_contents( $git_path );
+        if ( ! \is_string( $pointer ) || ! str_starts_with( trim( $pointer ), 'gitdir:' ) ) {
+            return '';
+        }
+
+        $git_dir = trim( substr( trim( $pointer ), 7 ) );
+        if ( $git_dir === '' ) {
+            return '';
+        }
+
+        if ( ! preg_match( '#^([A-Za-z]:)?[\\\\/]#', $git_dir ) ) {
+            $git_dir = rtrim( (string) \METIS_PATH, '/' ) . '/' . ltrim( $git_dir, '/' );
+        }
+
+        $git_dir = str_replace( '\\', '/', $git_dir );
+        return \is_dir( $git_dir ) ? rtrim( $git_dir, '/' ) : '';
+    }
+
+    private function readGitHead(): array {
+        $git_dir = $this->gitDirectoryPath();
+        if ( $git_dir === '' ) {
+            return [];
+        }
+
+        $head_path = $git_dir . '/HEAD';
+        $head = @\file_get_contents( $head_path );
+        if ( ! \is_string( $head ) ) {
+            return [];
+        }
+
+        $head = trim( $head );
+        if ( str_starts_with( $head, 'ref:' ) ) {
+            $ref = trim( substr( $head, 4 ) );
+            $commit = $this->resolveGitRef( $git_dir, $ref );
+            return [ 'ref' => $ref, 'commit' => $commit ];
+        }
+
+        return [ 'ref' => '', 'commit' => $head ];
+    }
+
+    private function resolveGitRef( string $git_dir, string $ref ): string {
+        $ref_path = $git_dir . '/' . ltrim( $ref, '/' );
+        if ( \is_file( $ref_path ) ) {
+            $value = @\file_get_contents( $ref_path );
+            return \is_string( $value ) ? trim( $value ) : '';
+        }
+
+        foreach ( $this->packedRefs( $git_dir ) as $packed_ref => $hash ) {
+            if ( $packed_ref === $ref ) {
+                return $hash;
+            }
+        }
+
+        return '';
+    }
+
+    private function packedRefs( string $git_dir ): array {
+        $path = $git_dir . '/packed-refs';
+        if ( ! \is_file( $path ) ) {
+            return [];
+        }
+
+        $raw = @\file_get_contents( $path );
+        if ( ! \is_string( $raw ) || $raw === '' ) {
+            return [];
+        }
+
+        $refs = [];
+        foreach ( preg_split( '/\R+/', $raw ) ?: [] as $line ) {
+            $line = trim( $line );
+            if ( $line === '' || $line[0] === '#' || $line[0] === '^' ) {
+                continue;
+            }
+
+            [ $hash, $ref ] = array_pad( preg_split( '/\s+/', $line, 2 ) ?: [], 2, '' );
+            if ( $hash !== '' && $ref !== '' ) {
+                $refs[ $ref ] = $hash;
+            }
+        }
+
+        return $refs;
+    }
+
+    private function gitTagMap(): array {
+        $git_dir = $this->gitDirectoryPath();
+        if ( $git_dir === '' ) {
+            return [];
+        }
+
+        $tags = [];
+        $tags_root = $git_dir . '/refs/tags';
+        if ( \is_dir( $tags_root ) ) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator( $tags_root, \FilesystemIterator::SKIP_DOTS )
+            );
+
+            foreach ( $iterator as $file ) {
+                if ( ! $file instanceof \SplFileInfo || ! $file->isFile() ) {
+                    continue;
+                }
+
+                $tag = str_replace( '\\', '/', substr( $file->getPathname(), strlen( $tags_root ) + 1 ) );
+                $hash = @\file_get_contents( $file->getPathname() );
+                if ( \is_string( $hash ) ) {
+                    $tags[ $tag ] = trim( $hash );
+                }
+            }
+        }
+
+        foreach ( $this->packedRefs( $git_dir ) as $ref => $hash ) {
+            if ( str_starts_with( $ref, 'refs/tags/' ) ) {
+                $tags[ substr( $ref, 10 ) ] = $hash;
+            }
+        }
+
+        return $tags;
+    }
+
+    private function tagForCommit( string $commit ): string {
+        foreach ( $this->gitTagMap() as $tag => $hash ) {
+            if ( trim( (string) $hash ) === trim( $commit ) ) {
+                return $this->normalizeTag( (string) $tag );
+            }
+        }
+
+        return '';
+    }
+
+    private function gitRemoteNameFromConfig( string $git_dir ): string {
+        $config_path = $git_dir . '/config';
+        if ( ! \is_file( $config_path ) ) {
+            return '';
+        }
+
+        $config = @\file_get_contents( $config_path );
+        if ( ! \is_string( $config ) || $config === '' ) {
+            return '';
+        }
+
+        if ( preg_match( '/\\[remote\\s+"([^"]+)"\\]/', $config, $match ) === 1 ) {
+            return trim( (string) $match[1] );
+        }
+
+        return '';
     }
 }

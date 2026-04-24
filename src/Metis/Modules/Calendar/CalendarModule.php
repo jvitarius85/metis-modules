@@ -107,7 +107,7 @@ final class CalendarModule {
             SyncStore::updateSyncState( $calendar_id, [
                 'calendar_name'     => $calendar_name,
                 'last_synced_at'    => (string) ( $existing_state['last_synced_at'] ?? '' ),
-                'last_requested_at' => \current_time( 'mysql' ),
+                'last_requested_at' => \metis_current_time( 'mysql' ),
                 'sync_status'       => 'running',
                 'item_count'        => 0,
                 'last_error'        => '',
@@ -126,11 +126,11 @@ final class CalendarModule {
             if ( empty( $listing['ok'] ) ) {
                 SyncStore::updateSyncState( $calendar_id, [
                     'calendar_name'     => $calendar_name,
-                    'last_synced_at'    => \current_time( 'mysql' ),
-                    'last_requested_at' => \current_time( 'mysql' ),
+                    'last_synced_at'    => \metis_current_time( 'mysql' ),
+                    'last_requested_at' => \metis_current_time( 'mysql' ),
                     'sync_status'       => 'error',
                     'item_count'        => 0,
-                    'last_error'        => (string) ( $listing['error'] ?? 'Failed to sync calendar events.' ),
+                    'last_error'        => 'Failed to sync calendar events.',
                 ] );
                 return $listing;
             }
@@ -142,7 +142,7 @@ final class CalendarModule {
                 foreach ( $items as $item ) {
                     $event    = (array) $item;
                     $event_id = trim( (string) ( $event['id'] ?? '' ) );
-                    $status   = \sanitize_key( (string) ( $event['status'] ?? 'confirmed' ) ) ?: 'confirmed';
+                    $status   = \metis_key_clean( (string) ( $event['status'] ?? 'confirmed' ) ) ?: 'confirmed';
                     if ( $event_id === '' ) {
                         continue;
                     }
@@ -154,19 +154,18 @@ final class CalendarModule {
                 }
             }
 
-            global $wpdb;
             $events_table = \Metis_Tables::get( 'calendar_events' );
-            $cached_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(1) FROM {$events_table} WHERE calendar_id = %s", $calendar_id ) );
+            $cached_count = (int) \metis_db()->scalar( "SELECT COUNT(1) FROM {$events_table} WHERE calendar_id = %s", [ $calendar_id ] );
 
             \metis_sync_state_update( SyncStore::syncServiceKey( $calendar_id ), [
-                'last_sync'  => \current_time( 'mysql' ),
+                'last_sync'  => \metis_current_time( 'mysql' ),
                 'sync_token' => (string) ( $listing['next_sync_token'] ?? $sync_token ),
             ] );
 
             SyncStore::updateSyncState( $calendar_id, [
                 'calendar_name'     => $calendar_name,
-                'last_synced_at'    => \current_time( 'mysql' ),
-                'last_requested_at' => \current_time( 'mysql' ),
+                'last_synced_at'    => \metis_current_time( 'mysql' ),
+                'last_requested_at' => \metis_current_time( 'mysql' ),
                 'sync_status'       => 'idle',
                 'item_count'        => $cached_count,
                 'last_error'        => '',
@@ -227,7 +226,7 @@ final class CalendarModule {
     public static function syncAllConfiguredCalendars(): array {
         $workspace = Settings::workspaceSettingsAll();
         if ( empty( $workspace['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $workspace['error'] ?? 'Workspace config missing.' ) ];
+            return [ 'ok' => false, 'error' => 'Workspace config missing.' ];
         }
 
         $results = [];

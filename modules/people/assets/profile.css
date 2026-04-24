@@ -1,0 +1,948 @@
+/* ============================================================
+   Metis People Module – UI
+   Core modal, form, chip, toolbar, and stat card patterns
+   are all inherited from core.css.
+   ============================================================ */
+
+/* ── People list ──────────────────────────────────────────── */
+
+.metis-people { display: flex; flex-direction: column; gap: 20px; }
+
+/* Toolbar */
+.metis-people-toolbar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.metis-people-toolbar-left  { display: flex; align-items: flex-end; gap: 8px; }
+.metis-people-toolbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* Table */
+.metis-people-table { display: flex; flex-direction: column; gap: 0; }
+
+.metis-people-table .mw-premium-header,
+.metis-people-row {
+    display: grid;
+    grid-template-columns: minmax(200px, 1.4fr) minmax(210px, 1.3fr) 110px minmax(180px, 1.1fr) minmax(180px, 1.1fr) 110px 80px;
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-people-table .mw-premium-header {
+    background: #eceeff; color: var(--mw-primary-dark);
+    font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+    border-radius: var(--mw-radius) var(--mw-radius) 0 0;
+    border: 1px solid #d5d9f0; border-bottom: none;
+    padding: 8px 0; margin-bottom: 0;
+}
+
+#metis-people-rows { display: flex; flex-direction: column; gap: 0; margin-top: 0; }
+
+.metis-people-row {
+    background: #fff; border: 1px solid var(--mw-border); border-top: none; border-radius: 0;
+    cursor: pointer;
+    transition: background var(--mw-transition), border-color var(--mw-transition), box-shadow var(--mw-transition);
+}
+.metis-people-row:last-child { border-radius: 0 0 var(--mw-radius) var(--mw-radius); }
+.metis-people-row:hover { background: #eef2ff; border-color: #b3bfee; box-shadow: 0 4px 12px rgba(72,91,199,.1); z-index: 1; position: relative; }
+.metis-people-row .mw-premium-cell { padding: 10px 14px; min-width: 0; }
+
+/* Person name + PID cell */
+.metis-ppl-name-cell { display: flex; align-items: center; gap: 10px; }
+.metis-ppl-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--mw-primary); color: #fff; font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
+    border: 1px solid rgba(72,91,199,.2);
+}
+.metis-ppl-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.metis-ppl-name-text strong { display: block; font-size: 15px; line-height: 1.2; }
+.metis-ppl-name-text .mw-muted { font-size: 12px; }
+
+/* Role chips in list */
+.metis-ppl-role-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.metis-ppl-role-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: #eef0ff; border: 1px solid #c9ceee; color: var(--mw-primary-dark);
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+
+/* Status dots */
+.metis-ppl-status-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.metis-ppl-status-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
+.metis-ppl-status-dot.is-active::before   { background: #22c55e; }
+.metis-ppl-status-dot.is-inactive::before { background: #f59e0b; }
+
+/* ── Dashboard tiles ─────────────────────────────────────── */
+
+.metis-people-dashboard { display: flex; flex-direction: column; gap: 20px; }
+
+.metis-people-dashboard .mw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 20px; }
+.metis-people-dashboard .mw-tile { text-decoration: none; color: inherit; }
+.metis-people-dashboard .mw-tile-inner {
+    background: #fff; border-radius: 8px; padding: 24px; box-shadow: var(--mw-shadow);
+    transition: transform .15s ease, box-shadow .15s ease;
+    min-height: 200px; display: flex; flex-direction: column; justify-content: space-between;
+}
+.metis-people-dashboard .mw-tile-inner:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.09); }
+.metis-people-dashboard .mw-tile-title  { font-size: 1.35rem; font-weight: 700; color: var(--mw-primary); margin-bottom: 10px; }
+.metis-people-dashboard .mw-tile-desc  { font-size: .95rem; color: #555; line-height: 1.5; flex-grow: 1; }
+.metis-people-dashboard .mw-tile-cta   { margin-top: 16px; font-size: .95rem; font-weight: 700; color: var(--mw-accent); }
+
+/* Search tile */
+.metis-people-search-tile .mw-tile-desc { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.metis-people-search-input-wrap { position: relative; width: 100%; }
+.metis-people-search-tile .mw-input { width: 100%; box-sizing: border-box; }
+.metis-people-search-results {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+    z-index: 30; background: #fff; border: 1px solid var(--mw-border);
+    border-radius: 8px; box-shadow: 0 10px 24px rgba(26,34,58,.14);
+    max-height: 220px; overflow-y: auto;
+}
+.metis-people-search-result { width: 100%; text-align: left; padding: 10px 12px; border: 0; border-bottom: 1px solid #edf0f7; background: #fff; color: var(--mw-text); cursor: pointer; }
+.metis-people-search-result:last-child { border-bottom: 0; }
+.metis-people-search-result:hover { background: #f3f6fd; }
+
+/* ── Person detail – 3-column shell ─────────────────────── */
+
+.metis-people-detail { display: flex; flex-direction: column; gap: 16px; }
+.metis-people-detail-header {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+
+.metis-people-person-grid {
+    display: grid;
+    grid-template-columns: 240px 176px minmax(0, 1fr);
+    gap: 16px; align-items: start;
+}
+
+/* ── Profile card (left column) ─────────────────────────── */
+
+.metis-people-profile-card {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 10px; padding: 22px 16px;
+    background: #fff; border: 1px solid var(--mw-border); border-radius: 10px;
+    position: sticky; top: 16px;
+}
+
+.metis-people-profile-avatar-wrap {
+    width: 100px; height: 100px; border-radius: 50%; overflow: hidden;
+    border: 3px solid #e0e4f8; background: #eef0ff; flex-shrink: 0;
+}
+.metis-people-profile-avatar { width: 100%; height: 100%; object-fit: cover; display: block; }
+.metis-people-profile-card h3 { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.2; }
+
+.metis-people-profile-meta { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+.metis-people-profile-meta-row { display: flex; align-items: baseline; justify-content: center; gap: 5px; font-size: 12px; color: var(--mw-text-muted); }
+.metis-people-profile-meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #aab2cc; }
+.metis-people-profile-divider { width: 100%; border: none; border-top: 1px solid var(--mw-border); margin: 2px 0; }
+
+.metis-people-profile-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; width: 100%; }
+.metis-people-profile-tag { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #eef0ff; border: 1px solid #c9ceee; color: var(--mw-primary-dark); }
+.metis-people-profile-tag.is-board     { background: #fef3c7; border-color: #fbbf24; color: #92400e; }
+.metis-people-profile-tag.is-staff     { background: #dcfce7; border-color: #86efac; color: #166534; }
+.metis-people-profile-tag.is-volunteer { background: #fce7f3; border-color: #f9a8d4; color: #9d174d; }
+
+.metis-people-profile-actions { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+
+/* ── Vertical tab sidebar (middle column) ────────────────── */
+
+.metis-people-tab-sidebar {
+    display: flex; flex-direction: column; gap: 2px;
+    background: #fff; border: 1px solid var(--mw-border); border-radius: 10px;
+    padding: 8px 6px; position: sticky; top: 16px;
+}
+
+.metis-people-tab-nav-btn {
+    display: flex; align-items: center; gap: 9px; padding: 9px 12px;
+    border-radius: 7px; border: none; background: transparent; color: var(--mw-text-muted);
+    font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    text-align: left; transition: background var(--mw-transition), color var(--mw-transition);
+    width: 100%; white-space: nowrap;
+}
+.metis-people-tab-nav-btn:hover { background: #f0f2fb; color: var(--mw-text); }
+.metis-people-tab-nav-btn.is-active { background: #eceeff; color: var(--mw-primary); }
+.metis-people-tab-nav-btn.is-active .metis-tab-icon { color: var(--mw-primary); }
+
+.metis-tab-icon { width: 16px; height: 16px; flex-shrink: 0; color: #aab2cc; transition: color var(--mw-transition); }
+.metis-tab-nav-divider { border: none; border-top: 1px solid var(--mw-border); margin: 4px 6px; }
+
+/* ── Tab panels (right column) ──────────────────────────── */
+
+.metis-people-tab-content {
+    background: #fff; border: 1px solid var(--mw-border); border-radius: 10px;
+    padding: 24px; min-height: 400px;
+}
+.metis-tab-panel { display: none; }
+.metis-tab-panel.is-active { display: block; }
+
+.metis-people-drive-picker-inner { max-width: 760px; }
+.metis-people-drive-picker-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.metis-people-drive-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 180px;
+    max-height: 420px;
+    overflow: auto;
+    padding: 4px 0;
+}
+.metis-people-drive-picker-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid #e9edf7;
+    border-radius: 8px;
+    background: #fbfcff;
+}
+.metis-people-drive-picker-row:hover {
+    border-color: #c9ceee;
+    background: #f4f6ff;
+}
+.metis-people-drive-picker-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.metis-people-drive-picker-open {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--mw-primary);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+.metis-people-drive-picker-open:hover { text-decoration: underline; }
+.metis-people-drive-picker-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.metis-people-position-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 34px;
+    padding: 8px;
+    border: 1px solid #d8deeb;
+    border-radius: 10px;
+    background: #fff;
+}
+.metis-people-position-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    border: 1px solid #cfd6ee;
+    background: #f6f8ff;
+    color: #1f2a44;
+    font-size: 12px;
+}
+.metis-people-position-pill button {
+    border: 0;
+    background: transparent;
+    color: #991b1b;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+}
+
+/* Panel headings */
+.metis-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--mw-border);
+}
+.metis-panel-title    { margin: 0; font-size: 18px; font-weight: 700; color: var(--mw-text); }
+.metis-panel-subtitle { margin: 4px 0 0; font-size: 13px; color: var(--mw-text-muted); }
+
+/* Section subtitles within a panel */
+.metis-people-form-subtitle {
+    margin: 16px 0 4px; padding-top: 14px; border-top: 1px solid #eceff7;
+    color: var(--mw-primary); font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+}
+.metis-people-form-subtitle:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+
+/* ── Access / Roles tab ──────────────────────────────────── */
+
+.metis-people-access-shell { display: flex; flex-direction: column; gap: 20px; }
+.metis-people-access-block { display: flex; flex-direction: column; gap: 10px; }
+.metis-people-access-block > label { font-size: 13px; font-weight: 700; color: var(--mw-text-muted); text-transform: uppercase; letter-spacing: .05em; }
+
+.metis-people-role-grid { display: flex; flex-direction: column; gap: 6px; }
+.metis-people-role-head {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) 120px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px; padding: 0 10px;
+    color: var(--mw-text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+}
+
+.metis-people-role-row {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) 120px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px; align-items: center; padding: 9px 10px;
+    border: 1px solid #e9edf7; border-radius: 8px; background: #fbfcff;
+    transition: border-color var(--mw-transition), background var(--mw-transition); min-width: 0;
+}
+.metis-people-role-row:hover { border-color: #c9ceee; background: #f4f6ff; }
+
+.metis-role-label-stack { display: inline-flex; flex-direction: column; gap: 1px; }
+.metis-role-subtitle { color: var(--mw-text-muted); font-size: 11px; }
+
+/* Effective permissions chips */
+.metis-people-check-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.metis-perm-chip {
+    display: inline-block; padding: 3px 9px; border-radius: 999px;
+    background: #f0f2fb; border: 1px solid #d3d8f0; color: var(--mw-primary-dark);
+    font-size: 12px; font-weight: 600; font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.metis-chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* ── Security tab ────────────────────────────────────────── */
+
+.metis-people-security-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.metis-people-totp-qr { width: 150px; max-width: 100%; height: auto; border: 1px solid var(--mw-border); border-radius: 8px; background: #fff; padding: 6px; }
+.metis-avatar-cropper { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 18px; align-items: center; }
+.metis-avatar-canvas { width: min(100%, 320px); height: auto; border-radius: 16px; border: 1px solid var(--mw-border); background: #f3f5fb; touch-action: none; cursor: grab; }
+.metis-avatar-canvas:active { cursor: grabbing; }
+.metis-avatar-preview-shell { display: grid; gap: 8px; justify-items: center; }
+.metis-avatar-preview-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--mw-text-muted); }
+.metis-avatar-preview-wrap { width: 96px; height: 96px; border-radius: 999px; overflow: hidden; border: 3px solid #fff; box-shadow: var(--mw-shadow); background: #eef2f7; }
+.metis-avatar-preview { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Notification grid ───────────────────────────────────── */
+
+.metis-people-notify-grid { display: grid; grid-template-columns: minmax(220px,1fr) 64px 64px; gap: 8px; align-items: center; }
+.metis-people-notify-head  { font-size: 11px; font-weight: 700; color: var(--mw-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.metis-people-notify-event { font-size: 14px; font-weight: 600; }
+.metis-people-notify-cell  { display: flex; justify-content: center; }
+
+/* ── Workspace tab ───────────────────────────────────────── */
+
+.metis-people-workspace-group-toggle-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.metis-people-workspace-group-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.metis-people-workspace-group-toggle.is-active { background: #e0ebff; border-color: #7f9de0; color: #1d3370; }
+
+/* Workspace user table columns */
+.metis-workspace-user-table .mw-premium-header,
+.metis-workspace-user-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.4fr) minmax(180px, 1.2fr) minmax(120px, .9fr) minmax(120px, .9fr) 100px minmax(130px, .9fr) 140px;
+    align-items: center;
+    column-gap: 0;
+}
+
+/* Workspace group table columns */
+.metis-workspace-group-table .mw-premium-header,
+.metis-workspace-group-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.4fr) minmax(180px, 1.3fr) minmax(0, 1.5fr) 90px 90px;
+    align-items: center;
+    column-gap: 0;
+}
+
+/* Workspace row base styles */
+.metis-workspace-user-row,
+.metis-workspace-group-row {
+    background: #fff; border: 1px solid var(--mw-border); border-top: none; border-radius: 0;
+    transition: background var(--mw-transition), border-color var(--mw-transition), box-shadow var(--mw-transition);
+}
+.metis-workspace-user-row:last-child,
+.metis-workspace-group-row:last-child { border-radius: 0 0 var(--mw-radius) var(--mw-radius); }
+.metis-workspace-user-row.is-clickable,
+.metis-workspace-group-row.is-clickable { cursor: pointer; }
+.metis-workspace-user-row.is-clickable:hover,
+.metis-workspace-group-row.is-clickable:hover { background: #eef2ff; border-color: #b3bfee; box-shadow: 0 4px 12px rgba(72,91,199,.1); z-index: 1; position: relative; }
+.metis-workspace-user-row .mw-premium-cell,
+.metis-workspace-group-row .mw-premium-cell { padding: 10px 14px; min-width: 0; }
+.metis-workspace-show-hidden-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 13px;
+}
+.metis-people-workspace .mw-list-layout {
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 8px;
+}
+.metis-people-workspace .mw-list-content {
+    min-width: 0;
+    isolation: isolate;
+}
+.metis-people-workspace .mw-list-sidebar {
+    margin-bottom: 0;
+}
+.metis-people-workspace .metis-people-stats {
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+.metis-people-workspace .mw-list-content .mw-premium-table {
+    margin-top: 0;
+}
+.metis-people-workspace .metis-people-role-grid {
+    margin-top: 10px !important;
+}
+.metis-workspace-log-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+}
+.metis-workspace-log-table .mw-premium-header,
+.metis-workspace-log-table .mw-premium-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.5fr) minmax(120px, 1.1fr) 100px 140px;
+    align-items: center;
+    column-gap: 0;
+}
+.metis-workspace-mini-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.metis-workspace-mini-error {
+    color: #b42318;
+    font-size: 13px;
+    line-height: 1.35;
+}
+.metis-people-mini-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.mw-chip.mw-chip-danger {
+    background: #fee4e2;
+    color: #b42318;
+    border: 1px solid #fda29b;
+}
+.metis-workspace-user-actions {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
+}
+.metis-workspace-actions-open {
+    min-width: 84px;
+}
+.metis-workspace-actions-menu {
+    grid-column: 1 / -1;
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    padding: 0 14px;
+    border-top: 1px solid transparent;
+    pointer-events: none;
+    transition: max-height .22s ease, opacity .18s ease, padding .22s ease, border-color .18s ease;
+}
+.metis-workspace-user-row.is-menu-open .metis-workspace-actions-menu {
+    max-height: 180px;
+    opacity: 1;
+    padding: 10px 14px 12px;
+    border-top-color: var(--mw-border);
+    pointer-events: auto;
+}
+.metis-workspace-actions-menu .mw-btn-xs {
+    width: auto;
+    min-width: 120px;
+    justify-content: center;
+    text-align: left;
+}
+.metis-workspace-user-row.is-menu-open {
+    background: #f7f9ff;
+}
+.metis-workspace-user-table,
+.metis-workspace-user-table #metis-workspace-user-rows,
+.metis-workspace-user-row {
+    overflow: visible;
+}
+.metis-workspace-user-row {
+    position: relative;
+    z-index: 1;
+}
+.metis-workspace-status-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.metis-workspace-empty-row .mw-premium-cell {
+    color: var(--mw-text-muted);
+}
+.metis-workspace-log-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--mw-border);
+    border-top: none;
+    background: #fff;
+}
+.metis-workspace-log-pagination-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.metis-workspace-page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mw-primary);
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.2;
+}
+.metis-workspace-page-link:hover {
+    text-decoration: underline;
+}
+
+.metis-people-bulk-layout {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+.metis-people-bulk-sidebar {
+    position: sticky;
+    top: 16px;
+}
+.metis-people-bulk-sidebar .metis-people-section-title {
+    margin-bottom: 8px;
+}
+.metis-people-bulk-sidebar-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+.metis-people-bulk-sidebar-actions .mw-btn {
+    flex: 1;
+}
+.metis-people-bulk-selected {
+    margin-bottom: 8px;
+}
+.metis-people-bulk-person-list {
+    border: 1px solid var(--mw-border);
+    border-radius: 10px;
+    max-height: 460px;
+    overflow: auto;
+    background: #fff;
+}
+.metis-people-bulk-person-item {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--mw-border);
+    cursor: pointer;
+}
+.metis-people-bulk-person-item:last-child {
+    border-bottom: none;
+}
+.metis-people-bulk-person-item:hover {
+    background: #f8faff;
+}
+.metis-people-bulk-person-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.metis-people-bulk-person-text strong {
+    font-size: 17px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+.metis-people-bulk-person-text .mw-muted {
+    font-size: 12px;
+    line-height: 1.2;
+    color: #6e7891;
+}
+.metis-people-bulk-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.metis-people-bulk-rowbox {
+    padding: 14px 16px;
+    background: #ffffff;
+    border: 1px solid #dfe4f6;
+    border-radius: 12px;
+    box-shadow: 0 1px 1px rgba(19, 31, 58, 0.03);
+}
+.metis-people-bulk-rowform {
+    display: grid;
+    grid-template-columns: minmax(210px, 260px) minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+}
+.metis-people-bulk-rowtitle {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.3;
+    font-weight: 700;
+}
+.metis-people-bulk-rowfields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(200px, 1fr));
+    gap: 10px 12px;
+    align-items: center;
+}
+.metis-people-bulk-rowfields-3 {
+    grid-template-columns: minmax(170px, .9fr) minmax(240px, 1.25fr) minmax(170px, .9fr);
+}
+.metis-people-bulk-field {
+    min-width: 0;
+}
+.metis-people-bulk-field label {
+    margin-bottom: 4px;
+    white-space: nowrap;
+    font-size: 14px;
+}
+.metis-people-bulk-rowform > .mw-btn {
+    min-width: 88px;
+    align-self: center;
+}
+.metis-people-bulk-rowform > .mw-btn.mw-btn-danger {
+    min-width: 88px;
+}
+.metis-people-bulk-inline-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: normal;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.metis-people-bulk-rowbox .mw-select {
+    height: 40px;
+    width: 100%;
+}
+
+@media (max-width: 1100px) {
+    .metis-people-bulk-layout {
+        grid-template-columns: 1fr;
+    }
+    .metis-people-bulk-sidebar {
+        position: static;
+    }
+    .metis-people-bulk-rowform {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+    .metis-people-bulk-rowtitle {
+        font-size: 17px;
+    }
+    .metis-people-bulk-rowfields,
+    .metis-people-bulk-rowfields-3 {
+        grid-template-columns: 1fr;
+    }
+    .metis-people-bulk-rowform > .mw-btn {
+        width: 100%;
+        min-width: 0;
+    }
+}
+.metis-workspace-entity-link {
+    color: #1f2638;
+    font-weight: 600;
+    text-decoration: none;
+}
+.metis-workspace-entity-link:hover {
+    color: var(--mw-primary);
+    text-decoration: underline;
+}
+.metis-workspace-role-check-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 8px 14px;
+    max-height: 240px;
+    overflow: auto;
+    padding: 10px 12px;
+    border: 1px solid #e3e6f5;
+    border-radius: 8px;
+    background: #fbfcff;
+}
+@media (max-width: 1200px) {
+    .metis-workspace-log-grid {
+        grid-template-columns: 1fr;
+    }
+}
+@media (max-width: 900px) {
+    .metis-workspace-log-table .mw-premium-header,
+    .metis-workspace-log-table .mw-premium-row {
+        grid-template-columns: minmax(140px, 1.4fr) minmax(100px, 1fr) 90px 120px;
+    }
+    .metis-workspace-role-check-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.metis-workspace-template-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.metis-workspace-template-row .mw-select { min-width: 200px; }
+#metis-workspace-group-perm-template-status { margin-top: 6px; }
+.metis-people-tabs-nav {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.metis-people-modal-inner #metis-workspace-group-form > .metis-people-tabs-nav,
+.metis-people-modal-inner #metis-workspace-group-form > .metis-tab-panel {
+    grid-column: 1 / -1;
+}
+.metis-people-modal-inner #metis-workspace-group-form > .metis-people-tabs-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+.metis-tab-btn {
+    white-space: nowrap;
+    width: auto;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.metis-tab-btn.is-active {
+    background: #eceeff;
+    border-color: #b8c4f0;
+    color: var(--mw-primary-dark);
+}
+.metis-workspace-adv-tabs-nav {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.metis-workspace-adv-tab-btn {
+    white-space: nowrap;
+}
+.metis-workspace-adv-tab-btn.is-active {
+    background: #eceeff;
+    border-color: #b8c4f0;
+    color: var(--mw-primary-dark);
+}
+.metis-workspace-adv-tab-panel { display: none; }
+.metis-workspace-adv-tab-panel.is-active { display: block; }
+.metis-workspace-members-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.metis-workspace-members-grid-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) minmax(160px, 220px);
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #d5dbe7;
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px 12px;
+}
+.metis-workspace-members-include-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.metis-workspace-members-include-wrap input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+.metis-workspace-members-user {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.metis-workspace-members-user strong {
+    font-size: 16px;
+    line-height: 1.2;
+    color: #1f2638;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.metis-workspace-members-user .mw-muted {
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.metis-workspace-members-role {
+    width: 100%;
+}
+.metis-workspace-external-add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px auto;
+    gap: 8px;
+    align-items: end;
+}
+@media (max-width: 900px) {
+    .metis-workspace-members-grid-row {
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 8px;
+    }
+    .metis-workspace-members-grid-row > div:last-child {
+        grid-column: 1 / -1;
+    }
+    .metis-workspace-external-add {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Role detail page ────────────────────────────────────── */
+
+.metis-people-role-detail { display: flex; flex-direction: column; gap: 20px; }
+.metis-people-section-subtitle { margin: 14px 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #aab2cc; }
+
+/* Role summary stat cards */
+.metis-role-summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 4px;
+}
+.metis-role-summary-stat {
+    background: #f8f9ff; border: 1px solid #e3e6f5; border-radius: 8px;
+    padding: 12px 14px;
+}
+.metis-role-summary-stat-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: #aab2cc; margin-bottom: 4px;
+}
+.metis-role-summary-stat-value {
+    font-size: 22px; font-weight: 800; color: var(--mw-primary-dark); line-height: 1;
+}
+
+/* Member chips */
+.metis-role-members-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.metis-role-member-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 999px;
+    background: #eef0ff; border: 1px solid #c9ceee;
+    text-decoration: none; color: var(--mw-primary-dark);
+    font-size: 13px; font-weight: 600;
+    transition: background var(--mw-transition), border-color var(--mw-transition);
+}
+.metis-role-member-chip:hover { background: #dde2ff; border-color: #a5aee8; }
+.metis-role-member-chip .mw-muted { font-size: 11px; font-weight: 400; }
+
+/* Permission groups */
+.metis-people-perm-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.metis-perm-group {
+    border: 1px solid #e3e6f5; border-radius: 8px; overflow: hidden;
+}
+.metis-perm-group-title {
+    background: #eceeff; color: var(--mw-primary-dark);
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    padding: 7px 12px; border-bottom: 1px solid #d5d9f0;
+}
+.metis-perm-group .metis-people-check-grid {
+    padding: 10px 12px; background: #fff;
+    display: flex; flex-wrap: wrap; gap: 6px 16px;
+}
+.metis-people-check { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
+.metis-people-check input[type="checkbox"] { accent-color: var(--mw-primary); width: 14px; height: 14px; }
+
+/* ── Roles list ──────────────────────────────────────────── */
+
+.metis-roles-wrap .mw-premium-header,
+.metis-role-row {
+    display: grid;
+    grid-template-columns: minmax(170px,1fr) minmax(190px,1.1fr) minmax(120px,.8fr) minmax(110px,.8fr) minmax(110px,.8fr) 90px;
+    align-items: center; column-gap: 0;
+}
+.metis-roles-wrap .mw-premium-header {
+    background: #eceeff; color: var(--mw-primary-dark);
+    font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+    border-radius: var(--mw-radius) var(--mw-radius) 0 0;
+    border: 1px solid #d5d9f0; border-bottom: none; padding: 8px 0;
+}
+.metis-roles-domain-heading { margin: 16px 0 2px; color: var(--mw-primary); font-size: 18px; font-weight: 800; }
+.metis-roles-domain-block { display: flex; flex-direction: column; margin-bottom: 20px; }
+#metis-role-rows { display: flex; flex-direction: column; gap: 0; }
+
+.metis-role-row {
+    background: #fff; border: 1px solid var(--mw-border); border-top: none; border-radius: 0;
+    cursor: pointer; transition: background var(--mw-transition), border-color var(--mw-transition), box-shadow var(--mw-transition);
+}
+.metis-roles-domain-block .metis-role-row:last-child { border-radius: 0 0 var(--mw-radius) var(--mw-radius); }
+.metis-role-row:hover { background: #eef2ff; border-color: #b3bfee; box-shadow: 0 4px 10px rgba(72,91,199,.1); z-index: 1; position: relative; }
+
+.metis-people-activity-log {
+    max-width: 1310px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.metis-people-activity-toolbar {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.metis-people-activity-filter-field {
+    margin-left: auto;
+    margin-bottom: 0;
+    max-width: 360px;
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+
+@media (max-width: 1200px) {
+    .metis-people-person-grid { grid-template-columns: 220px 160px minmax(0, 1fr); }
+}
+
+@media (max-width: 980px) {
+    .metis-people-person-grid { grid-template-columns: 1fr; }
+    .metis-people-profile-card { flex-direction: row; text-align: left; align-items: center; position: static; }
+    .metis-people-tab-sidebar { flex-direction: row; flex-wrap: wrap; position: static; padding: 6px; }
+    .metis-people-tab-nav-btn { flex: 0 0 auto; }
+    .metis-avatar-cropper { grid-template-columns: 1fr; justify-items: center; }
+    .metis-people-table .mw-premium-header,
+    .metis-people-row { grid-template-columns: 1fr; }
+    .metis-people-role-head,
+    .metis-people-role-row { grid-template-columns: 1fr; }
+    .metis-workspace-user-table .mw-premium-header,
+    .metis-workspace-user-row { grid-template-columns: 1fr; }
+    .metis-workspace-group-table .mw-premium-header,
+    .metis-workspace-group-row { grid-template-columns: 1fr; }
+    .metis-people-activity-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .metis-people-activity-filter-field {
+        margin-left: 0;
+        max-width: none;
+        width: 100%;
+    }
+}
+
+@media (max-width: 760px) {
+    .metis-people-profile-card { flex-direction: column; text-align: center; }
+}

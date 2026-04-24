@@ -7,25 +7,24 @@ final class SchemaManager {
     private static bool $schema_ready = false;
 
     public static function tableExists( string $table ): bool {
-        global $wpdb;
-
-        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        $db = self::db();
+        $exists = $db->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
         return $exists === $table;
     }
 
     public static function columnExists( string $table, string $column ): bool {
-        global $wpdb;
+        $db = self::db();
 
         if ( ! self::tableExists( $table ) ) {
             return false;
         }
 
-        $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+        $exists = $db->scalar( "SHOW COLUMNS FROM {$table} LIKE %s", [ $column ] );
         return ! empty( $exists );
     }
 
     public static function addColumnIfMissing( string $table, string $column, string $definition ): void {
-        global $wpdb;
+        $db = self::db();
 
         if ( ! self::tableExists( $table ) ) {
             \Metis_Logger::warn( 'Contacts schema: table missing, skipped column migration', [ 'table' => $table, 'column' => $column ] );
@@ -36,7 +35,7 @@ final class SchemaManager {
             return;
         }
 
-        $wpdb->query( "ALTER TABLE {$table} ADD COLUMN {$column} {$definition}" );
+        $db->execute( "ALTER TABLE {$table} ADD COLUMN {$column} {$definition}" );
         \Metis_Logger::info( 'Contacts schema: column added', [ 'table' => $table, 'column' => $column ] );
     }
 
@@ -52,6 +51,8 @@ final class SchemaManager {
         self::addColumnIfMissing( $contacts_table, 'first_name', "VARCHAR(120) DEFAULT ''" );
         self::addColumnIfMissing( $contacts_table, 'last_name', "VARCHAR(120) DEFAULT ''" );
         self::addColumnIfMissing( $contacts_table, 'cid', 'VARCHAR(16) DEFAULT NULL' );
+        self::addColumnIfMissing( $contacts_table, 'contact_uid', 'VARCHAR(16) DEFAULT NULL' );
+        self::addColumnIfMissing( $contacts_table, 'donor_uid', 'VARCHAR(16) DEFAULT NULL' );
 
         self::addColumnIfMissing( $details_table, 'contact_cid', 'VARCHAR(16) DEFAULT NULL' );
         self::addColumnIfMissing( $details_table, 'contact_id', 'BIGINT UNSIGNED DEFAULT NULL' );
@@ -62,6 +63,14 @@ final class SchemaManager {
         self::addColumnIfMissing( $details_table, 'relationships_json', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $notes_table, 'cid', 'VARCHAR(191) DEFAULT NULL' );
 
+        if ( function_exists( 'metis_entity_id_service' ) ) {
+            \metis_entity_id_service()->ensureSchema();
+        }
+
         self::$schema_ready = true;
+    }
+
+    private static function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
     }
 }

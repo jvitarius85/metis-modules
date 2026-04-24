@@ -25,7 +25,7 @@ final class Response {
     public static function html( string $body, int $status = 200, array $headers = [] ): self {
         return new self(
             $status,
-            array_merge( [ 'Content-Type' => 'text/html; charset=' . \get_bloginfo( 'charset' ) ], $headers ),
+            array_merge( [ 'Content-Type' => 'text/html; charset=UTF-8' ], $headers ),
             $body
         );
     }
@@ -33,7 +33,7 @@ final class Response {
     public static function json( array $payload, int $status = 200, array $headers = [] ): self {
         return new self(
             $status,
-            array_merge( [ 'Content-Type' => 'application/json; charset=' . \get_bloginfo( 'charset' ) ], $headers ),
+            array_merge( [ 'Content-Type' => 'application/json; charset=UTF-8' ], $headers ),
             \metis_json_encode( $payload ) ?: '{}'
         );
     }

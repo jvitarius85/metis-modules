@@ -3,8 +3,15 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Drive;
 
-final class DriveModule extends \Metis\Modules\LegacyModule {
-    protected static function bootModule(): void {
-        require_once METIS_PATH . 'includes/modules/drive/legacy.php';
+final class DriveModule {
+    private static bool $booted = false;
+
+    public static function boot(): void {
+        if ( self::$booted ) {
+            return;
+        }
+
+        self::$booted = true;
+        \Metis_Logger::info( 'Drive bootstrap loaded' );
     }
 }

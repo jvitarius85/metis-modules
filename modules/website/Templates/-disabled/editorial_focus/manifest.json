@@ -1,0 +1,11 @@
+{
+  "name": "Editorial Focus",
+  "slug": "editorial_focus",
+  "version": "1.0",
+  "description": "Reading-first structure with supportive sidebar rails for pages and posts.",
+  "regions": ["hero", "content", "footer"],
+  "supports": { "sticky_header": true, "responsive": true },
+  "layouts": { "homepage": "homepage.php", "page": "page.php", "post": "post.php" },
+  "default_sections": { "homepage": [], "page": [], "post": [] },
+  "profile": { "header_variant": "compact", "footer_variant": "columns", "body_variant": "reading" }
+}

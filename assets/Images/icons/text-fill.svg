@@ -1,0 +1,10 @@
+<svg id="Text-Fill--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Text Fill Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>text-fill</title>
+  <path d="M2 13h12v2H2Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M13 7.27a0.5 0.5 0 0 0 -0.125 -0.345l-4.29 -4.76A0.545 0.545 0 0 0 8.5 2.1V1h-1v1.5L2.16 7.37a0.5 0.5 0 0 0 -0.03 0.705l4.285 4.76a0.5 0.5 0 0 0 0.345 0.165h0.025a0.5 0.5 0 0 0 0.34 -0.13L12 8.4V10.5a0.5 0.5 0 0 0 1 0v-3.215l0 -0.015Zm-6.175 4.5 -3.615 -4L7.5 3.835V6h1V3.565l3.295 3.665Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

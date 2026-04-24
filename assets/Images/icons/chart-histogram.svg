@@ -1,0 +1,9 @@
+<svg id="Chart-Histogram--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Chart Histogram Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>chart--histogram</title>
+  <path d="M3 8c1.48635 0 2.1162 -1.1255 2.67235 -2.11865C6.23705 4.87205 6.725 4 8 4s1.76295 0.87205 2.32765 1.88135C10.8838 6.8745 11.51365 8 13 8h2v-1h-2c-0.85645 0 -1.2417 -0.61035 -1.79955 -1.6072C10.60375 4.32715 9.86155 3 8 3s-2.60375 1.32715 -3.20045 2.3928C4.2417 6.38965 3.85645 7 3 7H2V1H1v13a1 1 0 0 0 1 1h13v-1h-1v-3h-1v3h-2.0004L11 10h-1v4h-2V8h-1v6H4.9996L5 10H4v4H2V8Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

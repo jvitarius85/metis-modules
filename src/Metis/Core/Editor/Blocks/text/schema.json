@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["content"],
+  "properties": {
+    "content": { "type": "string", "default": "<p>Edit this text...</p>" },
+    "tag": { "type": "string", "default": "p" }
+  }
+}

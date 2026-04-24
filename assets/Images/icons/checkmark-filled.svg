@@ -1,0 +1,9 @@
+<svg id="Checkmark-Filled--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Checkmark Filled Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <path d="M8 1a7 7 0 1 0 7 7A7 7 0 0 0 8 1Zm-1 9.7954 -2.5 -2.5L5.2953 7.5 7 9.2046 10.705 5.5l0.79785 0.79295Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="inner-path" d="m7 10.7955 -2.5 -2.5L5.2955 7.5 7 9.2045 10.705 5.5l0.7975 0.7925L7 10.7955z" fill="none" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

@@ -3,13 +3,15 @@ declare(strict_types=1);
 
 namespace Metis\Services;
 
+use Metis\Core\Cache\CacheService;
+
 final class HermesDefinitionLibrary {
     private string $basePath;
     private ?array $library = null;
 
     public function __construct( ?string $basePath = null ) {
         $root = $basePath ?? ( defined( 'METIS_PATH' ) ? METIS_PATH : dirname( __DIR__, 3 ) . '/' );
-        $this->basePath = \trailingslashit( $root );
+        $this->basePath = \metis_trailingslashit( $root );
     }
 
     public function library(): array {
@@ -17,19 +19,21 @@ final class HermesDefinitionLibrary {
             return $this->library;
         }
 
-        $manifest = $this->readJsonFile( $this->absolutePath( 'config/hermes/library.json' ) );
+        $this->library = CacheService::remember( 'hermes.definition_library', 1800, function (): array {
+            $manifest = $this->readJsonFile( $this->absolutePath( 'config/hermes/library.json' ) );
 
-        $this->library = [
-            'schema_version' => (int) ( $manifest['schema_version'] ?? 1 ),
-            'manifest' => $manifest,
-            'context_packs' => $this->loadDefinitions( (array) ( $manifest['context_packs'] ?? [] ), 'context_pack' ),
-            'playbooks' => $this->loadDefinitions( (array) ( $manifest['playbooks'] ?? [] ), 'playbook' ),
-            'missions' => $this->loadDefinitions( (array) ( $manifest['missions'] ?? [] ), 'mission' ),
-            'dynamic_layer' => [
-                'schema' => $this->readJsonFile( $this->absolutePath( (string) ( $manifest['dynamic_layer']['schema_path'] ?? 'config/hermes/dynamic-context.schema.json' ) ) ),
-                'snapshot' => $this->loadDynamicSnapshot( (string) ( $manifest['dynamic_layer']['snapshot_path'] ?? 'storage/hermes/dynamic-context.json' ) ),
-            ],
-        ];
+            return [
+                'schema_version' => (int) ( $manifest['schema_version'] ?? 1 ),
+                'manifest' => $manifest,
+                'context_packs' => $this->loadDefinitions( (array) ( $manifest['context_packs'] ?? [] ), 'context_pack' ),
+                'playbooks' => $this->loadDefinitions( (array) ( $manifest['playbooks'] ?? [] ), 'playbook' ),
+                'missions' => $this->loadDefinitions( (array) ( $manifest['missions'] ?? [] ), 'mission' ),
+                'dynamic_layer' => [
+                    'schema' => $this->readJsonFile( $this->absolutePath( (string) ( $manifest['dynamic_layer']['schema_path'] ?? 'config/hermes/dynamic-context.schema.json' ) ) ),
+                    'snapshot' => $this->loadDynamicSnapshot( (string) ( $manifest['dynamic_layer']['snapshot_path'] ?? 'storage/hermes/dynamic-context.json' ) ),
+                ],
+            ];
+        } );
 
         return $this->library;
     }
@@ -51,15 +55,15 @@ final class HermesDefinitionLibrary {
     }
 
     public function getContextPack( string $key ): ?array {
-        return $this->contextPacks()[ \sanitize_key( $key ) ] ?? null;
+        return $this->contextPacks()[ \metis_key_clean( $key ) ] ?? null;
     }
 
     public function getPlaybook( string $key ): ?array {
-        return $this->playbooks()[ \sanitize_key( $key ) ] ?? null;
+        return $this->playbooks()[ \metis_key_clean( $key ) ] ?? null;
     }
 
     public function getMission( string $key ): ?array {
-        return $this->missions()[ \sanitize_key( $key ) ] ?? null;
+        return $this->missions()[ \metis_key_clean( $key ) ] ?? null;
     }
 
     public function runtimeSnapshot(): array {
@@ -80,8 +84,8 @@ final class HermesDefinitionLibrary {
         foreach ( $paths as $relativePath ) {
             $path = $this->absolutePath( (string) $relativePath );
             $definition = $this->readJsonFile( $path );
-            $type = \sanitize_key( (string) ( $definition['type'] ?? '' ) );
-            $key = \sanitize_key( (string) ( $definition['key'] ?? '' ) );
+            $type = \metis_key_clean( (string) ( $definition['type'] ?? '' ) );
+            $key = \metis_key_clean( (string) ( $definition['key'] ?? '' ) );
 
             if ( $type !== $expectedType ) {
                 throw new \RuntimeException( sprintf( 'Hermes definition [%s] must declare type [%s].', $path, $expectedType ) );
@@ -115,7 +119,38 @@ final class HermesDefinitionLibrary {
 
     private function absolutePath( string $relativePath ): string {
         $relativePath = ltrim( $relativePath, '/' );
-        return $this->basePath . $relativePath;
+
+        foreach ( $this->candidatePaths( $relativePath ) as $candidate ) {
+            $absolute = $this->basePath . ltrim( $candidate, '/' );
+            if ( is_file( $absolute ) ) {
+                return $absolute;
+            }
+        }
+
+        $candidates = $this->candidatePaths( $relativePath );
+        return $this->basePath . ltrim( $candidates[0] ?? $relativePath, '/' );
+    }
+
+    private function candidatePaths( string $relativePath ): array {
+        if ( str_starts_with( $relativePath, 'storage/config/hermes/' ) ) {
+            $suffix = substr( $relativePath, strlen( 'storage/config/hermes/' ) );
+
+            return [
+                'storage/config/hermes/' . $suffix,
+                'config/hermes/' . $suffix,
+            ];
+        }
+
+        if ( str_starts_with( $relativePath, 'config/hermes/' ) ) {
+            $suffix = substr( $relativePath, strlen( 'config/hermes/' ) );
+
+            return [
+                'storage/config/hermes/' . $suffix,
+                'config/hermes/' . $suffix,
+            ];
+        }
+
+        return [ $relativePath ];
     }
 
     private function readJsonFile( string $path ): array {

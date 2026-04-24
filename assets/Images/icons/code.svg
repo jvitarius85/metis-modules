@@ -1,0 +1,11 @@
+<svg id="Code--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" height="16" width="16">
+  <desc>
+    Code Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>code</title>
+  <path d="m31 16-7 7-1.41-1.41L28.17 16l-5.58-5.59L24 9l7 7z" fill="currentColor"></path>
+  <path d="m1 16 7-7 1.41 1.41L3.83 16l5.58 5.59L8 23l-7-7z" fill="currentColor"></path>
+  <path transform="rotate(-75 15.996 16)" d="M5.91 15h20.17v2H5.91Z" fill="currentColor"></path>
+  <path id="_Transparent_Rectangle_" transform="rotate(-90 16 16)" d="M0 0h32v32H0Z" fill="none"></path>
+</svg>

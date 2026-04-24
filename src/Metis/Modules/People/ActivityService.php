@@ -5,25 +5,22 @@ namespace Metis\Modules\People;
 
 final class ActivityService {
     public static function logActivity( ?int $person_id, string $activity_type, string $summary, array $details = [] ): void {
-        global $wpdb;
-
         $table = \Metis_Tables::get( 'people_activity' );
         $actor_person_id = AccessManager::getCurrentPersonId();
-        $wpdb->insert(
+        \metis_db()->insert(
             $table,
             [
                 'person_id' => $person_id ?: null,
                 'actor_person_id' => $actor_person_id > 0 ? $actor_person_id : null,
-                'activity_type' => \sanitize_key( $activity_type ),
-                'summary' => \sanitize_text_field( $summary ),
+                'activity_type' => \metis_key_clean( $activity_type ),
+                'summary' => \metis_text_clean( $summary ),
                 'details' => ! empty( $details ) ? \metis_json_encode( $details ) : null,
-                'created_at' => \current_time( 'mysql' ),
-            ],
-            [ '%d', '%d', '%s', '%s', '%s', '%s' ]
+                'created_at' => \metis_current_time( 'mysql' ),
+            ]
         );
 
         \metis_audit_log_activity(
-            'people_' . \sanitize_key( $activity_type ),
+            'people_' . \metis_key_clean( $activity_type ),
             [
                 'module' => 'people',
                 'resource' => [
@@ -42,7 +39,7 @@ final class ActivityService {
             str_contains( (string) $activity_type, 'access_request' )
         ) {
             \metis_audit_log_security(
-                'people_' . \sanitize_key( $activity_type ),
+                'people_' . \metis_key_clean( $activity_type ),
                 [
                     'module' => 'people',
                     'severity' => 'info',

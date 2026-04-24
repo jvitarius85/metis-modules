@@ -14,8 +14,8 @@ final class BoardModule {
         self::$booted = true;
         \Metis_Logger::info( 'Board bootstrap loaded' );
 
-        \metis_add_action( 'init', [ self::class, 'ensureSchema' ], 5 );
-        \metis_add_action( 'init', [ self::class, 'seedWorkflowTemplates' ], 7 );
+        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'seedWorkflowTemplates' ], 7 );
     }
 
     public static function canView(): bool { return Access::canView(); }

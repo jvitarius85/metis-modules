@@ -8,8 +8,8 @@ final class SchemaManager {
     private static bool $templates_seeded = false;
 
     public static function tableExists( string $table ): bool {
-        global $wpdb;
-        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        $db = self::db();
+        $exists = $db->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
         return $exists === $table;
     }
 
@@ -18,12 +18,8 @@ final class SchemaManager {
             return;
         }
 
-        global $wpdb;
-        if ( ! function_exists( 'dbDelta' ) ) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        }
-
-        $charset_collate         = $wpdb->get_charset_collate();
+        $db = self::db();
+        $charset_collate         = $db->connection()->get_charset_collate();
         $committees_table        = \Metis_Tables::get( 'board_committees' );
         $meetings_table          = \Metis_Tables::get( 'board_meetings' );
         $decisions_table         = \Metis_Tables::get( 'board_decisions' );
@@ -41,6 +37,7 @@ final class SchemaManager {
             name VARCHAR(191) NOT NULL,
             description TEXT DEFAULT NULL,
             chair_person_id BIGINT UNSIGNED DEFAULT NULL,
+            newsletter_list_id BIGINT UNSIGNED DEFAULT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -48,6 +45,7 @@ final class SchemaManager {
             UNIQUE KEY committee_code (committee_code),
             KEY name (name),
             KEY chair_person_id (chair_person_id),
+            KEY newsletter_list_id (newsletter_list_id),
             KEY is_active (is_active)
         ) {$charset_collate};";
 
@@ -66,8 +64,10 @@ final class SchemaManager {
             packet_source_minutes_meeting_id BIGINT UNSIGNED DEFAULT NULL,
             packet_financial_document_id BIGINT UNSIGNED DEFAULT NULL,
             google_calendar_event_id VARCHAR(191) DEFAULT NULL,
+            google_calendar_event_name VARCHAR(191) DEFAULT NULL,
             google_calendar_html_link VARCHAR(255) DEFAULT NULL,
             google_drive_folder_id VARCHAR(191) DEFAULT NULL,
+            google_drive_folder_name VARCHAR(191) DEFAULT NULL,
             google_drive_folder_url VARCHAR(255) DEFAULT NULL,
             attendance_locked TINYINT(1) NOT NULL DEFAULT 0,
             created_by_person_id BIGINT UNSIGNED DEFAULT NULL,
@@ -94,6 +94,7 @@ final class SchemaManager {
             votes_for INT NOT NULL DEFAULT 0,
             votes_against INT NOT NULL DEFAULT 0,
             votes_abstain INT NOT NULL DEFAULT 0,
+            decision_votes_json LONGTEXT DEFAULT NULL,
             passed TINYINT(1) NOT NULL DEFAULT 0,
             passed_at DATETIME DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -235,18 +236,70 @@ final class SchemaManager {
             KEY is_active (is_active)
         ) {$charset_collate};";
 
-        \dbDelta( $sql_committees );
-        \dbDelta( $sql_meetings );
-        \dbDelta( $sql_decisions );
-        \dbDelta( $sql_actions );
-        \dbDelta( $sql_attendance );
-        \dbDelta( $sql_documents );
-        \dbDelta( $sql_compliance );
-        \dbDelta( $sql_announcements );
-        \dbDelta( $sql_agenda_templates );
-        \dbDelta( $sql_decision_templates );
+        \metis_db_delta( $sql_committees );
+        \metis_db_delta( $sql_meetings );
+        \metis_db_delta( $sql_decisions );
+        \metis_db_delta( $sql_actions );
+        \metis_db_delta( $sql_attendance );
+        \metis_db_delta( $sql_documents );
+        \metis_db_delta( $sql_compliance );
+        \metis_db_delta( $sql_announcements );
+        \metis_db_delta( $sql_agenda_templates );
+        \metis_db_delta( $sql_decision_templates );
+        self::ensureRequiredColumns( $committees_table, $meetings_table, $decisions_table );
+
+        if ( function_exists( 'metis_entity_id_service' ) ) {
+            \metis_entity_id_service()->ensureSchema();
+        }
 
         self::$schema_ready = true;
+    }
+
+    private static function ensureRequiredColumns( string $committees_table, string $meetings_table, string $decisions_table ): void {
+        $db = self::db();
+        $committee_cols = self::tableColumns( $committees_table );
+        if ( ! isset( $committee_cols['newsletter_list_id'] ) ) {
+            $db->execute( "ALTER TABLE {$committees_table} ADD COLUMN newsletter_list_id BIGINT UNSIGNED DEFAULT NULL AFTER chair_person_id" );
+        }
+        if ( ! self::tableIndexExists( $committees_table, 'newsletter_list_id' ) ) {
+            $db->execute( "ALTER TABLE {$committees_table} ADD KEY newsletter_list_id (newsletter_list_id)" );
+        }
+
+        $meeting_cols = self::tableColumns( $meetings_table );
+        if ( ! isset( $meeting_cols['google_calendar_event_name'] ) ) {
+            $db->execute( "ALTER TABLE {$meetings_table} ADD COLUMN google_calendar_event_name VARCHAR(191) DEFAULT NULL AFTER google_calendar_event_id" );
+        }
+        if ( ! isset( $meeting_cols['google_drive_folder_name'] ) ) {
+            $db->execute( "ALTER TABLE {$meetings_table} ADD COLUMN google_drive_folder_name VARCHAR(191) DEFAULT NULL AFTER google_drive_folder_id" );
+        }
+
+        $decision_cols = self::tableColumns( $decisions_table );
+        if ( ! isset( $decision_cols['decision_votes_json'] ) ) {
+            $db->execute( "ALTER TABLE {$decisions_table} ADD COLUMN decision_votes_json LONGTEXT DEFAULT NULL AFTER votes_abstain" );
+        }
+    }
+
+    private static function tableIndexExists( string $table, string $index_name ): bool {
+        $db = self::db();
+        $rows = $db->fetchAll( "SHOW INDEX FROM {$table} WHERE Key_name = %s", [ $index_name ] ) ?: [];
+        return ! empty( $rows );
+    }
+
+    /** @return array<string,bool> */
+    private static function tableColumns( string $table ): array {
+        $db = self::db();
+        $rows = $db->fetchAll( "SHOW COLUMNS FROM {$table}" ) ?: [];
+        $cols = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $name = trim( (string) ( $row['Field'] ?? '' ) );
+            if ( $name !== '' ) {
+                $cols[$name] = true;
+            }
+        }
+        return $cols;
     }
 
     public static function seedWorkflowTemplates(): void {
@@ -256,7 +309,7 @@ final class SchemaManager {
         self::$templates_seeded = true;
 
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $agenda_table   = \Metis_Tables::get( 'board_agenda_templates' );
         $decision_table = \Metis_Tables::get( 'board_decision_templates' );
@@ -270,10 +323,10 @@ final class SchemaManager {
             [ 'Action Team Update', 'Action Team status and upcoming meeting prep.', [ 'Prior Action Team recap', 'Next meeting plan' ], 60, 0 ],
             [ 'Executive Session', 'Executive session if needed.', [ 'Executive session if needed' ], 70, 0 ],
         ];
-        $agenda_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$agenda_table}" );
+        $agenda_count = (int) $db->scalar( "SELECT COUNT(*) FROM {$agenda_table}" );
         if ( $agenda_count < 1 ) {
             foreach ( $agenda_defaults as $row ) {
-                $wpdb->insert( $agenda_table, [
+                $db->insert( $agenda_table, [
                     'template_code'      => Support::generateCode( 'BAT', $agenda_table, 'template_code' ),
                     'name'               => $row[0],
                     'description'        => $row[1],
@@ -294,10 +347,10 @@ final class SchemaManager {
             [ 'Approve Budget Adjustment', 'Approve budget reallocation or adjustment.', 60 ],
             [ 'Approve Executive Session Action', 'Approve action originating from executive session.', 70 ],
         ];
-        $decision_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$decision_table}" );
+        $decision_count = (int) $db->scalar( "SELECT COUNT(*) FROM {$decision_table}" );
         if ( $decision_count < 1 ) {
             foreach ( $decision_defaults as $row ) {
-                $wpdb->insert( $decision_table, [
+                $db->insert( $decision_table, [
                     'template_code'    => Support::generateCode( 'BDT', $decision_table, 'template_code' ),
                     'title'            => $row[0],
                     'description'      => $row[1],
@@ -308,7 +361,7 @@ final class SchemaManager {
             }
         }
 
-        $migrate_flag = (string) \get_option( 'metis_board_workflow_defaults_v2', '' );
+        $migrate_flag = (string) \metis_get_option( 'metis_board_workflow_defaults_v2', '' );
         if ( $migrate_flag !== '1' ) {
             $legacy_names = [
                 'Call to Order',
@@ -319,12 +372,12 @@ final class SchemaManager {
                 'New Business',
                 'Adjournment',
             ];
-            $has_new_defaults = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$agenda_table} WHERE name = %s AND is_active = 1", 'Board Business' ) ) > 0;
-            $legacy_active_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$agenda_table} WHERE is_active = 1 AND name IN ('" . implode( "','", array_map( 'esc_sql', $legacy_names ) ) . "')" );
+            $has_new_defaults = (int) $db->scalar( "SELECT COUNT(*) FROM {$agenda_table} WHERE name = %s AND is_active = 1", [ 'Board Business' ] ) > 0;
+            $legacy_active_count = (int) $db->scalar( "SELECT COUNT(*) FROM {$agenda_table} WHERE is_active = 1 AND name IN ('" . implode( "','", array_map( 'esc_sql', $legacy_names ) ) . "')" );
             if ( ! $has_new_defaults && $legacy_active_count > 0 ) {
-                $wpdb->query( "UPDATE {$agenda_table} SET is_active = 0 WHERE is_active = 1 AND name IN ('" . implode( "','", array_map( 'esc_sql', $legacy_names ) ) . "')" );
+                $db->execute( "UPDATE {$agenda_table} SET is_active = 0 WHERE is_active = 1 AND name IN ('" . implode( "','", array_map( 'esc_sql', $legacy_names ) ) . "')" );
                 foreach ( $agenda_defaults as $row ) {
-                    $wpdb->insert( $agenda_table, [
+                    $db->insert( $agenda_table, [
                         'template_code'      => Support::generateCode( 'BAT', $agenda_table, 'template_code' ),
                         'name'               => $row[0],
                         'description'        => $row[1],
@@ -335,7 +388,11 @@ final class SchemaManager {
                     ], [ '%s', '%s', '%s', '%s', '%d', '%d', '%d' ] );
                 }
             }
-            \update_option( 'metis_board_workflow_defaults_v2', '1', false );
+            \metis_update_option( 'metis_board_workflow_defaults_v2', '1', false );
         }
+    }
+
+    private static function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
     }
 }

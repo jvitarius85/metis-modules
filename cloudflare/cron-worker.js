@@ -29,7 +29,7 @@ async function triggerCron(env, trigger) {
     };
   }
 
-  const url = new URL("/system/cron", env.METIS_ORIGIN_URL);
+  const url = resolveCronUrl(env.METIS_ORIGIN_URL);
   const requestId = crypto.randomUUID();
   const response = await fetch(url.toString(), {
     method: "POST",
@@ -58,4 +58,26 @@ async function triggerCron(env, trigger) {
     status: response.status,
     body,
   };
+}
+
+function resolveCronUrl(originUrl) {
+  const origin = new URL(originUrl);
+  const path = origin.pathname.replace(/\/+$/, "");
+
+  if (path === "/system/cron.php" || path.endsWith("/system/cron.php")) {
+    origin.pathname = path;
+    origin.search = "";
+    origin.hash = "";
+    return origin;
+  }
+
+  if (path === "/system/cron" || path.endsWith("/system/cron")) {
+    origin.pathname = path + ".php";
+    origin.search = "";
+    origin.hash = "";
+    return origin;
+  }
+
+  const basePath = path === "" ? "/" : path + "/";
+  return new URL("system/cron.php", origin.origin + basePath);
 }

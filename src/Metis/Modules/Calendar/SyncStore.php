@@ -11,14 +11,10 @@ final class SyncStore {
             return;
         }
 
-        global $wpdb;
-        $charset          = $wpdb->get_charset_collate();
+        $db               = self::db();
+        $charset          = $db->connection()->get_charset_collate();
         $events_table     = \Metis_Tables::get( 'calendar_events' );
         $sync_state_table = \Metis_Tables::get( 'calendar_sync_state' );
-
-        if ( ! function_exists( 'dbDelta' ) ) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        }
 
         $events_sql = "CREATE TABLE {$events_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -46,7 +42,7 @@ final class SyncStore {
             KEY event_start (event_start),
             KEY google_updated_at (google_updated_at)
         ) {$charset};";
-        \dbDelta( $events_sql );
+        \metis_db_delta( $events_sql );
 
         $sync_state_sql = "CREATE TABLE {$sync_state_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -63,7 +59,11 @@ final class SyncStore {
             KEY sync_status (sync_status),
             KEY last_synced_at (last_synced_at)
         ) {$charset};";
-        \dbDelta( $sync_state_sql );
+        \metis_db_delta( $sync_state_sql );
+
+        if ( function_exists( 'metis_entity_id_service' ) ) {
+            \metis_entity_id_service()->ensureSchema();
+        }
 
         self::$schema_ready = true;
     }
@@ -142,20 +142,17 @@ final class SyncStore {
 
     public static function syncState( string $calendar_id ): array {
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $table = \Metis_Tables::get( 'calendar_sync_state' );
-        $row   = $wpdb->get_row(
-            $wpdb->prepare( "SELECT * FROM {$table} WHERE calendar_id = %s LIMIT 1", $calendar_id ),
-            ARRAY_A
-        );
+        $row   = $db->fetchOne( "SELECT * FROM {$table} WHERE calendar_id = %s LIMIT 1", [ $calendar_id ] );
 
         return is_array( $row ) ? $row : [];
     }
 
     public static function updateSyncState( string $calendar_id, array $data ): void {
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $table   = \Metis_Tables::get( 'calendar_sync_state' );
         $payload = [
@@ -163,19 +160,19 @@ final class SyncStore {
             'calendar_name'     => array_key_exists( 'calendar_name', $data ) ? (string) ( $data['calendar_name'] ?? '' ) : null,
             'last_synced_at'    => array_key_exists( 'last_synced_at', $data ) ? ( $data['last_synced_at'] ?: null ) : null,
             'last_requested_at' => array_key_exists( 'last_requested_at', $data ) ? ( $data['last_requested_at'] ?: null ) : null,
-            'sync_status'       => \sanitize_key( (string) ( $data['sync_status'] ?? 'idle' ) ) ?: 'idle',
+            'sync_status'       => \metis_key_clean( (string) ( $data['sync_status'] ?? 'idle' ) ) ?: 'idle',
             'item_count'        => max( 0, (int) ( $data['item_count'] ?? 0 ) ),
             'last_error'        => array_key_exists( 'last_error', $data ) ? (string) ( $data['last_error'] ?? '' ) : null,
-            'updated_at'        => \current_time( 'mysql' ),
+            'updated_at'        => \metis_current_time( 'mysql' ),
         ];
 
         $existing = self::syncState( $calendar_id );
         if ( ! empty( $existing['id'] ) ) {
-            $wpdb->update( $table, $payload, [ 'id' => (int) $existing['id'] ], [ '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ], [ '%d' ] );
+            $db->update( $table, $payload, [ 'id' => (int) $existing['id'] ], [ '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ], [ '%d' ] );
             return;
         }
 
-        $wpdb->insert( $table, $payload, [ '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ] );
+        $db->insert( $table, $payload, [ '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ] );
     }
 
     public static function markRequested( string $calendar_id, string $calendar_name = '' ): void {
@@ -183,7 +180,7 @@ final class SyncStore {
         self::updateSyncState( $calendar_id, [
             'calendar_name'     => $calendar_name !== '' ? $calendar_name : (string) ( $state['calendar_name'] ?? '' ),
             'last_synced_at'    => (string) ( $state['last_synced_at'] ?? '' ),
-            'last_requested_at' => \current_time( 'mysql' ),
+            'last_requested_at' => \metis_current_time( 'mysql' ),
             'sync_status'       => (string) ( $state['sync_status'] ?? 'idle' ),
             'item_count'        => (int) ( $state['item_count'] ?? 0 ),
             'last_error'        => (string) ( $state['last_error'] ?? '' ),
@@ -211,49 +208,49 @@ final class SyncStore {
 
     public static function acquireSyncLock( string $calendar_id, int $ttl = 300 ): bool {
         $key = self::syncLockKey( $calendar_id );
-        if ( \get_transient( $key ) ) {
+        if ( \metis_get_transient( $key ) ) {
             return false;
         }
 
-        \set_transient( $key, 1, max( 60, $ttl ) );
+        \metis_set_transient( $key, 1, max( 60, $ttl ) );
         return true;
     }
 
     public static function releaseSyncLock( string $calendar_id ): void {
-        \delete_transient( self::syncLockKey( $calendar_id ) );
+        \metis_delete_transient( self::syncLockKey( $calendar_id ) );
     }
 
     public static function deleteCachedEvent( string $calendar_id, string $event_id ): void {
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $table = \Metis_Tables::get( 'calendar_events' );
         if ( $calendar_id === '' || $event_id === '' ) {
             return;
         }
 
-        $wpdb->delete( $table, [ 'calendar_id' => $calendar_id, 'event_id' => $event_id ], [ '%s', '%s' ] );
+        $db->delete( $table, [ 'calendar_id' => $calendar_id, 'event_id' => $event_id ], [ '%s', '%s' ] );
     }
 
     public static function storeEvent( string $calendar_id, array $item ): void {
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $table    = \Metis_Tables::get( 'calendar_events' );
-        $now      = \current_time( 'mysql' );
+        $now      = \metis_current_time( 'mysql' );
         $event_id = trim( (string) ( $item['id'] ?? '' ) );
         if ( $calendar_id === '' || $event_id === '' ) {
             return;
         }
 
-        $status = \sanitize_key( (string) ( $item['status'] ?? 'confirmed' ) ) ?: 'confirmed';
+        $status = \metis_key_clean( (string) ( $item['status'] ?? 'confirmed' ) ) ?: 'confirmed';
         if ( $status === 'cancelled' ) {
             self::deleteCachedEvent( $calendar_id, $event_id );
             return;
         }
 
         $private = (array) ( ( $item['extendedProperties']['private'] ?? [] ) );
-        $wpdb->replace(
+        $db->replace(
             $table,
             [
                 'calendar_id'       => $calendar_id,
@@ -265,8 +262,8 @@ final class SyncStore {
                 'event_start'       => self::eventStartDatetime( $item ),
                 'event_end'         => self::eventEndDatetime( $item ),
                 'is_all_day'        => ! empty( ( $item['start']['date'] ?? '' ) ) ? 1 : 0,
-                'event_type'        => \sanitize_key( (string) ( $private['metis_type'] ?? 'general' ) ) ?: 'general',
-                'event_module'      => \sanitize_key( (string) ( $private['metis_module'] ?? 'general' ) ) ?: 'general',
+                'event_type'        => \metis_key_clean( (string) ( $private['metis_type'] ?? 'general' ) ) ?: 'general',
+                'event_module'      => \metis_key_clean( (string) ( $private['metis_module'] ?? 'general' ) ) ?: 'general',
                 'etag'              => (string) ( $item['etag'] ?? '' ),
                 'google_updated_at' => self::datetimeFromGoogle( (string) ( $item['updated'] ?? '' ) ),
                 'html_link'         => (string) ( $item['htmlLink'] ?? '' ),
@@ -281,10 +278,10 @@ final class SyncStore {
 
     public static function replaceCachedEvents( string $calendar_id, array $items ): void {
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $table = \Metis_Tables::get( 'calendar_events' );
-        $wpdb->delete( $table, [ 'calendar_id' => $calendar_id ], [ '%s' ] );
+        $db->delete( $table, [ 'calendar_id' => $calendar_id ], [ '%s' ] );
 
         foreach ( $items as $item ) {
             self::storeEvent( $calendar_id, (array) $item );
@@ -305,7 +302,7 @@ final class SyncStore {
 
     public static function cachedEvents( array $cfg, int $start_ts, int $end_ts, string $search = '' ): array {
         self::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $table       = \Metis_Tables::get( 'calendar_events' );
         $calendar_id = (string) ( $cfg['calendar_id'] ?? '' );
@@ -328,15 +325,14 @@ final class SyncStore {
 
         if ( $search !== '' ) {
             $where[] = '(summary LIKE %s OR location LIKE %s OR description LIKE %s)';
-            $needle  = '%' . $wpdb->esc_like( $search ) . '%';
+            $needle  = '%' . $db->escapeLike( $search ) . '%';
             $args[]  = $needle;
             $args[]  = $needle;
             $args[]  = $needle;
         }
 
         $sql      = "SELECT raw_json, event_type, event_module FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY event_start ASC';
-        $prepared = $wpdb->prepare( $sql, ...$args );
-        $rows     = $wpdb->get_results( $prepared, ARRAY_A ) ?: [];
+        $rows     = $db->fetchAll( $sql, $args );
 
         $calendar_meta  = self::cachedCalendarMeta( $cfg );
         $calendar_name  = (string) ( $calendar_meta['summary'] ?? ( $cfg['calendar_name'] ?? '' ) );
@@ -349,8 +345,8 @@ final class SyncStore {
                 continue;
             }
 
-            $item['metis_type']    = \sanitize_key( (string) ( $row['event_type'] ?? ( $item['metis_type'] ?? 'general' ) ) );
-            $item['metis_module']  = \sanitize_key( (string) ( $row['event_module'] ?? ( $item['metis_module'] ?? 'general' ) ) );
+            $item['metis_type']    = \metis_key_clean( (string) ( $row['event_type'] ?? ( $item['metis_type'] ?? 'general' ) ) );
+            $item['metis_module']  = \metis_key_clean( (string) ( $row['event_module'] ?? ( $item['metis_module'] ?? 'general' ) ) );
             $item['calendar_id']   = $calendar_id;
             $item['calendar_label']= $calendar_label;
             $item['calendar_name'] = $calendar_name;
@@ -358,5 +354,9 @@ final class SyncStore {
         }
 
         return $items;
+    }
+
+    private static function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
     }
 }

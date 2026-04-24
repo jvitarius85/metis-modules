@@ -33,7 +33,7 @@ $port = (int) ($config['port'] ?? 3306);
 $user = (string) ($config['username'] ?? '');
 $pass = (string) ($config['password'] ?? '');
 $name = (string) ($config['database'] ?? '');
-$prefix = (string) ($config['prefix'] ?? 'wp_');
+$prefix = (string) ($config['prefix'] ?? 'metis_');
 
 $mysqli = mysqli_init();
 if (!$mysqli) {

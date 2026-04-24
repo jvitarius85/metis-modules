@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "count": { "type": "number", "default": 5 },
+    "layout": { "type": "string", "default": "list" },
+    "show_excerpt": { "type": "boolean", "default": true },
+    "show_date": { "type": "boolean", "default": true },
+    "source": { "type": "string", "default": "this_page" },
+    "parent_page_id": { "type": "number", "default": 0 },
+    "sort": { "type": "string", "default": "latest" }
+  }
+}

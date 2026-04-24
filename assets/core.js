@@ -17,14 +17,84 @@ function metisCsrfHeaders(token) {
     return headers;
 }
 
+function metisResolveAjaxUrl() {
+    if (window.metisAjax && window.metisAjax.ajax_url) {
+        return window.metisAjax.ajax_url;
+    }
+
+    if (window.mwtools_ajax_url) {
+        return window.mwtools_ajax_url;
+    }
+
+    var currentScript = document.currentScript;
+    var scriptSource = currentScript && currentScript.src ? currentScript.src : '';
+    if (!scriptSource) {
+        var coreScript = document.querySelector('script[src*="/assets/core.js"]');
+        scriptSource = coreScript && coreScript.src ? coreScript.src : '';
+    }
+
+    if (scriptSource) {
+        try {
+            var scriptUrl = new URL(scriptSource, window.location.href);
+            var scriptPath = scriptUrl.pathname.replace(/\/+$/, '');
+            var assetIndex = scriptPath.lastIndexOf('/assets/core.js');
+            if (assetIndex >= 0) {
+                return scriptPath.slice(0, assetIndex) + '/api/ajax';
+            }
+        } catch (error) {
+            /* Ignore malformed script URLs and fall back to request path handling. */
+        }
+    }
+
+    var path = String(window.location.pathname || '/');
+    var normalized = path.replace(/\/+$/, '');
+    var ajaxIndex = normalized.indexOf('/api/ajax');
+    if (ajaxIndex >= 0) {
+        return normalized.slice(0, ajaxIndex) + '/api/ajax';
+    }
+
+    return '/api/ajax';
+}
+
+function metisAuthFailureCode(payload) {
+    if (!payload || typeof payload !== 'object') return '';
+    if (payload.data && typeof payload.data === 'object' && typeof payload.data.code === 'string') {
+        return String(payload.data.code || '').toLowerCase();
+    }
+    if (typeof payload.code === 'string') {
+        return String(payload.code || '').toLowerCase();
+    }
+    return '';
+}
+
+function metisIsSessionAuthFailure(response, payload) {
+    if (!response || (response.status !== 401 && response.status !== 403)) {
+        return false;
+    }
+    var code = metisAuthFailureCode(payload);
+    if (code === 'authentication_required' || code === 'invalid_session' || code === 'session_expired' || code === 'session_required') {
+        return true;
+    }
+    var message = '';
+    if (payload && payload.data && typeof payload.data.message === 'string') {
+        message = payload.data.message;
+    } else if (payload && typeof payload.message === 'string') {
+        message = payload.message;
+    }
+    var normalized = String(message || '').toLowerCase();
+    return normalized.indexOf('authentication required') >= 0 || normalized.indexOf('invalid session') >= 0;
+}
+
 /* ============================================================
    AJAX HELPERS
    ============================================================ */
 
 Metis.ajax = {
-    url:   window.metisAjax?.ajax_url || window.mwtools_ajax_url || '/api/ajax',
+    url:   metisResolveAjaxUrl(),
+    ajax_url: metisResolveAjaxUrl(),
     nonce: window.metisAjax?.nonce    || window.mwtools_nonce    || '',
     actionNonces: window.metisAjax?.action_nonces || {},
+    action_nonces: window.metisAjax?.action_nonces || {},
 
     nonceFor(action, fallback) {
         if (action && this.actionNonces && this.actionNonces[action]) {
@@ -53,6 +123,9 @@ Metis.ajax = {
             throw new Error('HTTP ' + response.status);
         }).then(function (payload) {
             if (!response.ok) {
+                if (metisIsSessionAuthFailure(response, payload) && window.Metis && Metis.session && typeof Metis.session.onAuthFailure === 'function') {
+                    Metis.session.onAuthFailure(payload, response);
+                }
                 throw new Error(Metis.ajax.message(payload, 'HTTP ' + response.status));
             }
             return payload;
@@ -169,6 +242,297 @@ mwtools.postJSON = d => Metis.ajax.post(d);
 mwtools.getJSON  = u => Metis.ajax.get(u);
 
 /* ============================================================
+   SESSION LIVENESS + AUTH REDIRECT
+   ============================================================ */
+
+Metis.session = (function() {
+    var state = {
+        authenticated: false,
+        issuedAt: 0,
+        lastActivityAt: 0,
+        idleTtl: 1800,
+        absoluteTtl: 43200,
+        idleExpiresAt: 0,
+        absoluteExpiresAt: 0,
+        lastInteractionMs: 0,
+        lastInteractionRecordMs: 0,
+        lastPingAtSec: 0,
+        tickTimer: null,
+        redirecting: false,
+        warningCycleKey: '',
+        warningShown: false
+    };
+
+    function nowSec() {
+        return Math.floor(Date.now() / 1000);
+    }
+
+    function config() {
+        if (window.metisAjax && window.metisAjax.session && typeof window.metisAjax.session === 'object') {
+            return window.metisAjax.session;
+        }
+        return {};
+    }
+
+    function normalizeInt(value, fallback) {
+        var parsed = parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function loginUrlWithRedirect() {
+        var cfg = config();
+        var rawLoginUrl = cfg.login_url ? String(cfg.login_url) : '/login';
+
+        try {
+            var login = new URL(rawLoginUrl, window.location.origin);
+            login.searchParams.set('redirect_to', window.location.href);
+            return login.toString();
+        } catch (error) {
+            var separator = rawLoginUrl.indexOf('?') >= 0 ? '&' : '?';
+            return rawLoginUrl + separator + 'redirect_to=' + encodeURIComponent(window.location.href);
+        }
+    }
+
+    function redirectToLogin() {
+        if (state.redirecting) {
+            return;
+        }
+        state.redirecting = true;
+        window.location.assign(loginUrlWithRedirect());
+    }
+
+    function syncExpirations() {
+        state.idleExpiresAt = state.lastActivityAt > 0 ? state.lastActivityAt + state.idleTtl : 0;
+        state.absoluteExpiresAt = state.issuedAt > 0 ? state.issuedAt + state.absoluteTtl : 0;
+    }
+
+    function warningLeadSeconds() {
+        return 120;
+    }
+
+    function currentExpirySec() {
+        var idle = state.idleExpiresAt > 0 ? state.idleExpiresAt : 0;
+        var absolute = state.absoluteExpiresAt > 0 ? state.absoluteExpiresAt : 0;
+        if (idle > 0 && absolute > 0) {
+            return Math.min(idle, absolute);
+        }
+        return idle > 0 ? idle : absolute;
+    }
+
+    function resetWarningCycleIfNeeded() {
+        var expiry = currentExpirySec();
+        var cycleKey = String(expiry || '');
+        if (cycleKey !== state.warningCycleKey) {
+            state.warningCycleKey = cycleKey;
+            state.warningShown = false;
+        }
+    }
+
+    function formatRemaining(seconds) {
+        var remaining = Math.max(1, Math.floor(seconds));
+        var mins = Math.floor(remaining / 60);
+        var secs = remaining % 60;
+        if (mins <= 0) {
+            return secs + 's';
+        }
+        if (secs === 0) {
+            return mins + 'm';
+        }
+        return mins + 'm ' + secs + 's';
+    }
+
+    function maybeWarnExpiry() {
+        if (!state.authenticated || state.redirecting || !window.Metis || !Metis.toast || typeof Metis.toast.warning !== 'function') {
+            return;
+        }
+        resetWarningCycleIfNeeded();
+        if (state.warningShown) {
+            return;
+        }
+        var expiry = currentExpirySec();
+        if (expiry <= 0) {
+            return;
+        }
+        var remaining = expiry - nowSec();
+        if (remaining > 0 && remaining <= warningLeadSeconds()) {
+            state.warningShown = true;
+            Metis.toast.warning('Your session will expire in ' + formatRemaining(remaining) + '. Keep working to stay signed in.', {
+                title: 'Session Expiring Soon',
+                duration: 8000
+            });
+        }
+    }
+
+    function applyServerState(data) {
+        if (!data || typeof data !== 'object') {
+            return;
+        }
+
+        if (typeof data.authenticated !== 'undefined') {
+            state.authenticated = !!data.authenticated;
+        }
+        state.issuedAt = Math.max(0, normalizeInt(data.issued_at, state.issuedAt));
+        state.lastActivityAt = Math.max(0, normalizeInt(data.last_activity_at, state.lastActivityAt));
+        state.idleTtl = Math.max(60, normalizeInt(data.idle_ttl, state.idleTtl));
+        state.absoluteTtl = Math.max(60, normalizeInt(data.absolute_ttl, state.absoluteTtl));
+        state.idleExpiresAt = Math.max(0, normalizeInt(data.idle_expires_at, 0));
+        state.absoluteExpiresAt = Math.max(0, normalizeInt(data.absolute_expires_at, 0));
+
+        if (state.idleExpiresAt <= 0 || state.absoluteExpiresAt <= 0) {
+            syncExpirations();
+        }
+    }
+
+    function keepaliveLeadSeconds() {
+        return Math.max(60, Math.min(300, Math.floor(state.idleTtl * 0.2)));
+    }
+
+    function activeWindowSeconds() {
+        return Math.max(90, Math.min(360, keepaliveLeadSeconds() + 60));
+    }
+
+    function recordInteraction() {
+        var nowMs = Date.now();
+        if (nowMs - state.lastInteractionRecordMs < 1500) {
+            return;
+        }
+        state.lastInteractionRecordMs = nowMs;
+        state.lastInteractionMs = nowMs;
+    }
+
+    function hasRecentInteraction() {
+        if (state.lastInteractionMs <= 0) {
+            return false;
+        }
+        return (Date.now() - state.lastInteractionMs) <= (activeWindowSeconds() * 1000);
+    }
+
+    function shouldPingKeepalive() {
+        if (!state.authenticated) {
+            return false;
+        }
+        if (document.hidden) {
+            return false;
+        }
+        if (!hasRecentInteraction()) {
+            return false;
+        }
+        var now = nowSec();
+        if (state.lastPingAtSec > 0 && (now - state.lastPingAtSec) < 30) {
+            return false;
+        }
+        if (state.idleExpiresAt <= 0) {
+            return true;
+        }
+        return (state.idleExpiresAt - now) <= keepaliveLeadSeconds();
+    }
+
+    function isExpired() {
+        if (!state.authenticated) {
+            return false;
+        }
+        var now = nowSec();
+        if (state.absoluteExpiresAt > 0 && now >= state.absoluteExpiresAt) {
+            return true;
+        }
+        if (state.idleExpiresAt > 0 && now >= state.idleExpiresAt) {
+            return true;
+        }
+        return false;
+    }
+
+    function onAuthFailure(payload, response) {
+        if (!metisIsSessionAuthFailure(response, payload)) {
+            return;
+        }
+        redirectToLogin();
+    }
+
+    function pingKeepalive() {
+        var cfg = config();
+        var keepaliveUrl = cfg.keepalive_url ? String(cfg.keepalive_url) : '/api/auth/session/keepalive';
+        state.lastPingAtSec = nowSec();
+
+        return fetch(keepaliveUrl, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: metisCsrfHeaders(Metis.ajax.nonce || '')
+        })
+            .then(function(response) {
+                return response.json().catch(function() {
+                    return {};
+                }).then(function(payload) {
+                    if (!response.ok) {
+                        onAuthFailure(payload, response);
+                        return;
+                    }
+                    var data = payload && payload.data && typeof payload.data === 'object' ? payload.data : {};
+                    applyServerState(data);
+                });
+            })
+            .catch(function() {
+                /* Ignore transient network errors; next tick will retry if needed. */
+            });
+    }
+
+    function tick() {
+        if (!state.authenticated) {
+            return;
+        }
+
+        maybeWarnExpiry();
+
+        if (isExpired()) {
+            redirectToLogin();
+            return;
+        }
+
+        if (shouldPingKeepalive()) {
+            pingKeepalive();
+        }
+    }
+
+    function bindActivityListeners() {
+        ['click', 'keydown', 'touchstart', 'pointerdown', 'scroll', 'mousemove'].forEach(function(eventName) {
+            window.addEventListener(eventName, recordInteraction, { passive: true });
+        });
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                recordInteraction();
+                tick();
+            }
+        });
+    }
+
+    function init() {
+        var cfg = config();
+        applyServerState(cfg);
+        state.authenticated = !!cfg.authenticated;
+        state.lastInteractionMs = Date.now();
+        state.lastInteractionRecordMs = 0;
+        state.warningCycleKey = '';
+        state.warningShown = false;
+
+        if (!state.authenticated) {
+            return;
+        }
+
+        bindActivityListeners();
+        if (state.tickTimer) {
+            clearInterval(state.tickTimer);
+        }
+        state.tickTimer = window.setInterval(tick, 15000);
+        tick();
+    }
+
+    return {
+        init: init,
+        onAuthFailure: onAuthFailure,
+        redirectToLogin: redirectToLogin
+    };
+}());
+
+/* ============================================================
    SHARED UI / REQUEST HELPERS
    ============================================================ */
 
@@ -209,8 +573,46 @@ Metis.util = (function() {
 Metis.request = (function() {
 
     function resolveConfig(config, fallbackMessage) {
-        var resolved = config || window.metisAjax || null;
-        if (!resolved || !resolved.ajax_url || !resolved.nonce) {
+        var coreAjax = (window.Metis && Metis.ajax) ? Metis.ajax : null;
+        var globalAjax = (window.metisAjax && typeof window.metisAjax === 'object') ? window.metisAjax : {};
+        var specificAjax = (config && typeof config === 'object') ? config : {};
+        var actionNonces = Object.assign(
+            {},
+            (coreAjax && (coreAjax.action_nonces || coreAjax.actionNonces)) || {},
+            globalAjax.action_nonces || {},
+            specificAjax.action_nonces || {},
+            specificAjax.actionNonces || {}
+        );
+        var resolved = Object.assign({}, coreAjax || {}, globalAjax, specificAjax, {
+            ajax_url: String(
+                specificAjax.ajax_url
+                || specificAjax.url
+                || globalAjax.ajax_url
+                || globalAjax.url
+                || (coreAjax && (coreAjax.ajax_url || coreAjax.url))
+                || metisResolveAjaxUrl()
+                || ''
+            ).trim(),
+            url: String(
+                specificAjax.ajax_url
+                || specificAjax.url
+                || globalAjax.ajax_url
+                || globalAjax.url
+                || (coreAjax && (coreAjax.ajax_url || coreAjax.url))
+                || metisResolveAjaxUrl()
+                || ''
+            ).trim(),
+            nonce: String(
+                specificAjax.nonce
+                || globalAjax.nonce
+                || (coreAjax && coreAjax.nonce)
+                || ''
+            ).trim(),
+            action_nonces: actionNonces,
+            actionNonces: actionNonces
+        });
+
+        if (!resolved.ajax_url || !resolved.nonce) {
             throw new Error(fallbackMessage || 'AJAX not configured.');
         }
         return resolved;
@@ -269,10 +671,202 @@ Metis.request = (function() {
     }
 
     return {
+        config: resolveConfig,
         post: post,
         postForm: postForm
     };
 
+}());
+
+/* ============================================================
+   NAVIGATION GUARD
+   Metis.navigation.go(url)
+   Metis.navigation.replace(url)
+   Metis.navigation.validate(url, options)
+   ============================================================ */
+
+Metis.navigation = (function() {
+    var allowedPhpPaths = {
+        'index.php': true,
+        'system/ajax.php': true,
+        'system/cron.php': true,
+        'system/webhooks.php': true,
+        'system/shell.php': true
+    };
+
+    var blockedPrefixes = [
+        '/modules/',
+        '/core/',
+        '/config/',
+        '/tests/',
+        '/tools/',
+        '/.metis-'
+    ];
+
+    var initialized = false;
+
+    function toastInvalid(message) {
+        var text = String(message || 'Navigation blocked.');
+        if (window.Metis && Metis.toast && typeof Metis.toast.error === 'function') {
+            Metis.toast.error(text, { title: 'Navigation Blocked' });
+            return;
+        }
+        if (window.console && typeof window.console.warn === 'function') {
+            window.console.warn(text);
+        }
+    }
+
+    function normalizePathname(pathname) {
+        var value = String(pathname || '/').replace(/\/+/g, '/');
+        if (value === '') {
+            return '/';
+        }
+        return value.charAt(0) === '/' ? value : ('/' + value);
+    }
+
+    function resolve(url) {
+        try {
+            return new URL(String(url), window.location.href);
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function isAllowedPhpPath(pathname) {
+        var normalized = normalizePathname(pathname).replace(/^\/+/, '');
+        return !!allowedPhpPaths[normalized];
+    }
+
+    function isBlockedPrefix(pathname) {
+        var normalized = normalizePathname(pathname).toLowerCase();
+        return blockedPrefixes.some(function(prefix) {
+            return normalized.indexOf(prefix) === 0;
+        });
+    }
+
+    function validate(url, options) {
+        var raw = String(url == null ? '' : url).trim();
+        var opts = options || {};
+        if (raw === '' || raw === '#') {
+            return { ok: false, reason: 'empty_navigation_target', message: 'Navigation target is empty.' };
+        }
+        if (raw.charAt(0) === '#') {
+            return { ok: true, href: raw, external: false };
+        }
+
+        var target = resolve(raw);
+        if (!target) {
+            return { ok: false, reason: 'malformed_navigation_target', message: 'Navigation target is invalid.' };
+        }
+
+        var protocol = String(target.protocol || '').toLowerCase();
+        if (protocol === 'mailto:' || protocol === 'tel:') {
+            return { ok: true, href: target.href, external: true };
+        }
+
+        if (protocol !== 'http:' && protocol !== 'https:') {
+            return { ok: false, reason: 'unsupported_navigation_protocol', message: 'Navigation target uses an unsupported protocol.' };
+        }
+
+        var sameOrigin = target.origin === window.location.origin;
+        if (!sameOrigin) {
+            if (opts.allowExternal === true) {
+                return { ok: true, href: target.href, external: true };
+            }
+            return { ok: false, reason: 'external_navigation_blocked', message: 'External navigation must use an explicit external link target.' };
+        }
+
+        var pathname = normalizePathname(target.pathname || '/');
+        if (isBlockedPrefix(pathname)) {
+            return { ok: false, reason: 'blocked_internal_path', message: 'Direct navigation to internal source paths is blocked.' };
+        }
+
+        if (/\.php$/i.test(pathname) && !isAllowedPhpPath(pathname)) {
+            return { ok: false, reason: 'unapproved_php_entry', message: 'Direct navigation to unapproved PHP entry points is blocked.' };
+        }
+
+        return { ok: true, href: target.href, external: false };
+    }
+
+    function shouldBypassAnchor(anchor, event) {
+        if (!anchor) return true;
+        if (anchor.hasAttribute('download')) return true;
+        if (anchor.getAttribute('data-nav-allow') === '1') return true;
+        if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return true;
+        if (event && typeof event.button === 'number' && event.button !== 0) return true;
+        return false;
+    }
+
+    function allowExternalForAnchor(anchor) {
+        if (!anchor) return false;
+        var target = String(anchor.getAttribute('target') || '').toLowerCase();
+        if (target !== '' && target !== '_self') {
+            return true;
+        }
+        return anchor.getAttribute('rel') === 'external';
+    }
+
+    function go(url, options) {
+        var result = validate(url, options);
+        if (!result.ok) {
+            toastInvalid(result.message);
+            return false;
+        }
+        window.location.assign(result.href);
+        return true;
+    }
+
+    function replace(url, options) {
+        var result = validate(url, options);
+        if (!result.ok) {
+            toastInvalid(result.message);
+            return false;
+        }
+        window.location.replace(result.href);
+        return true;
+    }
+
+    function reload() {
+        window.location.reload();
+    }
+
+    function init() {
+        if (initialized) {
+            return;
+        }
+        initialized = true;
+
+        document.addEventListener('click', function(event) {
+            var target = event.target;
+            if (!target || typeof target.closest !== 'function') {
+                return;
+            }
+
+            var anchor = target.closest('a[href]');
+            if (!anchor || shouldBypassAnchor(anchor, event)) {
+                return;
+            }
+
+            var href = String(anchor.getAttribute('href') || '').trim();
+            if (href === '') {
+                return;
+            }
+
+            var result = validate(href, { allowExternal: allowExternalForAnchor(anchor) });
+            if (!result.ok) {
+                event.preventDefault();
+                toastInvalid(result.message);
+            }
+        }, true);
+    }
+
+    return {
+        init: init,
+        validate: validate,
+        go: go,
+        replace: replace,
+        reload: reload
+    };
 }());
 
 
@@ -363,6 +957,125 @@ Metis.toast = (function() {
         error:   function(msg, opts) { return show(msg, 'error',   opts); },
         warning: function(msg, opts) { return show(msg, 'warning', opts); },
         info:    function(msg, opts) { return show(msg, 'info',    opts); }
+    };
+
+}());
+
+/* ============================================================
+   CORE TOOLTIP SYSTEM
+   data-metis-tooltip="Message"
+   data-metis-tooltip-position="top|right|bottom|left" (optional)
+   data-metis-tooltip-variant="regular|notification|error|info|success|warning" (optional)
+   ============================================================ */
+
+Metis.tooltip = (function() {
+    var tip = null;
+    var listenersBound = false;
+
+    function ensureTooltip() {
+        if (tip) return tip;
+        tip = document.createElement('div');
+        tip.className = 'mw-ui-tooltip';
+        tip.setAttribute('role', 'tooltip');
+        tip.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(tip);
+        return tip;
+    }
+
+    function positionTooltip(target, position) {
+        if (!tip || !target) return;
+        var rect = target.getBoundingClientRect();
+        var tipRect = tip.getBoundingClientRect();
+        var gap = 10;
+        var top = 0;
+        var left = 0;
+        var mode = String(position || 'top').toLowerCase();
+
+        if (mode === 'right') {
+            top = rect.top + (rect.height / 2) - (tipRect.height / 2);
+            left = rect.right + gap;
+        } else if (mode === 'bottom') {
+            top = rect.bottom + gap;
+            left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+        } else if (mode === 'left') {
+            top = rect.top + (rect.height / 2) - (tipRect.height / 2);
+            left = rect.left - tipRect.width - gap;
+        } else {
+            top = rect.top - tipRect.height - gap;
+            left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+        }
+
+        var minEdge = 8;
+        var maxLeft = window.innerWidth - tipRect.width - minEdge;
+        var maxTop = window.innerHeight - tipRect.height - minEdge;
+        if (left < minEdge) left = minEdge;
+        if (left > maxLeft) left = maxLeft;
+        if (top < minEdge) top = minEdge;
+        if (top > maxTop) top = maxTop;
+
+        tip.style.left = Math.round(left) + 'px';
+        tip.style.top = Math.round(top) + 'px';
+    }
+
+    function show(target) {
+        if (!target) return;
+        var text = String(target.getAttribute('data-metis-tooltip') || '').trim();
+        if (!text) return;
+
+        var tooltip = ensureTooltip();
+        tooltip.textContent = text;
+        var requestedVariant = String(target.getAttribute('data-metis-tooltip-variant') || 'regular').toLowerCase();
+        var variant = 'regular';
+        if (requestedVariant === 'error' || requestedVariant === 'danger') {
+            variant = 'error';
+        } else if (
+            requestedVariant === 'notification'
+            || requestedVariant === 'info'
+            || requestedVariant === 'success'
+            || requestedVariant === 'warning'
+        ) {
+            variant = 'notification';
+        }
+        tooltip.classList.remove('mw-ui-tooltip-regular', 'mw-ui-tooltip-notification', 'mw-ui-tooltip-error');
+        tooltip.classList.add('mw-ui-tooltip-' + variant);
+        tooltip.classList.add('is-visible');
+        tooltip.setAttribute('aria-hidden', 'false');
+        positionTooltip(target, target.getAttribute('data-metis-tooltip-position'));
+    }
+
+    function hide() {
+        if (!tip) return;
+        tip.classList.remove('is-visible');
+        tip.setAttribute('aria-hidden', 'true');
+    }
+
+    function bindElement(el) {
+        if (!el || el.getAttribute('data-metis-tooltip-bound') === '1') return;
+        el.setAttribute('data-metis-tooltip-bound', '1');
+        el.addEventListener('mouseenter', function() { show(el); });
+        el.addEventListener('mouseleave', hide);
+        el.addEventListener('focus', function() { show(el); });
+        el.addEventListener('blur', hide);
+        el.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') hide();
+        });
+    }
+
+    function init(root) {
+        var scope = root || document;
+        scope.querySelectorAll('[data-metis-tooltip]').forEach(bindElement);
+
+        if (!listenersBound) {
+            listenersBound = true;
+            window.addEventListener('scroll', hide, true);
+            window.addEventListener('resize', hide);
+        }
+    }
+
+    return {
+        init: init,
+        show: show,
+        hide: hide
     };
 
 }());
@@ -506,27 +1219,128 @@ Metis.inlineEdit = (function() {
    ============================================================ */
 
 Metis.modal = (function() {
+    var focusableSelector = [
+        'a[href]',
+        'area[href]',
+        'button:not([disabled])',
+        'input:not([type="hidden"]):not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    var openCount = 0;
+    var bodyOverflow = '';
+
+    function resolveModal(id) {
+        return typeof id === 'string' ? document.getElementById(id) : id;
+    }
+
+    function dialogNode(modal) {
+        if (window.Metis && Metis.a11y && typeof Metis.a11y.getDialogNode === 'function') {
+            return Metis.a11y.getDialogNode(modal) || modal;
+        }
+        return modal;
+    }
+
+    function focusableNodes(container) {
+        if (!container) {
+            return [];
+        }
+        return Array.prototype.slice.call(container.querySelectorAll(focusableSelector)).filter(function(node) {
+            return !node.hidden && node.getAttribute('aria-hidden') !== 'true' && node.getClientRects().length > 0;
+        });
+    }
+
+    function lockBody() {
+        if (openCount === 1) {
+            bodyOverflow = document.body.style.overflow || '';
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function unlockBody() {
+        if (openCount === 0) {
+            document.body.style.overflow = bodyOverflow;
+        }
+    }
+
+    function trapFocus(event, modal) {
+        if (event.key !== 'Tab') {
+            return;
+        }
+        var dialog = dialogNode(modal);
+        var focusables = focusableNodes(dialog);
+        if (focusables.length === 0) {
+            event.preventDefault();
+            if (dialog && typeof dialog.focus === 'function') {
+                dialog.focus();
+            }
+            return;
+        }
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+            return;
+        }
+        if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
 
     function open(id) {
-        var el = typeof id === 'string' ? document.getElementById(id) : id;
-        if (!el) return;
+        var el = resolveModal(id);
+        if (!el || el.classList.contains('metis-open')) return;
+        if (window.Metis && Metis.a11y && typeof Metis.a11y.ensureDialogSemantics === 'function') {
+            Metis.a11y.ensureDialogSemantics(el);
+        }
+        var dialog = dialogNode(el);
+        el._metisLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         el.classList.add('is-open', 'metis-open');
         el.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-        var first = el.querySelector('input, select, textarea, button, [tabindex]');
-        if (first) setTimeout(function() { first.focus(); }, 60);
+        openCount += 1;
+        lockBody();
+        if (dialog && !dialog.hasAttribute('tabindex')) {
+            dialog.setAttribute('tabindex', '-1');
+        }
+        el._metisTrapHandler = function(event) {
+            trapFocus(event, el);
+        };
+        document.addEventListener('keydown', el._metisTrapHandler);
+        var focusables = focusableNodes(dialog);
+        var first = focusables[0] || dialog;
+        if (first) {
+            setTimeout(function() { first.focus(); }, 60);
+        }
     }
 
     function close(id) {
-        var el = typeof id === 'string' ? document.getElementById(id) : id;
-        if (!el) return;
+        var el = resolveModal(id);
+        if (!el || !el.classList.contains('metis-open')) return;
         el.classList.remove('is-open', 'metis-open');
         el.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
+        if (el._metisTrapHandler) {
+            document.removeEventListener('keydown', el._metisTrapHandler);
+            el._metisTrapHandler = null;
+        }
+        openCount = Math.max(0, openCount - 1);
+        unlockBody();
+        var lastFocus = el._metisLastFocus;
+        el._metisLastFocus = null;
+        if (lastFocus && document.contains(lastFocus) && typeof lastFocus.focus === 'function') {
+            window.setTimeout(function() {
+                lastFocus.focus();
+            }, 0);
+        }
     }
 
     function init(root) {
         root = root || document;
+        if (window.Metis && Metis.a11y && typeof Metis.a11y.enhance === 'function') {
+            Metis.a11y.enhance(root);
+        }
         /* Open triggers: [data-modal-open="modal-id"] */
         root.querySelectorAll('[data-modal-open]').forEach(function(btn) {
             if (btn._metisModalInited) return;
@@ -540,13 +1354,13 @@ Metis.modal = (function() {
             btn._metisModalCloseInited = true;
             btn.addEventListener('click', function() {
                 var target = btn.dataset.modalClose;
-                var backdrop = target ? document.getElementById(target) : btn.closest('.mw-modal-backdrop, .metis-contacts-modal');
+                var backdrop = target ? document.getElementById(target) : btn.closest('.mw-modal-backdrop, .metis-contacts-modal, .metis-media-preview-modal');
                 if (backdrop) close(backdrop);
             });
         });
 
         /* Close on backdrop click */
-        root.querySelectorAll('.mw-modal-backdrop, .metis-contacts-modal').forEach(function(backdrop) {
+        root.querySelectorAll('.mw-modal-backdrop, .metis-contacts-modal, .metis-media-preview-modal').forEach(function(backdrop) {
             if (backdrop._metisBackdropInited) return;
             backdrop._metisBackdropInited = true;
             backdrop.addEventListener('click', function(e) {
@@ -559,7 +1373,7 @@ Metis.modal = (function() {
             document._metisEscInited = true;
             document.addEventListener('keydown', function(e) {
                 if (e.key !== 'Escape') return;
-                var open = document.querySelector('.mw-modal-backdrop.is-open, .metis-contacts-modal.metis-open, .mw-modal-backdrop.metis-open');
+                var open = document.querySelector('.metis-media-preview-modal.metis-open, .mw-modal-backdrop.is-open, .metis-contacts-modal.metis-open, .mw-modal-backdrop.metis-open');
                 if (open) close(open);
             });
         }
@@ -568,6 +1382,624 @@ Metis.modal = (function() {
     return { open: open, close: close, init: init };
 
 }());
+
+/* ============================================================
+   CONFIRM DIALOG
+   Metis.confirm.open({ title, message, confirmLabel, cancelLabel, tone })
+   ============================================================ */
+
+Metis.confirm = (function() {
+
+    var modal = null;
+
+    function ensure() {
+        if (modal) return modal;
+
+        modal = document.createElement('div');
+        modal.className = 'metis-contacts-modal';
+        modal.id = 'mw-confirm-modal';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML =
+            '<div class="metis-contacts-modal-inner mw-confirm-modal-inner">' +
+                '<h3 class="metis-contacts-modal-title" id="mw-confirm-title">Confirm</h3>' +
+                '<p class="mw-confirm-message" id="mw-confirm-message"></p>' +
+                '<div class="metis-contact-actions">' +
+                    '<button type="button" class="mw-btn mw-btn-ghost" data-confirm-cancel>Cancel</button>' +
+                    '<button type="button" class="mw-btn" data-confirm-submit>Continue</button>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(modal);
+        Metis.modal.init(document);
+        return modal;
+    }
+
+    function open(options) {
+        var config = options || {};
+        var root = ensure();
+        var title = root.querySelector('#mw-confirm-title');
+        var message = root.querySelector('#mw-confirm-message');
+        var cancelButton = root.querySelector('[data-confirm-cancel]');
+        var submitButton = root.querySelector('[data-confirm-submit]');
+
+        if (!title || !message || !cancelButton || !submitButton) {
+            return Promise.resolve(false);
+        }
+
+        title.textContent = String(config.title || 'Confirm');
+        message.textContent = String(config.message || 'Are you sure?');
+        cancelButton.textContent = String(config.cancelLabel || 'Cancel');
+        submitButton.textContent = String(config.confirmLabel || 'Continue');
+        submitButton.classList.toggle('mw-btn-danger', String(config.tone || '') === 'danger');
+
+        return new Promise(function(resolve) {
+            var settled = false;
+
+            function cleanup() {
+                cancelButton.removeEventListener('click', onCancel);
+                submitButton.removeEventListener('click', onSubmit);
+                root.removeEventListener('click', onBackdrop);
+                document.removeEventListener('keydown', onKeyDown);
+            }
+
+            function finish(value) {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                Metis.modal.close(root);
+                resolve(value);
+            }
+
+            function onCancel() { finish(false); }
+            function onSubmit() { finish(true); }
+            function onBackdrop(event) {
+                if (event.target === root) finish(false);
+            }
+            function onKeyDown(event) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    finish(false);
+                }
+            }
+
+            cancelButton.addEventListener('click', onCancel);
+            submitButton.addEventListener('click', onSubmit);
+            root.addEventListener('click', onBackdrop);
+            document.addEventListener('keydown', onKeyDown);
+            Metis.modal.open(root);
+        });
+    }
+
+    return { open: open };
+
+}());
+
+/* ============================================================
+   INPUT PROMPT
+   Metis.prompt.open({ title, message, label, defaultValue })
+   ============================================================ */
+
+Metis.prompt = (function() {
+
+    var modal = null;
+
+    function ensure() {
+        if (modal) return modal;
+
+        modal = document.createElement('div');
+        modal.className = 'metis-contacts-modal';
+        modal.id = 'mw-prompt-modal';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.innerHTML =
+            '<div class="metis-contacts-modal-inner mw-confirm-modal-inner mw-prompt-modal-inner">' +
+                '<h3 class="metis-contacts-modal-title" id="mw-prompt-title">Provide Input</h3>' +
+                '<p class="mw-confirm-message" id="mw-prompt-message"></p>' +
+                '<div class="mw-field">' +
+                    '<label id="mw-prompt-label" for="mw-prompt-input">Value</label>' +
+                    '<input type="text" class="mw-input" id="mw-prompt-input">' +
+                    '<textarea class="mw-input" id="mw-prompt-textarea" rows="4" hidden></textarea>' +
+                '</div>' +
+                '<div class="metis-contact-actions">' +
+                    '<button type="button" class="mw-btn mw-btn-ghost" data-prompt-cancel>Cancel</button>' +
+                    '<button type="button" class="mw-btn" data-prompt-submit>Continue</button>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(modal);
+        Metis.modal.init(document);
+        return modal;
+    }
+
+    function open(options) {
+        var config = options || {};
+        var root = ensure();
+        var title = root.querySelector('#mw-prompt-title');
+        var message = root.querySelector('#mw-prompt-message');
+        var label = root.querySelector('#mw-prompt-label');
+        var input = root.querySelector('#mw-prompt-input');
+        var textarea = root.querySelector('#mw-prompt-textarea');
+        var cancelButton = root.querySelector('[data-prompt-cancel]');
+        var submitButton = root.querySelector('[data-prompt-submit]');
+        var multiline = !!config.multiline;
+        var activeField = multiline ? textarea : input;
+        var inactiveField = multiline ? input : textarea;
+
+        if (!title || !message || !label || !input || !textarea || !cancelButton || !submitButton) {
+            return Promise.resolve(null);
+        }
+
+        title.textContent = String(config.title || 'Provide Input');
+        var messageText = String(config.message || '');
+        message.textContent = messageText;
+        message.hidden = messageText === '';
+        label.textContent = String(config.label || 'Value');
+        cancelButton.textContent = String(config.cancelLabel || 'Cancel');
+        submitButton.textContent = String(config.confirmLabel || 'Continue');
+        submitButton.classList.toggle('mw-btn-danger', String(config.tone || '') === 'danger');
+
+        inactiveField.value = '';
+        inactiveField.hidden = true;
+        activeField.hidden = false;
+        activeField.value = String(config.defaultValue || '');
+        activeField.placeholder = String(config.placeholder || '');
+        if (multiline && config.rows) {
+            activeField.setAttribute('rows', String(config.rows));
+        }
+
+        return new Promise(function(resolve) {
+            var settled = false;
+
+            function cleanup() {
+                cancelButton.removeEventListener('click', onCancel);
+                submitButton.removeEventListener('click', onSubmit);
+                activeField.removeEventListener('keydown', onKeyDown);
+                root.removeEventListener('click', onBackdrop);
+                document.removeEventListener('keydown', onEscape);
+            }
+
+            function finalize(value) {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                Metis.modal.close(root);
+                resolve(value);
+            }
+
+            function onCancel() {
+                finalize(null);
+            }
+
+            function onSubmit() {
+                var value = String(activeField.value || '');
+                if (config.trim !== false) {
+                    value = value.trim();
+                }
+                if (config.required && value === '') {
+                    activeField.focus();
+                    return;
+                }
+                finalize(value);
+            }
+
+            function onKeyDown(event) {
+                if (!multiline && event.key === 'Enter') {
+                    event.preventDefault();
+                    onSubmit();
+                }
+            }
+
+            function onEscape(event) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    onCancel();
+                }
+            }
+
+            function onBackdrop(event) {
+                if (event.target === root) {
+                    onCancel();
+                }
+            }
+
+            cancelButton.addEventListener('click', onCancel);
+            submitButton.addEventListener('click', onSubmit);
+            activeField.addEventListener('keydown', onKeyDown);
+            root.addEventListener('click', onBackdrop);
+            document.addEventListener('keydown', onEscape);
+            Metis.modal.open(root);
+            window.setTimeout(function() {
+                activeField.focus();
+                if (typeof activeField.select === 'function') {
+                    activeField.select();
+                }
+            }, 20);
+        });
+    }
+
+    return { open: open };
+
+}());
+
+window.metis_toast = function(message, type, options) {
+    var kind = String(type || 'info').toLowerCase();
+    if (kind !== 'success' && kind !== 'error' && kind !== 'warning' && kind !== 'info') {
+        kind = 'info';
+    }
+    if (!window.Metis || !Metis.toast || typeof Metis.toast[kind] !== 'function') {
+        if (message && window.console && typeof window.console.warn === 'function') {
+            window.console.warn(String(message));
+        }
+        return null;
+    }
+    return Metis.toast[kind](String(message || ''), options || {});
+};
+
+window.metis_confirm = function(message, onConfirm, options) {
+    return Metis.confirm.open(Object.assign({}, options || {}, {
+        message: String(message || 'Are you sure?')
+    })).then(function(confirmed) {
+        if (confirmed && typeof onConfirm === 'function') {
+            onConfirm();
+        }
+        return confirmed;
+    });
+};
+
+window.metis_prompt = function(options) {
+    return Metis.prompt.open(options || {});
+};
+
+/* ============================================================
+   QUICK ACTIONS
+   ============================================================ */
+
+Metis.quickActions = (function() {
+    var panel = null;
+    var trigger = null;
+    var root = null;
+    var closeTimer = null;
+
+    function titleCase(value) {
+        return String(value || '')
+            .replace(/[_-]+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+    }
+
+    function iconSvg(name) {
+        var key = String(name || '').toLowerCase();
+        if (key === 'calendar-plus') {
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="13" x2="12" y2="19"/><line x1="9" y1="16" x2="15" y2="16"/></svg>';
+        }
+        if (key === 'user-plus' || key === 'user-round-plus') {
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 20a7 7 0 0 1 14 0"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>';
+        }
+        if (key === 'mail-plus') {
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/><line x1="19" y1="2" x2="19" y2="8"/><line x1="16" y1="5" x2="22" y2="5"/></svg>';
+        }
+        if (key === 'hand-heart') {
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11V5a2 2 0 0 1 4 0v3"/><path d="M11 8a2 2 0 0 1 4 0v1"/><path d="M15 9a2 2 0 0 1 4 0v3"/><path d="M3 12h4l2 7h8a3 3 0 0 0 3-3v-4"/><path d="m14 4 .7 1.4L16 6l-1.3.6L14 8l-.7-1.4L12 6l1.3-.6z"/></svg>';
+        }
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+    }
+
+    function execute(action) {
+        if (!action || typeof action !== 'object') return;
+        var route = String(action.route || '').trim();
+        if (!route) return;
+        Metis.navigation.go(route);
+    }
+
+    function openPanel() {
+        if (!panel || !trigger) return;
+        panel.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+    }
+
+    function closePanel() {
+        if (!panel || !trigger) return;
+        panel.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function render() {
+        root = document.getElementById('mw-quick-actions-list');
+        if (!root) return;
+
+        var payload = window.metisQuickActions && Array.isArray(window.metisQuickActions.actions)
+            ? window.metisQuickActions.actions
+            : [];
+
+        if (!payload.length) {
+            root.innerHTML = '<p class="mw-help">No quick actions available.</p>';
+            return;
+        }
+
+        var grouped = {};
+        payload.forEach(function(action) {
+            var group = String(action.group || 'other');
+            if (!grouped[group]) grouped[group] = [];
+            grouped[group].push(action);
+        });
+
+        var html = '';
+        Object.keys(grouped).sort().forEach(function(group) {
+            html += '<div class="mw-quick-actions-group">';
+            html += '<div class="mw-quick-actions-group-label">' + Metis.util.escapeHtml(titleCase(group)) + '</div>';
+            html += '<div class="mw-quick-actions-grid">';
+            grouped[group].forEach(function(action) {
+                var actionLabel = String(action.label || 'Action');
+                html += '<button type="button" class="mw-quick-actions-item metis-quick-action-item" role="menuitem" aria-label="' + Metis.util.escapeHtml(actionLabel) + '" title="' + Metis.util.escapeHtml(actionLabel) + '" data-qa-key="' + Metis.util.escapeHtml(String(action.key || '')) + '">'
+                    + '<span class="mw-quick-actions-item-icon">' + iconSvg(action.icon) + '</span>'
+                    + '<span>' + Metis.util.escapeHtml(actionLabel) + '</span>'
+                    + '</button>';
+            });
+            html += '</div></div>';
+        });
+
+        root.innerHTML = html;
+        root.querySelectorAll('.metis-quick-action-item').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var key = String(button.getAttribute('data-qa-key') || '');
+                var action = payload.find(function(candidate) {
+                    return String(candidate.key || '') === key;
+                });
+                execute(action || null);
+                closePanel();
+            });
+        });
+    }
+
+    function bindInteractions() {
+        panel = document.getElementById('mw-quick-actions-panel');
+        trigger = document.getElementById('mw-quick-actions-trigger');
+        if (!panel || !trigger) return;
+
+        var wrapper = document.getElementById('mw-quick-actions');
+        if (!wrapper) return;
+
+        wrapper.addEventListener('mouseenter', function() {
+            if (closeTimer) {
+                window.clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+            openPanel();
+        });
+
+        wrapper.addEventListener('mouseleave', function() {
+            if (closeTimer) {
+                window.clearTimeout(closeTimer);
+            }
+            closeTimer = window.setTimeout(closePanel, 180);
+        });
+
+        trigger.addEventListener('click', function(event) {
+            event.preventDefault();
+            if (panel.hidden) {
+                openPanel();
+            } else {
+                closePanel();
+            }
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!wrapper.contains(event.target)) {
+                closePanel();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closePanel();
+            }
+        });
+    }
+
+    function init() {
+        render();
+        bindInteractions();
+    }
+
+    return { init: init, execute: execute };
+}());
+
+/* ============================================================
+   AVATAR CROPPER
+   ============================================================ */
+
+Metis.avatarCropper = function(config) {
+    var options = config || {};
+    var canvas = options.canvas || null;
+    var preview = options.preview || null;
+    var zoomInput = options.zoomInput || null;
+    var outputSize = options.outputSize || 256;
+    var ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+    var image = null;
+    var zoom = 1;
+    var minZoom = 1;
+    var offsetX = 0;
+    var offsetY = 0;
+    var dragging = false;
+    var dragStartX = 0;
+    var dragStartY = 0;
+    var dragOriginX = 0;
+    var dragOriginY = 0;
+
+    function clampOffsets() {
+        if (!canvas || !image) return;
+        var scale = Math.max(canvas.width / image.width, canvas.height / image.height) * zoom;
+        var drawWidth = image.width * scale;
+        var drawHeight = image.height * scale;
+        var maxOffsetX = Math.max(0, (drawWidth - canvas.width) / 2);
+        var maxOffsetY = Math.max(0, (drawHeight - canvas.height) / 2);
+        offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, offsetX));
+        offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, offsetY));
+    }
+
+    function render() {
+        if (!canvas || !ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#eef2f7';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (!image) {
+            ctx.fillStyle = '#6d7485';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '600 16px Figtree, sans-serif';
+            ctx.fillText('Upload an image', canvas.width / 2, canvas.height / 2);
+            return;
+        }
+
+        clampOffsets();
+        var scale = Math.max(canvas.width / image.width, canvas.height / image.height) * zoom;
+        var drawWidth = image.width * scale;
+        var drawHeight = image.height * scale;
+        var x = (canvas.width - drawWidth) / 2 + offsetX;
+        var y = (canvas.height - drawHeight) / 2 + offsetY;
+
+        ctx.drawImage(image, x, y, drawWidth, drawHeight);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(16, 23, 41, 0.48)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.38, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.38, 0, Math.PI * 2);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+
+        updatePreview();
+    }
+
+    function updatePreview() {
+        if (!preview) return;
+        if (!image) {
+            preview.removeAttribute('src');
+            return;
+        }
+        preview.src = getDataUrl();
+    }
+
+    function getDataUrl() {
+        if (!canvas || !image) return '';
+        var out = document.createElement('canvas');
+        out.width = outputSize;
+        out.height = outputSize;
+        var outCtx = out.getContext('2d');
+        if (!outCtx) return '';
+
+        var scale = Math.max(canvas.width / image.width, canvas.height / image.height) * zoom;
+        var drawWidth = image.width * scale;
+        var drawHeight = image.height * scale;
+        var x = (canvas.width - drawWidth) / 2 + offsetX;
+        var y = (canvas.height - drawHeight) / 2 + offsetY;
+
+        var exportScale = outputSize / canvas.width;
+        outCtx.fillStyle = '#ffffff';
+        outCtx.fillRect(0, 0, outputSize, outputSize);
+        outCtx.drawImage(image, x * exportScale, y * exportScale, drawWidth * exportScale, drawHeight * exportScale);
+        return out.toDataURL('image/jpeg', 0.9);
+    }
+
+    function setZoom(value) {
+        zoom = Math.max(minZoom, Math.min(4, value));
+        if (zoomInput) {
+            zoomInput.value = String(zoom);
+        }
+        render();
+    }
+
+    function loadFile(file) {
+        return new Promise(function(resolve, reject) {
+            if (!file) {
+                reject(new Error('Select an image first.'));
+                return;
+            }
+            var reader = new FileReader();
+            reader.onload = function() {
+                var nextImage = new Image();
+                nextImage.onload = function() {
+                    image = nextImage;
+                    minZoom = 1;
+                    zoom = 1;
+                    offsetX = 0;
+                    offsetY = 0;
+                    if (zoomInput) {
+                        zoomInput.min = String(minZoom);
+                        zoomInput.max = '4';
+                        zoomInput.step = '0.01';
+                        zoomInput.value = String(zoom);
+                    }
+                    render();
+                    resolve();
+                };
+                nextImage.onerror = function() {
+                    reject(new Error('Selected image could not be loaded.'));
+                };
+                nextImage.src = String(reader.result || '');
+            };
+            reader.onerror = function() {
+                reject(new Error('Selected image could not be read.'));
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    if (zoomInput) {
+        zoomInput.addEventListener('input', function() {
+            setZoom(parseFloat(String(zoomInput.value || '1')) || 1);
+        });
+    }
+
+    if (canvas) {
+        canvas.addEventListener('pointerdown', function(event) {
+            if (!image) return;
+            dragging = true;
+            dragStartX = event.clientX;
+            dragStartY = event.clientY;
+            dragOriginX = offsetX;
+            dragOriginY = offsetY;
+            canvas.setPointerCapture(event.pointerId);
+        });
+        canvas.addEventListener('pointermove', function(event) {
+            if (!dragging) return;
+            offsetX = dragOriginX + (event.clientX - dragStartX);
+            offsetY = dragOriginY + (event.clientY - dragStartY);
+            render();
+        });
+        function stopDrag(event) {
+            if (!dragging) return;
+            dragging = false;
+            if (event && typeof event.pointerId === 'number') {
+                canvas.releasePointerCapture(event.pointerId);
+            }
+        }
+        canvas.addEventListener('pointerup', stopDrag);
+        canvas.addEventListener('pointercancel', stopDrag);
+        canvas.addEventListener('wheel', function(event) {
+            if (!image) return;
+            event.preventDefault();
+            var delta = event.deltaY < 0 ? 0.08 : -0.08;
+            setZoom(zoom + delta);
+        }, { passive: false });
+    }
+
+    render();
+
+    return {
+        loadFile: loadFile,
+        render: render,
+        getDataUrl: getDataUrl,
+        hasImage: function() { return !!image; }
+    };
+};
 
 /* ============================================================
    ACCESSIBILITY PREFERENCES
@@ -612,6 +2044,10 @@ Metis.accessibility = (function() {
             document.documentElement.setAttribute('data-mw-' + key.replace(/_/g, '-'), resolved[key] ? 'true' : 'false');
         });
         document.documentElement.setAttribute('data-mw-profile', resolved.profile);
+        if (document.body) {
+            var enabled = toggles.some(function(key) { return !!resolved[key]; });
+            document.body.classList.toggle('accessibility-enabled', enabled);
+        }
         return resolved;
     }
 
@@ -675,20 +2111,37 @@ Metis.accessibility = (function() {
         var current = load();
         var toggle = document.getElementById('mw-accessibility-toggle');
         var panel = document.getElementById('mw-accessibility-panel');
+        var lastFocus = null;
         if (!toggle || !panel || !config().toolbarEnabled || !config().allowOverrides) {
             return;
         }
 
         syncForm(panel, current);
 
-        function closePanel() {
+        function firstPanelField() {
+            return panel.querySelector('select, input, button, [tabindex]:not([tabindex="-1"])');
+        }
+
+        function closePanel(restoreFocus) {
             panel.hidden = true;
             toggle.setAttribute('aria-expanded', 'false');
+            if (restoreFocus !== false && lastFocus && document.contains(lastFocus) && typeof lastFocus.focus === 'function') {
+                window.setTimeout(function() {
+                    lastFocus.focus();
+                }, 0);
+            }
         }
 
         function openPanel() {
+            lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : toggle;
             panel.hidden = false;
             toggle.setAttribute('aria-expanded', 'true');
+            var first = firstPanelField();
+            if (first && typeof first.focus === 'function') {
+                window.setTimeout(function() {
+                    first.focus();
+                }, 20);
+            }
         }
 
         toggle.addEventListener('click', function() {
@@ -700,7 +2153,9 @@ Metis.accessibility = (function() {
         });
 
         panel.querySelectorAll('[data-accessibility-close]').forEach(function(button) {
-            button.addEventListener('click', closePanel);
+            button.addEventListener('click', function() {
+                closePanel();
+            });
         });
 
         var profile = panel.querySelector('[data-accessibility-profile]');
@@ -753,11 +2208,156 @@ Metis.accessibility = (function() {
 }());
 
 /* ============================================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================================ */
+
+Metis.a11y = (function() {
+    var dialogSelector = '.mw-modal-backdrop, .metis-contacts-modal, .metis-media-preview-modal';
+    var controlSelector = 'input:not([type="hidden"]), select, textarea';
+
+    function cleanText(value) {
+        return String(value || '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s+\*/g, '')
+            .trim();
+    }
+
+    function ensureId(element, fallback) {
+        if (!element) {
+            return '';
+        }
+        if (element.id) {
+            return element.id;
+        }
+        element.id = String(fallback || ('mw-a11y-' + Math.random().toString(36).slice(2, 10)));
+        return element.id;
+    }
+
+    function getDialogNode(modal) {
+        if (!modal || !(modal instanceof Element)) {
+            return null;
+        }
+        if (modal.matches('.mw-modal, .metis-contacts-modal-inner, .metis-media-preview-modal-inner')) {
+            return modal;
+        }
+        return modal.querySelector('.mw-modal, .metis-contacts-modal-inner, .metis-media-preview-modal-inner') || modal;
+    }
+
+    function ensureDialogSemantics(modal) {
+        var dialog = getDialogNode(modal);
+        if (!dialog) {
+            return null;
+        }
+
+        if (!dialog.hasAttribute('role')) {
+            dialog.setAttribute('role', 'dialog');
+        }
+        dialog.setAttribute('aria-modal', 'true');
+
+        if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
+            var heading = dialog.querySelector('.mw-modal-title, .metis-contacts-modal-title, h1, h2, h3, strong');
+            var headingId = ensureId(heading, (modal.id || 'mw-modal') + '-title');
+            if (headingId !== '') {
+                dialog.setAttribute('aria-labelledby', headingId);
+            }
+        }
+
+        if (!dialog.hasAttribute('aria-describedby')) {
+            var description = dialog.querySelector('.mw-confirm-message, .mw-modal-body > p, .metis-media-preview-modal-body > p');
+            var descriptionId = ensureId(description, (modal.id || 'mw-modal') + '-description');
+            if (descriptionId !== '') {
+                dialog.setAttribute('aria-describedby', descriptionId);
+            }
+        }
+
+        return dialog;
+    }
+
+    function hasProgrammaticLabel(control) {
+        if (!control || !(control instanceof Element)) {
+            return true;
+        }
+        if (control.hasAttribute('aria-label') || control.hasAttribute('aria-labelledby') || control.hasAttribute('title')) {
+            return true;
+        }
+        if (control.labels && control.labels.length > 0) {
+            return true;
+        }
+        return !!control.closest('label');
+    }
+
+    function deriveLabel(control) {
+        if (!control || !(control instanceof Element)) {
+            return '';
+        }
+
+        var container = control.closest('.mw-field, .metis-contact-field, .metis-form-field, .metis-media-modal-field, .metis-se-field-row');
+        if (container) {
+            var labelled = container.querySelector('label, legend');
+            var labelText = cleanText(labelled ? labelled.textContent : '');
+            if (labelText !== '') {
+                return labelText;
+            }
+        }
+
+        var placeholder = cleanText(control.getAttribute('placeholder'));
+        if (placeholder !== '') {
+            return placeholder;
+        }
+
+        if (control.getAttribute('type') === 'search') {
+            return 'Search';
+        }
+
+        return '';
+    }
+
+    function ensureControlLabels(root) {
+        root.querySelectorAll(controlSelector).forEach(function(control) {
+            if (hasProgrammaticLabel(control)) {
+                return;
+            }
+            var label = deriveLabel(control);
+            if (label !== '') {
+                control.setAttribute('aria-label', label);
+            }
+        });
+    }
+
+    function ensureButtonLabels(root) {
+        root.querySelectorAll('button').forEach(function(button) {
+            if (button.hasAttribute('aria-label') || button.hasAttribute('aria-labelledby') || cleanText(button.textContent) !== '') {
+                return;
+            }
+            var label = cleanText(button.getAttribute('title') || button.getAttribute('data-tooltip') || '');
+            if (label !== '') {
+                button.setAttribute('aria-label', label);
+            }
+        });
+    }
+
+    function enhance(root) {
+        root = root || document;
+        if (!root || !(root instanceof Element || root instanceof Document)) {
+            return;
+        }
+        ensureControlLabels(root);
+        ensureButtonLabels(root);
+        root.querySelectorAll(dialogSelector).forEach(ensureDialogSemantics);
+    }
+
+    return {
+        enhance: enhance,
+        ensureDialogSemantics: ensureDialogSemantics,
+        getDialogNode: getDialogNode
+    };
+}());
+
+/* ============================================================
    SIDEBAR NAV
    ============================================================ */
 
 Metis.nav = (function() {
-
     function init() {
         var toggle  = document.querySelector('.mw-nav-toggle');
         var sidebar = document.getElementById('mw-sidebar');
@@ -781,97 +2381,366 @@ Metis.nav = (function() {
             });
         }
 
-        function closeGroup(group) {
+        // Reset any stale flyout state on first load so hidden panes do not render mispositioned.
+        sidebar.querySelectorAll('.mw-sidebar-group').forEach(function(group) {
             group.classList.remove('is-open');
-            var trigger = group.querySelector('.mw-sidebar-group-trigger');
-            if (trigger) {
-                trigger.setAttribute('aria-expanded', 'false');
+            var submenu = group.querySelector('.mw-sidebar-submenu');
+            if (submenu) {
+                submenu.style.left = '';
+                submenu.style.top = '';
+                submenu.style.maxHeight = '';
+                submenu.style.position = '';
+                submenu.style.visibility = '';
+                submenu.querySelectorAll('.mw-sidebar-subitem-group').forEach(function(subGroup) {
+                    subGroup.classList.remove('is-open');
+                });
+                submenu.querySelectorAll('.mw-sidebar-subsubmenu').forEach(function(subMenu) {
+                    subMenu.style.left = '';
+                    subMenu.style.top = '';
+                    subMenu.style.maxHeight = '';
+                    subMenu.style.position = '';
+                    subMenu.style.visibility = '';
+                });
+            }
+        });
+
+        function closeGroup(group) {
+            var groupLink = group.querySelector('.mw-sidebar-group-link');
+            group.classList.remove('is-open');
+            var submenu = group.querySelector('.mw-sidebar-submenu');
+            if (groupLink) {
+                groupLink.setAttribute('aria-expanded', 'false');
+            }
+            if (submenu && window.innerWidth > 900) {
+                submenu.style.top = '';
+                submenu.style.left = '';
+                submenu.style.visibility = '';
+                submenu.style.position = '';
+                submenu.style.maxHeight = '';
+            }
+            if (submenu) {
+                submenu.setAttribute('aria-hidden', 'true');
+                submenu.querySelectorAll('.mw-sidebar-subitem-group.is-open').forEach(function(openSub) {
+                    openSub.classList.remove('is-open');
+                    var openSubLink = openSub.querySelector('.mw-sidebar-subitem-link');
+                    var openSubMenu = openSub.querySelector('.mw-sidebar-subsubmenu');
+                    if (openSubLink) {
+                        openSubLink.setAttribute('aria-expanded', 'false');
+                    }
+                    if (openSubMenu) {
+                        openSubMenu.setAttribute('aria-hidden', 'true');
+                    }
+                });
+                submenu.querySelectorAll('.mw-sidebar-subsubmenu').forEach(function(subMenu) {
+                    subMenu.style.left = '';
+                    subMenu.style.top = '';
+                    subMenu.style.maxHeight = '';
+                    subMenu.style.visibility = '';
+                    subMenu.style.position = '';
+                });
             }
         }
 
         function openGroup(group) {
+            var submenu = group.querySelector('.mw-sidebar-submenu');
+            var groupLink = group.querySelector('.mw-sidebar-group-link');
+            if (!submenu) return;
+
             sidebar.querySelectorAll('.mw-sidebar-group.is-open').forEach(function(openGroupEl) {
                 if (openGroupEl !== group) {
                     closeGroup(openGroupEl);
                 }
             });
+            submenu.querySelectorAll('.mw-sidebar-subitem-group.is-open').forEach(function(openSub) {
+                openSub.classList.remove('is-open');
+            });
+            submenu.querySelectorAll('.mw-sidebar-subsubmenu').forEach(function(subMenu) {
+                subMenu.style.left = '';
+                subMenu.style.top = '';
+                subMenu.style.maxHeight = '';
+                subMenu.style.visibility = '';
+            });
+            if (window.innerWidth > 900) {
+                var viewportPadding = 8;
+                submenu.style.position = 'fixed';
+                submenu.style.maxHeight = Math.max(180, Math.floor(window.innerHeight * 0.82)) + 'px';
+                submenu.style.visibility = 'hidden';
+                submenu.style.left = '-9999px';
+                submenu.style.top = '0px';
+            }
             group.classList.add('is-open');
-            var trigger = group.querySelector('.mw-sidebar-group-trigger');
-            if (trigger) {
-                trigger.setAttribute('aria-expanded', 'true');
+            if (groupLink) {
+                groupLink.setAttribute('aria-expanded', 'true');
+            }
+            submenu.setAttribute('aria-hidden', 'false');
+            if (window.innerWidth > 900) {
+                var rect = group.getBoundingClientRect();
+                var submenuRect = submenu.getBoundingClientRect();
+                var submenuHeight = submenuRect.height || submenu.offsetHeight || 220;
+                var submenuWidth = submenuRect.width || submenu.offsetWidth || 220;
+                var top = Math.min(Math.max(viewportPadding, rect.top), Math.max(viewportPadding, window.innerHeight - submenuHeight - viewportPadding));
+                var left = rect.right + 8;
+                if (left + submenuWidth > window.innerWidth - viewportPadding) {
+                    left = Math.max(viewportPadding, rect.left - submenuWidth - 8);
+                }
+                submenu.style.top = top + 'px';
+                submenu.style.left = left + 'px';
+                submenu.style.maxHeight = Math.max(180, Math.floor(window.innerHeight * 0.82)) + 'px';
+                submenu.style.visibility = '';
             }
         }
 
         sidebar.querySelectorAll('.mw-sidebar-group').forEach(function(group) {
-            var trigger = group.querySelector('.mw-sidebar-group-trigger');
             var submenu  = group.querySelector('.mw-sidebar-submenu');
+            var groupLink = group.querySelector('.mw-sidebar-group-link');
             var closeTimer = null;
-            if (!trigger || !submenu) return;
-
-            function isOverGroupOrMenu(x, y) {
-                var el = document.elementFromPoint(x, y);
-                return el && (group.contains(el) || (submenu && submenu.contains(el)));
-            }
-
-            function hoverOpen() {
-                clearTimeout(closeTimer);
-                openGroup(group);
-            }
-
-            function onMouseMove(e) {
-                if (!group.classList.contains('is-open')) return;
-                clearTimeout(closeTimer);
-                if (!isOverGroupOrMenu(e.clientX, e.clientY)) {
-                    closeTimer = setTimeout(function() {
-                        if (!isOverGroupOrMenu(lastX, lastY)) {
-                            closeGroup(group);
-                        }
-                    }, 120);
-                }
-            }
-
-            var lastX = 0, lastY = 0;
-            document.addEventListener('mousemove', function(e) { lastX = e.clientX; lastY = e.clientY; });
+            if (!submenu) return;
 
             group.addEventListener('mouseenter', function() {
-                hoverOpen();
-                document.addEventListener('mousemove', onMouseMove);
+                clearTimeout(closeTimer);
+                openGroup(group);
             });
 
-            group.addEventListener('mouseleave', function() {
-                /* Don’t remove listener immediately — onMouseMove handles close */
-            });
-
-            submenu.addEventListener('mouseenter', function() { clearTimeout(closeTimer); });
-
-            trigger.addEventListener('click', function() {
-                if (group.classList.contains('is-open')) {
+            group.addEventListener('mouseleave', function(event) {
+                if (event && event.relatedTarget && submenu.contains(event.relatedTarget)) {
+                    return;
+                }
+                clearTimeout(closeTimer);
+                closeTimer = window.setTimeout(function() {
                     closeGroup(group);
-                } else {
-                    openGroup(group);
-                }
+                }, 220);
             });
 
-            trigger.addEventListener('keydown', function(event) {
-                if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openGroup(group);
-                    var firstItem = submenu.querySelector('a, button, [tabindex]:not([tabindex="-1"])');
-                    if (firstItem) firstItem.focus();
+            if (groupLink) {
+                groupLink.addEventListener('click', function(event) {
+                    if (window.innerWidth > 900 && String(groupLink.getAttribute('href') || '') === '#') {
+                        event.preventDefault();
+                        if (group.classList.contains('is-open')) {
+                            closeGroup(group);
+                        } else {
+                            openGroup(group);
+                        }
+                    }
+                });
+                groupLink.addEventListener('keydown', function(event) {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || ((event.key === 'Enter' || event.key === ' ') && String(groupLink.getAttribute('href') || '') === '#')) {
+                        event.preventDefault();
+                        openGroup(group);
+                        var firstItem = submenu.querySelector('.mw-sidebar-subitem, .mw-sidebar-subitem-link');
+                        if (firstItem) {
+                            firstItem.focus();
+                        }
+                    }
+                });
+            }
+
+            submenu.addEventListener('mouseenter', function() {
+                clearTimeout(closeTimer);
+            });
+
+            submenu.addEventListener('mouseleave', function(event) {
+                if (event && event.relatedTarget && group.contains(event.relatedTarget)) {
+                    return;
                 }
+                clearTimeout(closeTimer);
+                closeTimer = window.setTimeout(function() {
+                    closeGroup(group);
+                }, 220);
+            });
+
+            group.addEventListener('focusin', function() {
+                clearTimeout(closeTimer);
+                openGroup(group);
+            });
+
+            group.addEventListener('focusout', function() {
+                window.setTimeout(function() {
+                    var active = document.activeElement;
+                    var stillInside = !!(active && group.contains(active));
+                    var hovered = group.matches(':hover') || submenu.matches(':hover');
+                    if (!stillInside && !hovered) {
+                        closeGroup(group);
+                    }
+                }, 120);
             });
 
             submenu.addEventListener('keydown', function(event) {
                 if (event.key === 'Escape') {
                     closeGroup(group);
-                    trigger.focus();
+                    var rootLink = group.querySelector('.mw-sidebar-group-link');
+                    if (rootLink) rootLink.focus();
                 }
+            });
+
+            submenu.querySelectorAll('.mw-sidebar-subitem-group').forEach(function(subGroup) {
+                var subMenu = subGroup.querySelector('.mw-sidebar-subsubmenu');
+                var subLink = subGroup.querySelector('.mw-sidebar-subitem-link');
+                if (!subMenu) return;
+
+                function closeSubGroup() {
+                    subGroup.classList.remove('is-open');
+                    if (subLink) {
+                        subLink.setAttribute('aria-expanded', 'false');
+                    }
+                    subMenu.style.left = '';
+                    subMenu.style.top = '';
+                    subMenu.style.maxHeight = '';
+                    subMenu.style.visibility = '';
+                    subMenu.style.position = '';
+                    subMenu.setAttribute('aria-hidden', 'true');
+                }
+                function openSubGroup() {
+                    submenu.querySelectorAll('.mw-sidebar-subitem-group.is-open').forEach(function(openSub) {
+                        if (openSub !== subGroup) {
+                            openSub.classList.remove('is-open');
+                            var openSubLink = openSub.querySelector('.mw-sidebar-subitem-link');
+                            var openSubMenu = openSub.querySelector('.mw-sidebar-subsubmenu');
+                            if (openSubLink) {
+                                openSubLink.setAttribute('aria-expanded', 'false');
+                            }
+                            if (openSubMenu) {
+                                openSubMenu.setAttribute('aria-hidden', 'true');
+                            }
+                        }
+                    });
+                    if (window.innerWidth > 900) {
+                        subMenu.style.position = 'fixed';
+                        subMenu.style.maxHeight = Math.max(160, Math.floor(window.innerHeight * 0.8)) + 'px';
+                        subMenu.style.visibility = 'hidden';
+                        subMenu.style.left = '-9999px';
+                        subMenu.style.top = '0px';
+                    }
+                    subGroup.classList.add('is-open');
+                    if (subLink) {
+                        subLink.setAttribute('aria-expanded', 'true');
+                    }
+                    subMenu.setAttribute('aria-hidden', 'false');
+                    if (window.innerWidth > 900) {
+                        if (!subGroup.classList.contains('is-open')) return;
+                        var triggerRect = subGroup.getBoundingClientRect();
+                        var menuRect = subMenu.getBoundingClientRect();
+                        var viewportPadding = 8;
+                        var left = triggerRect.right + 8;
+                        var top = triggerRect.top - 6;
+
+                        if (left + menuRect.width > window.innerWidth - viewportPadding) {
+                            left = Math.max(viewportPadding, triggerRect.left - menuRect.width - 8);
+                        }
+                        if (top + menuRect.height > window.innerHeight - viewportPadding) {
+                            top = Math.max(viewportPadding, window.innerHeight - menuRect.height - viewportPadding);
+                        }
+                        if (top < viewportPadding) {
+                            top = viewportPadding;
+                        }
+
+                        subMenu.style.position = 'fixed';
+                        subMenu.style.left = left + 'px';
+                        subMenu.style.top = top + 'px';
+                        subMenu.style.maxHeight = Math.max(160, Math.floor(window.innerHeight * 0.8)) + 'px';
+                        subMenu.style.visibility = '';
+                    }
+                }
+
+                subGroup.addEventListener('mouseenter', function() {
+                    openSubGroup();
+                });
+
+                subGroup.addEventListener('mouseleave', function() {});
+
+                subMenu.addEventListener('mouseenter', function() {
+                    openSubGroup();
+                });
+
+                subMenu.addEventListener('mouseleave', function() {});
+
+                subGroup.addEventListener('focusin', function() {
+                    openSubGroup();
+                });
+
+                subGroup.addEventListener('focusout', function() {
+                    window.setTimeout(function() {
+                        var active = document.activeElement;
+                        var stillInside = !!(active && subGroup.contains(active));
+                        var hovered = subGroup.matches(':hover') || subMenu.matches(':hover');
+                        if (!stillInside && !hovered) {
+                            closeSubGroup();
+                        }
+                    }, 120);
+                });
+
+                if (subLink) {
+                    subLink.addEventListener('click', function(event) {
+                        if (window.innerWidth <= 900) {
+                            return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (subGroup.classList.contains('is-open')) {
+                            closeSubGroup();
+                        } else {
+                            openSubGroup();
+                        }
+                    });
+                    subLink.addEventListener('keydown', function(event) {
+                        if (event.key === 'ArrowRight' || ((event.key === 'Enter' || event.key === ' ') && String(subLink.getAttribute('href') || '') === '#')) {
+                            event.preventDefault();
+                            openSubGroup();
+                            var firstNested = subMenu.querySelector('.mw-sidebar-subitem');
+                            if (firstNested) {
+                                firstNested.focus();
+                            }
+                        }
+                        if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+                            event.preventDefault();
+                            closeSubGroup();
+                            subLink.focus();
+                        }
+                    });
+                }
+            });
+        });
+
+        function resolveNestedLink(event) {
+            var target = event.target;
+            if (!target) return null;
+            if (target.nodeType !== 1 && target.parentElement) {
+                target = target.parentElement;
+            }
+            if (!target || typeof target.closest !== 'function') return null;
+            return target.closest('.mw-sidebar-subsubmenu .mw-sidebar-subitem[data-nav-nested-link="1"][href]');
+        }
+
+        function navigateNested(event) {
+            if (event.type === 'pointerdown') {
+                if (typeof event.button === 'number' && event.button !== 0) return;
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            }
+            var nestedLink = resolveNestedLink(event);
+            if (!nestedLink) {
+                return;
+            }
+            var href = String(nestedLink.getAttribute('href') || '').trim();
+            if (href === '' || href === '#') {
+                return;
+            }
+            event.preventDefault();
+            Metis.navigation.go(href);
+        }
+
+        sidebar.addEventListener('pointerdown', navigateNested, true);
+        sidebar.addEventListener('click', navigateNested, true);
+
+        sidebar.querySelector('.mw-sidebar-nav-scroll')?.addEventListener('scroll', function() {
+            sidebar.querySelectorAll('.mw-sidebar-group.is-open').forEach(function(group) {
+                openGroup(group);
             });
         });
 
         /* Close open groups when clicking outside */
         document.addEventListener('click', function(e) {
-            if (!e.target.closest('.mw-sidebar-group')) {
+            var clickedInsideSidebar = sidebar.contains(e.target);
+            var clickedInsideFlyout = !!(e.target.closest('.mw-sidebar-submenu') || e.target.closest('.mw-sidebar-subsubmenu'));
+            if (!clickedInsideSidebar && !clickedInsideFlyout) {
                 sidebar.querySelectorAll('.mw-sidebar-group.is-open').forEach(function(g) {
                     closeGroup(g);
                 });
@@ -889,6 +2758,25 @@ Metis.nav = (function() {
 
 function mwInitClickableRows(root) {
     root = root || document;
+    if (!root._mwClickableRowsKeyBound) {
+        root._mwClickableRowsKeyBound = true;
+        root.addEventListener('keydown', function(e) {
+            var row = e.target.closest('.mw-clickable-row');
+            if (!row || !row.dataset.href) return;
+            if (e.target.closest('a, button, input, select, textarea, .mw-btn')) return;
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            window.location = row.dataset.href;
+        });
+    }
+    root.querySelectorAll('.mw-clickable-row[data-href]').forEach(function(row) {
+        if (!row.hasAttribute('tabindex')) {
+            row.setAttribute('tabindex', '0');
+        }
+        if (!row.hasAttribute('role')) {
+            row.setAttribute('role', 'link');
+        }
+    });
     root.addEventListener('click', function(e) {
         var row = e.target.closest('.mw-clickable-row');
         if (!row || !row.dataset.href) return;
@@ -966,6 +2854,8 @@ Metis.codeSearch = (function() {
 
     var debounceTimer = null;
     var lastQuery     = '';
+    var MIN_CODE_LENGTH = 4;
+    var MIN_NUMERIC_LENGTH = 2;
 
     function escHtml(str) {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -987,34 +2877,74 @@ Metis.codeSearch = (function() {
     }
 
     function showResult(result, data) {
+        var matches = Array.isArray(data && data.matches) ? data.matches : [];
+        if (!matches.length && data && data.code) {
+            matches = [data];
+        }
+        if (!matches.length) {
+            hideResult(result);
+            return;
+        }
+
+        var html = '';
+        matches.forEach(function(item) {
+            if (!item || !item.code) return;
+            html += '<div class="mw-code-result-item">'
+                + '<div class="mw-code-result-head">'
+                + '<div class="mw-code-result-label">' + escHtml(item.label || item.code) + '</div>'
+                + (item.entity_type ? '<div class="mw-code-result-meta">' + escHtml(String(item.entity_type).replace(/_/g, ' ')) + '</div>' : '')
+                + '</div>'
+                + '<div class="mw-code-result-foot">'
+                + '<div class="mw-code-result-code">' + escHtml(item.code) + '</div>'
+                + (item.url
+                    ? '<a class="mw-code-result-link" href="' + escAttr(item.url) + '">Open &rarr;</a>'
+                    : '<span class="mw-code-result-no-url">No URL</span>'
+                )
+                + '</div>'
+                + '</div>';
+        });
+
         result.className = 'mw-code-result';
-        result.innerHTML =
-            '<div class="mw-code-result-label">' + escHtml(data.label) + '</div>' +
-            '<div class="mw-code-result-code">' + escHtml(data.code) + '</div>' +
-            (data.url
-                ? '<a class="mw-code-result-link" href="' + escAttr(data.url) + '">Open &rarr;</a>'
-                : '<span style="color:#b45309;font-size:12px;">No URL for this code.</span>'
-            );
+        result.innerHTML = html;
         result.style.display = 'block';
     }
 
-    function doLookup(input, result, code) {
+    function minLengthFor(value) {
+        var normalized = String(value || '').trim().replace(/\s+/g, '');
+        if (/^[0-9]+$/.test(normalized)) {
+            return MIN_NUMERIC_LENGTH;
+        }
+        return MIN_CODE_LENGTH;
+    }
+
+    function doLookup(input, result, code, strict) {
         code = code.toUpperCase().trim();
-        if (code === lastQuery || code.length < 4) {
-            if (code.length < 4) hideResult(result);
+        var minLength = minLengthFor(code);
+        if (code === lastQuery || code.length < minLength) {
+            if (code.length < minLength) hideResult(result);
             return;
         }
         lastQuery = code;
 
-        Metis.ajax.post({ action: 'metis_resolve_code', code: code })
+        Metis.ajax.post({ action: 'metis_resolve_code', code: code, fuzzy: strict ? 0 : 1 })
             .then(function(r) {
                 if (r.success) {
                     showResult(result, r.data);
                 } else {
-                    showError(result, (r.data && r.data.message) ? r.data.message : 'Code not found.');
+                    if (strict) {
+                        showError(result, (r.data && r.data.message) ? r.data.message : 'Code not found.');
+                    } else {
+                        hideResult(result);
+                    }
                 }
             })
-            .catch(function() { showError(result, 'Lookup failed.'); });
+            .catch(function() {
+                if (strict) {
+                    showError(result, 'Lookup failed.');
+                } else {
+                    hideResult(result);
+                }
+            });
     }
 
     function init() {
@@ -1025,12 +2955,12 @@ Metis.codeSearch = (function() {
         input.addEventListener('input', function() {
             clearTimeout(debounceTimer);
             var val = this.value.trim();
-            if (val.length < 4) { hideResult(result); lastQuery = ''; return; }
-            debounceTimer = setTimeout(function() { doLookup(input, result, val); }, 350);
+            if (val.length < minLengthFor(val)) { hideResult(result); lastQuery = ''; return; }
+            debounceTimer = setTimeout(function() { doLookup(input, result, val, false); }, 350);
         });
 
         input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') { clearTimeout(debounceTimer); doLookup(input, result, this.value); }
+            if (e.key === 'Enter') { clearTimeout(debounceTimer); doLookup(input, result, this.value, false); }
             if (e.key === 'Escape') { hideResult(result); this.blur(); }
         });
 
@@ -1038,7 +2968,7 @@ Metis.codeSearch = (function() {
             var self = this;
             setTimeout(function() {
                 var val = self.value.trim();
-                if (val.length >= 6) { clearTimeout(debounceTimer); doLookup(input, result, val); }
+                if (val.length >= minLengthFor(val)) { clearTimeout(debounceTimer); doLookup(input, result, val, false); }
             }, 50);
         });
 
@@ -1079,10 +3009,61 @@ Metis.breadcrumb = {
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', function() {
+    var authNotice = window.metisAuthNotice || null;
+    if (authNotice && authNotice.message && Metis.toast) {
+        var level = String(authNotice.type || '').toLowerCase();
+        if (level === 'error') {
+            Metis.toast.error(String(authNotice.message));
+        } else if (level === 'warning') {
+            Metis.toast.warning(String(authNotice.message));
+        } else {
+            Metis.toast.success(String(authNotice.message));
+        }
+    }
+
+    var moduleFailures = (window.metisAjax && Array.isArray(window.metisAjax.module_boot_failures))
+        ? window.metisAjax.module_boot_failures
+        : [];
+    if (moduleFailures.length > 0 && Metis.toast) {
+        var sessionStore = null;
+        try {
+            sessionStore = window.sessionStorage;
+        } catch (err) {
+            sessionStore = null;
+        }
+        moduleFailures.forEach(function(failure) {
+            if (!failure || typeof failure !== 'object') return;
+            var moduleSlug = String(failure.module || 'unknown');
+            var reason = String(failure.reason || 'Module failed compliance verification.');
+            var toastKey = 'metis.module.failure.toast.' + moduleSlug + '.' + reason;
+            if (sessionStore && sessionStore.getItem(toastKey) === '1') {
+                return;
+            }
+            Metis.toast.error('The "' + moduleSlug + '" module was disabled. ' + reason, {
+                title: 'Module Disabled (Compliance)',
+                duration: 9000
+            });
+            if (sessionStore) {
+                try {
+                    sessionStore.setItem(toastKey, '1');
+                } catch (err) {
+                    /* Session storage unavailable; allow duplicate toasts in this case. */
+                }
+            }
+        });
+    }
+
+    if (Metis.a11y) {
+        Metis.a11y.enhance(document);
+    }
     Metis.accessibility.init();
+    Metis.session.init();
+    Metis.navigation.init();
+    Metis.tooltip.init();
     Metis.tabs.init(document);
     Metis.modal.init(document);
     Metis.inlineEdit.init(document);
+    Metis.quickActions.init();
     Metis.nav.init();
     Metis.codeSearch.init();
     mwInitClickableRows(document);

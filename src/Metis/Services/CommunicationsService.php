@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Metis\Services;
 
-use Metis\Modules\Newsletter\DeliveryService;
+use Metis\Core\Services\EmailService;
 
 final class CommunicationsService {
     public function sendAnnouncement( mixed $announcement = null ): array {
@@ -19,7 +19,12 @@ final class CommunicationsService {
             ];
         }
 
-        $result = DeliveryService::gmailSend( $recipient, $subject, $body !== '' ? nl2br( \esc_html( $body ) ) : '<p>&nbsp;</p>' );
+        $result = EmailService::sendHtml(
+            $recipient,
+            $subject,
+            $body !== '' ? nl2br( \metis_escape_html( $body ) ) : '<p>&nbsp;</p>',
+            [ 'module' => 'communications' ]
+        );
 
         return [
             'status' => ! empty( $result['ok'] ) ? 'success' : 'error',

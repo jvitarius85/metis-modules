@@ -15,30 +15,56 @@ final class FormsModule {
         }
 
         self::$booted = true;
-        \metis_add_action( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
     }
 
     public static function ensureSchema(): void {
         SchemaManager::ensureSchema();
     }
 
-    public static function canView(): bool { return Support::canView(); }
-    public static function canManage(): bool { return Support::canManage(); }
-    public static function canDelete(): bool { return Support::canDelete(); }
-    public static function baseUrl(): string { return Support::baseUrl(); }
-    public static function publicUrl( string $slug = '' ): string { return Support::publicUrl( $slug ); }
-    public static function detailUrl( int $form_id = 0 ): string { return Support::detailUrl( $form_id ); }
-    public static function buildUrl( int $form_id = 0 ): string { return Support::buildUrl( $form_id ); }
-    public static function entriesUrl( int $form_id = 0 ): string { return Support::entriesUrl( $form_id ); }
-    public static function settingsUrl( int $form_id = 0 ): string { return Support::settingsUrl( $form_id ); }
+    public static function canView(): bool {
+        return Support::canView();
+    }
+
+    public static function canManage(): bool {
+        return Support::canManage();
+    }
+
+    public static function canDelete(): bool {
+        return Support::canDelete();
+    }
+
+    public static function baseUrl(): string {
+        return Support::baseUrl();
+    }
+
+    public static function publicUrl( string $slug = '' ): string {
+        return Support::publicUrl( $slug );
+    }
+
+    public static function detailUrl( int $form_id = 0 ): string {
+        return Support::detailUrl( $form_id );
+    }
+
+    public static function buildUrl( int $form_id = 0 ): string {
+        return Support::buildUrl( $form_id );
+    }
+
+    public static function entriesUrl( int $form_id = 0 ): string {
+        return Support::entriesUrl( $form_id );
+    }
+
+    public static function settingsUrl( int $form_id = 0 ): string {
+        return Support::settingsUrl( $form_id );
+    }
 
     public static function handlePublicRoute( Request $request ): Response {
         self::ensureSchema();
 
-        $slug = \sanitize_title( (string) $request->attribute( 'form_slug', '' ) );
+        $slug = \metis_slug_clean( (string) $request->attribute( 'form_slug', '' ) );
         $form = Repository::getFormBySlug( $slug, true );
-        if ( ! $form ) {
-            return Response::html( '<div class="metis-error">Form not found.</div>', 404 );
+        if ( ! is_array( $form ) ) {
+            return Response::html( '<div class="mw-alert mw-alert-error">Form not found.</div>', 404 );
         }
 
         if ( strtoupper( $request->method() ) === 'POST' ) {
@@ -50,36 +76,51 @@ final class FormsModule {
                 }
             }
 
-            $result = Repository::submitForm(
-                $form,
-                is_array( $input ) ? $input : [],
-                $request->files(),
-                $request->uri()
-            );
-
-            if ( str_contains( strtolower( (string) $request->header( 'accept', '' ) ), 'application/json' )
-                || strtolower( (string) $request->header( 'x-requested-with', '' ) ) === 'xmlhttprequest'
-            ) {
-                return Response::json( $result, (int) ( $result['status'] ?? 200 ) );
+            $payload = is_array( $input ) ? $input : [];
+            $availability = Repository::publicAvailability( $form, $payload );
+            if ( empty( $availability['ok'] ) ) {
+                return self::respondPublic( $request, $form, $availability, (int) ( $availability['status'] ?? 403 ) );
             }
 
-            return FormRenderer::render( $form, $result );
+            $mode = \metis_key_clean( (string) ( $payload['mode'] ?? 'submit' ) );
+            if ( $mode === 'prepare_payment' ) {
+                $result = Repository::preparePublicPayment( $form, $payload, $request->files(), $request->uri() );
+            } elseif ( $mode === 'finalize_payment' ) {
+                $result = Repository::finalizePaymentSession(
+                    (string) ( $payload['payment_session'] ?? '' ),
+                    (string) ( $payload['payment_intent_id'] ?? '' )
+                );
+            } else {
+                $result = Repository::submitForm( $form, $payload, $request->files(), $request->uri() );
+            }
+
+            return self::respondPublic( $request, $form, $result, (int) ( $result['status'] ?? 200 ) );
+        }
+
+        $input = $request->query();
+        $payload = is_array( $input ) ? $input : [];
+        $availability = Repository::publicAvailability( $form, $payload );
+        if ( empty( $availability['ok'] ) ) {
+            return FormRenderer::render( $form, $availability );
         }
 
         $result = [];
-        $input = $request->query();
-        if ( ! empty( $input['payment_return'] ) && ! empty( $input['submission'] ) && is_scalar( $input['submission'] ) ) {
-            $sync = Repository::syncPaymentStatus( (string) $input['submission'] );
-            if ( ! empty( $sync['ok'] ) ) {
-                $payment_status = (string) ( $sync['submission']['payment_status'] ?? 'pending' );
-                $result = [
-                    'message' => $payment_status === 'paid'
-                        ? 'Payment completed successfully.'
-                        : 'Submission received. Payment is still processing.',
-                ];
-            } else {
-                $result = [ 'message' => (string) ( $sync['error'] ?? 'Payment status could not be verified.' ) ];
-            }
+        if ( ! empty( $payload['payment_return'] ) && ! empty( $payload['payment_session'] ) ) {
+            $result = Repository::finalizePaymentSession(
+                (string) $payload['payment_session'],
+                is_scalar( $payload['payment_intent'] ?? null ) ? (string) $payload['payment_intent'] : ''
+            );
+        }
+
+        return FormRenderer::render( $form, $result );
+    }
+
+    private static function respondPublic( Request $request, array $form, array $result, int $status ): Response {
+        $expects_json = str_contains( strtolower( (string) $request->header( 'accept', '' ) ), 'application/json' )
+            || strtolower( (string) $request->header( 'x-requested-with', '' ) ) === 'xmlhttprequest';
+
+        if ( $expects_json ) {
+            return Response::json( $result, $status );
         }
 
         return FormRenderer::render( $form, $result );

@@ -7,6 +7,12 @@ final class BackupService {
     private const RUNNING = 'running';
     private const SUCCESS = 'success';
     private const FAILED = 'failed';
+    private const RUN_TIMEOUT_SECONDS = 3 * 60 * 60;
+    private const BACKUP_EXECUTION_REFRESH_SECONDS = 10 * 60;
+
+    private function database(): \Metis\Services\DatabaseService {
+        return \function_exists( 'metis_db' ) ? \metis_db() : new \Metis\Services\DatabaseService();
+    }
 
     public function ensureSchema(): void {
         static $done = false;
@@ -14,15 +20,10 @@ final class BackupService {
             return;
         }
 
-        global $wpdb;
         $table   = \Metis_Tables::get( 'backup_runs' );
-        $charset = $wpdb->get_charset_collate();
+        $charset = $this->database()->get_charset_collate();
 
-        if ( ! \function_exists( 'dbDelta' ) ) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        }
-
-        \dbDelta(
+        \metis_db_delta(
             "CREATE TABLE {$table} (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 run_uuid VARCHAR(64) NOT NULL,
@@ -52,7 +53,9 @@ final class BackupService {
     }
 
     public function runBackup( string $trigger = 'manual' ): array {
+        $this->initializeLongRunningExecution();
         $this->ensureSchema();
+        $this->reconcileStaleRuns();
 
         if ( ! \class_exists( 'Metis_Tables' ) ) {
             return [ 'ok' => false, 'error' => 'Backup prerequisites are not loaded.' ];
@@ -60,16 +63,16 @@ final class BackupService {
 
         $drive_cfg = $this->resolveDriveConfig();
         if ( empty( $drive_cfg['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $drive_cfg['error'] ?? 'Backup Drive is not configured.' ) ];
+            return [ 'ok' => false, 'error' => 'Backup Drive is not configured.' ];
         }
 
         $run_uuid    = $this->buildRunUuid();
         $environment = $this->environmentLabel();
-        $started_at  = \current_time( 'mysql' );
+        $started_at  = \metis_current_time( 'mysql' );
         $local_dir   = $this->runDirectory( $run_uuid );
         $payload_dir = $local_dir . '/payload';
 
-        if ( ! \metis_make_dir( $payload_dir . '/database' ) ) {
+        if ( ! \metis_runtime_make_dir( $payload_dir . '/database' ) ) {
             return [ 'ok' => false, 'error' => 'Could not create the local backup staging directory.' ];
         }
 
@@ -97,7 +100,7 @@ final class BackupService {
             $component_archives['config'] = $this->describeFile( 'config', $config_archive );
 
             $media_archive = $payload_dir . '/media.zip';
-            $this->zipDirectory( $this->metisPath( 'storage/uploads' ), $media_archive );
+            $this->zipDirectory( $this->metisPath( 'storage/media' ), $media_archive );
             $component_archives['media'] = $this->describeFile( 'media', $media_archive );
 
             $runtime_archive = $payload_dir . '/runtime.zip';
@@ -113,7 +116,7 @@ final class BackupService {
                 'created_at_utc'     => $timestamp_utc,
                 'created_at_local'   => $started_at,
                 'environment'        => $environment,
-                'site_url'           => \function_exists( 'home_url' ) ? (string) \home_url( '/' ) : '',
+                'site_url'           => \metis_home_url( '/' ),
                 'version'            => $this->version(),
                 'trigger_source'     => $trigger,
                 'directory_layout'   => [
@@ -158,7 +161,7 @@ final class BackupService {
             ];
             $run_folder = $this->ensureDriveFolderPath( $drive_cfg, $drive_segments );
             if ( empty( $run_folder['ok'] ) ) {
-                throw new \RuntimeException( (string) ( $run_folder['error'] ?? 'Could not create the backup folder structure in Google Drive.' ) );
+                throw new \RuntimeException( 'Could not create the backup folder structure in Google Drive.' );
             }
 
             $root_folder_id = (string) ( $run_folder['folder_id'] ?? '' );
@@ -180,7 +183,7 @@ final class BackupService {
             foreach ( $upload_map as $component => $folder_name ) {
                 $component_folder = $this->ensureDriveFolderPath( $drive_cfg, array_merge( $drive_segments, [ $folder_name ] ) );
                 if ( empty( $component_folder['ok'] ) ) {
-                    throw new \RuntimeException( (string) ( $component_folder['error'] ?? 'Could not create a component folder in Google Drive.' ) );
+                    throw new \RuntimeException( 'Could not create a component folder in Google Drive.' );
                 }
 
                 $upload = $this->uploadFileToDrive(
@@ -191,7 +194,7 @@ final class BackupService {
                     $component === 'database' ? 'application/gzip' : 'application/zip'
                 );
                 if ( empty( $upload['ok'] ) ) {
-                    throw new \RuntimeException( (string) ( $upload['error'] ?? 'File upload failed.' ) );
+                    throw new \RuntimeException( 'File upload failed.' );
                 }
 
                 $component_archives[ $component ]['drive_file_id'] = (string) ( $upload['id'] ?? '' );
@@ -199,7 +202,7 @@ final class BackupService {
                 $component_archives[ $component ]['drive_folder_id'] = (string) ( $component_folder['folder_id'] ?? '' );
             }
 
-            $completed_at = \current_time( 'mysql' );
+            $completed_at = \metis_current_time( 'mysql' );
             $metadata['completed_at_local'] = $completed_at;
             $metadata['drive'] = [
                 'drive_id'       => (string) ( $drive_cfg['shared_drive_id'] ?? '' ),
@@ -221,6 +224,7 @@ final class BackupService {
             ] );
 
             $this->applyRetentionPolicy( $environment, (int) $run_id, $drive_cfg );
+            $this->cleanupLocalRunArtifacts( $run_id, $run_uuid, $local_dir );
 
             return [
                 'ok'             => true,
@@ -235,8 +239,8 @@ final class BackupService {
         } catch ( \Throwable $e ) {
             $this->updateRun( $run_id, [
                 'status'        => self::FAILED,
-                'completed_at'  => \current_time( 'mysql' ),
-                'last_error'    => $e->getMessage(),
+                'completed_at'  => \metis_current_time( 'mysql' ),
+                'last_error'    => 'Backup run failed. Review logs for details.',
             ] );
 
             if ( \class_exists( 'Metis_Logger' ) ) {
@@ -250,26 +254,93 @@ final class BackupService {
                 'ok'       => false,
                 'status'   => self::FAILED,
                 'run_uuid' => $run_uuid,
-                'error'    => $e->getMessage(),
+                'error'    => 'Backup run failed. Review logs for details.',
             ];
         }
     }
 
     public function listRuns( int $limit = 20 ): array {
         $this->ensureSchema();
-        global $wpdb;
+        $this->reconcileStaleRuns();
 
         $table = \Metis_Tables::get( 'backup_runs' );
         $limit = max( 1, min( 100, $limit ) );
-        $rows  = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$table} ORDER BY id DESC LIMIT %d",
-                $limit
-            ),
-            ARRAY_A
-        );
+        $rows  = $this->database()->fetchAll( "SELECT * FROM {$table} ORDER BY id DESC LIMIT %d", [ $limit ] );
 
         return array_values( array_map( fn ( array $row ): array => $this->normalizeRunRow( $row ), $rows ?: [] ) );
+    }
+
+    private function reconcileStaleRuns(): void {
+        $table = \Metis_Tables::get( 'backup_runs' );
+        $rows  = $this->database()->fetchAll(
+            "SELECT id, run_uuid, started_at, local_path
+             FROM {$table}
+             WHERE status = %s
+             ORDER BY id DESC
+             LIMIT 200",
+            [ self::RUNNING ]
+        ) ?: [];
+
+        $now = time();
+        foreach ( $rows as $row ) {
+            $started = (string) ( $row['started_at'] ?? '' );
+            $timezone = \function_exists( 'metis_runtime_timezone' )
+                ? \metis_runtime_timezone()
+                : new \DateTimeZone( 'UTC' );
+            $started_dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $started, $timezone );
+            $started_ts = $started_dt instanceof \DateTimeImmutable ? $started_dt->getTimestamp() : false;
+            if ( $started_ts === false || $started_ts < 1 ) {
+                continue;
+            }
+
+            if ( ( $now - $started_ts ) < self::RUN_TIMEOUT_SECONDS ) {
+                continue;
+            }
+
+            $run_id   = (int) ( $row['id'] ?? 0 );
+            $run_uuid = (string) ( $row['run_uuid'] ?? '' );
+            if ( $run_id < 1 ) {
+                continue;
+            }
+
+            $this->updateRun( $run_id, [
+                'status'       => self::FAILED,
+                'completed_at' => \metis_current_time( 'mysql' ),
+                'last_error'   => 'Backup run timed out before completion; marked failed by watchdog.',
+            ] );
+
+            $local_path = trim( (string) ( $row['local_path'] ?? '' ) );
+            if ( $local_path !== '' ) {
+                $this->removeDirectory( $local_path );
+            }
+
+            if ( \class_exists( 'Metis_Logger' ) ) {
+                \Metis_Logger::warn( 'Backup run reconciled from stale running state', [
+                    'run_uuid' => $run_uuid,
+                    'started_at' => $started,
+                    'timeout_seconds' => self::RUN_TIMEOUT_SECONDS,
+                ] );
+            }
+        }
+    }
+
+    private function cleanupLocalRunArtifacts( int $run_id, string $run_uuid, string $local_dir ): void {
+        if ( $local_dir === '' ) {
+            return;
+        }
+
+        try {
+            $this->removeDirectory( $local_dir );
+            $this->updateRun( $run_id, [ 'local_path' => '' ] );
+        } catch ( \Throwable $e ) {
+            if ( \class_exists( 'Metis_Logger' ) ) {
+                \Metis_Logger::warn( 'Backup local cleanup failed after successful upload', [
+                    'run_uuid' => $run_uuid,
+                    'local_path' => $local_dir,
+                    'error' => $e->getMessage(),
+                ] );
+            }
+        }
     }
 
     public function restoreRun( string $run_uuid ): array {
@@ -294,7 +365,7 @@ final class BackupService {
         if ( $full_archive === '' || ! \is_file( $full_archive ) ) {
             $drive_cfg = $this->resolveDriveConfig( (string) ( $row['drive_id'] ?? '' ) );
             if ( empty( $drive_cfg['ok'] ) ) {
-                return [ 'ok' => false, 'error' => (string) ( $drive_cfg['error'] ?? 'Backup Drive is not configured.' ) ];
+                return [ 'ok' => false, 'error' => 'Backup Drive is not configured.' ];
             }
 
             $download_target = $this->runDirectory( $run_uuid ) . '/downloaded-full.zip';
@@ -304,13 +375,13 @@ final class BackupService {
                 $download_target
             );
             if ( empty( $download['ok'] ) ) {
-                return [ 'ok' => false, 'error' => (string) ( $download['error'] ?? 'Could not download the full backup archive.' ) ];
+                return [ 'ok' => false, 'error' => 'Could not download the full backup archive.' ];
             }
             $full_archive = $download_target;
         }
 
         $restore_dir = $this->runDirectory( $run_uuid ) . '/restore-' . \gmdate( 'Ymd-His' );
-        if ( ! \metis_make_dir( $restore_dir ) ) {
+        if ( ! \metis_runtime_make_dir( $restore_dir ) ) {
             return [ 'ok' => false, 'error' => 'Could not create the restore workspace.' ];
         }
 
@@ -326,6 +397,7 @@ final class BackupService {
             $zip->close();
 
             $config_source  = $restore_dir . '/config';
+            $media_source   = $restore_dir . '/storage/media';
             $uploads_source = $restore_dir . '/storage/uploads';
             $runtime_source = $restore_dir . '/storage/runtime';
             $database_file  = $restore_dir . '/database/database.sql.gz';
@@ -333,8 +405,12 @@ final class BackupService {
             if ( \is_dir( $config_source ) ) {
                 $this->mirrorDirectory( $config_source, $this->metisPath( 'config' ) );
             }
+            if ( \is_dir( $media_source ) ) {
+                $this->mirrorDirectory( $media_source, $this->metisPath( 'storage/media' ) );
+            }
+            // Backward compatibility for older archives that used storage/uploads.
             if ( \is_dir( $uploads_source ) ) {
-                $this->mirrorDirectory( $uploads_source, $this->metisPath( 'storage/uploads' ) );
+                $this->mirrorDirectory( $uploads_source, $this->metisPath( 'storage/media' ) );
             }
             if ( \is_dir( $runtime_source ) ) {
                 $this->mirrorDirectory( $runtime_source, $this->metisPath( 'storage/runtime' ), [ 'backups' ] );
@@ -347,7 +423,7 @@ final class BackupService {
             $this->restoreDatabaseFromSnapshot( $database_file );
 
             $restore_payload = [
-                'restored_at'   => \current_time( 'mysql' ),
+                'restored_at'   => \metis_current_time( 'mysql' ),
                 'restored_from' => $run_uuid,
                 'archive_path'  => $full_archive,
             ];
@@ -366,13 +442,14 @@ final class BackupService {
             return [
                 'ok'       => false,
                 'run_uuid' => $run_uuid,
-                'error'    => $e->getMessage(),
+                'error'    => 'Restore operation failed. Review logs for details.',
             ];
         }
     }
 
     private function buildDatabaseSnapshot( string $directory, string $run_uuid ): string {
-        global $wpdb;
+        $this->initializeLongRunningExecution();
+        $db = $this->database();
 
         $sql_path = $directory . '/database.sql';
         $handle   = \fopen( $sql_path, 'wb' );
@@ -390,12 +467,12 @@ final class BackupService {
         \fwrite( $handle, "SET FOREIGN_KEY_CHECKS=0;\n" );
 
         foreach ( $tables as $table ) {
-            $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+            $exists = $db->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
             if ( $exists !== $table ) {
                 continue;
             }
 
-            $create_row = $wpdb->get_row( "SHOW CREATE TABLE `{$table}`", ARRAY_A );
+            $create_row = $db->fetchOne( "SHOW CREATE TABLE `{$table}`" );
             $create_sql = (string) ( $create_row['Create Table'] ?? '' );
             if ( $create_sql === '' ) {
                 continue;
@@ -406,17 +483,19 @@ final class BackupService {
 
             $batch_size = 500;
             $offset = 0;
+            $processed_rows = 0;
             do {
-                $rows = $wpdb->get_results(
-                    $wpdb->prepare(
-                        "SELECT * FROM `{$table}` LIMIT %d OFFSET %d",
-                        $batch_size,
-                        $offset
-                    ),
-                    ARRAY_A
+                $this->refreshExecutionBudget();
+                $rows = $db->fetchAll(
+                    "SELECT * FROM `{$table}` LIMIT %d OFFSET %d",
+                    [ $batch_size, $offset ]
                 ) ?: [];
 
                 foreach ( $rows as $row ) {
+                    $processed_rows++;
+                    if ( ( $processed_rows % 200 ) === 0 ) {
+                        $this->refreshExecutionBudget();
+                    }
                     $columns = array_map(
                         static fn ( string $column ): string => '`' . str_replace( '`', '``', $column ) . '`',
                         array_keys( $row )
@@ -454,7 +533,7 @@ final class BackupService {
         $zip->addFile( $checksums_path, 'checksums.json' );
         $zip->addFile( $database_file, 'database/' . basename( $database_file ) );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'config' ), 'config', [ 'index.php' ] );
-        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/uploads' ), 'storage/uploads' );
+        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/media' ), 'storage/media' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/runtime' ), 'storage/runtime', [ 'backups' ] );
         $zip->close();
     }
@@ -539,7 +618,7 @@ final class BackupService {
 
         $token = \metis_drive_google_access_token( $cfg );
         if ( empty( $token['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $token['error'] ?? 'Workspace token error.' ) ];
+            return [ 'ok' => false, 'error' => 'Workspace token error.' ];
         }
 
         $boundary = 'metis_backup_' . \substr( \md5( $name . '|' . \microtime( true ) ), 0, 12 );
@@ -558,7 +637,7 @@ final class BackupService {
         $body .= "--{$boundary}--";
 
         $upload_url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&includeItemsFromAllDrives=true&useDomainAdminAccess=true&fields=id,name,mimeType,size,webViewLink,parents,driveId';
-        $response = \metis_remote_post( $upload_url, [
+        $response = \metis_runtime_remote_post( $upload_url, [
             'timeout' => 120,
             'headers' => [
                 'Authorization' => 'Bearer ' . (string) $token['access_token'],
@@ -567,17 +646,17 @@ final class BackupService {
             'body' => $body,
         ] );
 
-        if ( \metis_is_error( $response ) ) {
-            return [ 'ok' => false, 'error' => $response->get_error_message() ];
+        if ( \metis_runtime_is_error( $response ) ) {
+            return [ 'ok' => false, 'error' => 'Backup artifact upload request failed.' ];
         }
 
-        $status  = (int) \metis_remote_retrieve_response_code( $response );
-        $raw     = (string) \metis_remote_retrieve_body( $response );
+        $status  = (int) \metis_runtime_remote_retrieve_response_code( $response );
+        $raw     = (string) \metis_runtime_remote_retrieve_body( $response );
         $decoded = \json_decode( $raw, true );
         if ( $status < 200 || $status >= 300 || ! \is_array( $decoded ) || empty( $decoded['id'] ) ) {
             return [
                 'ok'    => false,
-                'error' => \is_array( $decoded ) ? (string) ( $decoded['error']['message'] ?? 'Failed to upload backup artifact.' ) : 'Failed to upload backup artifact.',
+                'error' => 'Failed to upload backup artifact.',
             ];
         }
 
@@ -613,7 +692,7 @@ final class BackupService {
             str_replace( "'", "\\'", $parent_id )
         );
 
-        $find_url = \add_query_arg( [
+        $find_url = \metis_add_query_arg( [
             'corpora'                   => 'drive',
             'driveId'                   => (string) ( $cfg['shared_drive_id'] ?? '' ),
             'includeItemsFromAllDrives' => 'true',
@@ -634,7 +713,7 @@ final class BackupService {
             }
         }
 
-        $create_url = \add_query_arg( [
+        $create_url = \metis_add_query_arg( [
             'supportsAllDrives'         => 'true',
             'includeItemsFromAllDrives' => 'true',
             'useDomainAdminAccess'      => 'true',
@@ -646,7 +725,7 @@ final class BackupService {
             'parents'  => [ $parent_id ],
         ] ), $cfg );
         if ( empty( $create['ok'] ) || empty( $create['body']['id'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $create['error'] ?? 'Could not create a backup folder in Google Drive.' ) ];
+            return [ 'ok' => false, 'error' => 'Could not create a backup folder in Google Drive.' ];
         }
 
         return [
@@ -669,7 +748,7 @@ final class BackupService {
 
             $drives = \metis_drive_list_shared_drives( $base );
             if ( empty( $drives['ok'] ) ) {
-                return [ 'ok' => false, 'error' => (string) ( $drives['error'] ?? 'Unable to load Shared Drives.' ) ];
+                return [ 'ok' => false, 'error' => 'Unable to load Shared Drives.' ];
             }
 
             foreach ( (array) ( $drives['drives'] ?? [] ) as $drive ) {
@@ -693,7 +772,7 @@ final class BackupService {
 
         $drives = \metis_drive_list_shared_drives( $base );
         if ( empty( $drives['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $drives['error'] ?? 'Unable to load Shared Drives.' ) ];
+            return [ 'ok' => false, 'error' => 'Unable to load Shared Drives.' ];
         }
 
         foreach ( (array) ( $drives['drives'] ?? [] ) as $drive ) {
@@ -710,21 +789,15 @@ final class BackupService {
     }
 
     private function applyRetentionPolicy( string $environment, int $current_run_id, array $drive_cfg ): void {
-        global $wpdb;
-
         $retention = max( 1, (int) \Core_Settings_Service::get( 'backup_retention_runs', 14 ) );
         $table = \Metis_Tables::get( 'backup_runs' );
-        $rows  = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT id, run_uuid, drive_run_folder_id, local_path
+        $rows  = $this->database()->fetchAll(
+            "SELECT id, run_uuid, drive_run_folder_id, local_path
                  FROM {$table}
                  WHERE environment = %s
                    AND status = %s
                  ORDER BY id DESC",
-                $environment,
-                self::SUCCESS
-            ),
-            ARRAY_A
+            [ $environment, self::SUCCESS ]
         ) ?: [];
 
         $keep = 0;
@@ -757,7 +830,7 @@ final class BackupService {
             return;
         }
 
-        $url = \add_query_arg( [
+        $url = \metis_add_query_arg( [
             'supportsAllDrives'         => 'true',
             'includeItemsFromAllDrives' => 'true',
             'useDomainAdminAccess'      => 'true',
@@ -774,30 +847,30 @@ final class BackupService {
 
         $token = \metis_drive_google_access_token( $cfg );
         if ( empty( $token['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $token['error'] ?? 'Workspace token error.' ) ];
+            return [ 'ok' => false, 'error' => 'Workspace token error.' ];
         }
 
-        $url = \add_query_arg( [
+        $url = \metis_add_query_arg( [
             'alt'                => 'media',
             'supportsAllDrives'  => 'true',
             'useDomainAdminAccess' => 'true',
         ], 'https://www.googleapis.com/drive/v3/files/' . rawurlencode( $file_id ) );
-        $response = \metis_remote_get( $url, [
+        $response = \metis_runtime_remote_get( $url, [
             'timeout' => 120,
             'headers' => [
                 'Authorization' => 'Bearer ' . (string) $token['access_token'],
             ],
         ] );
-        if ( \metis_is_error( $response ) ) {
-            return [ 'ok' => false, 'error' => $response->get_error_message() ];
+        if ( \metis_runtime_is_error( $response ) ) {
+            return [ 'ok' => false, 'error' => 'Backup archive download request failed.' ];
         }
 
-        $status = (int) \metis_remote_retrieve_response_code( $response );
+        $status = (int) \metis_runtime_remote_retrieve_response_code( $response );
         if ( $status < 200 || $status >= 300 ) {
             return [ 'ok' => false, 'error' => 'Could not download the backup archive from Google Drive.' ];
         }
 
-        $body = (string) \metis_remote_retrieve_body( $response );
+        $body = (string) \metis_runtime_remote_retrieve_body( $response );
         if ( \file_put_contents( $destination, $body, LOCK_EX ) === false ) {
             return [ 'ok' => false, 'error' => 'Could not save the downloaded backup archive.' ];
         }
@@ -811,8 +884,7 @@ final class BackupService {
             throw new \RuntimeException( 'The database snapshot could not be read.' );
         }
 
-        global $wpdb;
-        $dbh = $wpdb->dbh ?? null;
+        $dbh = $this->database()->connection()->dbh ?? null;
         if ( ! $dbh instanceof \mysqli ) {
             throw new \RuntimeException( 'Restore requires an available mysqli connection.' );
         }
@@ -856,11 +928,11 @@ final class BackupService {
 
             $target = rtrim( $destination, '/\\' ) . DIRECTORY_SEPARATOR . $relative;
             if ( $item->isDir() ) {
-                \metis_make_dir( $target );
+                \metis_runtime_make_dir( $target );
                 continue;
             }
 
-            \metis_make_dir( dirname( $target ) );
+            \metis_runtime_make_dir( dirname( $target ) );
             if ( ! \copy( $path, $target ) ) {
                 throw new \RuntimeException( 'Could not restore file: ' . $relative );
             }
@@ -887,15 +959,13 @@ final class BackupService {
     }
 
     private function insertRun( array $payload ): int {
-        global $wpdb;
-
-        $wpdb->insert(
+        $this->database()->insert(
             \Metis_Tables::get( 'backup_runs' ),
             $payload,
             [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
         );
 
-        return (int) $wpdb->insert_id;
+        return $this->database()->lastInsertId();
     }
 
     private function updateRun( int $id, array $payload ): void {
@@ -903,13 +973,12 @@ final class BackupService {
             return;
         }
 
-        global $wpdb;
         $formats = [];
         foreach ( $payload as $value ) {
             $formats[] = is_int( $value ) ? '%d' : '%s';
         }
 
-        $wpdb->update(
+        $this->database()->update(
             \Metis_Tables::get( 'backup_runs' ),
             $payload,
             [ 'id' => $id ],
@@ -919,14 +988,9 @@ final class BackupService {
     }
 
     private function findRun( string $run_uuid ): ?array {
-        global $wpdb;
-
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . \Metis_Tables::get( 'backup_runs' ) . ' WHERE run_uuid = %s LIMIT 1',
-                $run_uuid
-            ),
-            ARRAY_A
+        $row = $this->database()->fetchOne(
+            'SELECT * FROM ' . \Metis_Tables::get( 'backup_runs' ) . ' WHERE run_uuid = %s LIMIT 1',
+            [ $run_uuid ]
         );
 
         return is_array( $row ) ? $row : null;
@@ -982,15 +1046,18 @@ final class BackupService {
     }
 
     private function sqlValue( mixed $value ): string {
-        global $wpdb;
-
         if ( $value === null ) {
             return 'NULL';
         }
 
         $escaped = \is_scalar( $value ) ? (string) $value : $this->encode( $value );
-        if ( isset( $wpdb ) && \is_object( $wpdb ) && \method_exists( $wpdb, '_real_escape' ) ) {
-            $escaped = $wpdb->_real_escape( $escaped );
+        $connection = $this->database()->connection();
+        if ( \is_object( $connection ) && \method_exists( $connection, '_real_escape' ) ) {
+            $escaped = $connection->_real_escape( $escaped );
+        } elseif ( \is_object( $connection ) && \method_exists( $connection, 'real_escape_string' ) ) {
+            $escaped = $connection->real_escape_string( $escaped );
+        } elseif ( \is_object( $connection ) && property_exists( $connection, 'dbh' ) && $connection->dbh instanceof \mysqli ) {
+            $escaped = $connection->dbh->real_escape_string( $escaped );
         } else {
             $escaped = addslashes( $escaped );
         }
@@ -998,20 +1065,34 @@ final class BackupService {
         return "'" . $escaped . "'";
     }
 
+    private function initializeLongRunningExecution(): void {
+        if ( \function_exists( 'ignore_user_abort' ) ) {
+            @\ignore_user_abort( true );
+        }
+        if ( \function_exists( 'set_time_limit' ) ) {
+            @\set_time_limit( 0 );
+        }
+        @\ini_set( 'max_execution_time', '0' );
+    }
+
+    private function refreshExecutionBudget(): void {
+        if ( \function_exists( 'set_time_limit' ) ) {
+            @\set_time_limit( self::BACKUP_EXECUTION_REFRESH_SECONDS );
+        }
+    }
+
     private function environmentLabel(): string {
         $configured = trim( (string) \Core_Settings_Service::get( 'backup_environment', '' ) );
         if ( $configured !== '' ) {
-            return \sanitize_key( $configured );
+            return \metis_key_clean( $configured );
         }
 
-        if ( \function_exists( 'wp_get_environment_type' ) ) {
-            $env = trim( (string) \wp_get_environment_type() );
-            if ( $env !== '' ) {
-                return \sanitize_key( $env );
-            }
+        $env = \metis_environment_type();
+        if ( $env !== '' ) {
+            return $env;
         }
 
-        $host = strtolower( (string) \metis_parse_url( \home_url( '/' ), PHP_URL_HOST ) );
+        $host = strtolower( (string) \metis_runtime_parse_url( \metis_home_url( '/' ), PHP_URL_HOST ) );
         if ( str_contains( $host, 'localhost' ) || str_contains( $host, '.local' ) ) {
             return 'local';
         }

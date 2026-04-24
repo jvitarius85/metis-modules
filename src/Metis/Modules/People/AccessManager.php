@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Metis\Modules\People;
 
 use Metis\Core\Application;
+use Metis\Core\Cache\CacheService;
 use Metis\Core\ModuleLoader;
 
 final class AccessManager {
@@ -15,11 +16,12 @@ final class AccessManager {
         }
 
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $roles_table = \Metis_Tables::get( 'people_roles' );
         $perms_table = \Metis_Tables::get( 'people_permissions' );
         $role_perms_table = \Metis_Tables::get( 'people_role_perms' );
+        $cache_changed = false;
 
         $default_roles = [
             [ 'role_key' => 'administrator', 'role_domain' => 'metis', 'name' => 'Administrator', 'description' => 'Full Metis access', 'is_system' => 1 ],
@@ -27,6 +29,8 @@ final class AccessManager {
             [ 'role_key' => 'donor_user', 'role_domain' => 'metis', 'name' => 'Donor User', 'description' => 'Read-only donor/contact access', 'is_system' => 1 ],
             [ 'role_key' => 'newsletter_admin', 'role_domain' => 'metis', 'name' => 'Newsletter Admin', 'description' => 'Newsletter operations access', 'is_system' => 1 ],
             [ 'role_key' => 'board', 'role_domain' => 'metis', 'name' => 'Board', 'description' => 'Board-level read access', 'is_system' => 1 ],
+            [ 'role_key' => 'finance', 'role_domain' => 'metis', 'name' => 'Finance', 'description' => 'Finance mode operational access for finance workflows and controls.', 'is_system' => 1 ],
+            [ 'role_key' => 'website_manager', 'role_domain' => 'metis', 'name' => 'Website Manager', 'description' => 'Manages website pages, posts, categories, menus, themes, and publishing workflows.', 'is_system' => 1 ],
             [ 'role_key' => 'workspace_manager', 'role_domain' => 'metis', 'name' => 'Workspace Manager', 'description' => 'Manages Google Workspace users, groups, and security actions in Metis.', 'is_system' => 1 ],
             [ 'role_key' => 'account_owner', 'role_domain' => 'stripe', 'name' => 'Account owner', 'description' => 'Full account ownership, billing, and sensitive account controls.', 'is_system' => 1 ],
             [ 'role_key' => 'administrator', 'role_domain' => 'stripe', 'name' => 'Administrator', 'description' => 'Broad administrative access across Stripe settings and operations.', 'is_system' => 1 ],
@@ -53,12 +57,12 @@ final class AccessManager {
                 continue;
             }
 
-            $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = %s LIMIT 1", $role_key, $role_domain ) );
+            $existing = $db->scalar( "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = %s LIMIT 1", [ $role_key, $role_domain ] );
             if ( $existing ) {
                 continue;
             }
 
-            $wpdb->insert(
+            $db->insert(
                 $roles_table,
                 [
                     'role_key' => $role_key,
@@ -69,69 +73,21 @@ final class AccessManager {
                 ],
                 [ '%s', '%s', '%s', '%s', '%d' ]
             );
+            $cache_changed = true;
         }
 
         self::syncDeclaredPermissions();
 
-        $has_links = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$role_perms_table}" );
-        if ( $has_links === 0 ) {
-            $role_ids = [];
-            $rows = $wpdb->get_results( "SELECT id, role_key FROM {$roles_table} WHERE role_domain = 'metis'" );
-            foreach ( (array) $rows as $row ) {
-                $role_ids[ (string) $row->role_key ] = (int) $row->id;
-            }
+        if ( self::repairLegacyPermissionKeys( $db ) ) {
+            $cache_changed = true;
+        }
 
-            $perm_ids = [];
-            $p_rows = $wpdb->get_results( "SELECT id, permission_key FROM {$perms_table}" );
-            foreach ( (array) $p_rows as $row ) {
-                $perm_ids[ (string) $row->permission_key ] = (int) $row->id;
-            }
+        if ( self::syncDeclaredRolePermissions( $db ) ) {
+            $cache_changed = true;
+        }
 
-            $policy = [ 'administrator' => [ '*' ] ];
-            foreach ( self::declaredPermissions() as $permission ) {
-                $key = (string) ( $permission['key'] ?? '' );
-                if ( $key === '' ) {
-                    continue;
-                }
-
-                foreach ( (array) ( $permission['roles'] ?? [] ) as $role_key ) {
-                    $role_key = \sanitize_key( (string) $role_key );
-                    if ( $role_key === '' ) {
-                        continue;
-                    }
-
-                    if ( ! isset( $policy[ $role_key ] ) ) {
-                        $policy[ $role_key ] = [];
-                    }
-
-                    $policy[ $role_key ][] = $key;
-                }
-            }
-
-            foreach ( $policy as $role_key => $allowed_perms ) {
-                if ( empty( $role_ids[ $role_key ] ) ) {
-                    continue;
-                }
-
-                $rid = (int) $role_ids[ $role_key ];
-                $keys_to_allow = in_array( '*', $allowed_perms, true ) ? array_keys( $perm_ids ) : array_values( array_unique( $allowed_perms ) );
-
-                foreach ( $keys_to_allow as $perm_key ) {
-                    if ( empty( $perm_ids[ $perm_key ] ) ) {
-                        continue;
-                    }
-
-                    $wpdb->insert(
-                        $role_perms_table,
-                        [
-                            'role_id' => $rid,
-                            'permission_id' => (int) $perm_ids[ $perm_key ],
-                            'allow_access' => 1,
-                        ],
-                        [ '%d', '%d', '%d' ]
-                    );
-                }
-            }
+        if ( $cache_changed ) {
+            CacheService::clearGroup( 'permissions' );
         }
 
         self::$seeded = true;
@@ -139,7 +95,7 @@ final class AccessManager {
 
     public static function syncDeclaredPermissions(): void {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = self::db();
 
         $perms_table = \Metis_Tables::get( 'people_permissions' );
 
@@ -156,20 +112,18 @@ final class AccessManager {
                 'permission_name' => (string) ( $permission['name'] ?? $permission_key ),
             ];
 
-            $existing = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT id, module_slug, action_key, permission_name FROM {$perms_table} WHERE permission_key = %s LIMIT 1",
-                    $permission_key
-                ),
-                ARRAY_A
+            $existing = $db->fetchOne(
+                "SELECT id, module_slug, action_key, permission_name FROM {$perms_table} WHERE permission_key = %s LIMIT 1",
+                [ $permission_key ]
             );
 
             if ( ! is_array( $existing ) ) {
-                $wpdb->insert(
+                $db->insert(
                     $perms_table,
                     $record,
                     [ '%s', '%s', '%s', '%s' ]
                 );
+                CacheService::clearGroup( 'permissions' );
                 continue;
             }
 
@@ -184,14 +138,337 @@ final class AccessManager {
                 continue;
             }
 
-            $wpdb->update(
+            $db->update(
                 $perms_table,
                 $updates,
                 [ 'id' => (int) $existing['id'] ],
                 array_fill( 0, count( $updates ), '%s' ),
                 [ '%d' ]
             );
+            CacheService::clearGroup( 'permissions' );
         }
+    }
+
+    private static function repairLegacyPermissionKeys( object $db ): bool {
+        $perms_table = \Metis_Tables::get( 'people_permissions' );
+        $role_perms_table = \Metis_Tables::get( 'people_role_perms' );
+
+        $declared_by_pair = [];
+        foreach ( self::declaredPermissions() as $permission ) {
+            $module_slug = \metis_key_clean( (string) ( $permission['module'] ?? '' ) );
+            $action_key = \metis_key_clean( (string) ( $permission['action'] ?? '' ) );
+            $permission_key = self::normalizePermissionKey( (string) ( $permission['key'] ?? '' ) );
+            if ( $module_slug === '' || $action_key === '' || $permission_key === '' ) {
+                continue;
+            }
+            $declared_by_pair[ $module_slug . '|' . $action_key ] = $permission_key;
+        }
+
+        if ( $declared_by_pair === [] ) {
+            return false;
+        }
+
+        $rows = $db->fetchAll(
+            "SELECT id, permission_key, module_slug, action_key
+             FROM {$perms_table}"
+        ) ?: [];
+
+        $permission_ids_by_key = [];
+        foreach ( $rows as $row ) {
+            $permission_key = self::normalizePermissionKey( (string) ( $row['permission_key'] ?? '' ) );
+            $permission_id = (int) ( $row['id'] ?? 0 );
+            if ( $permission_key !== '' && $permission_id > 0 && ! isset( $permission_ids_by_key[ $permission_key ] ) ) {
+                $permission_ids_by_key[ $permission_key ] = $permission_id;
+            }
+        }
+
+        $changed = false;
+        foreach ( $rows as $row ) {
+            $permission_id = (int) ( $row['id'] ?? 0 );
+            $module_slug = \metis_key_clean( (string) ( $row['module_slug'] ?? '' ) );
+            $action_key = \metis_key_clean( (string) ( $row['action_key'] ?? '' ) );
+            $current_key = self::normalizePermissionKey( (string) ( $row['permission_key'] ?? '' ) );
+            if ( $permission_id < 1 || $module_slug === '' || $action_key === '' || $current_key === '' ) {
+                continue;
+            }
+
+            $pair = $module_slug . '|' . $action_key;
+            $canonical_key = (string) ( $declared_by_pair[ $pair ] ?? '' );
+            if ( $canonical_key === '' || $canonical_key === $current_key ) {
+                continue;
+            }
+
+            $canonical_id = (int) ( $permission_ids_by_key[ $canonical_key ] ?? 0 );
+            if ( $canonical_id < 1 ) {
+                $db->update(
+                    $perms_table,
+                    [ 'permission_key' => $canonical_key ],
+                    [ 'id' => $permission_id ],
+                    [ '%s' ],
+                    [ '%d' ]
+                );
+                unset( $permission_ids_by_key[ $current_key ] );
+                $permission_ids_by_key[ $canonical_key ] = $permission_id;
+                $changed = true;
+                continue;
+            }
+
+            $role_perm_rows = $db->fetchAll(
+                "SELECT id, role_id, allow_access
+                 FROM {$role_perms_table}
+                 WHERE permission_id = %d",
+                [ $permission_id ]
+            ) ?: [];
+
+            foreach ( $role_perm_rows as $role_perm_row ) {
+                $role_perm_id = (int) ( $role_perm_row['id'] ?? 0 );
+                $role_id = (int) ( $role_perm_row['role_id'] ?? 0 );
+                $allow_access = (int) ( $role_perm_row['allow_access'] ?? 0 );
+                if ( $role_perm_id < 1 || $role_id < 1 ) {
+                    continue;
+                }
+
+                $existing_canonical = $db->fetchOne(
+                    "SELECT id, allow_access
+                     FROM {$role_perms_table}
+                     WHERE role_id = %d AND permission_id = %d
+                     LIMIT 1",
+                    [ $role_id, $canonical_id ]
+                );
+
+                if ( is_array( $existing_canonical ) ) {
+                    if ( $allow_access === 1 && (int) ( $existing_canonical['allow_access'] ?? 0 ) !== 1 ) {
+                        $db->update(
+                            $role_perms_table,
+                            [ 'allow_access' => 1 ],
+                            [ 'id' => (int) $existing_canonical['id'] ],
+                            [ '%d' ],
+                            [ '%d' ]
+                        );
+                    }
+                    $db->delete( $role_perms_table, [ 'id' => $role_perm_id ], [ '%d' ] );
+                    $changed = true;
+                    continue;
+                }
+
+                $db->update(
+                    $role_perms_table,
+                    [ 'permission_id' => $canonical_id ],
+                    [ 'id' => $role_perm_id ],
+                    [ '%d' ],
+                    [ '%d' ]
+                );
+                $changed = true;
+            }
+
+            $db->delete( $perms_table, [ 'id' => $permission_id ], [ '%d' ] );
+            $changed = true;
+        }
+
+        return $changed;
+    }
+
+    private static function syncDeclaredRolePermissions( object $db ): bool {
+        $roles_table = \Metis_Tables::get( 'people_roles' );
+        $perms_table = \Metis_Tables::get( 'people_permissions' );
+        $role_perms_table = \Metis_Tables::get( 'people_role_perms' );
+
+        $role_ids = [];
+        $role_rows = $db->fetchAll( "SELECT id, role_key FROM {$roles_table} WHERE role_domain = 'metis'" ) ?: [];
+        foreach ( $role_rows as $row ) {
+            $role_key = \metis_key_clean( (string) ( $row['role_key'] ?? '' ) );
+            $role_id = (int) ( $row['id'] ?? 0 );
+            if ( $role_key !== '' && $role_id > 0 ) {
+                $role_ids[ $role_key ] = $role_id;
+            }
+        }
+
+        $permission_ids = [];
+        $permission_rows = $db->fetchAll( "SELECT id, permission_key FROM {$perms_table}" ) ?: [];
+        foreach ( $permission_rows as $row ) {
+            $permission_key = self::normalizePermissionKey( (string) ( $row['permission_key'] ?? '' ) );
+            $permission_id = (int) ( $row['id'] ?? 0 );
+            if ( $permission_key !== '' && $permission_id > 0 ) {
+                $permission_ids[ $permission_key ] = $permission_id;
+            }
+        }
+
+        if ( $permission_ids === [] ) {
+            return false;
+        }
+
+        $policy = [ 'administrator' => array_keys( $permission_ids ) ];
+        foreach ( self::declaredPermissions() as $permission ) {
+            $permission_key = self::normalizePermissionKey( (string) ( $permission['key'] ?? '' ) );
+            if ( $permission_key === '' || empty( $permission_ids[ $permission_key ] ) ) {
+                continue;
+            }
+
+            foreach ( (array) ( $permission['roles'] ?? [] ) as $role_key ) {
+                $role_key = \metis_key_clean( (string) $role_key );
+                if ( $role_key === '' ) {
+                    continue;
+                }
+
+                if ( ! isset( $policy[ $role_key ] ) ) {
+                    $policy[ $role_key ] = [];
+                }
+
+                $policy[ $role_key ][] = $permission_key;
+            }
+        }
+
+        $tracked_permission_ids = array_values( array_map( 'intval', array_values( $permission_ids ) ) );
+        $tracked_permission_ids = array_values( array_filter( $tracked_permission_ids, static fn( int $id ): bool => $id > 0 ) );
+        if ( $tracked_permission_ids === [] ) {
+            return false;
+        }
+
+        $changed = false;
+        foreach ( $policy as $role_key => $allowed_permission_keys ) {
+            $role_id = (int) ( $role_ids[ $role_key ] ?? 0 );
+            if ( $role_id < 1 ) {
+                continue;
+            }
+
+            $allowed_permission_keys = array_values( array_unique( array_filter(
+                array_map( static fn( mixed $key ): string => self::normalizePermissionKey( (string) $key ), $allowed_permission_keys ),
+                static fn( string $key ): bool => $key !== ''
+            ) ) );
+
+            $desired_permission_ids = [];
+            foreach ( $allowed_permission_keys as $permission_key ) {
+                $permission_id = (int) ( $permission_ids[ $permission_key ] ?? 0 );
+                if ( $permission_id > 0 ) {
+                    $desired_permission_ids[] = $permission_id;
+                }
+            }
+            $desired_permission_ids = array_values( array_unique( $desired_permission_ids ) );
+
+            $existing_rows = $db->fetchAll(
+                "SELECT id, permission_id, allow_access
+                 FROM {$role_perms_table}
+                 WHERE role_id = %d",
+                [ $role_id ]
+            ) ?: [];
+
+            $existing_map = [];
+            foreach ( $existing_rows as $row ) {
+                $permission_id = (int) ( $row['permission_id'] ?? 0 );
+                $row_id = (int) ( $row['id'] ?? 0 );
+                if ( $permission_id > 0 && $row_id > 0 ) {
+                    $existing_map[ $permission_id ] = [
+                        'id' => $row_id,
+                        'allow_access' => (int) ( $row['allow_access'] ?? 0 ),
+                    ];
+                }
+            }
+
+            foreach ( $desired_permission_ids as $permission_id ) {
+                if ( isset( $existing_map[ $permission_id ] ) ) {
+                    if ( (int) $existing_map[ $permission_id ]['allow_access'] !== 1 ) {
+                        $db->update(
+                            $role_perms_table,
+                            [ 'allow_access' => 1 ],
+                            [ 'id' => (int) $existing_map[ $permission_id ]['id'] ],
+                            [ '%d' ],
+                            [ '%d' ]
+                        );
+                        $changed = true;
+                    }
+                    continue;
+                }
+
+                $db->insert(
+                    $role_perms_table,
+                    [
+                        'role_id' => $role_id,
+                        'permission_id' => $permission_id,
+                        'allow_access' => 1,
+                    ],
+                    [ '%d', '%d', '%d' ]
+                );
+                $changed = true;
+            }
+
+            foreach ( $tracked_permission_ids as $permission_id ) {
+                if ( in_array( $permission_id, $desired_permission_ids, true ) ) {
+                    continue;
+                }
+
+                if ( ! isset( $existing_map[ $permission_id ] ) ) {
+                    continue;
+                }
+
+                $db->delete(
+                    $role_perms_table,
+                    [
+                        'id' => (int) $existing_map[ $permission_id ]['id'],
+                    ],
+                    [ '%d' ]
+                );
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    public static function permissionMatrixForPerson( int $person_id, bool $force_refresh = false ): array {
+        if ( $person_id < 1 ) {
+            return [
+                'person_id' => 0,
+                'permissions' => [],
+                'roles' => [],
+            ];
+        }
+
+        $cache_key = 'permissions.user_' . $person_id;
+        if ( $force_refresh ) {
+            CacheService::forget( $cache_key );
+        }
+
+        return CacheService::remember( $cache_key, 600, static function () use ( $person_id ): array {
+            SchemaManager::ensureSchema();
+            self::seedPermissionsAndRoles();
+            $db = self::db();
+
+            $roles_table = \Metis_Tables::get( 'people_roles' );
+            $perms_table = \Metis_Tables::get( 'people_permissions' );
+            $user_roles_table = \Metis_Tables::get( 'people_user_roles' );
+            $role_perms_table = \Metis_Tables::get( 'people_role_perms' );
+
+            $rows = $db->fetchAll(
+                "SELECT DISTINCT p.permission_key, r.role_key
+                 FROM {$user_roles_table} ur
+                 INNER JOIN {$roles_table} r ON r.id = ur.role_id
+                 INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
+                 INNER JOIN {$perms_table} p ON p.id = rp.permission_id
+                 WHERE ur.person_id = %d
+                   AND (ur.start_at IS NULL OR ur.start_at <= NOW())
+                   AND (ur.end_at IS NULL OR ur.end_at >= NOW())",
+                [ $person_id ]
+            );
+
+            $permissions = [];
+            $roles = [];
+            foreach ( $rows as $row ) {
+                $permission_key = self::normalizePermissionKey( (string) ( $row['permission_key'] ?? '' ) );
+                $role_key = \metis_key_clean( (string) ( $row['role_key'] ?? '' ) );
+                if ( $permission_key !== '' ) {
+                    $permissions[ $permission_key ] = true;
+                }
+                if ( $role_key !== '' ) {
+                    $roles[ $role_key ] = true;
+                }
+            }
+
+            return [
+                'person_id' => $person_id,
+                'permissions' => array_values( array_keys( $permissions ) ),
+                'roles' => array_values( array_keys( $roles ) ),
+            ];
+        } );
     }
 
     private static function declaredPermissions(): array {
@@ -206,7 +483,7 @@ final class AccessManager {
         $permissions = [];
 
         foreach ( $modules as $slug => $module ) {
-            $slug = \sanitize_key( (string) $slug );
+            $slug = \metis_key_clean( (string) $slug );
             if ( $slug === '' ) {
                 continue;
             }
@@ -229,7 +506,7 @@ final class AccessManager {
 
         SchemaManager::ensureSchema();
         self::seedPermissionsAndRoles();
-        global $wpdb;
+        $db = self::db();
 
         $people_table = \Metis_Tables::get( 'people' );
         $roles_table = \Metis_Tables::get( 'people_roles' );
@@ -238,20 +515,20 @@ final class AccessManager {
         if ( function_exists( 'metis_auth_current_person_id' ) ) {
             $current_person_id = (int) \metis_auth_current_person_id();
             if ( $current_person_id > 0 ) {
-                $current_person = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", $current_person_id ), ARRAY_A );
+                $current_person = $db->fetchOne( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", [ $current_person_id ] );
                 if ( is_array( $current_person ) ) {
                     return $current_person;
                 }
             }
         }
 
-        $current_user = \metis_current_user();
+        $current_user = \metis_runtime_current_user();
         $email = strtolower( trim( (string) ( $current_user->user_email ?? '' ) ) );
-        if ( $email === '' || ! \is_email( $email ) ) {
+        if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
             return null;
         }
 
-        $person = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE email = %s LIMIT 1", $email ), ARRAY_A );
+        $person = $db->fetchOne( "SELECT * FROM {$people_table} WHERE email = %s LIMIT 1", [ $email ] );
         $created = false;
         if ( $person ) {
             $update = [];
@@ -265,14 +542,14 @@ final class AccessManager {
                 $formats[] = '%s';
             }
             if ( ! empty( $update ) ) {
-                $wpdb->update( $people_table, $update, [ 'id' => (int) $person['id'] ], $formats, [ '%d' ] );
+                $db->update( $people_table, $update, [ 'id' => (int) $person['id'] ], $formats, [ '%d' ] );
             }
 
             $person_id = (int) $person['id'];
             $pid = (string) ( $person['pid'] ?? '' );
             if ( $pid === '' ) {
                 $pid = \metis_generate_code( 'PE', $people_table, 'pid' );
-                $wpdb->update( $people_table, [ 'pid' => $pid ], [ 'id' => $person_id ], [ '%s' ], [ '%d' ] );
+                $db->update( $people_table, [ 'pid' => $pid ], [ 'id' => $person_id ], [ '%s' ], [ '%d' ] );
             }
         } else {
             $payload = [
@@ -282,10 +559,17 @@ final class AccessManager {
                 'last_name' => (string) ( $current_user->last_name ?? '' ),
                 'display_name' => (string) ( $current_user->display_name ?? $email ),
             ];
-            $payload['pid'] = \metis_generate_code( 'PPL', $people_table, 'pid' );
-            $wpdb->insert( $people_table, $payload, [ '%s', '%s', '%s', '%s', '%s', '%s' ] );
-            $person_id = (int) $wpdb->insert_id;
+            if ( function_exists( 'metis_entity_id_service' ) ) {
+                $payload = \metis_entity_id_service()->assignForInsert( 'person', $payload );
+            } else {
+                $payload['pid'] = \metis_generate_code( 'PPL', $people_table, 'pid' );
+            }
+            $db->insert( $people_table, $payload, [ '%s', '%s', '%s', '%s', '%s', '%s', '%s' ] );
+            $person_id = $db->lastInsertId();
             $created = $person_id > 0;
+            if ( $created && function_exists( 'metis_entity_id_service' ) ) {
+                \metis_entity_id_service()->register( 'person', $person_id, (string) ( $payload['person_uid'] ?? $payload['pid'] ?? '' ) );
+            }
         }
 
         $role_keys = [];
@@ -293,7 +577,7 @@ final class AccessManager {
             $role_keys[] = 'administrator';
         }
         foreach ( (array) $current_user->roles as $role ) {
-            $rk = \sanitize_key( (string) $role );
+            $rk = \metis_key_clean( (string) $role );
             if ( $rk !== '' ) {
                 $role_keys[] = $rk;
             }
@@ -301,20 +585,21 @@ final class AccessManager {
         $role_keys = array_values( array_unique( $role_keys ) );
 
         foreach ( $role_keys as $rk ) {
-            $rid = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = 'metis' LIMIT 1", $rk ) );
+            $rid = (int) $db->scalar( "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = 'metis' LIMIT 1", [ $rk ] );
             if ( $rid < 1 ) {
                 continue;
             }
 
-            $exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$user_roles_table} WHERE person_id = %d AND role_id = %d LIMIT 1", $person_id, $rid ) );
+            $exists = (int) $db->scalar( "SELECT id FROM {$user_roles_table} WHERE person_id = %d AND role_id = %d LIMIT 1", [ $person_id, $rid ] );
             if ( $exists > 0 ) {
                 continue;
             }
 
-            $wpdb->insert( $user_roles_table, [ 'person_id' => $person_id, 'role_id' => $rid ], [ '%d', '%d' ] );
+            $db->insert( $user_roles_table, [ 'person_id' => $person_id, 'role_id' => $rid ], [ '%d', '%d' ] );
+            CacheService::forget( 'permissions.user_' . $person_id );
         }
 
-        $person = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", $person_id ), ARRAY_A );
+        $person = $db->fetchOne( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ] );
 
         if ( $created && is_array( $person ) && \Metis\Core\Application::has_service( 'events' ) ) {
             \Metis\Core\Application::service( 'events' )->publish(
@@ -334,8 +619,8 @@ final class AccessManager {
     }
 
     public static function can( string $domain, string $action = 'view' ): bool {
-        $domain = \sanitize_key( $domain );
-        $action = \sanitize_key( $action );
+        $domain = \metis_key_clean( $domain );
+        $action = \metis_key_clean( $action );
         if ( $domain === '' || $action === '' ) {
             return false;
         }
@@ -349,14 +634,14 @@ final class AccessManager {
 
         SchemaManager::ensureSchema();
         self::seedPermissionsAndRoles();
-        global $wpdb;
+        $db = self::db();
 
         $person = null;
         if ( function_exists( 'metis_auth_current_person_id' ) ) {
             $person_id = (int) \metis_auth_current_person_id();
             if ( $person_id > 0 ) {
                 $people_table = \Metis_Tables::get( 'people' );
-                $person = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", $person_id ), ARRAY_A );
+                $person = $db->fetchOne( "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ] );
             }
         }
         if ( ! $person ) {
@@ -369,21 +654,8 @@ final class AccessManager {
 
         if ( $person && ! empty( $person['id'] ) ) {
             $permission_key = $domain . '.' . $action;
-            $allowed = (int) $wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT COUNT(*)
-                     FROM {$user_roles_table} ur
-                     INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
-                     INNER JOIN {$perms_table} p ON p.id = rp.permission_id
-                     WHERE ur.person_id = %d
-                       AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-                       AND (ur.end_at IS NULL OR ur.end_at >= NOW())
-                       AND p.permission_key = %s",
-                    (int) $person['id'],
-                    $permission_key
-                )
-            );
-            if ( $allowed > 0 ) {
+            $matrix = self::permissionMatrixForPerson( (int) $person['id'] );
+            if ( in_array( $permission_key, (array) ( $matrix['permissions'] ?? [] ), true ) ) {
                 return true;
             }
         }
@@ -395,7 +667,7 @@ final class AccessManager {
             return false;
         }
 
-        $user = \metis_current_user();
+        $user = \metis_runtime_current_user();
         foreach ( (array) $user->roles as $role ) {
             if ( in_array( (string) $role, $allowed_roles, true ) ) {
                 return true;
@@ -419,5 +691,22 @@ final class AccessManager {
 
         $person = self::getOrCreateCurrentPerson();
         return (int) ( $person['id'] ?? 0 );
+    }
+
+    private static function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
+    }
+
+    private static function normalizePermissionKey( string $permission_key ): string {
+        $permission_key = strtolower( trim( $permission_key ) );
+        if ( $permission_key === '' ) {
+            return '';
+        }
+
+        $permission_key = preg_replace( '/\s+/', '', $permission_key );
+        $permission_key = preg_replace( '/[^a-z0-9._-]+/', '', $permission_key );
+        $permission_key = preg_replace( '/\.{2,}/', '.', $permission_key );
+
+        return trim( (string) $permission_key, '.' );
     }
 }

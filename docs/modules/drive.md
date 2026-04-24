@@ -1,6 +1,6 @@
 # Drive
 
-Browse and manage files in the configured Google Shared Drive.
+Browse shared files and manage team documents.
 
 ## Routes
 
@@ -13,17 +13,7 @@ Browse and manage files in the configured Google Shared Drive.
 
 ## APIs
 
-- `metis_drive_copy_item`
-- `metis_drive_create_folder`
-- `metis_drive_create_google_file`
-- `metis_drive_list`
-- `metis_drive_move_item`
-- `metis_drive_my_folder`
-- `metis_drive_rename`
-- `metis_drive_sync_worker`
-- `metis_drive_trash`
-- `metis_drive_tree_children`
-- `metis_drive_upload_file`
+- No dedicated AJAX controller was discovered for this module.
 
 ## Database Tables Used
 

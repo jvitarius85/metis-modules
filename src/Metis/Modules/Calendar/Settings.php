@@ -8,7 +8,7 @@ final class Settings {
         $service              = function_exists( 'metis_workspace_service_account_payload' ) ? \metis_workspace_service_account_payload() : [];
         $impersonation_admin  = strtolower( trim( (string) \Core_Settings_Service::get( 'workspace_impersonation_admin', '' ) ) );
 
-        if ( empty( $service ) || ! \is_email( $impersonation_admin ) ) {
+        if ( empty( $service ) || ! \metis_email_is_valid( $impersonation_admin ) ) {
             return [ 'ok' => false, 'error' => 'Workspace service account JSON or impersonation admin is not configured.' ];
         }
 

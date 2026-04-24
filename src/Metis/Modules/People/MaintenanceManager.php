@@ -12,20 +12,20 @@ final class MaintenanceManager {
         }
 
         self::$done = true;
-        global $wpdb;
+        $db = \metis_db();
 
         $key = 'metis_people_maintenance_last_run';
-        $last = (int) \get_option( $key, 0 );
+        $last = (int) \metis_get_option( $key, 0 );
         $now = time();
         if ( $last > 0 && ( $now - $last ) < 300 ) {
             return;
         }
 
-        \update_option( $key, $now, false );
+        \metis_update_option( $key, $now, false );
         $requests_table = \Metis_Tables::get( 'people_access_requests' );
         $documents_table = \Metis_Tables::get( 'people_documents' );
 
-        $expired_requests = (int) $wpdb->query(
+        $expired_requests = (int) $db->execute(
             "UPDATE {$requests_table}
              SET status = 'expired', updated_at = NOW()
              WHERE status = 'pending'
@@ -36,7 +36,7 @@ final class MaintenanceManager {
             ActivityService::logActivity( null, 'requests_expired', 'Expired pending access requests', [ 'count' => $expired_requests ] );
         }
 
-        $expired_docs = (int) $wpdb->query(
+        $expired_docs = (int) $db->execute(
             "UPDATE {$documents_table}
              SET lifecycle_status = 'expired'
              WHERE lifecycle_status <> 'expired'

@@ -1,13 +1,14 @@
 # Newsletter
 
-Create newsletters, manage templates, subscriptions, and delivery outcomes.
+Create email campaigns, manage newsletter theme settings, and track delivery.
 
 ## Routes
 
 - Base route: `/newsletter`
 - `/newsletter/dashboard` -> `dashboard.php`
 - `/newsletter/campaigns` -> `campaigns.php`
-- `/newsletter/templates` -> `templates.php`
+- `/newsletter/theme` -> `theme.php`
+- `/newsletter/editor` -> `editor.php`
 - `/newsletter/lists` -> `lists.php`
 - `/newsletter/subscribers` -> `subscribers.php`
 
@@ -15,33 +16,18 @@ Create newsletters, manage templates, subscriptions, and delivery outcomes.
 
 - **Dashboard** template: `dashboard.php`
 - **Campaigns** template: `campaigns.php`
-- **Templates** template: `templates.php`
+- **Theme** template: `theme.php`
+- **Editor** template: `editor.php`
 - **Lists** template: `lists.php`
 - **Subscribers** template: `subscribers.php`
 
 ## APIs
 
-- `metis_newsletter_archive_campaign`
-- `metis_newsletter_campaign_status`
-- `metis_newsletter_delete_campaign`
-- `metis_newsletter_giphy_search`
-- `metis_newsletter_klipy_search`
-- `metis_newsletter_queue_campaign`
-- `metis_newsletter_record_event`
-- `metis_newsletter_run_queue`
-- `metis_newsletter_save_campaign`
-- `metis_newsletter_save_defaults`
-- `metis_newsletter_save_list`
-- `metis_newsletter_save_template`
-- `metis_newsletter_search_contacts`
-- `metis_newsletter_sync_google_usage`
-- `metis_newsletter_test_send_campaign`
-- `metis_newsletter_upload_attachment`
-- `metis_newsletter_upload_image`
-- `metis_newsletter_upsert_subscription`
+- No dedicated AJAX controller was discovered for this module.
 
 ## Database Tables Used
 
+- `contact_details` (`metis_contact_details`)
 - `contacts` (`metis_contacts`)
 - `newsletter_audit` (`metis_newsletter_audit`)
 - `newsletter_campaign_lists` (`metis_newsletter_campaign_lists`)
@@ -51,13 +37,13 @@ Create newsletters, manage templates, subscriptions, and delivery outcomes.
 - `newsletter_lists` (`metis_newsletter_lists`)
 - `newsletter_messages` (`metis_newsletter_messages`)
 - `newsletter_revisions` (`metis_newsletter_revisions`)
-- `newsletter_subs` (`metis_newsletter_subscriptions`)
+- `newsletter_subs` (`metis_newsletter_subs`)
 - `newsletter_suppressions` (`metis_newsletter_suppressions`)
 - `newsletter_templates` (`metis_newsletter_templates`)
 - `people_workspace_users` (`metis_people_workspace_users`)
 
 ## Assets and Extension Hooks
 
-- CSS: `editor.css`, `newsletter.css`
-- JS: `editor.js`, `newsletter.js`
-- Registered help topics: `newsletter.dashboard`, `newsletter.campaigns`, `newsletter.templates`, `newsletter.lists`, `newsletter.subscribers`
+- CSS: `newsletter.css`
+- JS: `newsletter.js`
+- Registered help topics: `newsletter.dashboard`, `newsletter.campaigns`, `newsletter.theme`, `newsletter.lists`, `newsletter.subscribers`

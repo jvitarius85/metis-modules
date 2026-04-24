@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "entity": "donation_transaction",
+  "label": "Transaction",
+  "plural": "transactions",
+  "prefix": "DTX",
+  "table_key": "transactions",
+  "primary_key": "id",
+  "uid_column": "transaction_uid",
+  "module": "donations",
+  "aliases": ["transaction", "transactions", "donation", "donations", "gift", "gifts"],
+
+  "fields": {
+    "id":               { "type": "integer",  "label": "ID",              "filterable": true,  "sortable": true  },
+    "transaction_uid":  { "type": "string",   "label": "UID",             "filterable": true,  "sortable": false },
+    "contact_id":       { "type": "integer",  "label": "Donor ID",        "filterable": true,  "sortable": false },
+    "campaign_id":      { "type": "integer",  "label": "Campaign",        "filterable": true,  "sortable": false, "groupable": true },
+    "deposit_id":       { "type": "integer",  "label": "Deposit",         "filterable": true,  "sortable": false },
+    "amount":           { "type": "decimal",  "label": "Amount",          "filterable": true,  "sortable": true,  "aggregatable": true },
+    "net_amount":       { "type": "decimal",  "label": "Net amount",      "filterable": true,  "sortable": true,  "aggregatable": true },
+    "fee_amount":       { "type": "decimal",  "label": "Fee",             "filterable": false, "sortable": false, "aggregatable": true },
+    "status":           { "type": "string",   "label": "Status",          "filterable": true,  "sortable": true,  "groupable": true    },
+    "type":             { "type": "string",   "label": "Type",            "filterable": true,  "sortable": true,  "groupable": true    },
+    "transaction_date": { "type": "datetime", "label": "Transaction date","filterable": true,  "sortable": true,  "date_field": true   },
+    "created_at":       { "type": "datetime", "label": "Created",         "filterable": true,  "sortable": true,  "date_field": true   }
+  },
+
+  "relationships": {
+    "donor":    { "entity": "donor",             "foreign_key": "contact_id",  "type": "belongs_to" },
+    "campaign": { "entity": "donation_campaign", "foreign_key": "campaign_id", "type": "belongs_to" },
+    "deposit":  { "entity": "donation_deposit",  "foreign_key": "deposit_id",  "type": "belongs_to" }
+  },
+
+  "reporting": {
+    "aggregate_fields":  ["amount", "net_amount", "fee_amount"],
+    "groupable_fields":  ["status", "type", "campaign_id"],
+    "filterable_fields": ["status", "type", "campaign_id", "deposit_id", "transaction_date", "created_at"],
+    "date_fields":       ["transaction_date", "created_at"],
+    "default_sort":      "transaction_date",
+    "default_sort_dir":  "desc"
+  },
+
+  "permissions": { "view": "donations.view", "edit": "donations.edit" }
+}

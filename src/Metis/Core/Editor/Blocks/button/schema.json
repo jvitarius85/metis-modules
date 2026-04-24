@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["label", "url"],
+  "properties": {
+    "label": { "type": "string", "default": "Learn more" },
+    "url": { "type": "string", "default": "#" }
+  }
+}

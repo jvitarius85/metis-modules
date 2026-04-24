@@ -9,8 +9,9 @@
 
 - Legacy underscore class names remain available through class aliases.
 - Global helper functions remain supported for now; new class-based code should live under `src/Metis`.
-- The local autoloader in `includes/core/autoload.php` provides PSR-4-style loading without requiring Composer.
-- `includes/core/bootstrap.php` is the single entrypoint for procedural core dependencies, so entrypoints and tests can request named components instead of maintaining long `require_once` lists.
+- The old `includes/core/*`, `includes/apis/stripe/*`, and `includes/modules/*` runtime compatibility shims have been removed; live implementation ownership is now under `src/Metis` and `modules`.
+- The old `core/services/*`, `core/ui/*`, and live `core/integrations/stripe/*` runtime ownership has been migrated into `src/Metis` and `assets`; any remaining `core/*` file should be treated as cleanup debt, not an approved runtime location.
+- Root-level duplicate aliases for `Metis\Core\Event`, `Metis\Core\EventBus`, `Metis\Core\JobQueue`, and `Metis\Core\JobWorkerRegistry` have been removed; the canonical owners are `Metis\Core\Events\*` and `Metis\Core\Jobs\*`.
 
 # Suggested Module Structure
 
@@ -21,30 +22,24 @@
 # Reference Migration
 
 - `Donations` is now the reference module migration.
-- The runtime entrypoint remains `includes/modules/donations/bootstrap.php`.
+- The runtime entrypoint remains `modules/donations/bootstrap.php`.
 - The implementation lives in `src/Metis/Modules/Donations/DonationsModule.php`.
 - Legacy template and AJAX helpers still call global `metis_*` functions, which now delegate into the namespaced module class.
-- `Contacts` is now the first non-legacy migration for a formerly procedural module.
-- The implementation lives in `src/Metis/Modules/Contacts/` and no longer depends on `includes/modules/contacts/legacy.php`.
-- `Calendar` is now the second non-legacy migration for a formerly procedural module.
-- The implementation lives in `src/Metis/Modules/Calendar/` and no longer depends on `includes/modules/calendar/legacy.php`.
-- `Board` is now the third non-legacy migration for a formerly procedural module.
-- The implementation lives in `src/Metis/Modules/Board/` and no longer depends on `includes/modules/board/legacy.php`.
-- `Finance` is now the fourth non-legacy migration for a formerly procedural module.
-- The implementation lives in `src/Metis/Modules/Finance/` and no longer depends on `includes/modules/finance/legacy.php`.
-- `Newsletter` is now the fifth non-legacy migration for a formerly procedural module.
-- The implementation lives in `src/Metis/Modules/Newsletter/` and no longer depends on `includes/modules/newsletter/legacy.php`.
-- `Portal`, `Profile`, `Settings`, and `Website` no longer need `legacy.php` because their remaining bootstrap behavior now lives directly in their module classes.
-- `People` is now the sixth non-legacy migration for a formerly procedural module.
-- The implementation lives in `src/Metis/Modules/People/` and no longer depends on `includes/modules/people/legacy.php`.
+- `Contacts` lives in `src/Metis/Modules/Contacts/`.
+- `Calendar` lives in `src/Metis/Modules/Calendar/`.
+- `Board` lives in `src/Metis/Modules/Board/`.
+- `Finance` lives in `src/Metis/Modules/Finance/`.
+- `Newsletter` lives in `src/Metis/Modules/Newsletter/`.
+- `Portal`, `Profile`, `Settings`, and `Website` keep their module owners in `src/Metis/Modules/`.
+- `People` lives in `src/Metis/Modules/People/`.
 
 # Current Module Pattern
 
 - Every module now has a namespaced owner under `src/Metis/Modules/<Module>/<Module>Module.php`.
-- Each `includes/modules/<module>/bootstrap.php` file is now a shim that loads the autoloader and boots the module class.
-- Large modules currently keep their procedural implementation in `includes/modules/<module>/legacy.php` so behavior stays stable while ownership moves into the namespaced tree.
-- `Donations` is the most complete migration and should be the template for converting `legacy.php` modules into fully class-based internals over time.
-- `Contacts` is the template for removing `legacy.php` by splitting responsibilities into support, schema, and maintenance classes while preserving global compatibility wrappers.
+- Each `modules/<module>/bootstrap.php` file is now a shim that loads the autoloader and boots the module class.
+- Modules are discovered from `modules/<module>/<module>.json` and loaded through the shared module loader.
+- `Donations` is the most complete migration and remains a useful template for class-owned module behavior.
+- `Contacts` is the template for splitting responsibilities into support, schema, and maintenance classes while preserving global compatibility wrappers.
 - `Calendar` is the template for a service-heavy migration split across access, settings, Google API, and sync/cache classes.
 - `Board` is the template for mixed schema and Workspace helper migrations split across access, support, schema, and Workspace service classes.
 - `Finance` is the template for schema plus domain-service migrations split across access, support, schema, ledger, and finance service classes.

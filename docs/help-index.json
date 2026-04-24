@@ -1,27 +1,27 @@
 {
     "board.dashboard": {
-        "title": "Board Dashboard",
-        "description": "Board governance portal for meetings, decisions, actions, committees, and compliance.",
+        "title": "Board Administration Dashboard",
+        "description": "Plan meetings, track decisions, and keep board work organized.",
         "learn_more": "/docs/modules/board.md",
         "steps": [
-            "Open the Board module from the sidebar.",
+            "Open the Board Administration module from the sidebar.",
             "Use page controls to review, filter, or update records.",
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
     "board.meeting": {
-        "title": "Board Meeting",
-        "description": "Board governance portal for meetings, decisions, actions, committees, and compliance.",
+        "title": "Board Administration Meeting",
+        "description": "Plan meetings, track decisions, and keep board work organized.",
         "learn_more": "/docs/modules/board.md",
         "steps": [
-            "Open the Board module from the sidebar.",
+            "Open the Board Administration module from the sidebar.",
             "Use page controls to review, filter, or update records.",
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
     "calendar.dashboard": {
         "title": "Calendar Dashboard",
-        "description": "Manage Google Calendar events from Metis.",
+        "description": "Schedule events and keep calendars in sync.",
         "learn_more": "/docs/modules/calendar.md",
         "steps": [
             "Open the Calendar module from the sidebar.",
@@ -31,7 +31,7 @@
     },
     "contacts.contact": {
         "title": "Contacts Contact",
-        "description": "View and organize all contacts across the organization.",
+        "description": "View, organize, and update shared contact records.",
         "learn_more": "/docs/modules/contacts.md",
         "steps": [
             "Open the Contacts module from the sidebar.",
@@ -41,7 +41,7 @@
     },
     "contacts.dashboard": {
         "title": "Contacts Dashboard",
-        "description": "View and organize all contacts across the organization.",
+        "description": "View, organize, and update shared contact records.",
         "learn_more": "/docs/modules/contacts.md",
         "steps": [
             "Open the Contacts module from the sidebar.",
@@ -51,7 +51,7 @@
     },
     "donations.batch": {
         "title": "Donations Batch",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -61,7 +61,7 @@
     },
     "donations.campaign": {
         "title": "Donations Campaign",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -71,7 +71,7 @@
     },
     "donations.campaigns": {
         "title": "Donations Campaigns",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -81,7 +81,7 @@
     },
     "donations.dashboard": {
         "title": "Donations Dashboard",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -91,7 +91,7 @@
     },
     "donations.deposit": {
         "title": "Donations Deposit",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -101,7 +101,7 @@
     },
     "donations.deposits": {
         "title": "Donations Deposits",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -111,7 +111,7 @@
     },
     "donations.donor": {
         "title": "Donations Donor",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -121,7 +121,7 @@
     },
     "donations.donors": {
         "title": "Donations Donors",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -131,7 +131,7 @@
     },
     "donations.reports": {
         "title": "Donations Reports",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -141,7 +141,7 @@
     },
     "donations.transaction": {
         "title": "Donations Transaction",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -151,7 +151,7 @@
     },
     "donations.transactions": {
         "title": "Donations Transactions",
-        "description": "Manage donors, transactions, offline entries, deposits, and campaigns.",
+        "description": "Track donors, gifts, deposits, and fundraising activity.",
         "learn_more": "/docs/modules/donations.md",
         "steps": [
             "Open the Donations module from the sidebar.",
@@ -161,7 +161,7 @@
     },
     "drive.dashboard": {
         "title": "Drive Dashboard",
-        "description": "Browse and manage files in the configured Google Shared Drive.",
+        "description": "Browse shared files and manage team documents.",
         "learn_more": "/docs/modules/drive.md",
         "steps": [
             "Open the Drive module from the sidebar.",
@@ -169,9 +169,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "finance.finance": {
-        "title": "Finance Finance",
-        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+    "finance.budget": {
+        "title": "Finance Budget",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
         "learn_more": "/docs/modules/finance.md",
         "steps": [
             "Open the Finance module from the sidebar.",
@@ -179,9 +179,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "finance.ledger": {
-        "title": "Finance Ledger",
-        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+    "finance.gl_entry": {
+        "title": "Finance Gl Entry",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
         "learn_more": "/docs/modules/finance.md",
         "steps": [
             "Open the Finance module from the sidebar.",
@@ -189,9 +189,19 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "finance.reconciliations": {
-        "title": "Finance Reconciliations",
-        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+    "finance.invoicing": {
+        "title": "Finance Invoicing",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.reconciliation": {
+        "title": "Finance Reconciliation",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
         "learn_more": "/docs/modules/finance.md",
         "steps": [
             "Open the Finance module from the sidebar.",
@@ -201,7 +211,37 @@
     },
     "finance.reports": {
         "title": "Finance Reports",
-        "description": "Finance operations dashboard for deposits, settlement activity, campaign performance, ledger activity, reconciliations, and reporting.",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.settings": {
+        "title": "Finance Settings",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.snapshot": {
+        "title": "Finance Snapshot",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
+        "learn_more": "/docs/modules/finance.md",
+        "steps": [
+            "Open the Finance module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "finance.stripe_clearing": {
+        "title": "Finance Stripe Clearing",
+        "description": "Finance V2 foundation with scheduled org mode switching.",
         "learn_more": "/docs/modules/finance.md",
         "steps": [
             "Open the Finance module from the sidebar.",
@@ -211,7 +251,7 @@
     },
     "forms.build": {
         "title": "Forms Build",
-        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "description": "Build forms, share them, and review submissions.",
         "learn_more": "/docs/modules/forms.md",
         "steps": [
             "Open the Forms module from the sidebar.",
@@ -221,7 +261,7 @@
     },
     "forms.dashboard": {
         "title": "Forms Dashboard",
-        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "description": "Build forms, share them, and review submissions.",
         "learn_more": "/docs/modules/forms.md",
         "steps": [
             "Open the Forms module from the sidebar.",
@@ -231,7 +271,7 @@
     },
     "forms.entries": {
         "title": "Forms Entries",
-        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "description": "Build forms, share them, and review submissions.",
         "learn_more": "/docs/modules/forms.md",
         "steps": [
             "Open the Forms module from the sidebar.",
@@ -241,7 +281,7 @@
     },
     "forms.form": {
         "title": "Forms Form",
-        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "description": "Build forms, share them, and review submissions.",
         "learn_more": "/docs/modules/forms.md",
         "steps": [
             "Open the Forms module from the sidebar.",
@@ -251,7 +291,7 @@
     },
     "forms.settings": {
         "title": "Forms Settings",
-        "description": "Build forms, publish public endpoints, and manage submissions.",
+        "description": "Build forms, share them, and review submissions.",
         "learn_more": "/docs/modules/forms.md",
         "steps": [
             "Open the Forms module from the sidebar.",
@@ -261,7 +301,27 @@
     },
     "grandys_stash.dashboard": {
         "title": "Grandy's Stash Dashboard",
-        "description": "Coordinate durable medical equipment intake, inventory, and community distribution.",
+        "description": "Track equipment intake, inventory, and distributions.",
+        "learn_more": "/docs/modules/grandys_stash.md",
+        "steps": [
+            "Open the Grandy's Stash module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "grandys_stash.reports": {
+        "title": "Grandy's Stash Reports",
+        "description": "Track equipment intake, inventory, and distributions.",
+        "learn_more": "/docs/modules/grandys_stash.md",
+        "steps": [
+            "Open the Grandy's Stash module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "grandys_stash.settings": {
+        "title": "Grandy's Stash Settings",
+        "description": "Track equipment intake, inventory, and distributions.",
         "learn_more": "/docs/modules/grandys_stash.md",
         "steps": [
             "Open the Grandy's Stash module from the sidebar.",
@@ -289,9 +349,59 @@
             "Launch a topic or walkthrough directly from results."
         ]
     },
+    "hermes.dashboard": {
+        "title": "Hermes Dashboard",
+        "description": "Monitor system health, review recommendations, and run approved actions.",
+        "learn_more": "/docs/modules/hermes.md",
+        "steps": [
+            "Open the Hermes module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "import.dashboard": {
+        "title": "Import Dashboard",
+        "description": "Import content into Metis from supported export formats.",
+        "learn_more": "/docs/modules/import.md",
+        "steps": [
+            "Open the Import module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "import.preview": {
+        "title": "Import Preview",
+        "description": "Import content into Metis from supported export formats.",
+        "learn_more": "/docs/modules/import.md",
+        "steps": [
+            "Open the Import module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "import.upload": {
+        "title": "Import Upload",
+        "description": "Import content into Metis from supported export formats.",
+        "learn_more": "/docs/modules/import.md",
+        "steps": [
+            "Open the Import module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "media.library": {
+        "title": "Media Library",
+        "description": "Centralized media library for uploads used by builders and content modules.",
+        "learn_more": "/docs/modules/media.md",
+        "steps": [
+            "Open the Media module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
     "newsletter.campaigns": {
         "title": "Newsletter Campaigns",
-        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
         "learn_more": "/docs/modules/newsletter.md",
         "steps": [
             "Open the Newsletter module from the sidebar.",
@@ -301,7 +411,17 @@
     },
     "newsletter.dashboard": {
         "title": "Newsletter Dashboard",
-        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
+        "learn_more": "/docs/modules/newsletter.md",
+        "steps": [
+            "Open the Newsletter module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "newsletter.editor": {
+        "title": "Newsletter Editor",
+        "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
         "learn_more": "/docs/modules/newsletter.md",
         "steps": [
             "Open the Newsletter module from the sidebar.",
@@ -311,7 +431,7 @@
     },
     "newsletter.lists": {
         "title": "Newsletter Lists",
-        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
         "learn_more": "/docs/modules/newsletter.md",
         "steps": [
             "Open the Newsletter module from the sidebar.",
@@ -321,7 +441,7 @@
     },
     "newsletter.subscribers": {
         "title": "Newsletter Subscribers",
-        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+        "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
         "learn_more": "/docs/modules/newsletter.md",
         "steps": [
             "Open the Newsletter module from the sidebar.",
@@ -329,9 +449,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "newsletter.templates": {
-        "title": "Newsletter Templates",
-        "description": "Create newsletters, manage templates, subscriptions, and delivery outcomes.",
+    "newsletter.theme": {
+        "title": "Newsletter Theme",
+        "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
         "learn_more": "/docs/modules/newsletter.md",
         "steps": [
             "Open the Newsletter module from the sidebar.",
@@ -341,7 +461,7 @@
     },
     "people.access_requests": {
         "title": "People Access Requests",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -351,7 +471,7 @@
     },
     "people.activity": {
         "title": "People Activity",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -361,7 +481,7 @@
     },
     "people.bulk_actions": {
         "title": "People Bulk Actions",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -371,7 +491,7 @@
     },
     "people.dashboard": {
         "title": "People Dashboard",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -381,7 +501,7 @@
     },
     "people.people_list": {
         "title": "People People List",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -391,7 +511,7 @@
     },
     "people.permissions": {
         "title": "People Permissions",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -401,7 +521,17 @@
     },
     "people.person": {
         "title": "People Person",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
+        "learn_more": "/docs/modules/people.md",
+        "steps": [
+            "Open the People module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "people.positions": {
+        "title": "People Positions",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -411,7 +541,7 @@
     },
     "people.role": {
         "title": "People Role",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -421,7 +551,7 @@
     },
     "people.roles_list": {
         "title": "People Roles List",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -431,7 +561,7 @@
     },
     "people.templates": {
         "title": "People Templates",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -441,7 +571,7 @@
     },
     "people.workspace": {
         "title": "People Workspace",
-        "description": "Manage staff, board, volunteers, and system access.",
+        "description": "Manage people, roles, access, and activity.",
         "learn_more": "/docs/modules/people.md",
         "steps": [
             "Open the People module from the sidebar.",
@@ -451,7 +581,7 @@
     },
     "portal.dashboard": {
         "title": "Portal Dashboard",
-        "description": "Reference for the Portal dashboard screen.",
+        "description": "Open shared dashboards and common workspace tools.",
         "learn_more": "/docs/modules/portal.md",
         "steps": [
             "Open the Portal module from the sidebar.",
@@ -461,7 +591,7 @@
     },
     "portal.email_usage": {
         "title": "Portal Email Usage",
-        "description": "Reference for the Portal email_usage screen.",
+        "description": "Open shared dashboards and common workspace tools.",
         "learn_more": "/docs/modules/portal.md",
         "steps": [
             "Open the Portal module from the sidebar.",
@@ -479,9 +609,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.accessibility": {
-        "title": "Settings Accessibility",
-        "description": "Managing site settings and APIs",
+    "settings.data": {
+        "title": "Settings Data",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -489,59 +619,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.api": {
-        "title": "Settings Api",
-        "description": "Managing site settings and APIs",
-        "learn_more": "/docs/modules/settings.md",
-        "steps": [
-            "Open the Settings module from the sidebar.",
-            "Use page controls to review, filter, or update records.",
-            "Open the full documentation page for related routes, APIs, and tables."
-        ]
-    },
-    "settings.backup": {
-        "title": "Settings Backup",
-        "description": "Managing site settings and APIs",
-        "learn_more": "/docs/modules/settings.md",
-        "steps": [
-            "Open the Settings module from the sidebar.",
-            "Use page controls to review, filter, or update records.",
-            "Open the full documentation page for related routes, APIs, and tables."
-        ]
-    },
-    "settings.calendar": {
-        "title": "Settings Calendar",
-        "description": "Managing site settings and APIs",
-        "learn_more": "/docs/modules/settings.md",
-        "steps": [
-            "Open the Settings module from the sidebar.",
-            "Use page controls to review, filter, or update records.",
-            "Open the full documentation page for related routes, APIs, and tables."
-        ]
-    },
-    "settings.customization": {
-        "title": "Settings Customization",
-        "description": "Managing site settings and APIs",
-        "learn_more": "/docs/modules/settings.md",
-        "steps": [
-            "Open the Settings module from the sidebar.",
-            "Use page controls to review, filter, or update records.",
-            "Open the full documentation page for related routes, APIs, and tables."
-        ]
-    },
-    "settings.dashboard": {
-        "title": "Settings Dashboard",
-        "description": "Managing site settings and APIs",
-        "learn_more": "/docs/modules/settings.md",
-        "steps": [
-            "Open the Settings module from the sidebar.",
-            "Use page controls to review, filter, or update records.",
-            "Open the full documentation page for related routes, APIs, and tables."
-        ]
-    },
-    "settings.drive": {
-        "title": "Settings Drive",
-        "description": "Managing site settings and APIs",
+    "settings.developers": {
+        "title": "Settings Developers",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -551,7 +631,7 @@
     },
     "settings.help": {
         "title": "Settings Help",
-        "description": "Managing site settings and APIs",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -559,9 +639,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.logging": {
-        "title": "Settings Logging",
-        "description": "Managing site settings and APIs",
+    "settings.identity": {
+        "title": "Settings Identity",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -569,9 +649,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.menu": {
-        "title": "Settings Menu",
-        "description": "Managing site settings and APIs",
+    "settings.organization": {
+        "title": "Settings Organization",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -579,9 +659,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.newsletter": {
-        "title": "Settings Newsletter",
-        "description": "Managing site settings and APIs",
+    "settings.platform": {
+        "title": "Settings Platform",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -589,9 +669,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.profile": {
-        "title": "Settings Profile",
-        "description": "Managing site settings and APIs",
+    "settings.security": {
+        "title": "Settings Security",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -599,9 +679,9 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.scheduler": {
-        "title": "Settings Scheduler",
-        "description": "Managing site settings and APIs",
+    "settings.system": {
+        "title": "Settings System",
+        "description": "Configure workspace settings, integrations, and system tools.",
         "learn_more": "/docs/modules/settings.md",
         "steps": [
             "Open the Settings module from the sidebar.",
@@ -609,19 +689,129 @@
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
-    "settings.workspace": {
-        "title": "Settings Workspace",
-        "description": "Managing site settings and APIs",
-        "learn_more": "/docs/modules/settings.md",
+    "website.banners": {
+        "title": "Website Banners",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
         "steps": [
-            "Open the Settings module from the sidebar.",
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.categories": {
+        "title": "Website Categories",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
             "Use page controls to review, filter, or update records.",
             "Open the full documentation page for related routes, APIs, and tables."
         ]
     },
     "website.dashboard": {
         "title": "Website Dashboard",
-        "description": "Manage pages & posts on the site.",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.editor": {
+        "title": "Website Editor",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.import": {
+        "title": "Website Import",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.media": {
+        "title": "Website Media",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.menus": {
+        "title": "Website Menus",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.pages": {
+        "title": "Website Pages",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.popups": {
+        "title": "Website Popups",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.posts": {
+        "title": "Website Posts",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.redirects": {
+        "title": "Website Redirects",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.templates": {
+        "title": "Website Templates",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
+        "learn_more": "/docs/modules/website.md",
+        "steps": [
+            "Open the Website module from the sidebar.",
+            "Use page controls to review, filter, or update records.",
+            "Open the full documentation page for related routes, APIs, and tables."
+        ]
+    },
+    "website.theme": {
+        "title": "Website Theme",
+        "description": "Structured website management for pages, posts, categories, menus, redirects, templates, and theme.",
         "learn_more": "/docs/modules/website.md",
         "steps": [
             "Open the Website module from the sidebar.",

@@ -1,0 +1,52 @@
+{
+    "slug": "import",
+    "name": "import",
+    "label": "Import",
+    "version": "1.0.0",
+    "domain": "import",
+    "default_view": "dashboard",
+    "dependencies": [],
+    "menu_order": 80,
+    "description": "Import content into Metis from supported export formats.",
+    "permissions": {
+        "view": [
+            "administrator",
+            "board",
+            "donor_admin"
+        ],
+        "execute": [
+            "administrator",
+            "board",
+            "donor_admin"
+        ]
+    },
+    "views": {
+        "dashboard": "dashboard.php",
+        "upload": "upload.php",
+        "preview": "preview.php"
+    },
+    "assets": {
+        "css": [
+            "import.css"
+        ],
+        "js": [
+            "import.js"
+        ],
+        "ajax": "import.ajax.php"
+    },
+    "ajax_object": "metisImportAjax",
+    "category": "website",
+    "default_parent": "website",
+    "order": 90,
+    "navigation": {
+        "enabled": true,
+        "label": "Import",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Import",
+    "entry": "Module.php",
+    "routes": [],
+    "controllers": [],
+    "services": []
+}

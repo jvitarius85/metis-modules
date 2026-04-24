@@ -4,29 +4,42 @@ declare(strict_types=1);
 namespace Metis\Modules\Contacts;
 
 final class MaintenanceManager {
-    public static function backfillCid(): int {
-        global $wpdb;
+    private const BACKFILL_BATCH_SIZE = 500;
 
+    private static function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
+    }
+
+    public static function backfillCid(): int {
         $contacts_table = \Metis_Tables::get( 'contacts' );
         if ( ! SchemaManager::tableExists( $contacts_table ) || ! SchemaManager::columnExists( $contacts_table, 'cid' ) ) {
             return 0;
         }
 
-        $rows    = $wpdb->get_results( "SELECT id FROM {$contacts_table} WHERE cid IS NULL OR cid = '' ORDER BY id ASC" );
         $updated = 0;
+        $db      = self::db();
 
-        foreach ( $rows as $row ) {
-            $cid = \metis_generate_code( 'CN', $contacts_table, 'cid' );
-            $res = $wpdb->update(
-                $contacts_table,
-                [ 'cid' => $cid ],
-                [ 'id' => (int) $row->id ],
-                [ '%s' ],
-                [ '%d' ]
+        while ( true ) {
+            $rows = $db->fetchAll(
+                "SELECT id FROM {$contacts_table} WHERE cid IS NULL OR cid = '' ORDER BY id ASC LIMIT %d",
+                [ self::BACKFILL_BATCH_SIZE ]
             );
 
-            if ( $res !== false ) {
-                $updated++;
+            if ( empty( $rows ) ) {
+                break;
+            }
+
+            foreach ( $rows as $row ) {
+                $cid = \metis_generate_code( 'CN', $contacts_table, 'cid' );
+                $res = $db->update(
+                    $contacts_table,
+                    [ 'cid' => $cid ],
+                    [ 'id' => (int) ( $row['id'] ?? 0 ) ]
+                );
+
+                if ( $res !== false ) {
+                    $updated++;
+                }
             }
         }
 
@@ -35,8 +48,6 @@ final class MaintenanceManager {
     }
 
     public static function migrateNotesToCid(): array {
-        global $wpdb;
-
         $contacts_table = \Metis_Tables::get( 'contacts' );
         $notes_table    = \Metis_Tables::get( 'contact_notes' );
 
@@ -51,7 +62,7 @@ final class MaintenanceManager {
         $updated = 0;
 
         if ( SchemaManager::columnExists( $notes_table, 'did' ) && SchemaManager::columnExists( $contacts_table, 'did' ) && SchemaManager::columnExists( $contacts_table, 'cid' ) ) {
-            $res = $wpdb->query(
+            $res = self::db()->execute(
                 "UPDATE {$notes_table} n
                  INNER JOIN {$contacts_table} c ON c.did = n.did
                  SET n.cid = c.cid
@@ -67,7 +78,7 @@ final class MaintenanceManager {
         }
 
         if ( SchemaManager::columnExists( $notes_table, 'contact_id' ) && SchemaManager::columnExists( $contacts_table, 'id' ) && SchemaManager::columnExists( $contacts_table, 'cid' ) ) {
-            $res = $wpdb->query(
+            $res = self::db()->execute(
                 "UPDATE {$notes_table} n
                  INNER JOIN {$contacts_table} c ON c.id = n.contact_id
                  SET n.cid = c.cid
@@ -86,14 +97,16 @@ final class MaintenanceManager {
     }
 
     public static function cleanupMergeNotes(): array {
-        global $wpdb;
-
         $notes_table = \Metis_Tables::get( 'contact_notes' );
         if ( ! SchemaManager::tableExists( $notes_table ) || ! SchemaManager::columnExists( $notes_table, 'cid' ) ) {
             return [ 'groups_consolidated' => 0, 'notes_deleted' => 0, 'notes_created' => 0, 'skipped' => 'notes table/cid unavailable' ];
         }
 
-        $rows = $wpdb->get_results(
+        $rows = array_map(
+            static function ( array $row ) {
+                return (object) $row;
+            },
+            self::db()->fetchAll(
             "SELECT id, cid, note, created_at, admin_user_id
              FROM {$notes_table}
              WHERE note LIKE 'System merge by %'
@@ -101,7 +114,8 @@ final class MaintenanceManager {
                AND cid <> ''
                AND (deleted_at IS NULL OR deleted_at = '')
              ORDER BY created_at ASC, id ASC"
-        ) ?: [];
+            ) ?: []
+        );
 
         if ( empty( $rows ) ) {
             return [ 'groups_consolidated' => 0, 'notes_deleted' => 0, 'notes_created' => 0 ];
@@ -127,7 +141,7 @@ final class MaintenanceManager {
             }
 
             $target_cid     = (string) ( $group_rows[0]->cid ?? '' );
-            $created_at     = (string) ( $group_rows[0]->created_at ?? \current_time( 'mysql' ) );
+            $created_at     = (string) ( $group_rows[0]->created_at ?? \metis_current_time( 'mysql' ) );
             $admin_id       = isset( $group_rows[0]->admin_user_id ) ? (int) $group_rows[0]->admin_user_id : 0;
             $actor_name     = 'System';
             $merged_entries = [];
@@ -183,7 +197,7 @@ final class MaintenanceManager {
                 $format[]                 = '%d';
             }
 
-            $inserted = $wpdb->insert( $notes_table, $payload, $format );
+            $inserted = self::db()->insert( $notes_table, $payload );
             if ( $inserted === false ) {
                 continue;
             }
@@ -192,7 +206,7 @@ final class MaintenanceManager {
             $groups_consolidated++;
 
             foreach ( $group_rows as $old_row ) {
-                $res = $wpdb->delete( $notes_table, [ 'id' => (int) $old_row->id ], [ '%d' ] );
+                $res = self::db()->delete( $notes_table, [ 'id' => (int) $old_row->id ] );
                 if ( $res !== false ) {
                     $notes_deleted++;
                 }

@@ -20,6 +20,7 @@ php_flag engine off
 RewriteEngine On
 RewriteRule "(^|/)\.(?!well-known/)" - [F,L]
 RewriteRule ".*\.(?:php[0-9]?|phtml|phar|cgi|pl|py|sh|bash|zsh|cmd|exe|com|dll|so|jsp|asp|aspx)$" - [F,L,NC]
+RewriteRule "^avatars/[A-Za-z0-9_-]+/avatar\.jpg$" - [L,NC]
 RewriteRule "!^[A-Fa-f0-9]{32}\.(?:jpg|jpeg|png|gif|webp|svg|pdf|txt|csv|json|doc|docx|xls|xlsx|ppt|pptx|zip)$" - [F,L,NC]
 </IfModule>
 

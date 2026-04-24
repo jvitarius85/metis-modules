@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "count": { "type": "number", "default": 3 },
+    "calendar_id": { "type": "string", "default": "" }
+  }
+}

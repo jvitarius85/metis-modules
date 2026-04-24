@@ -11,7 +11,7 @@ Hermes knowledge grounding for this layer is limited to repository-backed source
 - `/docs/walkthroughs.json`
 - module manifests and Hermes static definitions already stored in the Metis repository
 
-This layer must not depend on WordPress APIs, remote APIs, or live external documentation calls. It operates on local files, cached compiled indexes, and existing Metis service contracts.
+This layer must not depend on WXR APIs, remote APIs, or live external documentation calls. It operates on local files, cached compiled indexes, and existing Metis service contracts.
 
 ## Goals
 
@@ -565,7 +565,7 @@ The documentation layer must remain cheap at runtime.
 
 - Hermes documentation grounding is read-only
 - no direct module table access is allowed
-- no WordPress API dependency is allowed for ingestion or retrieval
+- no WXR API dependency is allowed for ingestion or retrieval
 - no remote documentation fetch is allowed
 - action-oriented workflows still require the normal Hermes proposal and enclave approval path
 

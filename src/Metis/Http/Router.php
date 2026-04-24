@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Http;
 
+use Metis\Core\Error\ErrorPageRenderer;
+
 final class Router {
     /** @var Route[] */
     private array $routes = [];
@@ -16,7 +18,7 @@ final class Router {
     private array $scoped_middleware = [];
 
     public function register_middleware( string $name, callable $middleware ): void {
-        $name = \sanitize_key( str_replace( '.', '_', $name ) );
+        $name = \metis_key_clean( str_replace( '.', '_', $name ) );
         if ( $name === '' ) {
             throw new \InvalidArgumentException( 'Middleware names cannot be empty.' );
         }
@@ -25,7 +27,7 @@ final class Router {
     }
 
     public function register_middleware_group( string $name, array $middleware ): void {
-        $name = \sanitize_key( str_replace( '.', '_', $name ) );
+        $name = \metis_key_clean( str_replace( '.', '_', $name ) );
         if ( $name === '' ) {
             throw new \InvalidArgumentException( 'Middleware group names cannot be empty.' );
         }
@@ -114,6 +116,19 @@ final class Router {
             return $pipeline( $resolved );
         }
 
+        $trace_id = function_exists( 'metis_audit_request_id' ) ? (string) \metis_audit_request_id() : '';
+        if ( class_exists( ErrorPageRenderer::class ) ) {
+            $renderer = new ErrorPageRenderer();
+            return Response::html(
+                $renderer->render( 404, $trace_id !== '' ? $trace_id : 'router-404', 'No route matched this request path.', 'Route Not Found' ),
+                404,
+                array_filter( [
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                    'X-Metis-Trace-Id' => $trace_id !== '' ? $trace_id : null,
+                ], static fn ( mixed $value ): bool => is_string( $value ) && $value !== '' )
+            );
+        }
+
         return Response::html( '<div class="metis-error">Route not found.</div>', 404 );
     }
 
@@ -147,7 +162,7 @@ final class Router {
             return;
         }
 
-        $key = \sanitize_key( str_replace( '.', '_', $entry ) );
+        $key = \metis_key_clean( str_replace( '.', '_', $entry ) );
         if ( $key === '' ) {
             return;
         }

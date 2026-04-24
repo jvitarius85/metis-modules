@@ -43,6 +43,12 @@ final class RouterService {
     }
 
     public function dispatch( Request $request ): Response {
+        if ( Application::has_service( 'error_kernel' ) ) {
+            /** @var \Metis\Core\Error\ErrorKernel $kernel */
+            $kernel = Application::service( 'error_kernel' );
+            $kernel->captureRequest( $request );
+        }
+
         return $this->router()->dispatch( $request );
     }
 }

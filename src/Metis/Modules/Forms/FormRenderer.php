@@ -6,205 +6,284 @@ namespace Metis\Modules\Forms;
 use Metis\Http\Response;
 
 final class FormRenderer {
-    public static function render(array $form, array $result = []): Response {
+    public static function render( array $form, array $result = [] ): Response {
         $schema = (array) ( $form['schema'] ?? [] );
         $settings = (array) ( $form['settings'] ?? [] );
-        $design = (array) ( $settings['design'] ?? [] );
-        $title = esc_html( (string) ( $form['name'] ?? 'Form' ) );
-        $description = esc_html( (string) ( $form['description'] ?? '' ) );
+        $title = (string) ( $form['name'] ?? 'Form' );
+        $description = (string) ( $form['description'] ?? '' );
         $asset_css = \metis_module_asset_url( 'forms', 'forms.css' );
         $asset_js = \metis_module_asset_url( 'forms', 'forms.js' );
-        $config = [
-            'mode' => 'public',
-            'form' => [
-                'id' => (int) ( $form['id'] ?? 0 ),
-                'slug' => (string) ( $form['slug'] ?? '' ),
-                'name' => (string) ( $form['name'] ?? '' ),
-                'schema' => $schema,
-                'settings' => $settings,
-                'submit_url' => Support::publicUrl( (string) ( $form['slug'] ?? '' ) ),
+        $blocked = ! empty( $result['blocked'] );
+        $alert_class = ! empty( $result['ok'] ) ? 'mw-alert-success' : 'mw-alert-error';
+        $payment_field = self::paymentField( $schema );
+
+        $boot = [
+            'mode'   => 'public',
+            'form'   => [
+                'id'          => (int) ( $form['id'] ?? 0 ),
+                'slug'        => (string) ( $form['slug'] ?? '' ),
+                'name'        => $title,
+                'schema'      => $schema,
+                'settings'    => $settings,
+                'submit_url'  => Support::publicUrl( (string) ( $form['slug'] ?? '' ) ),
+                'has_payment' => $payment_field !== null,
             ],
             'result' => $result,
         ];
-
-        $style_vars = sprintf(
-            '--metis-form-accent:%s;--metis-form-button-bg:%s;--metis-form-button-text:%s;--metis-form-radius:%spx;',
-            esc_attr( (string) ( $design['accent_color'] ?? '#126497' ) ),
-            esc_attr( (string) ( $design['button_bg'] ?? '#126497' ) ),
-            esc_attr( (string) ( $design['button_text'] ?? '#ffffff' ) ),
-            esc_attr( (string) ( $design['field_radius'] ?? '14' ) )
-        );
-        $surface_class = 'metis-forms-public-card--' . esc_attr( (string) ( $design['surface_style'] ?? 'clean' ) );
 
         ob_start();
         ?>
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?php echo $title; ?></title>
-    <link rel="stylesheet" href="<?php echo esc_url( $asset_css ); ?>">
+    <title><?php echo metis_escape_html( $title ); ?></title>
+    <link rel="stylesheet" href="<?php echo metis_escape_url( $asset_css ); ?>">
+    <?php if ( $payment_field !== null ) : ?>
+        <script src="https://js.stripe.com/v3/"></script>
+    <?php endif; ?>
 </head>
-<body class="metis-forms-public-shell">
-    <div class="metis-forms-public-wrap">
-        <section class="metis-forms-public-card <?php echo $surface_class; ?>" data-metis-forms-public="1" style="<?php echo $style_vars; ?>">
-            <div class="metis-forms-public-head">
+<body class="metis-forms-public-body">
+    <main class="metis-forms-public-shell">
+        <section class="metis-forms-public-card" data-metis-forms-public="1">
+            <header class="metis-forms-public-header">
                 <p class="metis-forms-public-kicker">Metis Forms</p>
-                <h1><?php echo $title; ?></h1>
+                <h1><?php echo metis_escape_html( $title ); ?></h1>
                 <?php if ( $description !== '' ) : ?>
-                    <p><?php echo $description; ?></p>
+                    <p><?php echo metis_escape_html( $description ); ?></p>
                 <?php endif; ?>
+            </header>
+
+            <div id="metis-forms-public-alert" class="mw-alert <?php echo metis_escape_attr( $alert_class ); ?>"<?php echo empty( $result['message'] ) ? ' hidden' : ''; ?>>
+                <?php echo ! empty( $result['message'] ) ? \metis_runtime_kses_post( (string) $result['message'] ) : ''; ?>
             </div>
-            <div id="metis-forms-public-alert" class="mw-alert" <?php if ( empty( $result ) ) : ?>style="display:none"<?php endif; ?>>
-                <?php echo ! empty( $result['message'] ) ? metis_kses_post( (string) $result['message'] ) : ''; ?>
-            </div>
-            <form id="metis-forms-public-form" class="metis-forms-public-form" enctype="multipart/form-data" method="post" action="<?php echo esc_url( Support::publicUrl( (string) ( $form['slug'] ?? '' ) ) ); ?>">
-                <?php foreach ( $schema as $field ) : ?>
-                    <?php self::renderField( is_array( $field ) ? $field : [], $settings ); ?>
-                <?php endforeach; ?>
-                <div class="metis-forms-public-actions">
-                    <button class="mw-btn" type="submit">Submit</button>
+
+            <div id="metis-forms-success-overlay" class="metis-forms-success-overlay" hidden>
+                <div class="metis-forms-success-overlay__backdrop" data-success-close></div>
+                <div class="metis-forms-success-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="metis-forms-success-title">
+                    <h2 id="metis-forms-success-title">Submission received</h2>
+                    <p data-success-message>Thanks, your submission has been received.</p>
+                    <button type="button" class="mw-btn" data-success-close>Close</button>
                 </div>
-            </form>
+            </div>
+
+            <?php if ( ! $blocked ) : ?>
+                <form id="metis-forms-public-form" class="metis-forms-public-form" action="<?php echo metis_escape_url( Support::publicUrl( (string) ( $form['slug'] ?? '' ) ) ); ?>" method="post" novalidate>
+                    <?php foreach ( $schema as $field ) : ?>
+                        <?php if ( is_array( $field ) ) : ?>
+                            <?php self::renderField( $field ); ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+
+                    <?php if ( ( $settings['access']['mode'] ?? '' ) === 'password' ) : ?>
+                        <section class="metis-forms-public-field is-full">
+                            <label for="metis-forms-access-password">Form password</label>
+                            <input id="metis-forms-access-password" class="mw-input" type="password" name="_access_password" autocomplete="current-password">
+                        </section>
+                    <?php endif; ?>
+
+                    <div class="metis-forms-public-actions">
+                        <button id="metis-forms-submit-button" class="mw-btn" type="submit">
+                            <?php echo $payment_field !== null ? 'Continue to payment' : 'Submit'; ?>
+                        </button>
+                    </div>
+                </form>
+            <?php endif; ?>
         </section>
-    </div>
-    <script id="metis-forms-public-data" type="application/json"><?php echo \metis_json_encode( $config ); ?></script>
-    <script src="<?php echo esc_url( $asset_js ); ?>"></script>
+    </main>
+    <script id="metis-forms-public-data" type="application/json"><?php echo \metis_json_encode( $boot ); ?></script>
+    <script src="<?php echo metis_escape_url( $asset_js ); ?>"></script>
 </body>
 </html>
         <?php
-        return Response::html( (string) ob_get_clean() );
+
+        return Response::html( (string) ob_get_clean(), (int) ( $result['status'] ?? 200 ) );
     }
 
-    private static function renderField(array $field, array $settings = [], string $name_prefix = '', string $dom_prefix = ''): void {
+    private static function renderField( array $field, string $name_prefix = '', string $dom_prefix = '' ): void {
+        $type = (string) ( $field['type'] ?? 'text' );
+        if ( $type === 'payment' ) {
+            self::renderPaymentField( $field );
+            return;
+        }
+
         $key = (string) ( $field['key'] ?? '' );
         if ( $key === '' ) {
             return;
         }
 
-        $type = (string) ( $field['type'] ?? 'text' );
-        $label = esc_html( (string) ( $field['label'] ?? $key ) );
-        $help = esc_html( (string) ( $field['help'] ?? '' ) );
+        $label = (string) ( $field['label'] ?? $key );
+        $help = (string) ( $field['help'] ?? '' );
         $required = ! empty( $field['required'] );
-        $input_name = $name_prefix !== '' ? $name_prefix . '[' . $key . ']' : $key;
-        $dom_name = $dom_prefix !== '' ? $dom_prefix . '__' . $key : $key;
-        $attrs = ' data-field-key="' . esc_attr( $key ) . '"';
-        $attrs .= ! empty( $field['conditions'] ) ? ' data-conditions="' . esc_attr( \metis_json_encode( $field['conditions'] ) ?: '[]' ) . '"' : '';
-        $attrs .= ' data-field-type="' . esc_attr( $type ) . '"';
-        $attrs .= ' data-field-format="' . esc_attr( (string) ( $field['format'] ?? '' ) ) . '"';
-        $attrs .= ! empty( $field['searchable'] ) ? ' data-searchable="1"' : '';
-        $attrs .= ! empty( $field['depends_on'] ) ? ' data-depends-on="' . esc_attr( (string) $field['depends_on'] ) . '"' : '';
-        $width_class = (string) ( $field['width'] ?? 'full' ) === 'half' ? ' is-half' : '';
-        $validation = (array) ( $field['validation'] ?? [] );
-
-        echo '<div class="metis-form-field' . esc_attr( $width_class ) . '"' . $attrs . '>';
-        echo '<label for="field_' . esc_attr( $dom_name ) . '">' . $label . ( $required ? ' *' : '' ) . '</label>';
-        if ( $help !== '' ) {
-            echo '<p class="metis-form-help">' . $help . '</p>';
+        $width = (string) ( $field['width'] ?? 'full' );
+        if ( ! in_array( $width, [ 'full', 'half', 'narrow' ], true ) ) {
+            $width = 'full';
+        }
+        $name = $name_prefix !== '' ? $name_prefix . '[' . $key . ']' : $key;
+        $id = $dom_prefix !== '' ? $dom_prefix . '__' . $key : $key;
+        $help_id = $help !== '' ? 'metis-help-' . $id : '';
+        $attrs = [
+            'data-field-key' => $key,
+            'data-field-type' => $type,
+        ];
+        if ( ! empty( $field['conditions'] ) ) {
+            $attrs['data-conditions'] = \metis_json_encode( $field['conditions'] ) ?: '[]';
+        }
+        if ( ! empty( $field['options_source']['type'] ) ) {
+            $attrs['data-source-type'] = (string) $field['options_source']['type'];
+        }
+        if ( ! empty( $field['options_source']['parent_field'] ) ) {
+            $attrs['data-parent-field'] = (string) $field['options_source']['parent_field'];
         }
 
+        echo '<section class="metis-forms-public-field is-' . metis_escape_attr( $width ) . '"';
+        foreach ( $attrs as $attr => $value ) {
+            echo ' ' . metis_escape_attr( $attr ) . '="' . metis_escape_attr( (string) $value ) . '"';
+        }
+        echo '>';
+
+        if ( $type !== 'radio' && $type !== 'checkbox' ) {
+            echo '<label for="' . metis_escape_attr( 'field-' . $id ) . '">' . metis_escape_html( $label );
+            if ( $required ) {
+                echo ' <span aria-hidden="true">*</span>';
+            }
+            echo '</label>';
+            if ( $help !== '' ) {
+                echo '<p id="' . metis_escape_attr( $help_id ) . '" class="metis-forms-help">' . metis_escape_html( $help ) . '</p>';
+            }
+        }
+
+        $described = $help_id !== '' ? ' aria-describedby="' . metis_escape_attr( $help_id ) . '"' : '';
+
         if ( $type === 'textarea' ) {
-            echo '<textarea class="mw-input" id="field_' . esc_attr( $dom_name ) . '" name="' . esc_attr( $input_name ) . '" placeholder="' . esc_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"';
-            if ( ! empty( $validation['min_length'] ) ) {
-                echo ' minlength="' . esc_attr( (string) $validation['min_length'] ) . '"';
-            }
-            if ( ! empty( $validation['max_length'] ) ) {
-                echo ' maxlength="' . esc_attr( (string) $validation['max_length'] ) . '"';
-            }
-            echo '></textarea>';
+            echo '<textarea id="' . metis_escape_attr( 'field-' . $id ) . '" class="mw-input" name="' . metis_escape_attr( $name ) . '" placeholder="' . metis_escape_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"' . ( $required ? ' required' : '' ) . $described . '></textarea>';
         } elseif ( in_array( $type, [ 'select', 'radio', 'checkbox' ], true ) ) {
             $options = (array) ( $field['options'] ?? [] );
-            if ( ! empty( $field['options_source']['type'] ) ) {
-                $options = Repository::resolveDynamicOptions( (array) ( $field['options_source'] ?? [] ) );
-            }
             if ( $type === 'select' ) {
-                if ( ! empty( $field['searchable'] ) ) {
-                    echo '<input class="mw-input metis-form-select-search" type="text" data-select-search-for="' . esc_attr( $input_name ) . '" placeholder="Start typing to narrow the list">';
-                }
-                echo '<select class="mw-select" id="field_' . esc_attr( $dom_name ) . '" name="' . esc_attr( $input_name ) . '">';
-                echo '<option value="">Select...</option>';
+                $is_child_dynamic = ! empty( $field['options_source']['parent_field'] );
+                echo '<select id="' . metis_escape_attr( 'field-' . $id ) . '" class="mw-select" name="' . metis_escape_attr( $name ) . '"' . ( $required ? ' required' : '' ) . $described . ( $is_child_dynamic ? ' disabled' : '' ) . '>';
+                echo '<option value="">Select…</option>';
                 foreach ( $options as $option ) {
                     if ( ! is_array( $option ) ) {
                         continue;
                     }
-                    echo '<option value="' . esc_attr( (string) ( $option['value'] ?? '' ) ) . '" data-category="' . esc_attr( (string) ( $option['category'] ?? '' ) ) . '">' . esc_html( (string) ( $option['label'] ?? '' ) ) . '</option>';
+                    echo '<option value="' . metis_escape_attr( (string) ( $option['value'] ?? '' ) ) . '" data-category="' . metis_escape_attr( (string) ( $option['category'] ?? '' ) ) . '">'
+                        . metis_escape_html( (string) ( $option['label'] ?? '' ) ) . '</option>';
                 }
                 echo '</select>';
             } else {
-                $name = $type === 'checkbox' ? $input_name . '[]' : $input_name;
+                echo '<fieldset class="metis-forms-choice-group"' . $described . '>';
+                echo '<legend>' . metis_escape_html( $label );
+                if ( $required ) {
+                    echo ' <span aria-hidden="true">*</span>';
+                }
+                echo '</legend>';
+                if ( $help !== '' ) {
+                    echo '<p id="' . metis_escape_attr( $help_id ) . '" class="metis-forms-help">' . metis_escape_html( $help ) . '</p>';
+                }
                 foreach ( $options as $index => $option ) {
                     if ( ! is_array( $option ) ) {
                         continue;
                     }
-                    $option_id = 'field_' . $dom_name . '_' . (int) $index;
-                    echo '<label class="metis-form-choice" for="' . esc_attr( $option_id ) . '">';
-                    echo '<input type="' . esc_attr( $type === 'checkbox' ? 'checkbox' : 'radio' ) . '" id="' . esc_attr( $option_id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) ( $option['value'] ?? '' ) ) . '">';
-                    echo '<span>' . esc_html( (string) ( $option['label'] ?? '' ) ) . '</span>';
+                    $choice_id = 'field-' . $id . '-' . (int) $index;
+                    $choice_name = $type === 'checkbox' ? $name . '[]' : $name;
+                    echo '<label class="metis-forms-choice" for="' . metis_escape_attr( $choice_id ) . '">';
+                    echo '<input type="' . metis_escape_attr( $type === 'checkbox' ? 'checkbox' : 'radio' ) . '" id="' . metis_escape_attr( $choice_id ) . '" name="' . metis_escape_attr( $choice_name ) . '" value="' . metis_escape_attr( (string) ( $option['value'] ?? '' ) ) . '"' . ( $required && $type === 'radio' && (int) $index === 0 ? ' required' : '' ) . '>';
+                    echo '<span>' . metis_escape_html( (string) ( $option['label'] ?? '' ) ) . '</span>';
                     echo '</label>';
                 }
+                echo '</fieldset>';
             }
-        } elseif ( $type === 'file' ) {
-            echo '<input class="mw-input" type="file" id="field_' . esc_attr( $dom_name ) . '" name="' . esc_attr( $input_name ) . '">';
         } elseif ( $type === 'repeater' ) {
-            $subfields = (array) ( $field['subfields'] ?? [] );
-            $limit = max( 1, (int) ( $field['repeat_limit'] ?? 10 ) );
-            echo '<div class="metis-form-repeater" data-repeater-key="' . esc_attr( $key ) . '" data-repeat-limit="' . esc_attr( (string) $limit ) . '">';
-            echo '<div class="metis-form-repeater-rows"></div>';
+            $limit = max( 1, (int) ( $field['repeat_limit'] ?? 5 ) );
+            echo '<div class="metis-forms-repeater" data-repeater-key="' . metis_escape_attr( $key ) . '" data-repeat-limit="' . metis_escape_attr( (string) $limit ) . '">';
+            echo '<div class="metis-forms-repeater-rows"></div>';
             echo '<template>';
-            echo '<div class="metis-form-repeater-row">';
-            echo '<div class="metis-form-repeater-grid">';
-            foreach ( $subfields as $subfield ) {
-                self::renderField(
-                    is_array( $subfield ) ? $subfield : [],
-                    $settings,
-                    $input_name . '[__INDEX__]',
-                    $dom_name . '__INDEX__'
-                );
+            echo '<article class="metis-forms-repeater-row">';
+            echo '<div class="metis-forms-repeater-grid">';
+            foreach ( (array) ( $field['subfields'] ?? [] ) as $subfield ) {
+                if ( is_array( $subfield ) ) {
+                    self::renderField( $subfield, $name . '[__INDEX__]', $id . '__INDEX__' );
+                }
             }
             echo '</div>';
             echo '<button type="button" class="mw-btn mw-btn-xs mw-btn-ghost" data-remove-row>Remove</button>';
-            echo '</div>';
+            echo '</article>';
             echo '</template>';
-            echo '<button type="button" class="mw-btn mw-btn-xs" data-add-row>Add another</button>';
-            echo '</div>';
-        } elseif ( $type === 'payment' ) {
-            echo '<div class="metis-form-payment-shell">';
-            if ( ! empty( $settings['payments']['allow_discount_code'] ) ) {
-                echo '<div class="metis-form-field">';
-                echo '<label for="metis-form-discount">Discount code</label>';
-                echo '<input class="mw-input" type="text" id="metis-form-discount" name="_discount_code" autocomplete="off">';
-                echo '</div>';
-            }
-            echo '<div class="metis-form-totals" data-metis-form-totals>';
-            echo '<div><span>Subtotal</span><strong data-total-subtotal>$0.00</strong></div>';
-            echo '<div><span>Discount</span><strong data-total-discount>$0.00</strong></div>';
-            echo '<div><span>Processing fee</span><strong data-total-fee>$0.00</strong></div>';
-            echo '<div class="is-grand"><span>' . esc_html( (string) ( $settings['payments']['label'] ?? 'Total' ) ) . '</span><strong data-total-grand>$0.00</strong></div>';
-            echo '</div>';
-            echo '<div class="metis-forms-stripe-panel">';
-            echo '<div class="metis-forms-sidebar-label">Complete payment</div>';
-            echo '<div id="metis-forms-stripe-mount"></div>';
-            echo '<button type="button" class="mw-btn" id="metis-forms-stripe-confirm">Pay now</button>';
-            echo '</div>';
+            echo '<button type="button" class="mw-btn mw-btn-xs" data-add-row>Add row</button>';
             echo '</div>';
         } else {
-            echo '<input class="mw-input" type="' . esc_attr( in_array( $type, [ 'email', 'number', 'date' ], true ) ? $type : 'text' ) . '" id="field_' . esc_attr( $dom_name ) . '" name="' . esc_attr( $input_name ) . '" placeholder="' . esc_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"';
-            if ( (string) ( $field['min'] ?? '' ) !== '' ) {
-                echo ' min="' . esc_attr( (string) $field['min'] ) . '"';
-            }
-            if ( (string) ( $field['max'] ?? '' ) !== '' ) {
-                echo ' max="' . esc_attr( (string) $field['max'] ) . '"';
-            }
-            if ( ! empty( $validation['min_length'] ) ) {
-                echo ' minlength="' . esc_attr( (string) $validation['min_length'] ) . '"';
-            }
-            if ( ! empty( $validation['max_length'] ) ) {
-                echo ' maxlength="' . esc_attr( (string) $validation['max_length'] ) . '"';
+            $input_type = in_array( $type, [ 'email', 'number', 'date' ], true ) ? $type : 'text';
+            echo '<input id="' . metis_escape_attr( 'field-' . $id ) . '" class="mw-input" type="' . metis_escape_attr( $input_type ) . '" name="' . metis_escape_attr( $name ) . '" placeholder="' . metis_escape_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"' . ( $required ? ' required' : '' ) . $described;
+            if ( $input_type === 'number' ) {
+                if ( ( $field['validation']['min_value'] ?? null ) !== null ) {
+                    echo ' min="' . metis_escape_attr( (string) $field['validation']['min_value'] ) . '"';
+                }
+                if ( ( $field['validation']['max_value'] ?? null ) !== null ) {
+                    echo ' max="' . metis_escape_attr( (string) $field['validation']['max_value'] ) . '"';
+                }
+                echo ' step="0.01"';
             }
             echo '>';
         }
 
+        echo '</section>';
+    }
+
+    private static function renderPaymentField( array $field ): void {
+        $payment = (array) ( $field['payment'] ?? [] );
+        $currency = strtoupper( (string) ( $payment['currency'] ?? 'USD' ) );
+        $amounts = (array) ( $payment['donation_amounts'] ?? [] );
+        $label = (string) ( $field['label'] ?? 'Payment' );
+
+        echo '<section class="metis-forms-public-field is-full metis-forms-payment-field" data-field-key="' . metis_escape_attr( (string) ( $field['key'] ?? 'payment' ) ) . '" data-field-type="payment">';
+        echo '<div class="metis-forms-payment-head"><h2>' . metis_escape_html( $label ) . '</h2></div>';
+        echo '<fieldset class="metis-forms-payment-choices"><legend>Donation amount</legend><div class="metis-forms-payment-choice-grid">';
+        foreach ( $amounts as $index => $amount ) {
+            $choice_id = 'payment-choice-' . (int) $index;
+            $display = number_format( (float) $amount, 2 );
+            echo '<label class="metis-forms-payment-choice" for="' . metis_escape_attr( $choice_id ) . '">';
+            echo '<input type="radio" id="' . metis_escape_attr( $choice_id ) . '" name="_donation_amount_choice" value="' . metis_escape_attr( (string) $amount ) . '">';
+            echo '<span>' . metis_escape_html( $currency . ' ' . $display ) . '</span>';
+            echo '</label>';
+        }
+        echo '</div></fieldset>';
+        echo '<input type="hidden" name="_donation_amount" value="">';
+
+        if ( ! empty( $payment['allow_custom_amount'] ) ) {
+            echo '<div class="metis-forms-payment-custom">';
+            echo '<label for="metis-forms-custom-amount">' . metis_escape_html( (string) ( $payment['custom_amount_label'] ?? 'Other amount' ) ) . '</label>';
+            echo '<input id="metis-forms-custom-amount" class="mw-input" type="number" min="1" step="0.01" name="_donation_amount_custom" inputmode="decimal">';
+            echo '</div>';
+        }
+
+        if ( ! empty( $payment['cover_fees_enabled'] ) ) {
+            echo '<label class="metis-forms-payment-toggle">';
+            echo '<input type="checkbox" name="_cover_fees" value="1">';
+            echo '<span>' . metis_escape_html( (string) ( $payment['cover_fees_label'] ?? 'I would like to cover the processing fees.' ) ) . '</span>';
+            echo '</label>';
+        }
+
+        echo '<div class="metis-forms-payment-totals" data-payment-totals>';
+        echo '<div><span>Donation</span><strong data-total-base>' . metis_escape_html( $currency . ' 0.00' ) . '</strong></div>';
+        echo '<div><span>Fees</span><strong data-total-fee>' . metis_escape_html( $currency . ' 0.00' ) . '</strong></div>';
+        echo '<div class="is-grand"><span>' . metis_escape_html( (string) ( $payment['summary_label'] ?? 'Total' ) ) . '</span><strong data-total-grand>' . metis_escape_html( $currency . ' 0.00' ) . '</strong></div>';
         echo '</div>';
+        echo '<div class="metis-forms-stripe-panel" hidden>';
+        echo '<div id="metis-forms-stripe-mount"></div>';
+        echo '<button type="button" class="mw-btn" id="metis-forms-stripe-confirm">Pay and submit</button>';
+        echo '</div>';
+        echo '</section>';
+    }
+
+    private static function paymentField( array $schema ): ?array {
+        foreach ( $schema as $field ) {
+            if ( is_array( $field ) && ( $field['type'] ?? '' ) === 'payment' ) {
+                return $field;
+            }
+        }
+
+        return null;
     }
 }

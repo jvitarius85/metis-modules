@@ -1,0 +1,184 @@
+{
+    "slug": "newsletter",
+    "name": "newsletter",
+    "label": "Newsletter",
+    "version": "1.0.0",
+    "domain": "newsletter",
+    "default_view": "dashboard",
+    "dependencies": [],
+    "entity_prefixes": [
+        {
+            "entity_type": "newsletter_campaign",
+            "prefix": "NLC",
+            "description": "Newsletter Campaign",
+            "table_key": "newsletter_campaigns",
+            "uid_column": "newsletter_campaign_uid",
+            "legacy_columns": [
+                "campaign_code"
+            ]
+        },
+        {
+            "entity_type": "newsletter_template",
+            "prefix": "NLT",
+            "description": "Newsletter Template",
+            "table_key": "newsletter_templates",
+            "uid_column": "newsletter_template_uid",
+            "legacy_columns": [
+                "template_code"
+            ]
+        },
+        {
+            "entity_type": "newsletter_list",
+            "prefix": "NLL",
+            "description": "Newsletter List",
+            "table_key": "newsletter_lists",
+            "uid_column": "newsletter_list_uid",
+            "legacy_columns": [
+                "list_key"
+            ]
+        }
+    ],
+    "menu_order": 1,
+    "description": "Create email campaigns, manage newsletter theme settings, and track delivery.",
+    "icon": "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 16h5.5s1 3.5 5.5 3.5 5.5-3.5 5.5-3.5H27v8c0 1.5-1.5 3-3 3H8c-1.5 0-3-1.5-3-3v-8z M27 16l-1-3M5 19.5V16l1-3 M13.5 9h5M13.5 13h5 M9.5 13V5h13v8\"/></svg>",
+    "menu": {
+        "type": "dropdown",
+        "items": {
+            "dashboard": "Dashboard",
+            "campaigns": "Campaigns",
+            "theme": "Theme",
+            "lists": "Lists",
+            "subscribers": "Subscribers"
+        }
+    },
+    "permissions": {
+        "view": [
+            "board",
+            "donor_admin",
+            "newsletter_admin"
+        ],
+        "edit": [
+            "board",
+            "newsletter_admin"
+        ],
+        "create": [
+            "board",
+            "newsletter_admin"
+        ],
+        "delete": [
+            "board",
+            "newsletter_admin"
+        ]
+    },
+    "views": {
+        "dashboard": "dashboard.php",
+        "campaigns": "campaigns.php",
+        "theme": "theme.php",
+        "editor": "editor.php",
+        "lists": "lists.php",
+        "subscribers": "subscribers.php"
+    },
+    "help_topics": [
+        "newsletter.dashboard",
+        "newsletter.campaigns",
+        "newsletter.theme",
+        "newsletter.lists",
+        "newsletter.subscribers"
+    ],
+    "services": [
+        "services/document.php",
+        "services/audience.php",
+        "services/tracking.php",
+        "services/audit.php"
+    ],
+    "routes": [
+        {
+            "name": "newsletter.open",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/metis/v1/newsletter/open/(?P<code>[A-Za-z0-9\\-_]+)\\.gif$#",
+            "handler": "metis_newsletter_handle_open_route"
+        },
+        {
+            "name": "newsletter.click",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/metis/v1/newsletter/click/(?P<code>[A-Za-z0-9\\-_]+)$#",
+            "handler": "metis_newsletter_handle_click_route"
+        },
+        {
+            "name": "newsletter.unsubscribe",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/metis/v1/newsletter/unsubscribe/(?P<code>[A-Za-z0-9\\-_]+)$#",
+            "handler": "metis_newsletter_handle_unsubscribe_route"
+        },
+        {
+            "name": "newsletter.manage",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/metis/v1/newsletter/manage/(?P<code>[A-Za-z0-9\\-_]+)$#",
+            "handler": "metis_newsletter_handle_manage_route"
+        },
+        {
+            "name": "newsletter.public.unsubscribe",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/n/unsubscribe/(?P<contact>[A-Za-z0-9\\-_]+)/?$#",
+            "handler": "metis_newsletter_handle_public_unsubscribe_route"
+        },
+        {
+            "name": "newsletter.public.manage",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/n/manage/(?P<contact>[A-Za-z0-9\\-_]+)/?$#",
+            "handler": "metis_newsletter_handle_public_manage_route"
+        },
+        {
+            "name": "newsletter.public.view",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/n/view/(?P<newsletter>[A-Za-z0-9\\-_]+)/?$#",
+            "handler": "metis_newsletter_handle_public_view_route"
+        }
+    ],
+    "assets": {
+        "css": [
+            "newsletter.css"
+        ],
+        "js": [
+            "newsletter.js"
+        ],
+        "ajax": "newsletter.ajax.php"
+    },
+    "ajax_object": "metisNewsletterAjax",
+    "category": "communications",
+    "default_parent": "communications",
+    "order": 20,
+    "navigation": {
+        "enabled": true,
+        "label": "Newsletter",
+        "visible": true
+    },
+    "quick_actions": [
+        {
+            "key": "communications_create_newsletter",
+            "label": "Create Newsletter",
+            "icon": "mail-plus",
+            "type": "route",
+            "route": "/newsletter/campaigns/",
+            "permission": "newsletter.create",
+            "group": "communications"
+        }
+    ],
+    "title": "Newsletter",
+    "entry": "Module.php",
+    "controllers": []
+}

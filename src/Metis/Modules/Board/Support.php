@@ -23,7 +23,7 @@ final class Support {
             return '—';
         }
 
-        return \metis_date( $format, $ts, \metis_timezone() );
+        return \metis_runtime_date( $format, $ts, \metis_runtime_timezone() );
     }
 
     public static function currentPersonId(): int {
@@ -43,7 +43,16 @@ final class Support {
             return \metis_generate_code( $prefix, $table, $column );
         }
 
-        return strtoupper( $prefix ) . \metis_rand( 100000, 999999 );
+        return strtoupper( $prefix ) . random_int( 100000, 999999 );
+    }
+
+    public static function documentEntityType( string $doc_type ): string {
+        return match ( \metis_key_clean( $doc_type ) ) {
+            'board_packet' => 'board_packet',
+            'financial_report' => 'board_financial',
+            'minutes' => 'board_minutes',
+            default => '',
+        };
     }
 
     public static function docTypeLabel( string $doc_type ): string {
@@ -59,7 +68,7 @@ final class Support {
             'other'              => 'Other',
         ];
 
-        $key = \sanitize_key( $doc_type );
+        $key = \metis_key_clean( $doc_type );
         return $map[ $key ] ?? ucwords( str_replace( '_', ' ', $key !== '' ? $key : 'document' ) );
     }
 
@@ -120,7 +129,7 @@ final class Support {
             return 0;
         }
 
-        global $wpdb;
+        $db               = \metis_db();
         $decisions_table = \Metis_Tables::get( 'board_decisions' );
         $points          = self::extractAgendaDecisionPoints( $agenda );
         if ( empty( $points ) ) {
@@ -137,25 +146,20 @@ final class Support {
                 continue;
             }
 
-            $existing_id = (int) $wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT id FROM {$decisions_table}
-                     WHERE meeting_id = %d
-                       AND (
-                         (agenda_point_hash IS NOT NULL AND agenda_point_hash = %s)
-                         OR (LOWER(title) = LOWER(%s) AND COALESCE(agenda_section_title,'') = %s AND COALESCE(agenda_item_title,'') = %s)
-                       )
-                     LIMIT 1",
-                    $meeting_id,
-                    $point_hash,
-                    $title,
-                    $section_title,
-                    $item_title
-                )
+            $existing_id = (int) $db->scalar(
+                "SELECT id FROM {$decisions_table}
+                 WHERE meeting_id = %d
+                   AND (
+                     (agenda_point_hash IS NOT NULL AND agenda_point_hash = %s)
+                     OR (LOWER(title) = LOWER(%s) AND COALESCE(agenda_section_title,'') = %s AND COALESCE(agenda_item_title,'') = %s)
+                     OR (LOWER(title) = LOWER(%s) AND COALESCE(agenda_item_title,'') = %s)
+                   )
+                 LIMIT 1",
+                [ $meeting_id, $point_hash, $title, $section_title, $item_title, $title, $item_title ]
             );
 
             if ( $existing_id > 0 ) {
-                $wpdb->update(
+                $db->update(
                     $decisions_table,
                     [
                         'title'                => $title,
@@ -163,34 +167,37 @@ final class Support {
                         'agenda_item_title'    => $item_title !== '' ? $item_title : null,
                         'agenda_point_hash'    => $point_hash !== '' ? $point_hash : null,
                     ],
-                    [ 'id' => $existing_id ],
-                    [ '%s', '%s', '%s', '%s' ],
-                    [ '%d' ]
+                    [ 'id' => $existing_id ]
                 );
                 continue;
             }
 
-            $ok = $wpdb->insert(
-                $decisions_table,
-                [
-                    'decision_code'       => self::generateCode( 'BDC', $decisions_table, 'decision_code' ),
-                    'meeting_id'          => $meeting_id,
-                    'title'               => $title,
-                    'agenda_section_title'=> $section_title !== '' ? $section_title : null,
-                    'agenda_item_title'   => $item_title !== '' ? $item_title : null,
-                    'agenda_point_hash'   => $point_hash !== '' ? $point_hash : null,
-                    'decision_text'       => '',
-                    'outcome'             => 'pending',
-                    'votes_for'           => 0,
-                    'votes_against'       => 0,
-                    'votes_abstain'       => 0,
-                    'passed'              => 0,
-                    'passed_at'           => null,
-                ],
-                [ '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s' ]
-            );
+            $payload = [
+                'meeting_id'          => $meeting_id,
+                'title'               => $title,
+                'agenda_section_title'=> $section_title !== '' ? $section_title : null,
+                'agenda_item_title'   => $item_title !== '' ? $item_title : null,
+                'agenda_point_hash'   => $point_hash !== '' ? $point_hash : null,
+                'decision_text'       => '',
+                'outcome'             => 'pending',
+                'votes_for'           => 0,
+                'votes_against'       => 0,
+                'votes_abstain'       => 0,
+                'passed'              => 0,
+                'passed_at'           => null,
+            ];
+            if ( function_exists( 'metis_entity_id_service' ) ) {
+                $payload = \metis_entity_id_service()->assignForInsert( 'board_decision_point', $payload );
+            } else {
+                $payload['decision_code'] = self::generateCode( 'BDC', $decisions_table, 'decision_code' );
+            }
+
+            $ok = $db->insert( $decisions_table, $payload );
 
             if ( $ok ) {
+                if ( function_exists( 'metis_entity_id_service' ) ) {
+                    \metis_entity_id_service()->register( 'board_decision_point', $db->lastInsertId(), (string) ( $payload['board_decision_uid'] ?? $payload['decision_code'] ?? '' ) );
+                }
                 $created++;
             }
         }

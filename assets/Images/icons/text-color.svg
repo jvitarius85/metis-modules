@@ -1,0 +1,10 @@
+<svg id="Text-Color--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Text Color Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>text-color</title>
+  <path d="M11 10.5h1L8.5 2h-1L4 10.5h1l0.805 -2h4.37Zm-4.785 -3 1.72 -4.185h0.13L9.77 7.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M3 12h10v2H3Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

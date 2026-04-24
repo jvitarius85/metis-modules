@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "policy_key": "hermes_safety_policy",
+  "description": "Operational limits enforced by HermesSafetyGovernor on every query and action request.",
+
+  "query_limits": {
+    "max_query_results": 5000,
+    "max_group_by_fields": 3,
+    "max_filter_conditions": 10,
+    "max_sort_fields": 2,
+    "max_execution_time_seconds": 10,
+    "default_page_size": 50,
+    "max_page_size": 500
+  },
+
+  "bulk_limits": {
+    "max_bulk_operations": 1000,
+    "require_confirmation_above": 25
+  },
+
+  "aggregate_limits": {
+    "max_aggregate_fields": 5,
+    "allowed_operations": ["count", "sum", "avg", "min", "max"]
+  },
+
+  "write_restrictions": {
+    "require_approval_for_write": true,
+    "blocked_entities_for_write": [],
+    "readonly_fields": ["id", "created_at"]
+  },
+
+  "playbook_limits": {
+    "max_recursion_depth": 3,
+    "max_steps_per_playbook": 20
+  },
+
+  "violation_policy": {
+    "log_violations": true,
+    "reject_on_violation": true,
+    "user_message": "This request exceeds Hermes operational limits and cannot be processed."
+  }
+}

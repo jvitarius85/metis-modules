@@ -57,7 +57,7 @@ final class Support {
 
         $url = $base . '?role=' . rawurlencode( $role_key );
         if ( $role_domain !== '' ) {
-            $url .= '&domain=' . rawurlencode( \sanitize_key( $role_domain ) );
+            $url .= '&domain=' . rawurlencode( \metis_key_clean( $role_domain ) );
         }
 
         return $url;

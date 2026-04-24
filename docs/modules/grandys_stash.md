@@ -1,23 +1,23 @@
 # Grandy's Stash
 
-Coordinate durable medical equipment intake, inventory, and community distribution.
+Track equipment intake, inventory, and distributions.
 
 ## Routes
 
 - Base route: `/grandys_stash`
 - `/grandys_stash/dashboard` -> `dashboard.php`
+- `/grandys_stash/reports` -> `report.php`
+- `/grandys_stash/settings` -> `settings.php`
 
 ## UI Components
 
 - **Dashboard** template: `dashboard.php`
+- **Reports** template: `report.php`
+- **Settings** template: `settings.php`
 
 ## APIs
 
-- `metis_grandys_stash_assign_item`
-- `metis_grandys_stash_contact_search`
-- `metis_grandys_stash_save_case`
-- `metis_grandys_stash_save_item`
-- `metis_grandys_stash_state`
+- No dedicated AJAX controller was discovered for this module.
 
 ## Database Tables Used
 

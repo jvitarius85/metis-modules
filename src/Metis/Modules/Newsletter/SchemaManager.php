@@ -7,41 +7,41 @@ final class SchemaManager {
     private static bool $schema_ready = false;
 
     public static function tableExists( string $table ): bool {
-        global $wpdb;
-        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        $db = self::db();
+        $exists = $db->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
         return $exists === $table;
     }
 
     public static function columnExists( string $table, string $column ): bool {
-        global $wpdb;
+        $db = self::db();
         if ( ! self::tableExists( $table ) ) {
             return false;
         }
-        $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+        $exists = $db->scalar( "SHOW COLUMNS FROM {$table} LIKE %s", [ $column ] );
         return ! empty( $exists );
     }
 
     public static function addColumnIfMissing( string $table, string $column, string $definition ): void {
-        global $wpdb;
+        $db = self::db();
         if ( ! self::tableExists( $table ) ) {
             return;
         }
         if ( self::columnExists( $table, $column ) ) {
             return;
         }
-        $wpdb->query( "ALTER TABLE {$table} ADD COLUMN {$column} {$definition}" );
+        $db->execute( "ALTER TABLE {$table} ADD COLUMN {$column} {$definition}" );
     }
 
     public static function addIndexIfMissing( string $table, string $index_name, string $index_def ): void {
-        global $wpdb;
+        $db = self::db();
         if ( ! self::tableExists( $table ) ) {
             return;
         }
-        $exists = $wpdb->get_var( $wpdb->prepare( "SHOW INDEX FROM {$table} WHERE Key_name = %s", $index_name ) );
+        $exists = $db->scalar( "SHOW INDEX FROM {$table} WHERE Key_name = %s", [ $index_name ] );
         if ( $exists !== null ) {
             return;
         }
-        $wpdb->query( "ALTER TABLE {$table} ADD {$index_def}" );
+        $db->execute( "ALTER TABLE {$table} ADD {$index_def}" );
     }
 
     public static function ensureSchema(): void {
@@ -49,12 +49,9 @@ final class SchemaManager {
             return;
         }
 
-        global $wpdb;
-        if ( ! function_exists( 'dbDelta' ) ) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        }
+        $db = self::db();
 
-        $charset_collate   = $wpdb->get_charset_collate();
+        $charset_collate   = $db->connection()->get_charset_collate();
         $lists_table       = \Metis_Tables::get( 'newsletter_lists' );
         $subs_table        = \Metis_Tables::get( 'newsletter_subs' );
         $templates_table   = \Metis_Tables::get( 'newsletter_templates' );
@@ -67,7 +64,7 @@ final class SchemaManager {
         $suppressions      = \Metis_Tables::get( 'newsletter_suppressions' );
         $usage_table       = \Metis_Tables::get( 'newsletter_google_usage_daily' );
 
-        \dbDelta( "CREATE TABLE {$lists_table} (
+        \metis_db_delta( "CREATE TABLE {$lists_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             list_key VARCHAR(32) DEFAULT NULL,
             legacy_lid VARCHAR(50) DEFAULT NULL,
@@ -81,7 +78,7 @@ final class SchemaManager {
             UNIQUE KEY legacy_lid (legacy_lid)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$subs_table} (
+        \metis_db_delta( "CREATE TABLE {$subs_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             contact_id BIGINT UNSIGNED NOT NULL,
             list_id BIGINT UNSIGNED NOT NULL,
@@ -99,7 +96,7 @@ final class SchemaManager {
             KEY status (status)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$templates_table} (
+        \metis_db_delta( "CREATE TABLE {$templates_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             template_code VARCHAR(16) NOT NULL,
             name VARCHAR(255) NOT NULL,
@@ -119,7 +116,7 @@ final class SchemaManager {
             KEY is_active (is_active)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$campaigns_table} (
+        \metis_db_delta( "CREATE TABLE {$campaigns_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             campaign_code VARCHAR(16) NOT NULL,
             template_id BIGINT UNSIGNED DEFAULT NULL,
@@ -130,6 +127,7 @@ final class SchemaManager {
             reply_to VARCHAR(191) DEFAULT NULL,
             preheader VARCHAR(255) DEFAULT NULL,
             doc_json LONGTEXT DEFAULT NULL,
+            editor_body_html LONGTEXT DEFAULT NULL,
             html_body LONGTEXT DEFAULT NULL,
             text_body LONGTEXT DEFAULT NULL,
             audience_json LONGTEXT DEFAULT NULL,
@@ -156,6 +154,7 @@ final class SchemaManager {
         ) {$charset_collate};" );
 
         self::addColumnIfMissing( $campaigns_table, 'doc_json', 'LONGTEXT DEFAULT NULL' );
+        self::addColumnIfMissing( $campaigns_table, 'editor_body_html', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'html_body', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'text_body', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'audience_json', 'LONGTEXT DEFAULT NULL' );
@@ -165,7 +164,7 @@ final class SchemaManager {
         self::addIndexIfMissing( $campaigns_table, 'status_scheduled', 'KEY status_scheduled (status, scheduled_at)' );
         self::addColumnIfMissing( $templates_table, 'doc_json', 'LONGTEXT DEFAULT NULL' );
 
-        \dbDelta( "CREATE TABLE {$campaign_lists} (
+        \metis_db_delta( "CREATE TABLE {$campaign_lists} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             campaign_id BIGINT UNSIGNED NOT NULL,
             list_id BIGINT UNSIGNED NOT NULL,
@@ -175,7 +174,7 @@ final class SchemaManager {
             KEY list_id (list_id)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$messages_table} (
+        \metis_db_delta( "CREATE TABLE {$messages_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             message_code VARCHAR(16) NOT NULL,
             campaign_id BIGINT UNSIGNED NOT NULL,
@@ -203,7 +202,7 @@ final class SchemaManager {
             KEY email (email)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$events_table} (
+        \metis_db_delta( "CREATE TABLE {$events_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             event_code VARCHAR(16) NOT NULL,
             message_id BIGINT UNSIGNED DEFAULT NULL,
@@ -224,7 +223,7 @@ final class SchemaManager {
             KEY email (email)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$revisions_table} (
+        \metis_db_delta( "CREATE TABLE {$revisions_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             revision_code VARCHAR(16) NOT NULL,
             entity_type VARCHAR(24) NOT NULL,
@@ -241,7 +240,7 @@ final class SchemaManager {
             KEY created_at (created_at)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$audit_table} (
+        \metis_db_delta( "CREATE TABLE {$audit_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             audit_code VARCHAR(16) NOT NULL,
             action VARCHAR(40) NOT NULL,
@@ -256,7 +255,7 @@ final class SchemaManager {
             KEY created_at (created_at)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$suppressions} (
+        \metis_db_delta( "CREATE TABLE {$suppressions} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             suppression_code VARCHAR(16) NOT NULL,
             contact_id BIGINT UNSIGNED DEFAULT NULL,
@@ -273,7 +272,7 @@ final class SchemaManager {
             KEY contact_active (contact_id, is_active)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$usage_table} (
+        \metis_db_delta( "CREATE TABLE {$usage_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             usage_date DATE NOT NULL,
             workspace_email VARCHAR(191) NOT NULL,
@@ -293,6 +292,7 @@ final class SchemaManager {
         ) {$charset_collate};" );
 
         self::addColumnIfMissing( $lists_table, 'list_key', 'VARCHAR(32) DEFAULT NULL' );
+        self::addColumnIfMissing( $lists_table, 'newsletter_list_uid', 'VARCHAR(16) DEFAULT NULL' );
         self::addColumnIfMissing( $lists_table, 'description', 'TEXT DEFAULT NULL' );
         self::addColumnIfMissing( $lists_table, 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1' );
         self::addColumnIfMissing( $lists_table, 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP' );
@@ -309,9 +309,9 @@ final class SchemaManager {
         self::addColumnIfMissing( $subs_table, 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' );
         self::addIndexIfMissing( $subs_table, 'status', 'KEY status (status)' );
 
-        $has_lists = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$lists_table}" );
+        $has_lists = (int) $db->scalar( "SELECT COUNT(*) FROM {$lists_table}" );
         if ( $has_lists < 1 ) {
-            $wpdb->insert(
+            $db->insert(
                 $lists_table,
                 [
                     'list_key'     => 'NL_MAIN',
@@ -322,5 +322,13 @@ final class SchemaManager {
                 [ '%s', '%s', '%s', '%d' ]
             );
         }
+
+        if ( function_exists( 'metis_entity_id_service' ) ) {
+            \metis_entity_id_service()->ensureSchema();
+        }
+    }
+
+    private static function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
     }
 }

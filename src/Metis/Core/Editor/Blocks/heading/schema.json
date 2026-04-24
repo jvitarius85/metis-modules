@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["content"],
+  "properties": {
+    "content": { "type": "string", "default": "Heading" },
+    "level": { "type": "string", "default": "h2" }
+  }
+}

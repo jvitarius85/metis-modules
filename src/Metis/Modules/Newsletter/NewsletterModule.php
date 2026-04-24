@@ -14,33 +14,37 @@ final class NewsletterModule {
         self::$booted = true;
         \Metis_Logger::info( 'Newsletter bootstrap loaded' );
 
-        \metis_add_action( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
 
-        \Metis_Cron_Manager::register_task(
-            'newsletter_email_processing',
-            static function (): array {
-                return QueueService::processQueue( 100 );
-            },
-            [
-                'label'    => 'Newsletter Email Processing',
-                'interval' => 60,
-                'lock_ttl' => 5 * MINUTE_IN_SECONDS,
-                'module'   => 'newsletter',
-            ]
-        );
+        if ( \class_exists( '\Metis_Cron_Manager' ) ) {
+            \Metis_Cron_Manager::register_task(
+                'newsletter_email_processing',
+                static function (): array {
+                    return QueueService::processQueue( 100 );
+                },
+                [
+                    'label'    => 'Newsletter Email Processing',
+                    'interval' => 60,
+                    'lock_ttl' => 5 * MINUTE_IN_SECONDS,
+                    'module'   => 'newsletter',
+                ]
+            );
 
-        \Metis_Cron_Manager::register_task(
-            'newsletter_analytics_updates',
-            static function (): array {
-                return DeliveryService::googleSyncUsageForDate( '' );
-            },
-            [
-                'label'    => 'Newsletter Analytics Updates',
-                'interval' => HOUR_IN_SECONDS,
-                'lock_ttl' => 15 * MINUTE_IN_SECONDS,
-                'module'   => 'newsletter',
-            ]
-        );
+            \Metis_Cron_Manager::register_task(
+                'newsletter_analytics_updates',
+                static function (): array {
+                    return DeliveryService::googleSyncUsageForDate( '' );
+                },
+                [
+                    'label'    => 'Newsletter Analytics Updates',
+                    'interval' => HOUR_IN_SECONDS,
+                    'lock_ttl' => 15 * MINUTE_IN_SECONDS,
+                    'module'   => 'newsletter',
+                ]
+            );
+        } else {
+            \Metis_Logger::warn( 'Newsletter cron tasks skipped: Metis_Cron_Manager unavailable' );
+        }
     }
 
     public static function canView(): bool { return Access::canView(); }
@@ -66,4 +70,7 @@ final class NewsletterModule {
     public static function handleClickRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handleClickRoute( $request ); }
     public static function handleUnsubscribeRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handleUnsubscribeRoute( $request ); }
     public static function handleManageRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handleManageRoute( $request ); }
+    public static function handlePublicUnsubscribeRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicUnsubscribeRoute( $request ); }
+    public static function handlePublicManageRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicManageRoute( $request ); }
+    public static function handlePublicViewRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicViewRoute( $request ); }
 }

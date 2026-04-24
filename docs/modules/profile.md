@@ -13,15 +13,7 @@ Manage your profile, security methods, and notification preferences.
 
 ## APIs
 
-- `metis_profile_begin_passkey_registration`
-- `metis_profile_change_workspace_password`
-- `metis_profile_complete_passkey_registration`
-- `metis_profile_generate_totp_secret`
-- `metis_profile_get`
-- `metis_profile_revoke_passkey`
-- `metis_profile_save`
-- `metis_profile_save_avatar`
-- `metis_profile_verify_totp_secret`
+- No dedicated AJAX controller was discovered for this module.
 
 ## Database Tables Used
 

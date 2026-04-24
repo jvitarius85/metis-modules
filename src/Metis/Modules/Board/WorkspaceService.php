@@ -9,9 +9,9 @@ final class WorkspaceService {
     }
 
     public static function workspaceSettings(): array {
-        $service_json_raw      = (string) \Core_Settings_Service::get( 'workspace_service_account_json', '' );
+        $service_json_raw      = (string) \Metis\Core\Services\CredentialService::getBySetting( 'workspace_service_account_json' );
         $impersonation_admin   = strtolower( trim( (string) \Core_Settings_Service::get( 'workspace_impersonation_admin', '' ) ) );
-        if ( $service_json_raw === '' || ! \is_email( $impersonation_admin ) ) {
+        if ( $service_json_raw === '' || ! \metis_email_is_valid( $impersonation_admin ) ) {
             return [ 'ok' => false, 'error' => 'Workspace service account JSON or impersonation admin is not configured.' ];
         }
 
@@ -40,7 +40,7 @@ final class WorkspaceService {
         }
 
         $cache_key = 'metis_board_ws_token_' . md5( $client_email . '|' . $subject . '|' . implode( ' ', $scopes ) );
-        $cached    = \get_transient( $cache_key );
+        $cached    = \metis_get_transient( $cache_key );
         if ( is_array( $cached ) && ! empty( $cached['access_token'] ) ) {
             return [ 'ok' => true, 'access_token' => (string) $cached['access_token'] ];
         }
@@ -63,7 +63,7 @@ final class WorkspaceService {
         }
 
         $assertion = $jwt_input . '.' . self::b64urlEncode( $signature );
-        $response  = \metis_remote_post( $token_uri, [
+        $response  = \metis_runtime_remote_post( $token_uri, [
             'timeout' => 20,
             'body'    => [
                 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -71,19 +71,19 @@ final class WorkspaceService {
             ],
         ] );
 
-        if ( \metis_is_error( $response ) ) {
-            return [ 'ok' => false, 'error' => $response->get_error_message() ];
+        if ( \metis_runtime_is_error( $response ) ) {
+            return [ 'ok' => false, 'error' => 'Workspace token request failed.' ];
         }
 
-        $code = (int) \metis_remote_retrieve_response_code( $response );
-        $body = json_decode( (string) \metis_remote_retrieve_body( $response ), true );
+        $code = (int) \metis_runtime_remote_retrieve_response_code( $response );
+        $body = json_decode( (string) \metis_runtime_remote_retrieve_body( $response ), true );
         if ( $code < 200 || $code >= 300 || ! is_array( $body ) || empty( $body['access_token'] ) ) {
             return [ 'ok' => false, 'error' => 'Workspace token request failed (' . $code . ').' ];
         }
 
         $access_token = (string) $body['access_token'];
         $ttl          = max( 120, ( (int) ( $body['expires_in'] ?? 3600 ) ) - 60 );
-        \set_transient( $cache_key, [ 'access_token' => $access_token ], $ttl );
+        \metis_set_transient( $cache_key, [ 'access_token' => $access_token ], $ttl );
 
         return [ 'ok' => true, 'access_token' => $access_token ];
     }
@@ -91,7 +91,7 @@ final class WorkspaceService {
     public static function googleRequest( string $method, string $url, ?array $body, array $cfg, array $extra_headers = [] ): array {
         $token = self::googleAccessToken( $cfg );
         if ( empty( $token['ok'] ) ) {
-            return [ 'ok' => false, 'error' => (string) ( $token['error'] ?? 'Workspace token error.' ) ];
+            return [ 'ok' => false, 'error' => 'Workspace token error.' ];
         }
 
         $headers = array_merge( [
@@ -111,20 +111,16 @@ final class WorkspaceService {
             $args['body'] = (string) ( $body['raw_body'] ?? '' );
         }
 
-        $response = \metis_remote_request( $url, $args );
-        if ( \metis_is_error( $response ) ) {
-            return [ 'ok' => false, 'error' => $response->get_error_message() ];
+        $response = \metis_runtime_remote_request( $url, $args );
+        if ( \metis_runtime_is_error( $response ) ) {
+            return [ 'ok' => false, 'error' => 'Google API request failed.' ];
         }
 
-        $code    = (int) \metis_remote_retrieve_response_code( $response );
-        $raw     = (string) \metis_remote_retrieve_body( $response );
+        $code    = (int) \metis_runtime_remote_retrieve_response_code( $response );
+        $raw     = (string) \metis_runtime_remote_retrieve_body( $response );
         $decoded = json_decode( $raw, true );
         if ( $code < 200 || $code >= 300 ) {
-            $msg = is_array( $decoded ) ? (string) ( $decoded['error']['message'] ?? '' ) : '';
-            if ( $msg === '' ) {
-                $msg = 'Google API request failed (' . $code . ').';
-            }
-            return [ 'ok' => false, 'error' => $msg, 'status' => $code, 'raw' => $raw ];
+            return [ 'ok' => false, 'error' => 'Google API request failed (' . $code . ').', 'status' => $code, 'raw' => $raw ];
         }
 
         return [ 'ok' => true, 'status' => $code, 'body' => is_array( $decoded ) ? $decoded : [] ];

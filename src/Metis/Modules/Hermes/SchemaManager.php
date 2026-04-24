@@ -11,20 +11,14 @@ final class SchemaManager {
             return;
         }
 
-        global $wpdb;
-
-        $charset_collate = $wpdb->get_charset_collate();
+        $charset_collate = \metis_db()->connection()->get_charset_collate();
         $sessions_table  = \Metis_Tables::get( 'hermes_sessions' );
         $messages_table  = \Metis_Tables::get( 'hermes_messages' );
         $actions_table   = \Metis_Tables::get( 'hermes_actions' );
         $reports_table   = \Metis_Tables::get( 'hermes_reports' );
         $memory_table    = \Metis_Tables::get( 'hermes_memory' );
 
-        if ( ! \function_exists( 'dbDelta' ) ) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        }
-
-        \dbDelta( "CREATE TABLE {$sessions_table} (
+        \metis_db_delta( "CREATE TABLE {$sessions_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             session_code VARCHAR(32) NOT NULL,
             user_id BIGINT UNSIGNED DEFAULT NULL,
@@ -39,7 +33,7 @@ final class SchemaManager {
             KEY status_updated (status, updated_at)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$messages_table} (
+        \metis_db_delta( "CREATE TABLE {$messages_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             session_id BIGINT UNSIGNED NOT NULL,
             role_name VARCHAR(24) NOT NULL,
@@ -52,7 +46,7 @@ final class SchemaManager {
             KEY role_created (role_name, created_at)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$actions_table} (
+        \metis_db_delta( "CREATE TABLE {$actions_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             session_id BIGINT UNSIGNED NOT NULL,
             message_id BIGINT UNSIGNED DEFAULT NULL,
@@ -73,7 +67,7 @@ final class SchemaManager {
             KEY status_created (approval_status, created_at)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$reports_table} (
+        \metis_db_delta( "CREATE TABLE {$reports_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             report_code VARCHAR(32) NOT NULL,
             session_id BIGINT UNSIGNED DEFAULT NULL,
@@ -89,7 +83,7 @@ final class SchemaManager {
             KEY status_updated (status, updated_at)
         ) {$charset_collate};" );
 
-        \dbDelta( "CREATE TABLE {$memory_table} (
+        \metis_db_delta( "CREATE TABLE {$memory_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             memory_key VARCHAR(120) NOT NULL,
             memory_type VARCHAR(64) NOT NULL,
@@ -102,6 +96,10 @@ final class SchemaManager {
             KEY type_scope (memory_type, scope_key),
             KEY updated_at (updated_at)
         ) {$charset_collate};" );
+
+        if ( function_exists( 'metis_entity_id_service' ) ) {
+            \metis_entity_id_service()->ensureSchema();
+        }
 
         self::$done = true;
     }

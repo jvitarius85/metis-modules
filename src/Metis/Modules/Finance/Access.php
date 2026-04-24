@@ -13,12 +13,21 @@ final class Access {
     }
 
     public static function canManage(): bool {
+        if ( ! self::canView() ) {
+            return false;
+        }
+
+        $hasFinancePermission = false;
         if ( function_exists( 'metis_people_can' ) ) {
-            return \metis_people_can( 'finance', 'edit' )
+            $hasFinancePermission = \metis_people_can( 'finance', 'edit' )
                 || \metis_people_can( 'finance', 'create' )
                 || \metis_people_can( 'finance', 'delete' );
         }
 
-        return \metis_current_user_can( 'manage_options' );
+        if ( ModeService::currentMode() === ModeService::MODE_FINANCE ) {
+            return ModeService::currentUserHasFinanceRole() || $hasFinancePermission;
+        }
+
+        return $hasFinancePermission;
     }
 }

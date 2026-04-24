@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["src", "alt"],
+  "properties": {
+    "src": { "type": "string", "default": "" },
+    "alt": { "type": "string", "default": "" }
+  }
+}

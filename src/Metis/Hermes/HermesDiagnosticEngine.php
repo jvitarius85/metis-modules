@@ -61,13 +61,12 @@ final class HermesDiagnosticEngine {
     }
 
     private function boardMeetingHealth(): array {
-        global $wpdb;
-
         try {
+            $db = \metis_db();
             $meetings_table = \Metis_Tables::get( 'board_meetings' );
             $documents_table = \Metis_Tables::get( 'board_documents' );
 
-            $row = $wpdb->get_row(
+            $row = $db->fetchOne(
                 "SELECT
                     SUM(CASE WHEN COALESCE(google_drive_folder_id, '') = '' THEN 1 ELSE 0 END) AS missing_workspace_count,
                     COUNT(*) AS meeting_count,
@@ -75,8 +74,7 @@ final class HermesDiagnosticEngine {
                         SELECT COUNT(*)
                         FROM {$documents_table}
                     ) AS document_count
-                 FROM {$meetings_table}",
-                ARRAY_A
+                 FROM {$meetings_table}"
             );
         } catch ( \Throwable ) {
             $row = [ 'missing_workspace_count' => 0, 'meeting_count' => 0, 'document_count' => 0 ];

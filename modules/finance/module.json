@@ -1,0 +1,76 @@
+{
+    "slug": "finance",
+    "name": "finance",
+    "label": "Finance",
+    "version": "2.0.0",
+    "domain": "finance",
+    "default_view": "snapshot",
+    "dependencies": [
+        "people"
+    ],
+    "menu_order": 6,
+    "description": "Finance V2 foundation with scheduled org mode switching.",
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 20h18\"/><path d=\"M6 16V9\"/><path d=\"M12 16V5\"/><path d=\"M18 16v-3\"/></svg>",
+    "menu": {
+        "type": "dropdown",
+        "items": {
+            "snapshot": "Snapshot",
+            "gl_entry": "GL Entry",
+            "reconciliation": "Reconciliation",
+            "budget": "Budget",
+            "invoicing": "Invoicing",
+            "reports": "Reports",
+            "settings": "Settings",
+            "stripe_clearing": "Stripe Clearing"
+        }
+    },
+    "permissions": {
+        "view": [
+            "administrator",
+            "finance"
+        ],
+        "edit": [
+            "finance"
+        ],
+        "create": [
+            "finance"
+        ],
+        "delete": [
+            "finance"
+        ]
+    },
+    "views": {
+        "snapshot": "finance.php",
+        "gl_entry": "finance.php",
+        "reconciliation": "finance.php",
+        "budget": "finance.php",
+        "invoicing": "finance.php",
+        "reports": "finance.php",
+        "settings": "finance.php",
+        "stripe_clearing": "finance.php"
+    },
+    "assets": {
+        "css": [
+            "finance.css"
+        ],
+        "js": [
+            "finance.js"
+        ],
+        "ajax": "finance.ajax.php",
+        "nonce_action": "metis_finance"
+    },
+    "category": "other",
+    "default_parent": null,
+    "order": 30,
+    "navigation": {
+        "enabled": true,
+        "label": "Finance",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Finance",
+    "entry": "Module.php",
+    "routes": [],
+    "controllers": [],
+    "services": []
+}

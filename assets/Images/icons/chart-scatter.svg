@@ -1,0 +1,14 @@
+<svg id="Chart-Scatter--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Chart Scatter Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>chart--scatter</title>
+  <path d="M15 15H2a1 1 0 0 1 -1 -1V1h1v13h13Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M4 11a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M6 7.5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M10 7.5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M12 3a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M6 4a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  </path>
+</svg>

@@ -18,7 +18,7 @@
 
 ## Module Usage
 
-- **Board**: See [`../modules/board.md`](../modules/board.md) for routes, screens, APIs, and tables.
+- **Board Administration**: See [`../modules/board.md`](../modules/board.md) for routes, screens, APIs, and tables.
 - **Calendar**: See [`../modules/calendar.md`](../modules/calendar.md) for routes, screens, APIs, and tables.
 - **Contacts**: See [`../modules/contacts.md`](../modules/contacts.md) for routes, screens, APIs, and tables.
 - **Donations**: See [`../modules/donations.md`](../modules/donations.md) for routes, screens, APIs, and tables.
@@ -26,6 +26,9 @@
 - **Finance**: See [`../modules/finance.md`](../modules/finance.md) for routes, screens, APIs, and tables.
 - **Forms**: See [`../modules/forms.md`](../modules/forms.md) for routes, screens, APIs, and tables.
 - **Grandy's Stash**: See [`../modules/grandys_stash.md`](../modules/grandys_stash.md) for routes, screens, APIs, and tables.
+- **Hermes**: See [`../modules/hermes.md`](../modules/hermes.md) for routes, screens, APIs, and tables.
+- **Import**: See [`../modules/import.md`](../modules/import.md) for routes, screens, APIs, and tables.
+- **Media**: See [`../modules/media.md`](../modules/media.md) for routes, screens, APIs, and tables.
 - **Newsletter**: See [`../modules/newsletter.md`](../modules/newsletter.md) for routes, screens, APIs, and tables.
 - **People**: See [`../modules/people.md`](../modules/people.md) for routes, screens, APIs, and tables.
 - **Portal**: See [`../modules/portal.md`](../modules/portal.md) for routes, screens, APIs, and tables.

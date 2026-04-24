@@ -1,6 +1,6 @@
 # Forms
 
-Build forms, publish public endpoints, and manage submissions.
+Build forms, share them, and review submissions.
 
 ## Routes
 
@@ -21,15 +21,7 @@ Build forms, publish public endpoints, and manage submissions.
 
 ## APIs
 
-- `metis_forms_delete`
-- `metis_forms_duplicate`
-- `metis_forms_dynamic_options`
-- `metis_forms_entries`
-- `metis_forms_export`
-- `metis_forms_get`
-- `metis_forms_list`
-- `metis_forms_publish`
-- `metis_forms_save`
+- No dedicated AJAX controller was discovered for this module.
 
 ## Database Tables Used
 

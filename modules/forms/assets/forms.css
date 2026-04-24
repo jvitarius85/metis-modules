@@ -1,651 +1,995 @@
-/* =========================================================
-   FORMS MODULE — CSS
-   Module-specific only. Layout, buttons, inputs, badges,
-   and modals come from core.css via mw-* classes.
-   ========================================================= */
-
-/* ── Public form per-form design tokens (set inline by FormRenderer) ── */
 :root {
-    --metis-form-accent:      #126497;
-    --metis-form-button-bg:   #126497;
-    --metis-form-button-text: #ffffff;
-    --metis-form-radius:      10px;
+    --metis-forms-bg: #f6f8fc;
+    --metis-forms-card: #ffffff;
+    --metis-forms-line: #d8dff0;
+    --metis-forms-text: #1f2740;
+    --metis-forms-muted: #61708e;
+    --metis-forms-accent: #4a5ec9;
+    --metis-forms-accent-soft: #edf0ff;
+    --metis-forms-shadow: 0 18px 40px rgba(28, 45, 94, 0.08);
 }
 
-/* =========================================================
-   SHARED LAYOUT HELPERS
-   ========================================================= */
+.metis-forms-page {
+    color: var(--metis-forms-text);
+}
 
 .metis-forms-hero,
-.metis-forms-detail-head,
-.metis-forms-builder-topbar,
-.metis-forms-home-card-head,
-.metis-forms-canvas-card-head,
-.metis-forms-entry-card-head,
-.metis-forms-detail-actions,
-.metis-forms-home-card-actions,
-.metis-forms-home-card-stats,
-.metis-form-totals > div {
+.metis-forms-admin__header {
     display: flex;
     justify-content: space-between;
-    gap: 14px;
+    gap: 20px;
     align-items: flex-start;
+    margin-bottom: 24px;
 }
 
-.metis-forms-kpis,
-.metis-forms-home-grid,
-.metis-forms-detail-grid,
-.metis-forms-version-list,
-.metis-forms-field-outline,
-.metis-forms-entries-table,
-.metis-forms-palette-grid,
-.metis-forms-canvas-dropzone,
-.metis-forms-inline-checks,
-.metis-form-repeater,
-.metis-form-repeater-grid,
-.metis-forms-public-form {
-    display: grid;
-    gap: 14px;
+.metis-forms-kicker {
+    margin: 0 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    color: var(--metis-forms-muted);
 }
 
-/* =========================================================
-   KPI TILES
-   ========================================================= */
-
-.metis-forms-kpis {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    margin-bottom: 20px;
-}
-
-.metis-forms-kpi {
-    padding: 16px 18px;
-    background: var(--mw-surface);
-    border: 1px solid var(--mw-border);
-    border-radius: var(--mw-radius-lg);
-    box-shadow: var(--mw-shadow);
-}
-
-.metis-forms-kpi span {
-    color: var(--mw-text-muted);
-    display: block;
-    margin-bottom: 6px;
-    font-size: 13px;
-}
-
-.metis-forms-kpi strong {
-    font-size: 26px;
-    color: var(--mw-text);
-}
-
-/* =========================================================
-   GRID CARDS — home / detail / entry / empty state
-   ========================================================= */
-
-.metis-forms-home-grid,
-.metis-forms-detail-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.metis-forms-home-card,
-.metis-forms-detail-card,
-.metis-forms-entry-card,
-.metis-forms-empty-state {
-    padding: 20px;
-    background: var(--mw-surface);
-    border: 1px solid var(--mw-border);
-    border-radius: var(--mw-radius-lg);
-    box-shadow: var(--mw-shadow);
-}
-
-.metis-forms-home-card h2,
-.metis-forms-detail-card h2 {
-    margin: 0 0 10px;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--mw-text);
-}
-
-.metis-forms-home-card p,
-.metis-forms-home-card small,
-.metis-forms-detail-card p,
-.metis-forms-detail-card small,
-.metis-forms-entry-card small {
-    color: var(--mw-text-muted);
-}
-
-.metis-forms-home-card-stats,
-.metis-forms-canvas-card-meta {
+.metis-forms-hero__actions,
+.metis-forms-admin__actions {
+    display: flex;
+    gap: 10px;
     flex-wrap: wrap;
-    margin: 12px 0;
-    color: var(--mw-text-muted);
 }
 
-/* =========================================================
-   DEFINITION LIST
-   ========================================================= */
-
-.metis-forms-definition-list,
-.metis-forms-field-outline {
-    margin-top: 12px;
+.metis-forms-kpi-grid,
+.metis-forms-list-grid,
+.metis-forms-two-column,
+.metis-forms-settings-grid,
+.metis-forms-builder-grid {
+    display: grid;
+    gap: 20px;
 }
 
-.metis-forms-definition-list > div {
+.metis-forms-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 24px;
+}
+
+.metis-forms-list-grid,
+.metis-forms-two-column,
+.metis-forms-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metis-forms-builder-grid {
+    grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.1fr) minmax(320px, 0.9fr);
+}
+
+.metis-forms-kpi-card,
+.metis-forms-card,
+.metis-forms-surface,
+.metis-forms-empty-card,
+.metis-forms-preview-card,
+.metis-forms-public-card {
+    background: var(--metis-forms-card);
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 24px;
+    box-shadow: var(--metis-forms-shadow);
+}
+
+.metis-forms-kpi-card,
+.metis-forms-empty-card {
+    padding: 22px 24px;
+}
+
+.metis-forms-kpi-card span,
+.metis-forms-card__meta dt,
+.metis-forms-definition-list dt {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--metis-forms-muted);
+}
+
+.metis-forms-kpi-card strong,
+.metis-forms-kpi-link {
+    display: block;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.15;
+    word-break: break-word;
+}
+
+.metis-forms-card,
+.metis-forms-surface,
+.metis-forms-preview-card {
+    padding: 22px 24px;
+}
+
+.metis-forms-card__head,
+.metis-forms-surface__head,
+.metis-forms-preview-card__head {
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    padding: 9px 0;
-    border-top: 1px solid var(--mw-border);
-    font-size: 14px;
+    align-items: flex-start;
+    margin-bottom: 18px;
 }
 
-/* =========================================================
-   FIELD OUTLINE (detail view)
-   ========================================================= */
-
-.metis-forms-field-outline-item {
-    padding: 12px 14px;
-    border-radius: var(--mw-radius-lg);
-    background: var(--mw-bg);
-    border: 1px solid var(--mw-border);
+.metis-forms-card__head h2,
+.metis-forms-surface__head h2,
+.metis-forms-preview-card__head h3 {
+    margin: 0;
+    color: var(--metis-forms-text);
 }
 
-.metis-forms-field-outline-item span,
-.metis-forms-field-outline-item small {
-    display: block;
-    color: var(--mw-text-muted);
-    margin-top: 3px;
+.metis-forms-card__head p,
+.metis-forms-preview-card__head p {
+    margin: 6px 0 0;
+    color: var(--metis-forms-muted);
+}
+
+.metis-forms-card__meta,
+.metis-forms-definition-list {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+}
+
+.metis-forms-card__meta div,
+.metis-forms-definition-list div {
+    padding-top: 14px;
+    border-top: 1px solid var(--metis-forms-line);
+}
+
+.metis-forms-card__meta dd,
+.metis-forms-definition-list dd {
+    margin: 0;
+}
+
+.metis-forms-card__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.metis-forms-status-chip,
+.metis-forms-pill,
+.metis-forms-preview-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
     font-size: 12px;
+    font-weight: 700;
 }
 
-/* =========================================================
-   BUILDER SHELL
-   ========================================================= */
+.metis-forms-status-chip,
+.metis-forms-pill {
+    background: var(--metis-forms-accent-soft);
+    color: var(--metis-forms-accent);
+}
 
-.metis-forms-builder-meta {
+.metis-forms-status-chip.is-published {
+    background: #e8f7ee;
+    color: #1f7c43;
+}
+
+.metis-forms-status-chip.is-draft {
+    background: #fff5de;
+    color: #8a6111;
+}
+
+.metis-forms-steps {
     display: grid;
-    gap: 16px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-bottom: 16px;
+    gap: 14px;
+    margin-bottom: 24px;
 }
 
-.metis-forms-builder-shell .mw-list-content,
-.metis-forms-settings-shell .mw-list-content {
+.metis-forms-step {
+    appearance: none;
+    border: 1px solid var(--metis-forms-line);
+    background: #fff;
+    border-radius: 18px;
+    padding: 16px 18px;
+    text-align: left;
+    font-weight: 700;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-step.is-active {
+    border-color: var(--metis-forms-accent);
+    box-shadow: 0 0 0 3px rgba(74, 94, 201, 0.14);
+}
+
+.metis-forms-panel.is-hidden {
+    display: none;
+}
+
+.metis-forms-field-list,
+.metis-forms-subfield-stack,
+.metis-forms-version-list,
+.metis-forms-condition-list {
     display: grid;
-    gap: 16px;
+    gap: 12px;
 }
 
-.metis-forms-builder-shell .mw-list-sidebar-nav-item,
-.metis-forms-settings-shell .mw-list-sidebar-nav-item {
-    width: 100%;
+.metis-forms-field-card,
+.metis-forms-subfield-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 18px;
+    background: #fff;
 }
 
-.metis-forms-settings-shell button.mw-list-sidebar-nav-item {
+.metis-forms-field-card.is-selected,
+.metis-forms-subfield-card.is-selected {
+    border-color: var(--metis-forms-accent);
+    box-shadow: 0 0 0 3px rgba(74, 94, 201, 0.12);
+}
+
+.metis-forms-field-card__drag {
+    cursor: grab;
+    color: var(--metis-forms-muted);
+    font-size: 18px;
+    user-select: none;
+}
+
+.metis-forms-field-card__body {
+    appearance: none;
     border: 0;
     background: transparent;
+    padding: 0;
     text-align: left;
-    cursor: pointer;
+    min-width: 0;
+    color: var(--metis-forms-text);
 }
 
-.metis-forms-builder-topbar {
-    margin-bottom: 16px;
-}
-
-/* =========================================================
-   CANVAS STAGE
-   ========================================================= */
-
-.metis-forms-canvas-stage {
-    padding: 20px;
-    background: var(--mw-surface);
-    border: 1px solid var(--mw-border);
-    border-radius: var(--mw-radius-lg);
-    box-shadow: var(--mw-shadow);
-}
-
-.metis-forms-canvas-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 6px;
-}
-
-.metis-forms-canvas-head .mw-muted {
-    color: var(--mw-text-muted);
-    font-size: 13px;
-}
-
-/* =========================================================
-   TRASH ZONE
-   ========================================================= */
-
-.metis-forms-trash-zone {
-    margin-top: 16px;
-    padding: 14px;
-    border-radius: var(--mw-radius-lg);
-    border: 2px dashed #d8b7b7;
-    background: #fff7f7;
-    color: #6e3d3d;
-    font-size: 13px;
-}
-
-.metis-forms-trash-zone.is-over {
-    border-color: #bf3c3c;
-    background: #ffecec;
-}
-
-/* =========================================================
-   FIELD PALETTE (sidebar library)
-   ========================================================= */
-
-.metis-forms-palette-grid { margin-top: 14px; }
-
-.metis-forms-palette-card {
-    padding: 12px 14px;
-    border-radius: var(--mw-radius-lg);
-    border: 1px solid var(--mw-border);
-    background: var(--mw-surface);
-    cursor: grab;
-}
-
-.metis-forms-palette-card small {
+.metis-forms-field-card__label {
     display: block;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1.2;
+}
+
+.metis-forms-field-card__meta {
+    display: block;
+    color: var(--metis-forms-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
     margin-top: 4px;
-    color: var(--mw-text-muted);
-    font-size: 12px;
 }
 
-.metis-forms-library-nav { margin-top: 10px; }
-
-.metis-forms-library-item {
-    display: grid;
-    gap: 3px;
-    cursor: grab;
-}
-
-.metis-forms-library-item small {
-    color: var(--mw-text-muted);
-    font-size: 12px;
-}
-
-/* =========================================================
-   CANVAS DROP SLOTS & FIELD CARDS
-   ========================================================= */
-
-.metis-forms-canvas-dropzone { margin-top: 16px; }
-
-.metis-forms-drop-slot {
-    min-height: 48px;
-    border: 2px dashed var(--mw-border);
-    border-radius: var(--mw-radius-lg);
-    display: grid;
-    place-items: center;
-    color: var(--mw-text-muted);
-    background: var(--mw-bg);
-    font-size: 13px;
-}
-
-.metis-forms-drop-slot.is-over {
-    border-color: var(--mw-primary);
-    background: #eceeff;
-}
-
-.metis-forms-canvas-card {
-    padding: 16px;
-    border-radius: var(--mw-radius-lg);
-    border: 1px solid var(--mw-border);
-    background: var(--mw-surface);
-    cursor: pointer;
-}
-
-.metis-forms-canvas-card.is-active {
-    border-color: var(--mw-primary);
-    box-shadow: 0 0 0 3px rgba(72, 91, 199, 0.15);
-}
-
-.metis-forms-canvas-card small,
-.metis-forms-canvas-card-meta {
-    margin-top: 5px;
-    color: var(--mw-text-muted);
-    font-size: 12px;
-}
-
-.metis-forms-canvas-card-tools,
-.metis-forms-card-head,
-.metis-forms-modal-head {
+.metis-forms-field-card__tail {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
     gap: 10px;
-}
-
-.metis-forms-field-cog {
-    border: 1px solid var(--mw-border);
-    border-radius: var(--mw-radius-pill);
-    background: var(--mw-surface);
-    color: var(--mw-text-muted);
-    width: 32px;
-    height: 32px;
-    cursor: pointer;
-    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    transition: color var(--mw-transition), border-color var(--mw-transition);
-}
-
-.metis-forms-field-cog:hover {
-    color: var(--mw-primary);
-    border-color: var(--mw-primary);
-}
-
-/* =========================================================
-   INSPECTOR SECTIONS
-   ========================================================= */
-
-.metis-forms-inspector-section,
-.metis-forms-meta-group {
-    display: grid;
-    gap: 7px;
-}
-
-.metis-forms-inspector-section { margin-top: 14px; }
-
-.metis-forms-inline-checks {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 12px;
-}
-
-.metis-forms-inline-checks label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--mw-text);
-    font-size: 14px;
-}
-
-/* =========================================================
-   VERSION STRIP
-   ========================================================= */
-
-.metis-forms-version-strip {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--mw-border);
-}
-
-.metis-forms-version-list { margin-top: 12px; }
-
-.metis-forms-version-badge {
-    padding: 10px 12px;
-    border-radius: var(--mw-radius-lg);
-    background: var(--mw-bg);
-    border: 1px solid var(--mw-border);
-    font-size: 13px;
-}
-
-.metis-forms-version-badge small {
-    display: block;
-    margin-top: 3px;
-    color: var(--mw-text-muted);
-    font-size: 12px;
-}
-
-/* =========================================================
-   RULE / SUBFIELD ROWS
-   ========================================================= */
-
-.metis-forms-rule-list {
-    display: grid;
-    gap: 10px;
-    margin: 14px 0;
-}
-
-.metis-forms-rule-row {
-    display: grid;
-    gap: 9px;
-    padding: 12px;
-    border-radius: var(--mw-radius-lg);
-    border: 1px solid var(--mw-border);
-    background: var(--mw-bg);
-}
-
-.metis-forms-subfield-row { cursor: grab; }
-
-.metis-forms-subfield-row.is-over {
-    border-color: var(--mw-primary);
-    background: #eceeff;
-}
-
-/* =========================================================
-   ENTRY JSON
-   ========================================================= */
-
-.metis-forms-entry-json {
-    margin-top: 12px;
-    padding: 12px 14px;
-    border-radius: var(--mw-radius-lg);
-    background: #10202c;
-    color: #d8e4ee;
-    overflow: auto;
-    max-height: 240px;
-    font: 12px/1.55 "IBM Plex Mono", monospace;
-}
-
-/* =========================================================
-   STYLE PREVIEW CARD (settings)
-   ========================================================= */
-
-.metis-forms-style-preview-card {
-    padding: 16px;
-    border-radius: var(--mw-radius-lg);
-    border: 1px solid var(--mw-border);
-    background: var(--mw-surface);
-}
-
-.metis-forms-style-preview-card.is-soft {
-    background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
-}
-
-.metis-forms-style-preview-card.is-outline {
-    border-width: 2px;
-    box-shadow: none;
-}
-
-.metis-forms-style-preview-card .mw-input {
-    border-radius: var(--metis-form-radius, 10px);
-    border-color: color-mix(in srgb, var(--metis-form-accent, #126497) 18%, var(--mw-border));
-}
-
-.metis-forms-style-preview-card .mw-btn {
-    border-radius: var(--metis-form-radius, 10px);
-    background: var(--metis-form-button-bg, #126497);
-    border-color: var(--metis-form-button-bg, #126497);
-    color: var(--metis-form-button-text, #ffffff);
-}
-
-/* =========================================================
-   RICH TEXT TOOLBAR (notifications)
-   ========================================================= */
-
-.metis-forms-rich-toolbar,
-.metis-forms-merge-tags {
-    display: flex;
-    gap: 8px;
     flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.metis-forms-empty {
+    border: 1px dashed var(--metis-forms-line);
+    border-radius: 18px;
+    padding: 20px;
+    color: var(--metis-forms-muted);
+}
+
+.metis-forms-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metis-forms-control,
+.metis-forms-check {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-control > span {
+    font-weight: 700;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-rich {
+    display: grid;
+    gap: 10px;
+}
+
+.metis-forms-rich .metis-se-rich-tools {
+    display: grid;
+    gap: 8px;
+}
+
+.metis-forms-rich-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.metis-forms-rich-toolbar .metis-se-rich-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.metis-forms-rich .metis-se-rich-group--actions {
+    gap: 4px;
+}
+
+.metis-forms-rich .metis-se-rich-dropdown {
+    position: relative;
+    width: 38px;
+    flex: 0 0 38px;
+}
+
+.metis-forms-rich .metis-se-toolbtn,
+.metis-forms-rich .metis-se-rich-menu-trigger,
+.metis-forms-rich .metis-se-rich-icon-btn {
+    background: var(--mw-surface, #fff) !important;
+    color: var(--metis-forms-text) !important;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 12px;
+}
+
+.metis-forms-rich .metis-se-rich-menu-trigger {
+    min-width: 38px;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    gap: 0;
+    flex: 0 0 38px;
+}
+
+.metis-forms-rich .metis-se-rich-icon-btn {
+    width: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+}
+
+.metis-forms-rich .metis-se-toolbtn img {
+    width: 18px;
+    height: 18px;
+    display: block;
+    margin: 0 auto;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.metis-forms-rich .metis-se-rich-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    display: none;
+    min-width: 180px;
+    padding: 8px;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--mw-surface, #fff) 96%, #f8f9fd) !important;
+    box-shadow: var(--metis-forms-shadow);
+    z-index: 20;
+}
+
+.metis-forms-rich .metis-se-rich-dropdown.is-open .metis-se-rich-menu {
+    display: grid;
+    gap: 4px;
+}
+
+.metis-forms-rich .metis-se-rich-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent !important;
+    color: var(--metis-forms-text) !important;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.metis-forms-rich .metis-se-rich-menu-item:hover {
+    background: var(--metis-forms-accent-soft) !important;
+    color: var(--metis-forms-accent) !important;
+}
+
+.metis-forms-rich .metis-se-color-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--metis-forms-line) 85%, transparent);
+    flex: 0 0 auto;
 }
 
 .metis-forms-rich-editor {
-    min-height: 160px;
-    padding: 12px;
-    border: 1px solid var(--mw-border);
-    border-radius: var(--mw-radius-lg);
-    background: var(--mw-surface);
-    font-size: 14px;
+    min-height: 180px;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 16px;
+    padding: 16px;
+    background: var(--mw-surface, #fff);
+    font-size: 16px;
+    line-height: 1.65;
+    width: 100%;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.84);
+    overflow: auto;
 }
 
 .metis-forms-rich-editor:focus {
     outline: none;
-    border-color: var(--mw-primary);
-    box-shadow: 0 0 0 3px rgba(72, 91, 199, 0.15);
+    border-color: var(--metis-forms-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--metis-forms-accent) 20%, transparent);
 }
 
-/* =========================================================
-   SETTINGS PREVIEW
-   ========================================================= */
+.metis-forms-rich .metis-inline-divider {
+    border: 0;
+    border-top: 1px solid color-mix(in srgb, var(--metis-forms-line) 88%, transparent);
+    margin: 18px 0;
+}
 
-.metis-forms-settings-preview { display: grid; gap: 14px; }
+.metis-forms-rich-help {
+    color: var(--metis-forms-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
 
-/* =========================================================
-   PUBLIC FORM PAGE (standalone — outside admin shell)
-   ========================================================= */
+.metis-forms-rich-help code {
+    background: var(--metis-forms-accent-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-right: 6px;
+}
+
+.metis-forms-control--full,
+.metis-forms-grid > .metis-forms-control--full,
+.metis-forms-grid > .metis-forms-check.metis-forms-control--full,
+.metis-forms-inline-note {
+    grid-column: 1 / -1;
+}
+
+.metis-forms-check {
+    flex-direction: row;
+    align-items: center;
+    font-weight: 700;
+}
+
+.metis-forms-check span {
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-check-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.metis-forms-editor-note,
+.metis-forms-editor-tools,
+.metis-forms-route-row,
+.metis-forms-condition-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.metis-forms-editor-note {
+    margin-bottom: 12px;
+}
+
+.metis-forms-accordion {
+    display: grid;
+    gap: 12px;
+}
+
+.metis-forms-accordion__section {
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+.metis-forms-accordion__toggle {
+    width: 100%;
+    border: 0;
+    background: #fff;
+    padding: 16px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    text-align: left;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-accordion__chevron {
+    font-size: 22px;
+    line-height: 1;
+    color: var(--metis-forms-accent);
+    transform: rotate(0deg);
+    transition: transform 0.18s ease;
+}
+
+.metis-forms-accordion__toggle.is-open .metis-forms-accordion__chevron {
+    transform: rotate(180deg);
+}
+
+.metis-forms-accordion__content {
+    padding: 0 18px 18px;
+}
+
+.metis-forms-preview-card__body {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.metis-forms-preview-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-preview-field.is-full {
+    grid-column: 1 / -1;
+}
+
+.metis-forms-preview-field.is-half {
+    grid-column: span 2;
+}
+
+.metis-forms-preview-field.is-narrow {
+    grid-column: span 1;
+}
+
+.metis-forms-preview-payment,
+.metis-forms-preview-repeater {
+    display: grid;
+    gap: 10px;
+}
+
+.metis-forms-preview-subfield {
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--metis-forms-bg);
+}
+
+.metis-forms-table-card {
+    padding: 22px 24px;
+}
+
+.metis-forms-table-wrap {
+    overflow-x: auto;
+}
+
+.metis-forms-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.metis-forms-table th,
+.metis-forms-table td {
+    padding: 14px 12px;
+    border-top: 1px solid var(--metis-forms-line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.metis-forms-version-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.metis-forms-version-list li {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 0;
+    border-top: 1px solid var(--metis-forms-line);
+}
+
+.metis-forms-picker[hidden] {
+    display: none !important;
+}
+
+.metis-forms-picker {
+    position: fixed;
+    inset: 0;
+    background: rgba(19, 30, 58, 0.42);
+    z-index: 9997;
+}
+
+.metis-forms-picker__sheet {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: min(420px, 100vw);
+    height: 100%;
+    background: #fff;
+    box-shadow: -20px 0 50px rgba(19, 30, 58, 0.16);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.metis-forms-picker__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.metis-forms-picker__head h2 {
+    margin: 0;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-picker__grid {
+    display: grid;
+    gap: 12px;
+    overflow: auto;
+}
+
+.metis-forms-picker__item {
+    appearance: none;
+    border: 1px solid var(--metis-forms-line);
+    background: #fff;
+    border-radius: 18px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: center;
+    text-align: left;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-picker__meta {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-picker__meta strong {
+    display: block;
+    color: var(--metis-forms-text);
+    font-size: 16px;
+    line-height: 1.25;
+}
+
+.metis-forms-picker__meta span {
+    color: var(--metis-forms-muted);
+}
+
+.metis-forms-picker__icon {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background: var(--metis-forms-accent-soft);
+    color: var(--metis-forms-accent);
+    font-weight: 700;
+}
+
+.metis-forms-route-row,
+.metis-forms-condition-row {
+    border-top: 1px solid var(--metis-forms-line);
+    padding-top: 12px;
+}
+
+.metis-forms-inline-note {
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--metis-forms-bg);
+    color: var(--metis-forms-muted);
+}
+
+.metis-forms-page .mw-input,
+.metis-forms-page .mw-select,
+.metis-forms-page textarea,
+.metis-forms-page input,
+.metis-forms-page select {
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-page .mw-input::placeholder,
+.metis-forms-page textarea::placeholder,
+.metis-forms-page select:invalid {
+    color: var(--metis-forms-muted);
+}
+
+.metis-forms-public-body {
+    background: radial-gradient(circle at top, #eef2ff 0%, #f7f9fc 55%, #f6f8fc 100%);
+    color: var(--metis-forms-text);
+    min-height: 100vh;
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
 .metis-forms-public-shell {
-    margin: 0;
-    min-height: 100vh;
-    background:
-        radial-gradient(circle at top left, rgba(18, 100, 151, 0.2), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(20, 40, 59, 0.18), transparent 22%),
-        #edf5fa;
-    font-family: "Figtree", system-ui, sans-serif;
-    color: #14283b;
-}
-
-.metis-forms-public-wrap {
-    max-width: 920px;
+    max-width: 1040px;
     margin: 0 auto;
-    padding: 48px 20px;
+    padding: 48px 20px 64px;
 }
 
 .metis-forms-public-card {
     padding: 28px;
-    background: #ffffff;
-    border: 1px solid #dde6ee;
-    border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(16, 39, 59, 0.08);
-    --metis-form-accent: #126497;
-    --metis-form-button-bg: #126497;
-    --metis-form-button-text: #ffffff;
-    --metis-form-radius: 10px;
+    position: relative;
 }
 
-.metis-forms-public-card--soft {
-    background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
+.metis-forms-public-header {
+    margin-bottom: 22px;
 }
 
-.metis-forms-public-card--outline {
-    box-shadow: none;
-    border-width: 2px;
+.metis-forms-public-header h1 {
+    margin: 8px 0 12px;
+    font-size: clamp(34px, 5vw, 56px);
+    line-height: 1;
 }
 
-.metis-forms-public-head {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
+.metis-forms-public-header p {
+    max-width: 720px;
+    color: var(--metis-forms-muted);
 }
 
 .metis-forms-public-kicker {
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--metis-form-accent);
+    margin: 0;
     font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--metis-forms-muted);
 }
 
 .metis-forms-public-form {
-    margin-top: 22px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
 }
 
-.metis-form-field { display: grid; gap: 7px; }
-.metis-form-select-search { margin-bottom: 3px; }
-.metis-form-field.is-half { grid-column: span 1; }
-.metis-form-field:not(.is-half) { grid-column: 1 / -1; }
+.metis-forms-repeater-grid,
+.metis-forms-preview-repeater {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
 
-.metis-form-choice {
+.metis-forms-public-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-public-field.is-error label,
+.metis-forms-public-field.is-error legend {
+    color: #b42318;
+}
+
+.metis-forms-public-field.is-full {
+    grid-column: 1 / -1;
+}
+
+.metis-forms-public-field.is-half {
+    grid-column: span 2;
+}
+
+.metis-forms-public-field.is-narrow {
+    grid-column: span 1;
+}
+
+.metis-forms-repeater-grid > .metis-forms-public-field.is-full,
+.metis-forms-preview-repeater > .metis-forms-preview-subfield.is-full {
+    grid-column: 1 / -1;
+}
+
+.metis-forms-repeater-grid > .metis-forms-public-field.is-half,
+.metis-forms-preview-repeater > .metis-forms-preview-subfield.is-half {
+    grid-column: span 2;
+}
+
+.metis-forms-repeater-grid > .metis-forms-public-field.is-narrow,
+.metis-forms-preview-repeater > .metis-forms-preview-subfield.is-narrow {
+    grid-column: span 1;
+}
+
+.metis-forms-help {
+    margin: 0;
+    color: var(--metis-forms-muted);
+    font-size: 14px;
+}
+
+.metis-forms-field-error {
+    margin: 0;
+    color: #b42318;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.metis-forms-public-field.is-error .mw-input,
+.metis-forms-public-field.is-error .mw-select,
+.metis-forms-public-field.is-error input,
+.metis-forms-public-field.is-error select,
+.metis-forms-public-field.is-error textarea {
+    border-color: #f04438;
+    box-shadow: 0 0 0 3px rgba(240, 68, 56, 0.12);
+}
+
+.metis-forms-choice-group,
+.metis-forms-payment-choices {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+
+.metis-forms-choice-group legend,
+.metis-forms-payment-choices legend {
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--metis-forms-text);
+}
+
+.metis-forms-choice,
+.metis-forms-payment-toggle {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 11px 12px;
-    border-radius: var(--metis-form-radius);
-    border: 1px solid #dde6ee;
-    background: #fafcff;
+    margin: 8px 0;
+    color: var(--metis-forms-text);
 }
 
-.metis-form-help {
-    margin: 0;
-    color: #617487;
-    font-size: 13px;
+.metis-forms-payment-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
 }
 
-.metis-form-repeater-row {
+.metis-forms-payment-choice {
+    display: flex;
+    gap: 10px;
+    align-items: center;
     padding: 14px;
-    border-radius: var(--metis-form-radius);
-    border: 1px dashed #bfd1de;
-    background: #fbfdff;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 16px;
+    color: var(--metis-forms-text);
 }
 
-.metis-form-totals {
-    grid-column: 1 / -1;
-    border-top: 1px solid #dde6ee;
-    padding-top: 14px;
+.metis-forms-payment-custom,
+.metis-forms-payment-totals,
+.metis-forms-repeater-rows {
+    display: grid;
+    gap: 14px;
 }
 
-.metis-form-totals .is-grand {
-    font-size: 17px;
+.metis-forms-payment-totals > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.metis-forms-payment-totals .is-grand {
+    padding-top: 12px;
+    border-top: 1px solid var(--metis-forms-line);
     font-weight: 700;
 }
 
 .metis-forms-public-actions {
     grid-column: 1 / -1;
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    padding-top: 10px;
 }
 
-.metis-forms-stripe-panel {
-    display: none;
-    grid-column: 1 / -1;
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid #dde6ee;
-    background: #f5f9fc;
+.metis-forms-success-overlay[hidden] {
+    display: none !important;
 }
 
-.metis-forms-stripe-panel.is-active { display: grid; gap: 12px; }
-
-.metis-forms-public-card .mw-input,
-.metis-forms-public-card .mw-select,
-.metis-forms-public-card textarea {
-    border-radius: var(--metis-form-radius);
+.metis-forms-success-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
 }
 
-.metis-forms-public-card .mw-btn {
-    background: var(--metis-form-button-bg);
-    color: var(--metis-form-button-text);
-    border-color: var(--metis-form-button-bg);
-    border-radius: var(--metis-form-radius);
+.metis-forms-success-overlay__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(19, 30, 58, 0.48);
 }
 
-.metis-forms-public-card a { color: var(--metis-form-accent); }
+.metis-forms-success-overlay__dialog {
+    position: relative;
+    width: min(520px, calc(100vw - 32px));
+    margin: min(12vh, 96px) auto 0;
+    background: #fff;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 24px;
+    box-shadow: 0 24px 60px rgba(19, 30, 58, 0.24);
+    padding: 28px;
+    display: grid;
+    gap: 16px;
+    color: var(--metis-forms-text);
+}
 
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
+.metis-forms-success-overlay__dialog h2,
+.metis-forms-success-overlay__dialog p {
+    margin: 0;
+}
 
-@media (max-width: 760px) {
-    .metis-forms-builder-meta,
-    .metis-forms-inline-checks,
-    .metis-forms-public-form {
+.metis-forms-repeater-row {
+    padding: 18px;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 18px;
+    background: var(--metis-forms-bg);
+}
+
+.metis-forms-preview-subfield {
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: var(--metis-forms-bg);
+}
+
+@media (max-width: 1220px) {
+    .metis-forms-builder-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .metis-forms-builder-grid > :last-child {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 920px) {
+    .metis-forms-kpi-grid,
+    .metis-forms-list-grid,
+    .metis-forms-two-column,
+    .metis-forms-settings-grid,
+    .metis-forms-builder-grid,
+    .metis-forms-grid,
+    .metis-forms-preview-card__body,
+    .metis-forms-public-form,
+    .metis-forms-repeater-grid,
+    .metis-forms-preview-repeater,
+    .metis-forms-check-grid {
         grid-template-columns: 1fr;
     }
 
     .metis-forms-hero,
-    .metis-forms-detail-head,
-    .metis-forms-builder-topbar,
-    .metis-forms-detail-actions,
-    .metis-forms-home-card-actions,
-    .metis-forms-home-card-stats {
+    .metis-forms-admin__header {
         flex-direction: column;
-        align-items: stretch;
+    }
+
+    .metis-forms-steps {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-forms-field-card,
+    .metis-forms-subfield-card {
+        grid-template-columns: auto 1fr;
+    }
+
+    .metis-forms-field-card__tail {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
+
+    .metis-forms-public-card {
+        padding: 22px;
     }
 }

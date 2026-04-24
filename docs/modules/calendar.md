@@ -1,6 +1,6 @@
 # Calendar
 
-Manage Google Calendar events from Metis.
+Schedule events and keep calendars in sync.
 
 ## Routes
 
@@ -13,10 +13,7 @@ Manage Google Calendar events from Metis.
 
 ## APIs
 
-- `metis_calendar_delete_event`
-- `metis_calendar_list_events`
-- `metis_calendar_save_event`
-- `metis_calendar_sync_worker`
+- No dedicated AJAX controller was discovered for this module.
 
 ## Database Tables Used
 

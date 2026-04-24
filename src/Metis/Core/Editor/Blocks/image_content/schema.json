@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "src": { "type": "string", "default": "" },
+    "alt": { "type": "string", "default": "" },
+    "heading": { "type": "string", "default": "Section Heading" },
+    "content": { "type": "string", "default": "" }
+  }
+}

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Modules\People;
 
+use Metis\Core\Events\Event;
+
 final class PeopleModule {
     private static bool $booted = false;
 
@@ -14,8 +16,28 @@ final class PeopleModule {
         self::$booted = true;
         \Metis_Logger::info( 'People bootstrap loaded' );
 
-        \metis_add_action( 'init', [ self::class, 'handleInit' ], 4 );
-        \metis_add_action( 'wp_ajax_metis_people_schema_status', [ self::class, 'handleSchemaStatusRequest' ] );
+        \metis_on( 'init', [ self::class, 'handleInit' ], 4 );
+        if ( \function_exists( 'metis_ajax_register_controller' ) ) {
+            \metis_ajax_register_controller(
+                'metis_people_schema_status',
+                [
+                    'module' => 'people',
+                    'permission' => 'view',
+                    'nonce_action' => \metis_ajax_nonce_action( 'metis_people_schema_status' ),
+                    'schema' => [],
+                ]
+            );
+        }
+        \metis_ajax_register_handler(
+            'metis_people_schema_status',
+            [ self::class, 'handleSchemaStatusRequest' ],
+            [
+                'module' => 'people',
+                'permission' => 'view',
+                'nonce_action' => \metis_ajax_nonce_action( 'metis_people_schema_status' ),
+                'schema' => [],
+            ]
+        );
         self::registerEventSubscribers();
     }
 
@@ -30,9 +52,9 @@ final class PeopleModule {
     }
 
     public static function handleSchemaStatusRequest(): void {
-        \check_ajax_referer( 'metis_people', 'nonce' );
+        \metis_check_ajax_referer( 'metis_people', 'nonce' );
         if ( ! \metis_current_user_can( 'manage_options' ) ) {
-            \metis_send_json_error( 'Unauthorized', 403 );
+            \metis_runtime_send_json_error( 'Unauthorized', 403 );
         }
 
         SchemaManager::ensureSchema();
@@ -66,10 +88,10 @@ final class PeopleModule {
             $status[ $key ] = SchemaManager::tableExists( $table_name );
         }
 
-        \metis_send_json_success( [ 'tables' => $status ] );
+        \metis_runtime_send_json_success( [ 'tables' => $status ] );
     }
 
-    public static function handleUserCreated( \Metis\Core\Event $event ): void {
+    public static function handleUserCreated( Event $event ): void {
         $person_id = (int) $event->payload( 'person_id', 0 );
         ActivityService::logActivity(
             $person_id > 0 ? $person_id : null,
@@ -83,7 +105,7 @@ final class PeopleModule {
         );
     }
 
-    public static function handleDonationBatchCreated( \Metis\Core\Event $event ): void {
+    public static function handleDonationBatchCreated( Event $event ): void {
         ActivityService::logActivity(
             null,
             'donation_batch_created',
@@ -98,7 +120,7 @@ final class PeopleModule {
         );
     }
 
-    public static function handleDonationReceived( \Metis\Core\Event $event ): void {
+    public static function handleDonationReceived( Event $event ): void {
         ActivityService::logActivity(
             null,
             'donation_received',
@@ -113,7 +135,7 @@ final class PeopleModule {
         );
     }
 
-    public static function handleNewsletterSent( \Metis\Core\Event $event ): void {
+    public static function handleNewsletterSent( Event $event ): void {
         ActivityService::logActivity(
             null,
             'newsletter_sent',

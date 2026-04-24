@@ -36,7 +36,7 @@ final class ServiceRegistry {
     }
 
     private function normalize( string $name ): string {
-        $name = \sanitize_key( $name );
+        $name = \metis_key_clean( $name );
         if ( $name === '' ) {
             throw new \InvalidArgumentException( 'Metis service names cannot be empty.' );
         }

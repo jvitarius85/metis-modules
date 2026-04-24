@@ -14,10 +14,10 @@ final class ContactsModule {
         self::$booted = true;
         \Metis_Logger::info( 'Contacts bootstrap loaded' );
 
-        \metis_add_action( 'init', [ self::class, 'ensureSchema' ], 5 );
-        \metis_add_action( 'init', [ self::class, 'handleBackfillCidRequest' ], 20 );
-        \metis_add_action( 'init', [ self::class, 'handleMigrateNotesRequest' ], 20 );
-        \metis_add_action( 'init', [ self::class, 'handleCleanupMergeNotesRequest' ], 20 );
+        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'handleBackfillCidRequest' ], 20 );
+        \metis_on( 'init', [ self::class, 'handleMigrateNotesRequest' ], 20 );
+        \metis_on( 'init', [ self::class, 'handleCleanupMergeNotesRequest' ], 20 );
     }
 
     public static function canView(): bool {
@@ -79,7 +79,7 @@ final class ContactsModule {
 
         self::ensureSchema();
         $count = self::backfillCid();
-        \metis_die( 'Metis: contact CID backfill complete. Updated ' . intval( $count ) . ' contacts.' );
+        \metis_runtime_die( 'Metis: contact CID backfill complete. Updated ' . intval( $count ) . ' contacts.' );
     }
 
     public static function handleMigrateNotesRequest(): void {
@@ -90,7 +90,7 @@ final class ContactsModule {
         self::ensureSchema();
         $result  = self::migrateNotesToCid();
         $updated = isset( $result['updated'] ) ? (int) $result['updated'] : 0;
-        \metis_die( 'Metis: contact notes migration to CID complete. Updated ' . $updated . ' notes.' );
+        \metis_runtime_die( 'Metis: contact notes migration to CID complete. Updated ' . $updated . ' notes.' );
     }
 
     public static function handleCleanupMergeNotesRequest(): void {
@@ -100,7 +100,7 @@ final class ContactsModule {
 
         self::ensureSchema();
         $result = self::cleanupMergeNotes();
-        \metis_die(
+        \metis_runtime_die(
             sprintf(
                 'Metis: merge notes cleanup complete. Consolidated %d groups, created %d notes, deleted %d notes.',
                 (int) ( $result['groups_consolidated'] ?? 0 ),

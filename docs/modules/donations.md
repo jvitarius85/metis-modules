@@ -1,6 +1,6 @@
 # Donations
 
-Manage donors, transactions, offline entries, deposits, and campaigns.
+Track donors, gifts, deposits, and fundraising activity.
 
 ## Routes
 
@@ -43,8 +43,7 @@ Manage donors, transactions, offline entries, deposits, and campaigns.
 - `campaigns` (`metis_campaigns`)
 - `contacts` (`metis_contacts`)
 - `deposits` (`metis_deposits`)
-- `transaction_notes` (`metis_transaction_notes`)
-- `transaction_refunds` (`metis_transaction_refunds`)
+- `entity_registry` (`metis_entity_registry`)
 - `transactions` (`metis_transactions`)
 
 ## Assets and Extension Hooks

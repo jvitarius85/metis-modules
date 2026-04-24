@@ -1,0 +1,91 @@
+{
+    "slug": "grandys_stash",
+    "name": "grandys_stash",
+    "label": "Grandy's Stash",
+    "version": "1.0.0",
+    "domain": "grandys_stash",
+    "class": "Metis\\Modules\\GrandyStash\\GrandyStashModule",
+    "default_view": "dashboard",
+    "dependencies": [
+        "contacts",
+        "forms"
+    ],
+    "menu_order": 2,
+    "description": "Track equipment intake, inventory, and distributions.",
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 7 12 3 4 7\"/><path d=\"M20 7v10l-8 4-8-4V7\"/><path d=\"M12 21V11\"/><path d=\"M4 7l8 4 8-4\"/></svg>",
+    "menu": {
+        "type": "dropdown",
+        "items": {
+            "dashboard": "Inbox",
+            "reports": "Reports",
+            "settings": "Settings"
+        }
+    },
+    "permissions": {
+        "view": {
+            "key": "grandys_stash.view",
+            "action": "view",
+            "name": "Grandy's Stash View",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "edit": {
+            "key": "grandys_stash.edit",
+            "action": "edit",
+            "name": "Grandy's Stash Edit",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        }
+    },
+    "views": {
+        "dashboard": "dashboard.php",
+        "ticket": "ticket.php",
+        "reports": "report.php",
+        "settings": "settings.php"
+    },
+    "parent_views": {
+        "ticket": "dashboard"
+    },
+    "assets": {
+        "css": [
+            "grandys_stash.css"
+        ],
+        "js": [
+            "grandys_stash.js"
+        ],
+        "ajax": "grandys_stash.ajax.php",
+        "nonce_action": "metis_grandys_stash",
+        "ajax_object": "metisGrandyStashAjax"
+    },
+    "category": "other",
+    "default_parent": null,
+    "order": 90,
+    "navigation": {
+        "enabled": true,
+        "label": "Grandy's Stash",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Grandy's Stash",
+    "entry": "Module.php",
+    "routes": [
+        {
+            "name": "grandys_stash.ticket",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/grandys_stash/view/(?P<ticket_code>GST-[A-Z0-9]+)/?$#",
+            "handler": "metis_grandys_stash_handle_view_route"
+        }
+    ],
+    "controllers": [],
+    "services": []
+}

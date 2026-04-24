@@ -6,8 +6,34 @@ namespace Metis\Hermes;
 use Metis\Modules\Hermes\SchemaManager;
 
 final class HermesRepository {
+    public function purgeExpiredConversationData( int $hours = 24 ): void {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $hours = max( 1, min( 168, $hours ) );
+        $cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $hours * 3600 ) );
+
+        $db->execute(
+            $db->prepare(
+                'DELETE FROM ' . \Metis_Tables::get( 'hermes_messages' ) . ' WHERE created_at < %s',
+                $cutoff
+            )
+        );
+
+        $db->execute(
+            $db->prepare(
+                'DELETE s FROM ' . \Metis_Tables::get( 'hermes_sessions' ) . ' s
+                 LEFT JOIN ' . \Metis_Tables::get( 'hermes_messages' ) . ' m ON m.session_id = s.id
+                 WHERE s.updated_at < %s
+                   AND m.id IS NULL',
+                $cutoff
+            )
+        );
+    }
+
     public function ensureSession( int $user_id, string $session_code = '', string $title = 'Hermes Session' ): array {
         SchemaManager::ensureSchema();
+        $this->purgeExpiredConversationData();
 
         if ( $session_code !== '' ) {
             $session = $this->findSessionByCode( $session_code );
@@ -16,11 +42,11 @@ final class HermesRepository {
             }
         }
 
-        global $wpdb;
+        $db = $this->db();
 
         $table        = \Metis_Tables::get( 'hermes_sessions' );
         $session_code = $session_code !== '' ? $session_code : $this->generateCode( 'HMS' );
-        $wpdb->insert(
+        $db->insert(
             $table,
             [
                 'session_code' => $session_code,
@@ -37,14 +63,11 @@ final class HermesRepository {
 
     public function findSessionByCode( string $session_code ): ?array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . \Metis_Tables::get( 'hermes_sessions' ) . ' WHERE session_code = %s LIMIT 1',
-                $session_code
-            ),
-            ARRAY_A
+        $row = $db->fetchOne(
+            'SELECT * FROM ' . \Metis_Tables::get( 'hermes_sessions' ) . ' WHERE session_code = %s LIMIT 1',
+            [ $session_code ]
         );
 
         return \is_array( $row ) ? $row : null;
@@ -52,9 +75,9 @@ final class HermesRepository {
 
     public function touchSession( int $session_id, string $intent = '', string $title = '' ): void {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $payload = [ 'updated_at' => \current_time( 'mysql' ) ];
+        $payload = [ 'updated_at' => \metis_current_time( 'mysql' ) ];
         if ( $intent !== '' ) {
             $payload['last_intent'] = $intent;
         }
@@ -62,7 +85,7 @@ final class HermesRepository {
             $payload['title'] = $title;
         }
 
-        $wpdb->update(
+        $db->update(
             \Metis_Tables::get( 'hermes_sessions' ),
             $payload,
             [ 'id' => $session_id ],
@@ -73,45 +96,56 @@ final class HermesRepository {
 
     public function recentSessions( int $user_id, int $limit = 8 ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        return $wpdb->get_results(
-            $wpdb->prepare(
-                'SELECT id, session_code, title, status, last_intent, updated_at
-                 FROM ' . \Metis_Tables::get( 'hermes_sessions' ) . '
-                 WHERE user_id = %d
-                 ORDER BY updated_at DESC, id DESC
-                 LIMIT %d',
-                $user_id,
-                max( 1, min( 20, $limit ) )
-            ),
-            ARRAY_A
-        ) ?: [];
+        return $db->fetchAll(
+            'SELECT id, session_code, title, status, last_intent, updated_at
+             FROM ' . \Metis_Tables::get( 'hermes_sessions' ) . '
+             WHERE user_id = %d
+             ORDER BY updated_at DESC, id DESC
+             LIMIT %d',
+            [ $user_id, max( 1, min( 20, $limit ) ) ]
+        );
     }
 
     public function sessionMessages( int $session_id, int $limit = 40 ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        return $wpdb->get_results(
-            $wpdb->prepare(
-                'SELECT id, role_name, content, metadata_json, created_at
-                 FROM ' . \Metis_Tables::get( 'hermes_messages' ) . '
-                 WHERE session_id = %d
-                 ORDER BY id DESC
-                 LIMIT %d',
-                $session_id,
-                max( 1, min( 200, $limit ) )
-            ),
-            ARRAY_A
-        ) ?: [];
+        $rows = $db->fetchAll(
+            'SELECT id, role_name, content, metadata_json, created_at
+             FROM ' . \Metis_Tables::get( 'hermes_messages' ) . '
+             WHERE session_id = %d
+             ORDER BY id DESC
+             LIMIT %d',
+            [ $session_id, max( 1, min( 200, $limit ) ) ]
+        );
+
+        return array_reverse( $rows );
+    }
+
+    public function latestSessionForUser( int $user_id ): ?array {
+        SchemaManager::ensureSchema();
+        $this->purgeExpiredConversationData();
+        $db = $this->db();
+
+        $row = $db->fetchOne(
+            'SELECT id, session_code, title, status, last_intent, updated_at
+             FROM ' . \Metis_Tables::get( 'hermes_sessions' ) . '
+             WHERE user_id = %d
+             ORDER BY updated_at DESC, id DESC
+             LIMIT 1',
+            [ $user_id ]
+        );
+
+        return is_array( $row ) ? $row : null;
     }
 
     public function saveMessage( int $session_id, string $role_name, string $content, array $metadata = [] ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $wpdb->insert(
+        $db->insert(
             \Metis_Tables::get( 'hermes_messages' ),
             [
                 'session_id'    => $session_id,
@@ -126,7 +160,7 @@ final class HermesRepository {
         $this->touchSession( $session_id );
 
         return [
-            'id'         => (int) $wpdb->insert_id,
+            'id'         => $db->lastInsertId(),
             'session_id' => $session_id,
             'role_name'  => $role_name,
             'content'    => $content,
@@ -136,10 +170,10 @@ final class HermesRepository {
 
     public function createAction( int $session_id, int $message_id, string $action_type, string $title, array $payload, array $preview ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
         $action_code = $this->generateCode( 'HAC' );
-        $wpdb->insert(
+        $db->insert(
             \Metis_Tables::get( 'hermes_actions' ),
             [
                 'session_id'       => $session_id,
@@ -159,23 +193,18 @@ final class HermesRepository {
 
     public function pendingActionsForUser( int $user_id, int $limit = 12 ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                'SELECT a.action_code, a.action_type, a.title, a.preview_json, a.created_at, s.session_code
-                 FROM ' . \Metis_Tables::get( 'hermes_actions' ) . ' a
-                 INNER JOIN ' . \Metis_Tables::get( 'hermes_sessions' ) . ' s ON s.id = a.session_id
-                 WHERE s.user_id = %d
-                   AND a.approval_status = %s
-                 ORDER BY a.id DESC
-                 LIMIT %d',
-                $user_id,
-                'pending',
-                max( 1, min( 50, $limit ) )
-            ),
-            ARRAY_A
-        ) ?: [];
+        $rows = $db->fetchAll(
+            'SELECT a.action_code, a.action_type, a.title, a.preview_json, a.created_at, s.session_code
+             FROM ' . \Metis_Tables::get( 'hermes_actions' ) . ' a
+             INNER JOIN ' . \Metis_Tables::get( 'hermes_sessions' ) . ' s ON s.id = a.session_id
+             WHERE s.user_id = %d
+               AND a.approval_status = %s
+             ORDER BY a.id DESC
+             LIMIT %d',
+            [ $user_id, 'pending', max( 1, min( 50, $limit ) ) ]
+        );
 
         foreach ( $rows as &$row ) {
             $row['preview'] = $this->decodeJson( (string) ( $row['preview_json'] ?? '' ) );
@@ -187,14 +216,11 @@ final class HermesRepository {
 
     public function getActionByCode( string $action_code ): ?array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                'SELECT * FROM ' . \Metis_Tables::get( 'hermes_actions' ) . ' WHERE action_code = %s LIMIT 1',
-                $action_code
-            ),
-            ARRAY_A
+        $row = $db->fetchOne(
+            'SELECT * FROM ' . \Metis_Tables::get( 'hermes_actions' ) . ' WHERE action_code = %s LIMIT 1',
+            [ $action_code ]
         );
 
         return \is_array( $row ) ? $this->hydrateAction( $row ) : null;
@@ -202,9 +228,9 @@ final class HermesRepository {
 
     public function approveAction( string $action_code, int $user_id, string $note = '' ): ?array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $wpdb->update(
+        $db->update(
             \Metis_Tables::get( 'hermes_actions' ),
             [
                 'approval_status' => 'approved',
@@ -221,13 +247,13 @@ final class HermesRepository {
 
     public function markActionExecuted( string $action_code, array $result ): ?array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $wpdb->update(
+        $db->update(
             \Metis_Tables::get( 'hermes_actions' ),
             [
                 'approval_status' => 'executed',
-                'executed_at'     => \current_time( 'mysql' ),
+                'executed_at'     => \metis_current_time( 'mysql' ),
                 'result_json'     => $this->encodeJson( $result ),
             ],
             [ 'action_code' => $action_code ],
@@ -240,10 +266,10 @@ final class HermesRepository {
 
     public function saveReport( string $report_type, string $subject_key, array $summary, ?int $session_id = null, string $status = 'ready' ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
         $report_code = $this->generateCode( 'HRP' );
-        $wpdb->insert(
+        $db->insert(
             \Metis_Tables::get( 'hermes_reports' ),
             [
                 'report_code'   => $report_code,
@@ -267,18 +293,15 @@ final class HermesRepository {
 
     public function recentReports( int $limit = 8 ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                'SELECT report_code, report_type, subject_key, status, summary_json, updated_at
-                 FROM ' . \Metis_Tables::get( 'hermes_reports' ) . '
-                 ORDER BY updated_at DESC, id DESC
-                 LIMIT %d',
-                max( 1, min( 50, $limit ) )
-            ),
-            ARRAY_A
-        ) ?: [];
+        $rows = $db->fetchAll(
+            'SELECT report_code, report_type, subject_key, status, summary_json, updated_at
+             FROM ' . \Metis_Tables::get( 'hermes_reports' ) . '
+             ORDER BY updated_at DESC, id DESC
+             LIMIT %d',
+            [ max( 1, min( 50, $limit ) ) ]
+        );
 
         foreach ( $rows as &$row ) {
             $row['summary'] = $this->decodeJson( (string) ( $row['summary_json'] ?? '' ) );
@@ -290,12 +313,10 @@ final class HermesRepository {
 
     public function upsertMemory( string $memory_key, string $memory_type, string $scope_key, array $contents ): void {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
         $table = \Metis_Tables::get( 'hermes_memory' );
-        $existing = $wpdb->get_var(
-            $wpdb->prepare( "SELECT id FROM {$table} WHERE memory_key = %s LIMIT 1", $memory_key )
-        );
+        $existing = $db->scalar( "SELECT id FROM {$table} WHERE memory_key = %s LIMIT 1", [ $memory_key ] );
 
         $payload = [
             'memory_key'    => $memory_key,
@@ -305,41 +326,34 @@ final class HermesRepository {
         ];
 
         if ( $existing ) {
-            $wpdb->update( $table, $payload, [ 'id' => (int) $existing ], [ '%s', '%s', '%s', '%s' ], [ '%d' ] );
+            $db->update( $table, $payload, [ 'id' => (int) $existing ], [ '%s', '%s', '%s', '%s' ], [ '%d' ] );
             return;
         }
 
-        $wpdb->insert( $table, $payload, [ '%s', '%s', '%s', '%s' ] );
+        $db->insert( $table, $payload, [ '%s', '%s', '%s', '%s' ] );
     }
 
     public function recentMemory( string $scope_key = '', int $limit = 6 ): array {
         SchemaManager::ensureSchema();
-        global $wpdb;
+        $db = $this->db();
 
         if ( $scope_key !== '' ) {
-            $rows = $wpdb->get_results(
-                $wpdb->prepare(
-                    'SELECT memory_key, memory_type, scope_key, contents_json, updated_at
-                     FROM ' . \Metis_Tables::get( 'hermes_memory' ) . '
-                     WHERE scope_key = %s
-                     ORDER BY updated_at DESC, id DESC
-                     LIMIT %d',
-                    $scope_key,
-                    max( 1, min( 20, $limit ) )
-                ),
-                ARRAY_A
-            ) ?: [];
+            $rows = $db->fetchAll(
+                'SELECT memory_key, memory_type, scope_key, contents_json, updated_at
+                 FROM ' . \Metis_Tables::get( 'hermes_memory' ) . '
+                 WHERE scope_key = %s
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT %d',
+                [ $scope_key, max( 1, min( 20, $limit ) ) ]
+            );
         } else {
-            $rows = $wpdb->get_results(
-                $wpdb->prepare(
-                    'SELECT memory_key, memory_type, scope_key, contents_json, updated_at
-                     FROM ' . \Metis_Tables::get( 'hermes_memory' ) . '
-                     ORDER BY updated_at DESC, id DESC
-                     LIMIT %d',
-                    max( 1, min( 20, $limit ) )
-                ),
-                ARRAY_A
-            ) ?: [];
+            $rows = $db->fetchAll(
+                'SELECT memory_key, memory_type, scope_key, contents_json, updated_at
+                 FROM ' . \Metis_Tables::get( 'hermes_memory' ) . '
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT %d',
+                [ max( 1, min( 20, $limit ) ) ]
+            );
         }
 
         foreach ( $rows as &$row ) {
@@ -351,16 +365,15 @@ final class HermesRepository {
     }
 
     public function queueSummary(): array {
-        global $wpdb;
+        $db = $this->db();
         $table = \Metis_Tables::get( 'job_queue' );
 
-        $row = $wpdb->get_row(
+        $row = $db->fetchOne(
             "SELECT
                 SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued_count,
                 SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing_count,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count
-             FROM {$table}",
-            ARRAY_A
+             FROM {$table}"
         );
 
         return \is_array( $row ) ? $row : [ 'queued_count' => 0, 'processing_count' => 0, 'failed_count' => 0 ];
@@ -387,5 +400,9 @@ final class HermesRepository {
     private function decodeJson( string $payload ): array {
         $decoded = json_decode( $payload, true );
         return \is_array( $decoded ) ? $decoded : [];
+    }
+
+    private function db(): \Metis\Services\DatabaseService {
+        return \metis_db();
     }
 }
