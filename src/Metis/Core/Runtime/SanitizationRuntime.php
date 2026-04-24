@@ -302,6 +302,18 @@ if ( ! function_exists( 'metis_escape_attr' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_esc_html' ) ) {
+    function metis_esc_html( mixed $value ): string {
+        return metis_escape_html( $value );
+    }
+}
+
+if ( ! function_exists( 'metis_esc_attr' ) ) {
+    function metis_esc_attr( mixed $value ): string {
+        return metis_escape_attr( $value );
+    }
+}
+
 function esc_textarea( mixed $value ): string {
     return metis_escape_html( $value );
 }

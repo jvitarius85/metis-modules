@@ -5,12 +5,18 @@
 (function ($) {
     'use strict';
 
-    const $root = $('.metis-newsletter');
+    var MetisNewsletter = window.MetisNewsletter || {};
+
+    function initMetisNewsletter(context) {
+    const scope = context && context.root ? context.root : document;
+    const $root = $(scope).find('.metis-newsletter').first();
     if (!$root.length) return;
+    if ($root.data('metisNewsletterInitialized') === 1) return;
+    $root.data('metisNewsletterInitialized', 1);
 
     const canManage = $root.data('can-manage') === '1' || $root.data('can-manage') === 1;
     const pageData  = (function () {
-        try { return JSON.parse($('#metis-newsletter-data').text() || '{}'); } catch (e) { return {}; }
+        try { return JSON.parse($(scope).find('#metis-newsletter-data').first().text() || '{}'); } catch (e) { return {}; }
     })();
 
     const ui            = pageData.ui       || {};
@@ -1237,7 +1243,7 @@
             clearTimeout(timer);
             timer = setTimeout(renderThemePreview, 120);
         });
-        $(document).on('click', '[data-theme-inline-image-select]', function (e) {
+        $(document).off('click.metisNewsletterInlineImageSelect').on('click.metisNewsletterInlineImageSelect', '[data-theme-inline-image-select]', function (e) {
             e.preventDefault();
             var mediaId = parseInt(String(this.getAttribute('data-theme-inline-image-select') || '0'), 10) || 0;
             var row = themeImageMediaById(mediaId);
@@ -1288,7 +1294,7 @@
                 timer = setTimeout(renderThemePreview, 120);
             });
         });
-        document.addEventListener('click', function (e) {
+        $(document).off('click.metisNewsletterThemeMenus').on('click.metisNewsletterThemeMenus', function (e) {
             if (!e.target.closest('.metis-theme-selectx')) document.querySelectorAll('.metis-theme-selectx.is-open').forEach(function (node) { node.classList.remove('is-open'); });
             if (!e.target.closest('.metis-se-rich-dropdown')) document.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) { node.classList.remove('is-open'); });
         });
@@ -1342,7 +1348,6 @@
         });
     }
 
-    $(function () {
     $root.on('click', '#metis-newsletter-new-template', function () {
         navigate(ui.editor_template_new_url || ui.theme_url || '');
     });
@@ -1554,7 +1559,7 @@
         $(this).closest('.metis-contacts-modal').attr('aria-hidden', 'true').hide();
     });
 
-    });
+    }
 
     /* ------------------------------------------------------------------ */
     /*  Utility                                                             */
@@ -1563,5 +1568,20 @@
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
     function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
+
+    MetisNewsletter.init = initMetisNewsletter;
+    window.MetisNewsletter = MetisNewsletter;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            initMetisNewsletter({ root: document, reason: 'dom-ready', url: window.location.href });
+        });
+    } else {
+        initMetisNewsletter({ root: document, reason: 'dom-ready', url: window.location.href });
+    }
+
+    if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
+        Metis.page.register('newsletter', initMetisNewsletter);
+    }
 
 }(jQuery));

@@ -18,6 +18,7 @@ final class SchemaManager {
         $reports_table   = \Metis_Tables::get( 'hermes_reports' );
         $memory_table    = \Metis_Tables::get( 'hermes_memory' );
         $logs_table      = \Metis_Tables::get( 'hermes_command_logs' );
+        $help_logs_table = \Metis_Tables::get( 'hermes_help_issue_logs' );
 
         \metis_db_delta( "CREATE TABLE {$sessions_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -116,6 +117,32 @@ final class SchemaManager {
             KEY user_created (user_id, created_at),
             KEY intent_created (selected_intent, created_at),
             KEY tool_created (tool_key, created_at)
+        ) {$charset_collate};" );
+
+        \metis_db_delta( "CREATE TABLE {$help_logs_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            session_code VARCHAR(32) DEFAULT NULL,
+            user_id BIGINT UNSIGNED DEFAULT NULL,
+            raw_message LONGTEXT DEFAULT NULL,
+            normalized_issue LONGTEXT DEFAULT NULL,
+            classification VARCHAR(32) DEFAULT NULL,
+            module_key VARCHAR(64) DEFAULT NULL,
+            module_label VARCHAR(120) DEFAULT NULL,
+            action_key VARCHAR(120) DEFAULT NULL,
+            confidence_label VARCHAR(16) DEFAULT NULL,
+            confidence_score DECIMAL(5,4) DEFAULT NULL,
+            help_articles_json LONGTEXT DEFAULT NULL,
+            diagnostics_json LONGTEXT DEFAULT NULL,
+            proposed_actions_json LONGTEXT DEFAULT NULL,
+            executed_actions_json LONGTEXT DEFAULT NULL,
+            result_json LONGTEXT DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY user_created (user_id, created_at),
+            KEY session_created (session_code, created_at),
+            KEY classification_created (classification, created_at),
+            KEY module_action_created (module_key, action_key, created_at),
+            KEY confidence_created (confidence_label, created_at)
         ) {$charset_collate};" );
 
         if ( function_exists( 'metis_entity_id_service' ) ) {

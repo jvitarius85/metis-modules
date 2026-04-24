@@ -40,13 +40,30 @@ final class HermesOperationalEngine {
         $this->debugLogger       = $debugLogger;
     }
 
-    public function process( string $query ): array {
+    public function process( string $query, array $runtimeContext = [] ): array {
         $parsed = $this->parser->parse( $query );
         $intent = [
             'action' => (string) ( $parsed['selected_intent'] ?? 'unknown' ),
             'confidence' => (float) ( $parsed['confidence_score'] ?? 0.0 ),
             'payload' => (array) ( $parsed['intents'][0]['payload'] ?? [] ),
         ];
+
+        if ( (string) ( $intent['action'] ?? '' ) === 'resolve_help_issue' ) {
+            $intent['payload']['current_route'] = trim( (string) ( $runtimeContext['current_route'] ?? ( $intent['payload']['current_route'] ?? '' ) ) );
+            $intent['payload']['current_module'] = trim( (string) ( $runtimeContext['current_module'] ?? ( $intent['payload']['current_module'] ?? '' ) ) );
+            $intent['payload']['session_context'] = array_merge(
+                (array) ( $intent['payload']['session_context'] ?? [] ),
+                array_filter( [
+                    'current_topic' => trim( (string) ( $runtimeContext['current_topic'] ?? '' ) ),
+                ], static fn ( mixed $value ): bool => is_string( $value ) && $value !== '' )
+            );
+            if ( isset( $parsed['intents'][0] ) && is_array( $parsed['intents'][0] ) ) {
+                $parsed['intents'][0]['payload'] = $intent['payload'];
+            }
+            if ( isset( $parsed['execution_plan'][0]['payload'] ) && is_array( $parsed['execution_plan'][0]['payload'] ) ) {
+                $parsed['execution_plan'][0]['payload'] = $intent['payload'];
+            }
+        }
 
         if ( $this->debugLogger ) {
             $this->debugLogger->query( $query, (string) ( $intent['action'] ?? $intent['intent'] ?? 'unknown' ) );

@@ -7,7 +7,13 @@
  *   transactions.php — filters, sorting, batch selection, CSV export, keyboard nav
  */
 
-document.addEventListener( 'DOMContentLoaded', function () {
+function initMetisDonationsModule( context ) {
+    const scope = context && context.root ? context.root : document;
+    const hasDonationsUi = scope.querySelector( '.mw-donor-view, .mw-donor-row, .mw-tx-row, .mw-campaigns-table' );
+    if ( ! hasDonationsUi ) return;
+    if ( scope !== document && scope.getAttribute( 'data-metis-donations-initialized' ) === '1' ) return;
+    if ( scope !== document ) scope.setAttribute( 'data-metis-donations-initialized', '1' );
+
     function navigate(url) {
         var target = String( url || '' ).trim();
         if ( ! target ) return false;
@@ -424,7 +430,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
             focusedIndex = idx;
         }
 
-        document.addEventListener( 'keydown', function ( e ) {
+        scope.addEventListener( 'keydown', function ( e ) {
             const tag    = ( e.target.tagName || '' ).toLowerCase();
             const typing = [ 'input', 'textarea', 'select' ].includes( tag );
             if ( e.key === '/' && ! typing ) { e.preventDefault(); if ( searchInput ) searchInput.focus(); return; }
@@ -487,4 +493,12 @@ document.addEventListener( 'DOMContentLoaded', function () {
         } );
     }
 
+}
+
+document.addEventListener( 'DOMContentLoaded', function () {
+    initMetisDonationsModule( { root: document, reason: 'dom-ready', url: window.location.href } );
 } );
+
+if ( window.Metis && Metis.page && typeof Metis.page.register === 'function' ) {
+    Metis.page.register( 'donations', initMetisDonationsModule );
+}

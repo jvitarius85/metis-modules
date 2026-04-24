@@ -1,6 +1,9 @@
-document.addEventListener('DOMContentLoaded', function () {
-    var root = document.querySelector('[data-finance-v2-app="1"]');
+function initMetisFinanceApp(context) {
+    var scope = context && context.root ? context.root : document;
+    var root = scope.querySelector('[data-finance-v2-app="1"]');
     if (!root) return;
+    if (root.getAttribute('data-metis-finance-initialized') === '1') return;
+    root.setAttribute('data-metis-finance-initialized', '1');
 
     var ajaxEndpoint = String(root.getAttribute('data-ajax-endpoint') || '').trim() || '/api/ajax';
     var currentSection = String(root.getAttribute('data-current-section') || '').trim().toLowerCase();
@@ -2330,4 +2333,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (error) {
         toast('error', error && error.message ? error.message : 'Failed to load finance workspace.');
     });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    initMetisFinanceApp({ root: document, reason: 'dom-ready', url: window.location.href });
 });
+
+if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
+    Metis.page.register('finance', initMetisFinanceApp);
+}

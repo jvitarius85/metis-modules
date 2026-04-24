@@ -339,6 +339,14 @@ function metis_security_register_route_policies(): void {
         $register( new Metis_Security_Policy( 'route.portal_page.' . $slug . '.view', $slug, 'view', true, true, false, null, 360, 60 ) );
         $register( new Metis_Security_Policy( 'route.batch_api.' . $slug . '.create', $slug, 'create', true, true, true, null, 120, 60 ) );
     }
+
+    $register( new Metis_Security_Policy( 'route.help_index.help.view', 'help', 'view', true, true, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.help_search.help.view', 'help', 'view', true, true, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.help_article.help.view', 'help', 'view', true, true, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.help_category.help.view', 'help', 'view', true, true, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.help_admin_articles.help.manage', 'help', 'manage', true, true, false, null, 180, 60 ) );
+    $register( new Metis_Security_Policy( 'route.help_admin_create.help.manage', 'help', 'manage', true, true, false, null, 180, 60 ) );
+    $register( new Metis_Security_Policy( 'route.help_admin_edit.help.manage', 'help', 'manage', true, true, false, null, 180, 60 ) );
 }
 
 function metis_security_infer_module_from_ajax_action( string $ajax_action ): ?string {

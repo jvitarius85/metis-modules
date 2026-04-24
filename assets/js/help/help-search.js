@@ -9,11 +9,34 @@ Metis.helpSearch = (function () {
 
     function requestConfig() {
         const helpConfig = window.metisHelp || {};
+        const ajaxConfig = window.metisAjax || {};
         return {
             ajax_url: helpConfig.ajax_url || (window.metisAjax && window.metisAjax.ajax_url) || '',
             nonce: helpConfig.nonce || (window.metisAjax && window.metisAjax.nonce) || '',
-            action_nonces: helpConfig.action_nonces || {}
+            action_nonces: helpConfig.action_nonces || {},
+            baseUrl: String(helpConfig.docs_base_url || ajaxConfig.site_url || '').trim()
         };
+    }
+
+    function normalizeResultUrl(rawUrl) {
+        const value = String(rawUrl || '').trim();
+        const baseUrl = String(requestConfig().baseUrl || window.location.origin || '').replace(/\/+$/, '');
+        if (!value) {
+            return '';
+        }
+        if (/^https?:\/\//i.test(value)) {
+            return value.replace(/\/enclave\/help\/admin\/help\//i, '/admin/help/');
+        }
+        if (value.indexOf('/enclave/help/admin/help/') !== -1) {
+            return baseUrl + '/' + value.replace(/^\/+/, '').replace(/enclave\/help\/admin\/help\//i, 'admin/help/');
+        }
+        if (/^\/admin\/help\//i.test(value)) {
+            return baseUrl + value;
+        }
+        if (/^admin\/help\//i.test(value)) {
+            return baseUrl + '/' + value;
+        }
+        return value;
     }
 
     function ensure() {
@@ -72,7 +95,7 @@ Metis.helpSearch = (function () {
             }
 
             if (type === 'doc') {
-                const href = String(button.getAttribute('data-doc-url') || '');
+                const href = normalizeResultUrl(button.getAttribute('data-doc-url') || '');
                 if (href) {
                     window.open(href, '_blank', 'noopener');
                 }
@@ -92,7 +115,7 @@ Metis.helpSearch = (function () {
             const title = Metis.util.escapeHtml(item.title || item.id || 'Result');
             const description = Metis.util.escapeHtml(item.description || '');
             const type = Metis.util.escapeHtml(item.type || 'topic');
-            const docUrl = item.learn_more ? ' data-doc-url="' + Metis.util.escapeHtml(Metis.help.resolveDocUrl(item.learn_more)) + '"' : '';
+            const docUrl = item.learn_more ? ' data-doc-url="' + Metis.util.escapeHtml(normalizeResultUrl(Metis.help.resolveDocUrl(item.learn_more))) + '"' : '';
             return '' +
                 '<button type="button" class="metis-help-search-result" data-help-result="' + Metis.util.escapeHtml(item.id || '') + '" data-result-type="' + type + '"' + docUrl + '>' +
                     '<span class="metis-help-search-result__type">' + type + '</span>' +

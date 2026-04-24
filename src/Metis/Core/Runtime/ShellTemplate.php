@@ -269,16 +269,16 @@ if ( $help_ui_enabled ) {
                 </div>
             </div>
             <div class="metis-hermes-header-links">
-                <button id="closeHermes" type="button" aria-label="Close Hermes">x</button>
+                <button id="closeHermes" type="button" aria-label="Close Hermes">
+                    <span class="metis-hermes-close-icon" aria-hidden="true">
+                        <?php echo function_exists( 'metis_navigation_icon_markup' ) ? metis_navigation_icon_markup( 'x_circle' ) : ''; ?>
+                    </span>
+                </button>
             </div>
         </header>
 
         <div class="panel-body">
             <div id="messages" class="messages"></div>
-
-            <div class="toolbar">
-                <button id="testPulse" type="button">Diagnostics</button>
-            </div>
 
             <div class="composer">
                 <input id="chatInput" type="text" placeholder="Ask Hermes something...">

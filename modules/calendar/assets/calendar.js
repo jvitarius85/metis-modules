@@ -1,6 +1,9 @@
-document.addEventListener('DOMContentLoaded', function () {
-    const root = document.querySelector('.metis-calendar');
+function initMetisCalendar(context) {
+    const scope = context && context.root ? context.root : document;
+    const root = scope.querySelector('.metis-calendar');
     if (!root) return;
+    if (root.getAttribute('data-metis-calendar-initialized') === '1') return;
+    root.setAttribute('data-metis-calendar-initialized', '1');
 
     let ajax = null;
     try {
@@ -945,4 +948,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     renderCalendarFilters();
     load(false);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    initMetisCalendar({ root: document, reason: 'dom-ready', url: window.location.href });
 });
+
+if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
+    Metis.page.register('calendar', initMetisCalendar);
+}

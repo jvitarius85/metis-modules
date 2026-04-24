@@ -1118,6 +1118,14 @@ function metis_router_route_permission_for_request( Metis_Http_Request $request 
         return 'view';
     }
 
+    if ( in_array( $route_name, [ 'help.index', 'help.search', 'help.article', 'help.category' ], true ) ) {
+        return 'view';
+    }
+
+    if ( in_array( $route_name, [ 'help.admin.articles', 'help.admin.create', 'help.admin.edit' ], true ) ) {
+        return 'manage';
+    }
+
     if ( $route_name === 'forms.public' ) {
         return $method === 'POST' ? 'create' : 'view';
     }
@@ -1178,6 +1186,25 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
             $require_authentication = true;
             $require_session = true;
             $rate_limit = 360;
+            break;
+
+        case 'help.index':
+        case 'help.search':
+        case 'help.article':
+        case 'help.category':
+            $module = 'help';
+            $require_authentication = true;
+            $require_session = true;
+            $rate_limit = 240;
+            break;
+
+        case 'help.admin.articles':
+        case 'help.admin.create':
+        case 'help.admin.edit':
+            $module = 'help';
+            $require_authentication = true;
+            $require_session = true;
+            $rate_limit = 180;
             break;
 
         case 'forms.public':

@@ -3005,6 +3005,64 @@ Metis.breadcrumb = {
 };
 
 /* ============================================================
+   PAGE INITIALIZER REGISTRY
+   Metis.page.register(name, initFn)
+   Metis.page.init(root, context)
+   ============================================================ */
+
+Metis.page = (function() {
+    var registry = {};
+
+    function normalizeRoot(root) {
+        return root && root.querySelectorAll ? root : document;
+    }
+
+    function runCore(root) {
+        var scope = normalizeRoot(root);
+        if (Metis.a11y) {
+            Metis.a11y.enhance(scope);
+        }
+        Metis.tooltip.init(scope);
+        Metis.tabs.init(scope);
+        Metis.modal.init(scope);
+        Metis.inlineEdit.init(scope);
+        mwInitClickableRows(scope);
+    }
+
+    function register(name, initFn) {
+        var key = String(name || '').trim();
+        if (!key || typeof initFn !== 'function') return;
+        registry[key] = initFn;
+    }
+
+    function init(root, context) {
+        var scope = normalizeRoot(root);
+        var ctx = Object.assign({
+            root: scope,
+            reason: 'page-init',
+            url: window.location.href
+        }, context || {});
+
+        runCore(scope);
+
+        Object.keys(registry).forEach(function(key) {
+            try {
+                registry[key](ctx);
+            } catch (error) {
+                if (window.console && typeof window.console.error === 'function') {
+                    window.console.error('Metis.page init failed for "' + key + '".', error);
+                }
+            }
+        });
+    }
+
+    return {
+        register: register,
+        init: init
+    };
+}());
+
+/* ============================================================
    DOM-READY BOOTSTRAP
    ============================================================ */
 
@@ -3059,12 +3117,11 @@ document.addEventListener('DOMContentLoaded', function() {
     Metis.accessibility.init();
     Metis.session.init();
     Metis.navigation.init();
-    Metis.tooltip.init();
-    Metis.tabs.init(document);
-    Metis.modal.init(document);
-    Metis.inlineEdit.init(document);
     Metis.quickActions.init();
     Metis.nav.init();
     Metis.codeSearch.init();
-    mwInitClickableRows(document);
+    Metis.page.init(document, {
+        reason: 'dom-ready',
+        url: window.location.href
+    });
 });

@@ -16,10 +16,52 @@ Metis.helpSearch = (function () {
 
     function config() {
         const helpConfig = window.metisHelp || {};
+        const ajaxConfig = window.metisAjax || {};
         return {
             endpoint: String(helpConfig.search_endpoint || '').trim(),
-            nonce: String(helpConfig.search_nonce || helpConfig.nonce || '').trim()
+            nonce: String(helpConfig.search_nonce || helpConfig.nonce || '').trim(),
+            baseUrl: String(helpConfig.docs_base_url || ajaxConfig.site_url || '').trim()
         };
+    }
+
+    function appBaseUrl() {
+        const runtime = config();
+        if (runtime.baseUrl) {
+            return runtime.baseUrl.replace(/\/+$/, '');
+        }
+
+        return String(window.location.origin || '').replace(/\/+$/, '');
+    }
+
+    function normalizeResultUrl(rawUrl) {
+        const value = String(rawUrl || '').trim();
+        if (!value) {
+            return '';
+        }
+
+        const baseUrl = appBaseUrl();
+
+        if (/^https?:\/\//i.test(value)) {
+            return value.replace(/\/enclave\/help\/admin\/help\//i, '/admin/help/');
+        }
+
+        if (value.indexOf('/enclave/help/admin/help/') !== -1) {
+            return baseUrl + '/' + value.replace(/^\/+/, '').replace(/enclave\/help\/admin\/help\//i, 'admin/help/');
+        }
+
+        if (/^\/admin\/help\//i.test(value)) {
+            return baseUrl + value;
+        }
+
+        if (/^admin\/help\//i.test(value)) {
+            return baseUrl + '/' + value;
+        }
+
+        if (value.indexOf('/admin/help/') !== -1) {
+            return baseUrl + value.slice(value.indexOf('/admin/help/'));
+        }
+
+        return value;
     }
 
     function ensure() {
@@ -67,7 +109,7 @@ Metis.helpSearch = (function () {
             }
 
             const topicId = String(item.getAttribute('data-topic-id') || '').trim();
-            const url = String(item.getAttribute('data-url') || '').trim();
+            const url = normalizeResultUrl(item.getAttribute('data-url') || '');
 
             if (topicId && window.Metis && Metis.help && typeof Metis.help.openTopic === 'function') {
                 Metis.help.openTopic(topicId);
@@ -77,7 +119,6 @@ Metis.helpSearch = (function () {
 
             if (url) {
                 window.location.assign(url);
-                return;
             }
         });
 
@@ -94,6 +135,7 @@ Metis.helpSearch = (function () {
         if (!loading) {
             return;
         }
+
         loading.classList.toggle('hidden', !isLoading);
     }
 
@@ -101,6 +143,7 @@ Metis.helpSearch = (function () {
         if (!empty) {
             return;
         }
+
         empty.textContent = message || 'No results found';
         empty.classList.toggle('hidden', !isVisible);
     }
@@ -109,6 +152,7 @@ Metis.helpSearch = (function () {
         if (results) {
             results.innerHTML = '';
         }
+
         setEmpty(false);
         setLoading(false);
     }
@@ -130,6 +174,7 @@ Metis.helpSearch = (function () {
             const selected = current === slug ? ' selected' : '';
             options.push('<option value="' + Metis.util.escapeHtml(slug) + '"' + selected + '>' + Metis.util.escapeHtml(name) + '</option>');
         });
+
         category.innerHTML = options.join('');
         categoriesLoaded = true;
     }
@@ -150,7 +195,7 @@ Metis.helpSearch = (function () {
             const title = Metis.util.escapeHtml(String(item.title || 'Help result'));
             const summary = Metis.util.escapeHtml(String(item.summary || ''));
             const meta = Metis.util.escapeHtml(String(item.category || 'Help'));
-            const url = Metis.util.escapeHtml(String(item.url || ''));
+            const url = Metis.util.escapeHtml(normalizeResultUrl(item.url || ''));
             const topicId = Metis.util.escapeHtml(String(item.topic_id || ''));
 
             return '' +
@@ -258,6 +303,7 @@ Metis.helpSearch = (function () {
         } else {
             modal.classList.add('is-open');
         }
+
         modal.setAttribute('aria-hidden', 'false');
         input.focus();
         runSearch(1);
@@ -267,11 +313,13 @@ Metis.helpSearch = (function () {
         if (!modal) {
             return;
         }
+
         if (window.Metis && Metis.modal) {
             Metis.modal.close(modal);
         } else {
             modal.classList.remove('is-open');
         }
+
         modal.setAttribute('aria-hidden', 'true');
     }
 

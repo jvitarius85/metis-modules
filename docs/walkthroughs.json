@@ -89,5 +89,115 @@
                 "advance": "next"
             }
         ]
+    },
+    "finance_gl_entry": {
+        "title": "Creating a GL Entry",
+        "description": "Guide for opening the GL entry workflow and entering balanced lines.",
+        "module": "finance",
+        "topic": "finance.gl_entry",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-finance-v2-app .mw-list-sidebar-nav-item.is-active, .metis-finance-v2-app [data-open-gl-modal=\"1\"]",
+                "message": "You are in the GL Entry area. Use this section for journal and ledger entries.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-finance-v2-app [data-open-gl-modal=\"1\"]",
+                "message": "Start a new GL entry from the Quick GL Entry action.",
+                "advance": "click"
+            },
+            {
+                "target": ".metis-finance-v2-app .mw-settings-body",
+                "message": "Review the entry list and confirm debits, credits, memo, and date before saving or submitting.",
+                "advance": "next"
+            }
+        ]
+    },
+    "donations_create_donation": {
+        "title": "Recording a Donation",
+        "description": "Guide for finding the donation entry workflow and preparing a gift record.",
+        "module": "donations",
+        "topic": "donations.transactions",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".mw-transactions-view, .mw-tx-table",
+                "message": "This is the donation transactions workflow where gift entry and deposit batch work begins.",
+                "advance": "next"
+            },
+            {
+                "target": ".mw-list-sidebar",
+                "message": "Use the sidebar filters to confirm you are on the right transaction set before entering or reviewing a donation.",
+                "advance": "next"
+            },
+            {
+                "target": ".mw-tx-table",
+                "message": "Use the main transaction table to review gifts and batch-ready rows, then continue the donation workflow from here.",
+                "advance": "next"
+            }
+        ]
+    },
+    "website_publish_page": {
+        "title": "Publishing a Website Page",
+        "description": "Guide for locating page actions and reviewing the publish workflow.",
+        "module": "website",
+        "topic": "website.pages",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": "#metis-pages-list-shell .mw-page-header",
+                "message": "Start from the Website pages list so you can create, edit, or publish the correct page record.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-create-page-btn, .metis-pages-table .metis-publish-page, .metis-pages-table .metis-edit-page",
+                "message": "Use the page actions here to create a draft, open the editor, or publish an existing page.",
+                "advance": "next"
+            },
+            {
+                "target": ".metis-pages-table",
+                "message": "Confirm the page status and choose the matching action for draft, edit, or publish.",
+                "advance": "next"
+            }
+        ]
+    },
+    "calendar_create_event": {
+        "title": "Creating a Calendar Event",
+        "description": "Guide for locating the calendar creation controls.",
+        "module": "calendar",
+        "topic": "calendar.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-calendar-toolbar-left",
+                "message": "Use the calendar toolbar to confirm the correct calendar and date range first.",
+                "advance": "next"
+            },
+            {
+                "target": "#metis-calendar-new",
+                "message": "Start the event workflow from the New Event button.",
+                "advance": "click"
+            }
+        ]
+    },
+    "people_assign_role": {
+        "title": "Assigning a Role",
+        "description": "Guide for locating people, roles, and access tools.",
+        "module": "people",
+        "topic": "people.dashboard",
+        "trigger": "manual",
+        "steps": [
+            {
+                "target": ".metis-people-search-tile",
+                "message": "Start by locating the person record you want to review or update.",
+                "advance": "next"
+            },
+            {
+                "target": ".mw-tile[href*=\"/people/roles\"], .mw-tile[href*=\"/people/access-requests\"], .mw-tile[href*=\"/people/permissions\"]",
+                "message": "Open the matching role or access tool from these people workspace shortcuts.",
+                "advance": "click"
+            }
+        ]
     }
 }

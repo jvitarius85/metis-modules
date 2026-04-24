@@ -104,6 +104,22 @@ metis_on('metis_assets_enqueue', function () {
     );
 
     metis_runtime_register_script_alias(
+        'metis-help-admin',
+        $asset_base_url . 'assets/js/help-admin.js',
+        [ 'metis-core' ],
+        $asset_version,
+        true
+    );
+
+    metis_runtime_register_script_alias(
+        'metis-help-library',
+        $asset_base_url . 'assets/js/help-library.js',
+        [ 'metis-core' ],
+        $asset_version,
+        true
+    );
+
+    metis_runtime_register_script_alias(
         'metis-walkthrough-ui',
         $asset_base_url . 'assets/js/help/walkthrough.js',
         [ 'metis-core' ],
@@ -207,6 +223,8 @@ metis_on('metis_assets_enqueue', function () {
         'nonce' => metis_runtime_create_nonce( 'metis_core' ),
         'search_endpoint' => function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/enclave/help/search.php' ) : rtrim( $asset_base_url, '/' ) . '/enclave/help/search.php',
         'search_nonce' => metis_runtime_create_nonce( 'metis_help_search_route' ),
+        'support_endpoint' => function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/enclave/help/request-assistance.php' ) : rtrim( $asset_base_url, '/' ) . '/enclave/help/request-assistance.php',
+        'support_nonce' => metis_runtime_create_nonce( 'metis_help_request_assistance_route' ),
         'action_nonces' => [
             'metis_help_index' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_help_index' ) ),
             'metis_help_topic' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_help_topic' ) ),
@@ -239,6 +257,10 @@ metis_on('metis_assets_enqueue', function () {
             metis_runtime_enqueue_script( 'metis-walkthrough-ui' );
         }
         metis_runtime_enqueue_script( 'metis-help-ui' );
+        if ( $domain === 'help' ) {
+            metis_runtime_enqueue_script( 'metis-help-admin' );
+            metis_runtime_enqueue_script( 'metis-help-library' );
+        }
         metis_runtime_localize_script( 'metis-help-ui', 'metisHelp', $help_payload );
     }
 

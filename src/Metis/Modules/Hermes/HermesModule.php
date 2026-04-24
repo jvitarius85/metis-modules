@@ -28,8 +28,10 @@ use Metis\Hermes\HermesReasoner;
 use Metis\Hermes\HermesRepository;
 use Metis\Hermes\HermesResponseRenderer;
 use Metis\Hermes\HermesToolRegistry;
+use Metis\Hermes\HermesToolExecutor;
 use Metis\Hermes\HermesWalkthroughResolver;
 use Metis\Hermes\HermesWorkerManager;
+use Metis\Hermes\HelpIssueResolver;
 use Metis\Hermes\EntityRegistryBuilder;
 use Metis\Hermes\DataCapabilityBuilder;
 use Metis\Hermes\HermesSafetyGovernor;
@@ -87,6 +89,15 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_help_resolver' ) ) {
             $registry->singleton( 'hermes_help_resolver', static fn (): HermesHelpResolver => new HermesHelpResolver( Application::service( 'help' ) ) );
         }
+        if ( ! $registry->has( 'hermes_help_issue_resolver' ) ) {
+            $registry->singleton( 'hermes_help_issue_resolver', static fn (): HelpIssueResolver => new HelpIssueResolver(
+                Application::service( 'help' ),
+                new \Metis\Core\HelpSearchStore(),
+                Application::service( 'permissions' ),
+                Application::service( 'hermes_repository' ),
+                Application::service( 'hermes_command_registry' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_walkthrough_resolver' ) ) {
             $registry->singleton( 'hermes_walkthrough_resolver', static fn (): HermesWalkthroughResolver => new HermesWalkthroughResolver( Application::service( 'walkthroughs' ) ) );
         }
@@ -129,7 +140,13 @@ final class HermesModule {
         }
         if ( ! $registry->has( 'hermes_execution_engine' ) ) {
             $registry->singleton( 'hermes_execution_engine', static fn (): HermesExecutionEngine => new HermesExecutionEngine(
-                Application::service( 'hermes_tool_registry' )
+                Application::service( 'hermes_tool_executor' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_tool_executor' ) ) {
+            $registry->singleton( 'hermes_tool_executor', static fn (): HermesToolExecutor => new HermesToolExecutor(
+                Application::service( 'hermes_tool_registry' ),
+                Application::service( 'hermes_permission_validator' )
             ) );
         }
         if ( ! $registry->has( 'hermes_response_renderer' ) ) {
@@ -165,7 +182,8 @@ final class HermesModule {
                 Application::service( 'hermes_directory' ),
                 Application::service( 'hermes_user_admin' ),
                 Application::service( 'hermes_system_ops' ),
-                function_exists( 'metis_job_queue' ) ? \metis_job_queue() : null
+                function_exists( 'metis_job_queue' ) ? \metis_job_queue() : null,
+                Application::service( 'hermes_help_issue_resolver' )
             ) );
         }
         if ( ! $registry->has( 'hermes_context_builder' ) ) {

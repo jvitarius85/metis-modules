@@ -1,27 +1,9 @@
 <?php
 declare(strict_types=1);
 
-if ( ! defined( 'METIS_STANDALONE' ) ) {
-    define( 'METIS_STANDALONE', true );
-}
-
-if ( ! defined( 'METIS_PATH' ) ) {
-    define( 'METIS_PATH', dirname( __DIR__, 2 ) . '/' );
-}
-
-require_once dirname( __DIR__, 2 ) . '/src/Metis/Core/CoreBootstrap.php';
-metis_core_bootstrap( 'standalone_bootstrap' );
-metis_standalone_boot();
+require_once __DIR__ . '/_bootstrap.php';
 
 header( 'Content-Type: application/json; charset=utf-8' );
-
-$encode = static function ( array $payload ): string {
-    if ( function_exists( 'wp_json_encode' ) ) {
-        return (string) wp_json_encode( $payload );
-    }
-
-    return (string) json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-};
 
 if ( strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) !== 'POST' ) {
     http_response_code( 405 );
@@ -33,21 +15,7 @@ if ( strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) !== 'POST' )
 }
 
 $enclave = metis_security_enclave();
-if ( ! $enclave->has_policy( 'help.search' ) ) {
-    $enclave->register_policy(
-        new Metis_Security_Policy(
-            'help.search',
-            null,
-            'view',
-            true,
-            true,
-            true,
-            'metis_help_search_route',
-            180,
-            60
-        )
-    );
-}
+metis_help_enclave_register_policy( 'help.search', 'view', 'metis_help_search_route' );
 
 try {
     $payload = $enclave->execute(
@@ -68,10 +36,10 @@ try {
         }
     );
 
-    echo $encode( array_merge( [ 'success' => true ], $payload ) );
+    echo metis_help_enclave_json( array_merge( [ 'success' => true ], $payload ) );
 } catch ( Throwable $throwable ) {
     http_response_code( $throwable instanceof Metis_Security_Enclave_Exception ? (int) $throwable->status() : 500 );
-    echo $encode( [
+    echo metis_help_enclave_json( [
         'success' => false,
         'message' => $throwable instanceof Metis_Security_Enclave_Exception
             ? $throwable->getMessage()

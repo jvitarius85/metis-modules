@@ -43,6 +43,18 @@ final class HermesSecurityIntegration {
     private static function policies(): array {
         return [
             new \Metis_Security_Policy(
+                operation:              'hermes.tool.query',
+                module:                 'hermes',
+                permission:             'view',
+                require_authentication: true,
+                require_session:        true,
+                require_nonce:          true,
+                nonce_key:              'metis_ajax:metis_hermes_query',
+                rate_limit:             120,
+                rate_window_seconds:    60
+            ),
+
+            new \Metis_Security_Policy(
                 operation:              'hermes.tool.execute',
                 module:                 'hermes',
                 permission:             'edit',

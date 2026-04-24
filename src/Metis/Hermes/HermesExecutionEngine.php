@@ -5,7 +5,7 @@ namespace Metis\Hermes;
 
 final class HermesExecutionEngine {
     public function __construct(
-        private readonly HermesToolRegistry $tools
+        private readonly HermesToolExecutor $tools
     ) {}
 
     public function execute( array $command, array $payload = [] ): array {
@@ -20,22 +20,7 @@ final class HermesExecutionEngine {
             ];
         }
 
-        $tool = $this->tools->definition( $tool_key );
-        if ( $tool === [] ) {
-            return [
-                'status' => 'error',
-                'error_code' => 'TOOL_NOT_FOUND',
-                'message' => sprintf( 'Tool [%s] is not registered.', $tool_key ),
-            ];
-        }
-
-        $this->assertPayloadMatchesSchema( $payload, (array) ( $tool['input_schema'] ?? [] ), 'tool_payload' );
-
-        require_once METIS_PATH . 'core/enclave/execute.php';
-
-        return \metis_core_enclave_execute_tool( $tool, $payload, [
-            'command_key' => (string) ( $command['key'] ?? '' ),
-        ] );
+        return $this->tools->execute( $tool_key, $payload );
     }
 
     private function assertPayloadMatchesSchema( array $payload, array $schema, string $path = 'payload' ): void {

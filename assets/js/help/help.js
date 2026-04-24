@@ -13,6 +13,7 @@ Metis.help = (function () {
     let loaded = false;
     let topics = {};
     let hoverCard = null;
+    let focusedTarget = null;
 
     function ensureHoverCard() {
         if (hoverCard) return hoverCard;
@@ -56,17 +57,83 @@ Metis.help = (function () {
         return String(config.current_topic || document.querySelector('[data-metis-topic]')?.getAttribute('data-metis-topic') || '');
     }
 
+    function clearFallbackTags() {
+        document.querySelectorAll('[data-help-fallback]').forEach(function (element) {
+            element.removeAttribute('data-help-fallback');
+            element.classList.remove('metis-help-fallback');
+        });
+    }
+
     function tagFallbackElements() {
+        clearFallbackTags();
         const scope = document.querySelector('.metis-view-shell');
         if (!scope) return;
         const topic = currentTopicId();
         if (!topic) return;
+        const selectors = [
+            'section',
+            'article',
+            'form',
+            '.mw-page-header',
+            '.mw-settings-card',
+            '.mw-premium-table',
+            '.metis-table-wrap',
+            '.mw-list-content',
+            '.mw-tile',
+            '.mw-stat-card',
+            '.metis-calendar-shell',
+            '.metis-calendar-toolbar-left'
+        ];
+        let tagged = 0;
 
-        scope.querySelectorAll('button, a, input, select, textarea').forEach(function (element) {
-            if (element.hasAttribute('data-help')) return;
+        scope.querySelectorAll(selectors.join(',')).forEach(function (element) {
+            if (tagged >= 18) return;
+            if (element.hasAttribute('data-help') || element.closest('[data-help]')) return;
+            if (element.querySelector('[data-help]')) return;
+            if (String(element.textContent || '').trim() === '') return;
             element.classList.add('metis-help-fallback');
             element.setAttribute('data-help-fallback', topic);
+            tagged += 1;
         });
+
+        if (tagged < 1) {
+            scope.classList.add('metis-help-fallback');
+            scope.setAttribute('data-help-fallback', topic);
+        }
+    }
+
+    function clearFocusedTarget() {
+        if (!focusedTarget) return;
+        focusedTarget.classList.remove('metis-help-guided-target');
+        focusedTarget.removeAttribute('data-help-guided-target');
+        focusedTarget = null;
+    }
+
+    function focusTarget(options) {
+        options = options || {};
+        clearFocusedTarget();
+
+        const selector = String(options.selector || '').trim();
+        const fallbackSelector = String(options.fallbackSelector || '.metis-view-shell').trim();
+        const target = selector
+            ? document.querySelector(selector) || document.querySelector(fallbackSelector)
+            : document.querySelector(fallbackSelector);
+
+        if (!target) {
+            return false;
+        }
+
+        focusedTarget = target;
+        target.classList.add('metis-help-guided-target');
+        target.setAttribute('data-help-guided-target', '1');
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        window.setTimeout(function () {
+            if (focusedTarget === target) {
+                clearFocusedTarget();
+            }
+        }, 4200);
+
+        return true;
     }
 
     function topicForElement(element) {
@@ -198,7 +265,9 @@ Metis.help = (function () {
         init: init,
         toggle: toggle,
         openTopic: openTopic,
-        resolveDocUrl: resolveDocUrl
+        resolveDocUrl: resolveDocUrl,
+        focusTarget: focusTarget,
+        retagFallbackElements: tagFallbackElements
     };
 }());
 

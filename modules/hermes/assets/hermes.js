@@ -144,6 +144,103 @@ function clearMessages(){
 messages.innerHTML=""
 }
 
+function encodeDatasetJson(value){
+try{
+return escapeHtml(JSON.stringify(value || {}))
+}catch(_error){
+return "{}"
+}
+}
+
+function parseDatasetJson(value){
+try{
+const parsed=JSON.parse(String(value||"{}"))
+return parsed && typeof parsed==="object" ? parsed : {}
+}catch(_error){
+return {}
+}
+}
+
+function isHelpIssuePayload(value){
+if(!value || typeof value!=="object"){
+return false
+}
+return Boolean(
+value.section_labels ||
+value.formatted_response ||
+value.response_mode ||
+value.classification ||
+(Array.isArray(value.steps) && value.steps.length) ||
+(Array.isArray(value.checks) && value.checks.length) ||
+(Array.isArray(value.admin_escalation) && value.admin_escalation.length) ||
+(Array.isArray(value.guidance_links) && value.guidance_links.length) ||
+(Array.isArray(value.related_articles) && value.related_articles.length)
+)
+}
+
+function buildConversationMarkup(data){
+const structured=(data && data.reasoning && data.reasoning.structured && typeof data.reasoning.structured==="object"
+? data.reasoning.structured
+: (data && typeof data==="object" ? data : null))
+const helpResult=structured && isHelpIssuePayload(structured.result) ? structured.result : (structured && isHelpIssuePayload(structured) ? structured : null)
+const answer=helpResult && helpResult.summary
+? String(helpResult.summary)
+: (data && data.reasoning && data.reasoning.answer ? String(data.reasoning.answer) : "Operation request received.")
+let html=`<div class="hermes-answer">${escapeHtml(answer)}</div>`
+
+if(data && data.reasoning && data.reasoning.grounding && Array.isArray(data.reasoning.grounding.grounded) && data.reasoning.grounding.grounded.length){
+html+=`<div class="hermes-grounding">Grounded in ${escapeHtml(data.reasoning.grounding.grounded.slice(0,3).map(g=>g.label).join(", "))}</div>`
+}
+
+if(structured && isHelpIssuePayload(structured.result)){
+html+=renderHelpIssueResult(structured.result)
+}else if(structured && structured.result){
+html+=renderOperationResult(structured.result)
+}else if(structured && isHelpIssuePayload(structured)){
+html+=renderHelpIssueResult(structured)
+}else if(data && data.result){
+html+=renderOperationResult(data.result)
+}
+
+if(data && Array.isArray(data.actions) && data.actions.length){
+html+=`<div class="hermes-action-list">`
+data.actions.forEach(action=>{
+html+=actionCard(action)
+})
+html+=`</div>`
+}
+
+return html
+}
+
+function restoreHistoryItem(item){
+const role=String(item && item.role_name ? item.role_name : "hermes")
+const content=String(item && item.content ? item.content : "")
+const metadata=item && item.metadata && typeof item.metadata==="object" ? item.metadata : {}
+
+if(role==="user"){
+if(content){
+addMessage(content,"user")
+}
+return
+}
+
+const structured=metadata && metadata.structured && typeof metadata.structured==="object" ? metadata.structured : null
+if(structured){
+addRichMessage(buildConversationMarkup({
+reasoning:{
+answer:String(metadata.answer || content || ""),
+structured:structured
+}
+}),"hermes")
+return
+}
+
+if(content){
+addMessage(content,"hermes")
+}
+}
+
 function hydrateHistory(history){
 clearMessages()
 
@@ -153,10 +250,7 @@ return
 }
 
 history.forEach(item=>{
-const role=String(item && item.role_name ? item.role_name : "hermes")
-const content=String(item && item.content ? item.content : "")
-if(!content) return
-addMessage(content,role==="user" ? "user" : "hermes")
+restoreHistoryItem(item)
 })
 }
 
@@ -200,31 +294,7 @@ return `<div class="hermes-action-card" data-action-code="${escapeHtml(actionCod
 }
 
 function renderConversationResponse(data){
-const answer=data && data.reasoning && data.reasoning.answer ? String(data.reasoning.answer) : "Operation request received."
-const structured=(data && data.reasoning && data.reasoning.structured && typeof data.reasoning.structured==="object"
-? data.reasoning.structured
-: (data && typeof data==="object" ? data : null))
-let html=`<div class="hermes-answer">${escapeHtml(answer)}</div>`
-
-if(data && data.reasoning && data.reasoning.grounding && Array.isArray(data.reasoning.grounding.grounded) && data.reasoning.grounding.grounded.length){
-html+=`<div class="hermes-grounding">Grounded in ${escapeHtml(data.reasoning.grounding.grounded.slice(0,3).map(g=>g.label).join(", "))}</div>`
-}
-
-if(structured && structured.result){
-html+=renderOperationResult(structured.result)
-}else if(data && data.result){
-html+=renderOperationResult(data.result)
-}
-
-if(data && Array.isArray(data.actions) && data.actions.length){
-html+=`<div class="hermes-action-list">`
-data.actions.forEach(action=>{
-html+=actionCard(action)
-})
-html+=`</div>`
-}
-
-addRichMessage(html,"hermes")
+addRichMessage(buildConversationMarkup(data),"hermes")
 }
 
 function renderDiagnosticResponse(data){
@@ -551,6 +621,79 @@ return html
 return ``
 }
 
+function renderHelpIssueResult(result){
+if(!result || typeof result!=="object"){
+return ""
+}
+
+let html=""
+const labels=result.section_labels && typeof result.section_labels==="object" ? result.section_labels : {}
+const stepsLabel=String(labels.steps || "Step-by-step fix")
+const checksLabel=String(labels.checks || "Things to check")
+const adminLabel=String(labels.admin || "When to contact an admin")
+const articlesLabel=String(labels.articles || "Related help articles")
+
+if(Array.isArray(result.guidance_links) && result.guidance_links.length){
+html+=`<div class="hermes-grounding">Go to</div>`
+html+=`<div class="hermes-action-buttons">`
+result.guidance_links.slice(0,2).forEach(link=>{
+const payload=encodeDatasetJson(link)
+html+=`<button type="button" class="hermes-inline-btn primary" data-hermes-navigate="${payload}">${escapeHtml(String(link.label||"Go there"))}</button>`
+if(link.walkthrough_id || link.highlight_selector){
+html+=`<button type="button" class="hermes-inline-btn" data-hermes-guide="${payload}">Guide me</button>`
+}
+})
+html+=`</div>`
+}
+
+if(Array.isArray(result.steps) && result.steps.length){
+html+=`<div class="hermes-grounding">${escapeHtml(stepsLabel)}</div>`
+html+=`<ol class="hermes-rich-list">`
+result.steps.forEach(step=>{
+html+=`<li>${escapeHtml(String(step))}</li>`
+})
+html+=`</ol>`
+}
+
+if(Array.isArray(result.checks) && result.checks.length){
+html+=`<div class="hermes-grounding">${escapeHtml(checksLabel)}</div>`
+html+=`<ul class="hermes-rich-list">`
+result.checks.slice(0,6).forEach(check=>{
+html+=`<li>${escapeHtml(String(check))}</li>`
+})
+html+=`</ul>`
+}
+
+if(Array.isArray(result.admin_escalation) && result.admin_escalation.length){
+html+=`<div class="hermes-grounding">${escapeHtml(adminLabel)}</div>`
+html+=`<ul class="hermes-rich-list">`
+result.admin_escalation.slice(0,5).forEach(item=>{
+html+=`<li>${escapeHtml(String(item))}</li>`
+})
+html+=`</ul>`
+}
+
+if(Array.isArray(result.related_articles) && result.related_articles.length){
+html+=`<div class="hermes-grounding">${escapeHtml(articlesLabel)}</div>`
+html+=`<div class="hermes-findings">`
+result.related_articles.slice(0,5).forEach(article=>{
+html+=`<div class="hermes-finding"><strong>${escapeHtml(String(article.title||"Article"))}</strong><span>${escapeHtml(String(article.summary||article.slug||""))}</span></div>`
+})
+html+=`</div>`
+}
+
+if(Array.isArray(result.proposed_actions) && result.proposed_actions.length){
+html+=`<div class="hermes-grounding">Proposed actions</div>`
+html+=`<div class="hermes-findings">`
+result.proposed_actions.forEach(action=>{
+html+=`<div class="hermes-finding"><strong>${escapeHtml(String(action.title||"Action"))}</strong><span>${escapeHtml(String(action.action_summary||"Requires approval before execution."))}</span></div>`
+})
+html+=`</div>`
+}
+
+return html
+}
+
 function formatCurrency(value){
 const amount=Number(value||0)
 if(!Number.isFinite(amount)){
@@ -635,6 +778,255 @@ html+=`</div>`
 return html
 }
 
+function refreshHelpContext(){
+const shell=document.querySelector(".metis-view-shell")
+if(!shell || !window.metisHelp){
+return
+}
+window.metisHelp.current_topic=String(shell.getAttribute("data-metis-topic")||"")
+window.metisHelp.current_domain=String(shell.getAttribute("data-metis-module")||"")
+window.metisHelp.current_view=String(shell.getAttribute("data-metis-view")||"")
+}
+
+function refreshCoreUi(){
+refreshHelpContext()
+const main=document.getElementById("mw-main-content") || document
+if(window.Metis && Metis.page && typeof Metis.page.init==="function"){
+Metis.page.init(main,{
+reason:"partial-navigation",
+url:window.location.href
+})
+}else{
+if(window.Metis && Metis.tabs && typeof Metis.tabs.init==="function"){
+Metis.tabs.init(main)
+}
+if(window.Metis && Metis.modal && typeof Metis.modal.init==="function"){
+Metis.modal.init(main)
+}
+if(window.Metis && Metis.inlineEdit && typeof Metis.inlineEdit.init==="function"){
+Metis.inlineEdit.init(main)
+}
+}
+if(window.Metis && Metis.help && typeof Metis.help.retagFallbackElements==="function"){
+Metis.help.retagFallbackElements()
+}
+document.dispatchEvent(new CustomEvent("metis:navigation:loaded",{detail:{url:window.location.href}}))
+}
+
+function syncBodyClasses(doc){
+if(!doc || !doc.body){
+return
+}
+const keep=["metis-help-mode","metis-help-panel-open","metis-walkthrough-active"]
+const next=new Set(String(doc.body.className||"").split(/\s+/).filter(Boolean))
+keep.forEach(cls=>{
+if(document.body.classList.contains(cls)){
+next.add(cls)
+}
+})
+document.body.className=Array.from(next).join(" ")
+}
+
+function assetFingerprint(node){
+if(!node){
+return ""
+}
+if(node.tagName==="LINK"){
+return `link:${String(node.getAttribute("href")||"").trim()}`
+}
+if(node.tagName==="SCRIPT" && node.src){
+return `script:${String(node.src||"").trim()}`
+}
+if(node.tagName==="SCRIPT"){
+return `inline:${String(node.textContent||"").trim()}`
+}
+return ""
+}
+
+function shouldSyncHeadNode(node){
+if(!node || !node.tagName){
+return false
+}
+if(node.tagName==="LINK"){
+const rel=String(node.getAttribute("rel")||"").toLowerCase()
+const href=String(node.getAttribute("href")||"").trim()
+return rel==="stylesheet" && href!=="" && (/\/assets\//.test(href) || /\/assets\/modules\//.test(href))
+}
+if(node.tagName==="SCRIPT"){
+if(node.src){
+return /\/assets\//.test(String(node.src||""))
+}
+const text=String(node.textContent||"").trim()
+return text!=="" && /(metis[A-Z]|window\.metis|window\.Metis|const metis|var metis)/.test(text)
+}
+return false
+}
+
+function loadScriptNode(node){
+return new Promise((resolve,reject)=>{
+const script=document.createElement("script")
+Array.from(node.attributes).forEach(attribute=>{
+script.setAttribute(attribute.name,attribute.value)
+})
+script.onload=()=>resolve(true)
+script.onerror=()=>reject(new Error("Module script failed to load."))
+if(!node.src){
+script.text=node.textContent || ""
+document.head.appendChild(script)
+resolve(true)
+return
+}
+document.head.appendChild(script)
+})
+}
+
+function syncHeadAssets(doc){
+if(!doc || !doc.head){
+return Promise.resolve(false)
+}
+const existing=new Set()
+document.head.querySelectorAll('link[rel="stylesheet"][href],script[src],script:not([src])').forEach(node=>{
+const fingerprint=assetFingerprint(node)
+if(fingerprint){
+existing.add(fingerprint)
+}
+})
+
+const pending=[]
+let addedModuleScript=false
+doc.head.querySelectorAll("link[rel='stylesheet'][href],script").forEach(node=>{
+if(!shouldSyncHeadNode(node)){
+return
+}
+const fingerprint=assetFingerprint(node)
+if(!fingerprint || existing.has(fingerprint)){
+return
+}
+existing.add(fingerprint)
+if(node.tagName==="LINK"){
+const link=document.createElement("link")
+Array.from(node.attributes).forEach(attribute=>{
+link.setAttribute(attribute.name,attribute.value)
+})
+document.head.appendChild(link)
+return
+}
+if(node.tagName==="SCRIPT"){
+if(node.src && /\/assets\/modules\//.test(String(node.src||""))){
+addedModuleScript=true
+}
+pending.push(loadScriptNode(node))
+}
+})
+
+if(!pending.length){
+return Promise.resolve(false)
+}
+
+return Promise.all(pending).then(()=>addedModuleScript)
+}
+
+function executeEmbeddedScripts(scope){
+if(!scope){
+return
+}
+scope.querySelectorAll("script").forEach(script=>{
+const replacement=document.createElement("script")
+Array.from(script.attributes).forEach(attribute=>{
+replacement.setAttribute(attribute.name,attribute.value)
+})
+replacement.text=script.textContent || ""
+script.parentNode.replaceChild(replacement,script)
+})
+}
+
+function navigateWithinShell(targetUrl,options){
+const target=String(targetUrl||"").trim()
+const currentMain=document.getElementById("mw-main-content")
+const opts=options && typeof options==="object" ? options : {}
+
+if(!target){
+return Promise.resolve(false)
+}
+
+if(!currentMain){
+if(window.Metis && Metis.navigation && typeof Metis.navigation.go==="function"){
+Metis.navigation.go(target)
+}else{
+window.location.assign(target)
+}
+return Promise.resolve(false)
+}
+
+return fetch(target,{
+credentials:"same-origin",
+headers:{
+Accept:"text/html,application/xhtml+xml"
+}
+}).then(response=>{
+if(!response.ok){
+throw new Error("Unable to open that page right now.")
+}
+return response.text()
+}).then(html=>{
+const doc=new DOMParser().parseFromString(String(html||""),"text/html")
+const nextMain=doc.querySelector("#mw-main-content")
+if(!nextMain){
+throw new Error("Target page could not be loaded in-place.")
+}
+return syncHeadAssets(doc).then(addedModuleScript=>{
+currentMain.innerHTML=nextMain.innerHTML
+syncBodyClasses(doc)
+document.title=String(doc.title||document.title)
+
+if(opts.replace){
+window.history.replaceState({metisPartial:true},"",target)
+}else{
+window.history.pushState({metisPartial:true},"",target)
+}
+
+executeEmbeddedScripts(currentMain)
+refreshCoreUi()
+
+if(window.Metis && Metis.help && typeof Metis.help.focusTarget==="function"){
+window.setTimeout(()=>{
+Metis.help.focusTarget({
+selector:String(opts.highlight_selector||"").trim(),
+fallbackSelector:".metis-view-shell"
+})
+},120)
+}
+
+if(opts.walkthrough_id && window.Metis && Metis.walkthrough && typeof Metis.walkthrough.start==="function"){
+window.setTimeout(()=>{
+Metis.walkthrough.start(String(opts.walkthrough_id))
+},260)
+}
+
+return true
+})
+}).catch(error=>{
+if(window.Metis && Metis.toast && typeof Metis.toast.error==="function"){
+Metis.toast.error(error && error.message ? String(error.message) : "Navigation failed.")
+}
+if(window.Metis && Metis.navigation && typeof Metis.navigation.go==="function"){
+Metis.navigation.go(target)
+}else{
+window.location.assign(target)
+}
+return false
+})
+}
+
+function triggerGuidance(payload,guideMode){
+const target=payload && typeof payload==="object" ? payload : {}
+return navigateWithinShell(String(target.url||""),{
+highlight_selector:String(target.highlight_selector||""),
+walkthrough_id:guideMode ? String(target.walkthrough_id||"") : "",
+replace:false
+})
+}
+
 function request(action,data){
 pendingRequests+=1
 thinking=true
@@ -689,6 +1081,17 @@ addMessage("Submit an operational request.","hermes")
 })
 }
 
+function currentHermesContext(){
+const shell=document.querySelector(".metis-view-shell")
+const moduleKey=shell ? String(shell.getAttribute("data-metis-module")||"").trim() : ""
+const topic=shell ? String(shell.getAttribute("data-metis-topic")||"").trim() : ""
+return {
+current_route:String(window.location.pathname||"").trim(),
+current_module:moduleKey,
+current_topic:topic
+}
+}
+
 function sendMessage(forcedText,forcedAction){
 
 let text=(typeof forcedText==="string"?forcedText:input.value).trim()
@@ -700,9 +1103,14 @@ addMessage(text,"user")
 
 input.value=""
 
+const context=currentHermesContext()
+
 request(action,{
 query:text,
-session_code:sessionCode
+session_code:sessionCode,
+current_route:context.current_route,
+current_module:context.current_module,
+current_topic:context.current_topic
 }).then(data=>{
 
 if(data && data.session && data.session.session_code){
@@ -754,6 +1162,8 @@ const previewBtn=e.target.closest("[data-hermes-preview]")
 const approveBtn=e.target.closest("[data-hermes-approve]")
 const executeBtn=e.target.closest("[data-hermes-execute]")
 const revealBtn=e.target.closest("[data-hermes-reveal]")
+const navigateBtn=e.target.closest("[data-hermes-navigate]")
+const guideBtn=e.target.closest("[data-hermes-guide]")
 
 if(previewBtn){
 previewAction(String(previewBtn.getAttribute("data-hermes-preview")||""))
@@ -769,6 +1179,14 @@ executeAction(String(executeBtn.getAttribute("data-hermes-execute")||""))
 
 if(revealBtn){
 revealSecret(String(revealBtn.getAttribute("data-hermes-reveal")||""))
+}
+
+if(navigateBtn){
+triggerGuidance(parseDatasetJson(navigateBtn.getAttribute("data-hermes-navigate")||"{}"),false)
+}
+
+if(guideBtn){
+triggerGuidance(parseDatasetJson(guideBtn.getAttribute("data-hermes-guide")||"{}"),true)
 }
 })
 

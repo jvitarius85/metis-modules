@@ -121,6 +121,11 @@ final class HermesRepository {
             [ $session_id, max( 1, min( 200, $limit ) ) ]
         );
 
+        foreach ( $rows as &$row ) {
+            $row['metadata'] = $this->decodeJson( (string) ( $row['metadata_json'] ?? '' ) );
+            unset( $row['metadata_json'] );
+        }
+
         return array_reverse( $rows );
     }
 
@@ -354,6 +359,112 @@ final class HermesRepository {
             $row['payload'] = $this->decodeJson( (string) ( $row['payload_json'] ?? '' ) );
             $row['result'] = $this->decodeJson( (string) ( $row['result_json'] ?? '' ) );
             unset( $row['payload_json'], $row['result_json'] );
+        }
+
+        return $rows;
+    }
+
+    public function logHelpIssueResolution( array $entry ): void {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $db->insert(
+            \Metis_Tables::get( 'hermes_help_issue_logs' ),
+            [
+                'session_code' => (string) ( $entry['session_code'] ?? '' ) !== '' ? (string) $entry['session_code'] : null,
+                'user_id' => ! empty( $entry['user_id'] ) ? (int) $entry['user_id'] : null,
+                'raw_message' => (string) ( $entry['raw_message'] ?? '' ) !== '' ? (string) $entry['raw_message'] : null,
+                'normalized_issue' => (string) ( $entry['normalized_issue'] ?? '' ) !== '' ? (string) $entry['normalized_issue'] : null,
+                'classification' => (string) ( $entry['classification'] ?? '' ) !== '' ? (string) $entry['classification'] : null,
+                'module_key' => (string) ( $entry['module_key'] ?? '' ) !== '' ? (string) $entry['module_key'] : null,
+                'module_label' => (string) ( $entry['module_label'] ?? '' ) !== '' ? (string) $entry['module_label'] : null,
+                'action_key' => (string) ( $entry['action_key'] ?? '' ) !== '' ? (string) $entry['action_key'] : null,
+                'confidence_label' => (string) ( $entry['confidence_label'] ?? '' ) !== '' ? (string) $entry['confidence_label'] : null,
+                'confidence_score' => isset( $entry['confidence_score'] ) ? (float) $entry['confidence_score'] : null,
+                'help_articles_json' => $this->encodeJson( (array) ( $entry['help_articles'] ?? [] ) ),
+                'diagnostics_json' => $this->encodeJson( (array) ( $entry['diagnostics'] ?? [] ) ),
+                'proposed_actions_json' => $this->encodeJson( (array) ( $entry['proposed_actions'] ?? [] ) ),
+                'executed_actions_json' => $this->encodeJson( (array) ( $entry['executed_actions'] ?? [] ) ),
+                'result_json' => $this->encodeJson( (array) ( $entry['result'] ?? [] ) ),
+            ],
+            [ '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s', '%s' ]
+        );
+    }
+
+    public function helpIssueCoverage( int $limit = 25 ): array {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+        $limit = max( 1, min( 100, $limit ) );
+        $logsTable = \Metis_Tables::get( 'hermes_help_issue_logs' );
+        $articlesTable = \Metis_Tables::get( 'help_articles' );
+
+        $frequent = $db->fetchAll(
+            "SELECT normalized_issue, COUNT(*) AS hits, MAX(created_at) AS last_seen
+             FROM {$logsTable}
+             WHERE normalized_issue IS NOT NULL AND normalized_issue <> ''
+             GROUP BY normalized_issue
+             ORDER BY hits DESC, last_seen DESC
+             LIMIT %d",
+            [ $limit ]
+        );
+
+        $unresolved = $db->fetchAll(
+            "SELECT normalized_issue, classification, confidence_label, created_at
+             FROM {$logsTable}
+             WHERE (confidence_label IN ('low', 'none') OR confidence_label IS NULL)
+             ORDER BY id DESC
+             LIMIT %d",
+            [ $limit ]
+        );
+
+        $failedMatches = $db->fetchAll(
+            "SELECT normalized_issue, module_key, action_key, confidence_label, created_at
+             FROM {$logsTable}
+             WHERE JSON_EXTRACT(COALESCE(result_json, '{}'), '$.related_articles.0.title') IS NULL
+             ORDER BY id DESC
+             LIMIT %d",
+            [ $limit ]
+        );
+
+        $missingTerms = $db->fetchAll(
+            "SELECT id, title, slug, module_key, action_key, updated_at
+             FROM {$articlesTable}
+             WHERE COALESCE(search_terms, '') = ''
+             ORDER BY updated_at DESC, id DESC
+             LIMIT %d",
+            [ $limit ]
+        );
+
+        return [
+            'frequent_issue_phrases' => $frequent,
+            'unresolved_issue_phrases' => $unresolved,
+            'low_confidence_classifications' => $unresolved,
+            'failed_help_search_matches' => $failedMatches,
+            'articles_needing_search_terms' => $missingTerms,
+        ];
+    }
+
+    public function recentHelpIssueLogs( int $limit = 20 ): array {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+        $rows = $db->fetchAll(
+            'SELECT * FROM ' . \Metis_Tables::get( 'hermes_help_issue_logs' ) . ' ORDER BY id DESC LIMIT %d',
+            [ max( 1, min( 100, $limit ) ) ]
+        );
+
+        foreach ( $rows as &$row ) {
+            $row['help_articles'] = $this->decodeJson( (string) ( $row['help_articles_json'] ?? '' ) );
+            $row['diagnostics'] = $this->decodeJson( (string) ( $row['diagnostics_json'] ?? '' ) );
+            $row['proposed_actions'] = $this->decodeJson( (string) ( $row['proposed_actions_json'] ?? '' ) );
+            $row['executed_actions'] = $this->decodeJson( (string) ( $row['executed_actions_json'] ?? '' ) );
+            $row['result'] = $this->decodeJson( (string) ( $row['result_json'] ?? '' ) );
+            unset(
+                $row['help_articles_json'],
+                $row['diagnostics_json'],
+                $row['proposed_actions_json'],
+                $row['executed_actions_json'],
+                $row['result_json']
+            );
         }
 
         return $rows;

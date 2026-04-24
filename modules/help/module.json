@@ -1,0 +1,129 @@
+{
+    "slug": "help",
+    "name": "help",
+    "label": "Help",
+    "version": "1.0.0",
+    "domain": "help",
+    "default_view": "library",
+    "dependencies": [],
+    "description": "Searchable Help articles and Help administration for Metis.",
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.09 9a3 3 0 1 1 5.82 1c0 2-3 3-3 3\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>",
+    "permissions": {
+        "view": {
+            "key": "help.view",
+            "action": "view",
+            "name": "Help View",
+            "roles": [
+                "administrator",
+                "developer",
+                "workspace_manager",
+                "website_manager",
+                "board",
+                "donor_admin",
+                "donor_user",
+                "newsletter_admin"
+            ]
+        },
+        "manage": {
+            "key": "help.manage",
+            "action": "manage",
+            "name": "Help Manage",
+            "roles": [
+                "administrator",
+                "developer"
+            ]
+        }
+    },
+    "views": {
+        "library": "library.php",
+        "search": "library.php",
+        "article": "library.php",
+        "category": "library.php",
+        "articles": "library.php",
+        "issue-resolution": "library.php",
+        "editor": "library.php",
+        "error": "library.php"
+    },
+    "routes": [
+        {
+            "name": "help.index",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleIndexRoute"
+        },
+        {
+            "name": "help.search",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/search/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleSearchRoute"
+        },
+        {
+            "name": "help.article",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/article/(?P<slug>[a-z0-9-]+)/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleArticleRoute"
+        },
+        {
+            "name": "help.category",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/category/(?P<slug>[a-z0-9-]+)/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleCategoryRoute"
+        },
+        {
+            "name": "help.admin.articles",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/articles/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleAdminArticlesRoute"
+        },
+        {
+            "name": "help.admin.issue_resolution",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/issue-resolution/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleAdminIssueResolutionRoute"
+        },
+        {
+            "name": "help.admin.create",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/articles/create/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleAdminCreateRoute"
+        },
+        {
+            "name": "help.admin.edit",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/help/articles/edit/(?P<id>[0-9]+)/?$#",
+            "handler": "Metis\\Modules\\Help\\HelpModule::handleAdminEditRoute"
+        }
+    ],
+    "assets": {
+        "css": [],
+        "js": []
+    },
+    "category": "administration",
+    "default_parent": "administration",
+    "order": 999,
+    "navigation": {
+        "enabled": false,
+        "label": "Help",
+        "visible": false
+    },
+    "title": "Help",
+    "entry": "Module.php",
+    "controllers": [],
+    "services": []
+}

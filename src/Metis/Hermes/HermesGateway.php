@@ -103,13 +103,13 @@ final class HermesGateway {
         ];
     }
 
-    public function converse( string $query, string $session_code = '' ): array {
+    public function converse( string $query, string $session_code = '', array $runtimeContext = [] ): array {
         $user_id = \metis_current_user_id();
         $session = $this->repository->ensureSession( $user_id, $session_code, $this->deriveTitle( $query ) );
         $user_message = $this->repository->saveMessage( (int) $session['id'], 'user', $query );
 
         try {
-            $processed = $this->operations->process( $query );
+            $processed = $this->operations->process( $query, $runtimeContext );
             $response = (array) ( $processed['response'] ?? [] );
             $actions = [];
             if ( (string) ( $response['status'] ?? '' ) === 'awaiting_approval' && is_array( $processed['command'] ?? null ) ) {

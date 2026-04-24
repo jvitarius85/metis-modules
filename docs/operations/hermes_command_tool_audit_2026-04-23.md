@@ -36,6 +36,54 @@ All required commands are registered and mapped to tools:
 - SECURITY: `audit_permissions`, `verify_integrity`, `rotate_keys`
 - METIS: `validate_routes`, `verify_nonce`, `run_enclave_test`
 
+## Command Matrix
+
+| command_name | mapped_tool | enclave_routed | status |
+| --- | --- | --- | --- |
+| `create_user` | yes | yes | complete |
+| `update_user` | yes | yes | complete |
+| `disable_user` | yes | yes | complete |
+| `enable_user` | yes | yes | complete |
+| `assign_role` | yes | yes | complete |
+| `remove_role` | yes | yes | complete |
+| `list_users` | yes | yes | complete |
+| `get_user` | yes | yes | complete |
+| `clear_cache` | yes | yes | complete |
+| `rebuild_indexes` | yes | yes | complete |
+| `reload_config` | yes | yes | complete |
+| `get_system_status` | yes | yes | complete |
+| `run_full_diagnostics` | yes | yes | complete |
+| `scan_integrity` | yes | yes | complete |
+| `check_db` | yes | yes | complete |
+| `check_workers` | yes | yes | complete |
+| `recover_module` | yes | yes | complete |
+| `restore_file` | yes | yes | complete |
+| `rollback_module` | yes | yes | complete |
+| `enable_module` | yes | yes | complete |
+| `disable_module` | yes | yes | complete |
+| `install_module` | yes | yes | complete |
+| `update_module` | yes | yes | complete |
+| `export_data` | yes | yes | complete |
+| `import_data` | yes | yes | complete |
+| `deduplicate` | yes | yes | complete |
+| `create_job` | yes | yes | complete |
+| `cancel_job` | yes | yes | complete |
+| `retry_job` | yes | yes | complete |
+| `list_jobs` | yes | yes | complete |
+| `audit_permissions` | yes | yes | complete |
+| `verify_integrity` | yes | yes | complete |
+| `rotate_keys` | yes | yes | complete |
+| `validate_routes` | yes | yes | complete |
+| `verify_nonce` | yes | yes | complete |
+| `run_enclave_test` | yes | yes | complete |
+
+## Duplicates / Bypasses Identified Before Refactor
+
+- `HermesIntentParser` used direct phrase matching without a mandatory conversational normalization layer.
+- `HermesExecutionEngine` directly invoked application services instead of an enclave entrypoint.
+- Legacy registry/action metadata was split between command definitions and universal action definitions, creating overlap without a single strict tool contract.
+- Hermes write execution already used enclave approval in `HermesGateway`, but the final service invocation path still bypassed a dedicated tool executor.
+
 ## Residual Risks
 
 - Several recovery/module/data/security operations are intentionally routed as queued enclave-backed jobs because their underlying domain-specific executors are not centralized in Hermes yet.

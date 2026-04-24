@@ -49,6 +49,9 @@ function metis_hermes_register_ajax_controllers(): void {
         'schema' => [
             'query' => [ 'type' => 'string', 'required' => true ],
             'session_code' => [ 'type' => 'string', 'required' => false ],
+            'current_route' => [ 'type' => 'string', 'required' => false ],
+            'current_module' => [ 'type' => 'string', 'required' => false ],
+            'current_topic' => [ 'type' => 'string', 'required' => false ],
         ],
     ] );
     metis_ajax_register_controller( 'metis_hermes_diagnostics', [
@@ -104,7 +107,12 @@ metis_ajax_register_handler( 'metis_hermes_query', function () {
     metis_hermes_ajax_verify( false );
     $query = metis_text_clean( metis_runtime_unslash( $_POST['query'] ?? '' ) );
     $session_code = metis_text_clean( metis_runtime_unslash( $_POST['session_code'] ?? '' ) );
-    metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->converse( $query, $session_code ) );
+    $runtime_context = [
+        'current_route' => metis_text_clean( metis_runtime_unslash( $_POST['current_route'] ?? '' ) ),
+        'current_module' => metis_text_clean( metis_runtime_unslash( $_POST['current_module'] ?? '' ) ),
+        'current_topic' => metis_text_clean( metis_runtime_unslash( $_POST['current_topic'] ?? '' ) ),
+    ];
+    metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->converse( $query, $session_code, $runtime_context ) );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_diagnostics', function () {

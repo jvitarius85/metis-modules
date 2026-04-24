@@ -5,6 +5,8 @@ if ( ! defined( 'METIS_ROOT' ) && ! defined( 'METIS_STANDALONE' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/Services/EmailService.php';
+
 if ( ! function_exists( 'metis_help_plain_key' ) ) {
     function metis_help_plain_key( mixed $value ): string {
         $value = strtolower( trim( (string) $value ) );
@@ -38,7 +40,7 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
         private ?array $cached_docs = null;
 
         public function __construct( ?string $docs_path = null ) {
-            $this->docs_path         = $docs_path ?? dirname( __DIR__, 2 ) . '/docs';
+            $this->docs_path         = $docs_path ?? dirname( __DIR__, 3 ) . '/docs';
             $this->help_index_path   = $this->docs_path . '/help-index.json';
             $this->walkthroughs_path = $this->docs_path . '/walkthroughs.json';
             $this->root_url          = defined( 'METIS_URL' ) ? rtrim( METIS_URL, '/' ) : '';
@@ -91,6 +93,102 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
             $payload = $this->searchStore()->search( $query, $category, $limit, $page );
             $payload['categories'] = $this->searchCategories();
             return $payload;
+        }
+
+        /**
+         * @param array<string,mixed> $input
+         * @return array{sent:int,recipients:array<int,string>}
+         */
+        public function requestAdminAssistance( array $input ): array {
+            $message = metis_help_plain_text( (string) ( $input['message'] ?? '' ) );
+            $articleTitle = metis_help_plain_text( (string) ( $input['article_title'] ?? 'Help article' ) );
+            $articleUrl = trim( (string) ( $input['article_url'] ?? '' ) );
+            $articleSlug = metis_help_plain_key( (string) ( $input['article_slug'] ?? '' ) );
+            $route = metis_help_plain_text( (string) ( $input['route'] ?? '' ) );
+
+            if ( strlen( $message ) < 12 ) {
+                throw new \RuntimeException( 'Please describe what you need help with.' );
+            }
+
+            $recipients = $this->systemAdminRecipients();
+            if ( $recipients === [] ) {
+                throw new \RuntimeException( 'No system administrator recipients are configured.' );
+            }
+
+            $requestor = $this->currentRequestor();
+            $subject = '[Metis Help Request] ' . ( $articleTitle !== '' ? $articleTitle : 'Help Article' );
+            $html = [];
+            $html[] = '<h2>Help Request</h2>';
+            $html[] = '<p>A user requested additional help from the Help library.</p>';
+            $html[] = '<dl>';
+            $html[] = '<dt><strong>Article</strong></dt><dd>' . htmlspecialchars( $articleTitle !== '' ? $articleTitle : 'Unknown article', ENT_QUOTES, 'UTF-8' ) . '</dd>';
+            if ( $articleSlug !== '' ) {
+                $html[] = '<dt><strong>Article slug</strong></dt><dd>' . htmlspecialchars( $articleSlug, ENT_QUOTES, 'UTF-8' ) . '</dd>';
+            }
+            if ( $articleUrl !== '' ) {
+                $safeUrl = htmlspecialchars( $articleUrl, ENT_QUOTES, 'UTF-8' );
+                $html[] = '<dt><strong>Link</strong></dt><dd><a href="' . $safeUrl . '">' . $safeUrl . '</a></dd>';
+            }
+            if ( $route !== '' ) {
+                $html[] = '<dt><strong>Route</strong></dt><dd>' . htmlspecialchars( $route, ENT_QUOTES, 'UTF-8' ) . '</dd>';
+            }
+            $html[] = '<dt><strong>Requested by</strong></dt><dd>' . htmlspecialchars( $requestor['name'], ENT_QUOTES, 'UTF-8' ) . '</dd>';
+            if ( $requestor['email'] !== '' ) {
+                $html[] = '<dt><strong>Reply email</strong></dt><dd>' . htmlspecialchars( $requestor['email'], ENT_QUOTES, 'UTF-8' ) . '</dd>';
+            }
+            $html[] = '</dl>';
+            $html[] = '<h3>User message</h3>';
+            $html[] = '<p>' . nl2br( htmlspecialchars( $message, ENT_QUOTES, 'UTF-8' ) ) . '</p>';
+
+            $sent = 0;
+            $recipientEmails = [];
+            foreach ( $recipients as $recipient ) {
+                $email = strtolower( trim( (string) ( $recipient['email'] ?? '' ) ) );
+                if ( $email === '' ) {
+                    continue;
+                }
+
+                $result = \Metis\Core\Services\EmailService::sendHtml(
+                    $email,
+                    $subject,
+                    implode( "\n", $html ),
+                    [
+                        'module' => 'help',
+                        'from_name' => 'Metis Help',
+                        'reply_to' => $requestor['email'],
+                        'internal_reference' => strtoupper( 'HELP:' . $articleSlug ),
+                    ]
+                );
+
+                if ( empty( $result['ok'] ) ) {
+                    $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+                    if ( $requestor['email'] !== '' && function_exists( 'metis_email_is_valid' ) && \metis_email_is_valid( $requestor['email'] ) ) {
+                        $headers[] = 'Reply-To: ' . $requestor['email'];
+                    }
+
+                    $fallbackOk = function_exists( 'metis_runtime_mail' )
+                        ? \metis_runtime_mail( $email, $subject, implode( "\n", $html ), $headers )
+                        : false;
+
+                    if ( $fallbackOk ) {
+                        $result = [ 'ok' => true, 'provider' => 'runtime.mail', 'fallback' => 'help_request_fallback' ];
+                    }
+                }
+
+                if ( ! empty( $result['ok'] ) ) {
+                    $sent++;
+                    $recipientEmails[] = $email;
+                }
+            }
+
+            if ( $sent < 1 ) {
+                throw new \RuntimeException( 'Unable to send the help request to a system administrator.' );
+            }
+
+            return [
+                'sent' => $sent,
+                'recipients' => array_values( array_unique( $recipientEmails ) ),
+            ];
         }
 
         /**
@@ -514,6 +612,89 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
                  FROM {$table}
                  ORDER BY sort_order ASC, name ASC"
             );
+        }
+
+        /**
+         * @return array<int,array<string,string>>
+         */
+        private function systemAdminRecipients(): array {
+            if ( ! \Metis_Tables::has( 'people' ) || ! \Metis_Tables::has( 'people_roles' ) || ! \Metis_Tables::has( 'people_user_roles' ) ) {
+                return [];
+            }
+
+            $peopleTable = \Metis_Tables::get( 'people' );
+            $rolesTable = \Metis_Tables::get( 'people_roles' );
+            $userRolesTable = \Metis_Tables::get( 'people_user_roles' );
+            $authUsersTable = \Metis_Tables::has( 'auth_users' ) ? \Metis_Tables::get( 'auth_users' ) : '';
+            $authJoin = $authUsersTable !== '' ? "LEFT JOIN {$authUsersTable} au ON au.person_id = p.id" : '';
+
+            $rows = \metis_db()->fetchAll(
+                "SELECT DISTINCT
+                    COALESCE(NULLIF(TRIM(p.display_name), ''), CONCAT(TRIM(COALESCE(p.first_name, '')), ' ', TRIM(COALESCE(p.last_name, ''))), 'System Administrator') AS display_name,
+                    COALESCE(NULLIF(TRIM(p.email), ''), NULLIF(TRIM(p.workspace_email), ''), NULLIF(TRIM(au.user_email), '')) AS email
+                 FROM {$peopleTable} p
+                 INNER JOIN {$userRolesTable} ur ON ur.person_id = p.id
+                 INNER JOIN {$rolesTable} r ON r.id = ur.role_id
+                 {$authJoin}
+                 WHERE r.role_domain = 'metis'
+                   AND r.role_key IN ('administrator', 'developer')
+                 ORDER BY display_name ASC"
+            ) ?: [];
+
+            $recipients = [];
+            foreach ( $rows as $row ) {
+                $email = strtolower( trim( (string) ( $row['email'] ?? '' ) ) );
+                if ( $email === '' || ! function_exists( 'metis_email_is_valid' ) || ! \metis_email_is_valid( $email ) ) {
+                    continue;
+                }
+
+                $recipients[] = [
+                    'name' => trim( (string) ( $row['display_name'] ?? 'System Administrator' ) ),
+                    'email' => $email,
+                ];
+            }
+
+            return $recipients;
+        }
+
+        /**
+         * @return array{name:string,email:string}
+         */
+        private function currentRequestor(): array {
+            $name = 'Metis User';
+            $email = '';
+
+            if ( function_exists( 'metis_runtime_current_user' ) ) {
+                $user = \metis_runtime_current_user();
+                if ( $user instanceof \MetisUser ) {
+                    $name = trim( (string) ( $user->display_name ?: $user->user_login ?: $name ) );
+                }
+            }
+
+            $personId = function_exists( 'metis_auth_current_person_id' ) ? (int) \metis_auth_current_person_id() : 0;
+            if ( $personId > 0 && \Metis_Tables::has( 'people' ) ) {
+                $peopleTable = \Metis_Tables::get( 'people' );
+                $person = \metis_db()->fetchOne(
+                    "SELECT display_name, first_name, last_name, email, workspace_email
+                     FROM {$peopleTable}
+                     WHERE id = %d
+                     LIMIT 1",
+                    [ $personId ]
+                );
+
+                if ( is_array( $person ) ) {
+                    $displayName = trim( (string) ( $person['display_name'] ?? '' ) );
+                    if ( $displayName !== '' ) {
+                        $name = $displayName;
+                    }
+                    $email = trim( (string) ( $person['email'] ?? $person['workspace_email'] ?? '' ) );
+                }
+            }
+
+            return [
+                'name' => $name,
+                'email' => $email,
+            ];
         }
     }
 }

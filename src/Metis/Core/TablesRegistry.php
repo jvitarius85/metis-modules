@@ -144,6 +144,7 @@ final class Metis_Tables {
         "hermes_reports" => "metis_hermes_reports",
         "hermes_memory" => "metis_hermes_memory",
         "hermes_command_logs" => "metis_hermes_command_logs",
+        "hermes_help_issue_logs" => "metis_hermes_help_issue_logs",
         "grandys_stash_catalog" => "metis_grandys_stash_catalog",
         "grandys_stash_inventory" => "metis_grandys_stash_inventory",
         "grandys_stash_facilities" => "metis_grandys_stash_facilities",

@@ -250,7 +250,7 @@ final class ConversationalParser {
             ];
         }
 
-        if ( $candidates === [] && $this->legacy !== null ) {
+        if ( $this->legacy !== null ) {
             $fallback = $this->legacy->parse( $fragment );
             $command = is_array( $fallback['command'] ?? null ) ? $fallback['command'] : [];
             if ( $command !== [] ) {
@@ -265,11 +265,31 @@ final class ConversationalParser {
             }
         }
 
+        if ( $candidates !== [] ) {
+            $deduped = [];
+            foreach ( $candidates as $candidate ) {
+                $intentKey = strtolower( trim( (string) ( $candidate['intent'] ?? '' ) ) );
+                if ( $intentKey === '' ) {
+                    continue;
+                }
+                if ( ! isset( $deduped[ $intentKey ] ) || (float) $candidate['confidence'] > (float) $deduped[ $intentKey ]['confidence'] ) {
+                    $deduped[ $intentKey ] = $candidate;
+                }
+            }
+            $candidates = array_values( $deduped );
+        }
+
         usort( $candidates, static fn ( array $a, array $b ): int => ( $b['confidence'] <=> $a['confidence'] ) );
 
         $selected = $candidates[0] ?? [];
         $second = $candidates[1] ?? [];
-        $ambiguous = $selected !== [] && $second !== [] && abs( (float) $selected['confidence'] - (float) $second['confidence'] ) < 0.1;
+        $sameTool = $selected !== [] && $second !== []
+            && (string) ( $selected['command']['tool_key'] ?? '' ) !== ''
+            && (string) ( $selected['command']['tool_key'] ?? '' ) === (string) ( $second['command']['tool_key'] ?? '' );
+        $ambiguous = ! $sameTool
+            && $selected !== []
+            && $second !== []
+            && abs( (float) $selected['confidence'] - (float) $second['confidence'] ) < 0.1;
 
         return [
             'selected' => $selected,
@@ -288,6 +308,7 @@ final class ConversationalParser {
      */
     private function scoreCommand( string $fragment, array $command, array $entities, array $context ): float {
         $score = 0.0;
+        $commandKey = strtolower( trim( (string) ( $command['key'] ?? '' ) ) );
         $patterns = array_values( array_filter( array_map( 'strval', (array) ( $command['phrases'] ?? [] ) ) ) );
 
         foreach ( $patterns as $pattern ) {
@@ -303,12 +324,23 @@ final class ConversationalParser {
             }
         }
 
+        if ( $patterns === [] && ! empty( $command['keywords'] ) ) {
+            $firstKeyword = strtolower( trim( (string) ( (array) $command['keywords'] )[0] ?? '' ) );
+            if ( $firstKeyword !== '' && str_starts_with( $fragment, $firstKeyword . ' ' ) ) {
+                $score += 0.35;
+            }
+        }
+
         if ( $entities !== [] && ! empty( $command['expects_entity'] ) ) {
-            $score += 0.1;
+            $score += 0.2;
         }
 
         if ( ! empty( $context['references'] ) && ! empty( $command['supports_context'] ) ) {
             $score += 0.1;
+        }
+
+        if ( $commandKey === 'resolve_help_issue' && preg_match( '/\b(how do i|how can i|where do i|why can\'?t i|i can\'?t|i dont|i don\'t|won\'t|will not|missing|button)\b/', $fragment ) === 1 ) {
+            $score += 0.75;
         }
 
         return $score;
@@ -345,11 +377,20 @@ final class ConversationalParser {
             $payload['query'] = $fragment;
         }
 
+        if ( $command_name === 'resolve_help_issue' ) {
+            $payload['user_message'] = $fragment;
+            $payload['current_route'] = '';
+            $payload['current_module'] = '';
+            $payload['session_context'] = [
+                'references' => array_values( (array) ( $context['references'] ?? [] ) ),
+            ];
+        }
+
         return $payload;
     }
 
     private function confidenceLabel( float $score ): string {
-        if ( $score >= 0.9 ) {
+        if ( $score >= 0.85 ) {
             return 'high';
         }
         if ( $score >= 0.6 ) {

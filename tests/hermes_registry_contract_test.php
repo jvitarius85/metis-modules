@@ -23,6 +23,7 @@ $tools = ( new \Metis\Hermes\HermesToolRegistry() )->definitions();
 
 $required = [
     'create_user', 'update_user', 'disable_user', 'enable_user', 'assign_role', 'remove_role', 'list_users', 'get_user',
+    'lookup_profile', 'get_entity_attribute', 'resolve_help_issue', 'diagnose_permissions', 'query_giving_summary', 'query_capability_actors',
     'clear_cache', 'rebuild_indexes', 'reload_config', 'get_system_status',
     'run_full_diagnostics', 'scan_integrity', 'check_db', 'check_workers',
     'recover_module', 'restore_file', 'rollback_module',
@@ -52,8 +53,10 @@ foreach ( $tools as $toolKey => $tool ) {
 }
 
 $engineSource = file_get_contents( $root . '/src/Metis/Hermes/HermesExecutionEngine.php' ) ?: '';
-$assert( str_contains( $engineSource, "require_once METIS_PATH . 'core/enclave/execute.php'" ), 'Execution engine must route through core/enclave/execute.php.' );
+$toolExecutorSource = file_get_contents( $root . '/src/Metis/Hermes/HermesToolExecutor.php' ) ?: '';
+$assert( str_contains( $toolExecutorSource, "require_once METIS_PATH . 'core/enclave/execute.php'" ), 'Tool executor must route through core/enclave/execute.php.' );
 $assert( ! str_contains( $engineSource, 'Application::service' ), 'Execution engine should not directly resolve Hermes services.' );
+$assert( ! str_contains( $toolExecutorSource, 'Application::service' ), 'Tool executor should not directly resolve Hermes services.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

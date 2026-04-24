@@ -208,14 +208,18 @@ if (!$) {
 var MetisWebsite = {
 
     _editorRuntimePromise: null,
+    _bindingsApplied: false,
 
     init: function() {
         this._ensureToast();
-        this._bindDashboardActions();
-        this._bindPageActions();
-        this._bindPostActions();
-        this._bindCategoryActions();
-        this._bindTemplateActions();
+        if (!this._bindingsApplied) {
+            this._bindDashboardActions();
+            this._bindPageActions();
+            this._bindPostActions();
+            this._bindCategoryActions();
+            this._bindTemplateActions();
+            this._bindingsApplied = true;
+        }
         this._maybeLaunchQuickAction();
     },
 
@@ -534,10 +538,10 @@ var MetisWebsite = {
     },
 
     _bindDashboardActions: function() {
-        $(document).on('click', '#metis-dashboard-new-page-btn, #metis-dashboard-quick-new-page-btn', function() {
+        $(document).off('click.metisWebsiteDashboardPage').on('click.metisWebsiteDashboardPage', '#metis-dashboard-new-page-btn, #metis-dashboard-quick-new-page-btn', function() {
             MetisWebsite.openPageEditor(null);
         });
-        $(document).on('click', '#metis-dashboard-new-post-btn, #metis-dashboard-quick-new-post-btn', function() {
+        $(document).off('click.metisWebsiteDashboardPost').on('click.metisWebsiteDashboardPost', '#metis-dashboard-new-post-btn, #metis-dashboard-quick-new-post-btn', function() {
             MetisWebsite.openPostEditor(null);
         });
     },
@@ -547,11 +551,11 @@ var MetisWebsite = {
     // -------------------------------------------------------------------------
 
     _bindPageActions: function() {
-        $(document).on('click', '#metis-create-page-btn', function() {
+        $(document).off('click.metisWebsiteCreatePage').on('click.metisWebsiteCreatePage', '#metis-create-page-btn', function() {
             MetisWebsite.openPageEditor(null);
         });
 
-        $(document).on('click', '.metis-edit-page', function() {
+        $(document).off('click.metisWebsiteEditPage').on('click.metisWebsiteEditPage', '.metis-edit-page', function() {
             var code = String($(this).data('code') || '').trim();
             if (code !== '') {
                 MetisWebsite.openPageEditor(code);
@@ -563,21 +567,21 @@ var MetisWebsite = {
             }
         });
 
-        $(document).on('click', '.metis-view-page', function(e) {
+        $(document).off('click.metisWebsiteViewPage').on('click.metisWebsiteViewPage', '.metis-view-page', function(e) {
             e.stopPropagation();
         });
 
-        $(document).on('click', '.metis-publish-page', function() {
+        $(document).off('click.metisWebsitePublishPage').on('click.metisWebsitePublishPage', '.metis-publish-page', function() {
             var id = parseInt($(this).data('id'), 10);
             MetisWebsite._publishPage(id);
         });
 
-        $(document).on('click', '.metis-unpublish-page', function() {
+        $(document).off('click.metisWebsiteUnpublishPage').on('click.metisWebsiteUnpublishPage', '.metis-unpublish-page', function() {
             var id = parseInt($(this).data('id'), 10);
             MetisWebsite._unpublishPage(id);
         });
 
-        $(document).on('click', '.metis-delete-page', function() {
+        $(document).off('click.metisWebsiteDeletePage').on('click.metisWebsiteDeletePage', '.metis-delete-page', function() {
             var id = parseInt($(this).data('id'), 10);
             var title = String($(this).closest('.mw-premium-row').find('.mw-premium-cell:first strong').first().text() || '').trim();
             MetisWebsite._confirm('Delete "' + title + '"? This cannot be undone.', function() {
@@ -585,7 +589,7 @@ var MetisWebsite = {
             });
         });
 
-        $(document).on('click', '#metis-set-homepage-btn', function() {
+        $(document).off('click.metisWebsiteHomepage').on('click.metisWebsiteHomepage', '#metis-set-homepage-btn', function() {
             var id = parseInt(String($('#metis-homepage-selector').val() || ''), 10);
             if (Number.isNaN(id) || id < 1) {
                 metis_toast('Select a published page first.', 'warning');
@@ -681,11 +685,11 @@ var MetisWebsite = {
     // -------------------------------------------------------------------------
 
     _bindPostActions: function() {
-        $(document).on('click', '#metis-create-post-btn', function() {
+        $(document).off('click.metisWebsiteCreatePost').on('click.metisWebsiteCreatePost', '#metis-create-post-btn', function() {
             MetisWebsite.openPostEditor(null);
         });
 
-        $(document).on('click', '.metis-edit-post', function() {
+        $(document).off('click.metisWebsiteEditPost').on('click.metisWebsiteEditPost', '.metis-edit-post', function() {
             var code = String($(this).data('code') || '').trim();
             if (code !== '') {
                 MetisWebsite.openPostEditor(code);
@@ -697,12 +701,12 @@ var MetisWebsite = {
             }
         });
 
-        $(document).on('click', '.metis-publish-post', function() {
+        $(document).off('click.metisWebsitePublishPost').on('click.metisWebsitePublishPost', '.metis-publish-post', function() {
             var id = parseInt($(this).data('id'), 10);
             MetisWebsite._publishPost(id);
         });
 
-        $(document).on('click', '.metis-delete-post', function() {
+        $(document).off('click.metisWebsiteDeletePost').on('click.metisWebsiteDeletePost', '.metis-delete-post', function() {
             var id = parseInt($(this).data('id'), 10);
             var title = String($(this).closest('.mw-premium-row').find('.mw-premium-cell:first strong').first().text() || '').trim();
             MetisWebsite._confirm('Delete "' + title + '"? This cannot be undone.', function() {
@@ -728,32 +732,32 @@ var MetisWebsite = {
             return;
         }
 
-        $(document).on('click', '#metis-create-post-category-btn, #metis-create-post-category-btn-empty', function(e) {
+        $(document).off('click.metisWebsiteCreateCategory').on('click.metisWebsiteCreateCategory', '#metis-create-post-category-btn, #metis-create-post-category-btn-empty', function(e) {
             e.preventDefault();
             MetisWebsite._openPostCategoryCreate();
         });
 
-        $(document).on('click', '.metis-edit-post-category', function(e) {
+        $(document).off('click.metisWebsiteEditCategory').on('click.metisWebsiteEditCategory', '.metis-edit-post-category', function(e) {
             e.preventDefault();
             MetisWebsite._openPostCategoryEdit(this);
         });
 
-        $(document).on('click', '.metis-delete-post-category', function(e) {
+        $(document).off('click.metisWebsiteDeleteCategory').on('click.metisWebsiteDeleteCategory', '.metis-delete-post-category', function(e) {
             e.preventDefault();
             MetisWebsite._deletePostCategory(this);
         });
 
-        $(document).on('click', '#metis-post-category-modal-close, #metis-post-category-cancel-btn', function(e) {
+        $(document).off('click.metisWebsiteCloseCategory').on('click.metisWebsiteCloseCategory', '#metis-post-category-modal-close, #metis-post-category-cancel-btn', function(e) {
             e.preventDefault();
             MetisWebsite._closePostCategoryModal();
         });
 
-        $(document).on('click', '#metis-post-category-save-btn', function(e) {
+        $(document).off('click.metisWebsiteSaveCategory').on('click.metisWebsiteSaveCategory', '#metis-post-category-save-btn', function(e) {
             e.preventDefault();
             MetisWebsite._savePostCategory();
         });
 
-        $(document).on('click', '#metis-post-category-modal', function(e) {
+        $(document).off('click.metisWebsiteCategoryBackdrop').on('click.metisWebsiteCategoryBackdrop', '#metis-post-category-modal', function(e) {
             if (e.target && e.target.id === 'metis-post-category-modal') {
                 MetisWebsite._closePostCategoryModal();
             }
@@ -1021,24 +1025,24 @@ var MetisWebsite = {
         }
 
         var self = this;
-        $(document).on('click', '.metis-layout-gallery-item', function() {
+        $(document).off('click.metisWebsiteLayoutItem').on('click.metisWebsiteLayoutItem', '.metis-layout-gallery-item', function() {
             var key = String($(this).data('layoutProfile') || '').trim();
             var name = String($(this).data('layoutName') || key).trim();
             if (key === '') return;
             self._saveSiteLayoutProfile(key, name);
         });
-        $(document).on('click', '#metis-layout-preview-open', function() {
+        $(document).off('click.metisWebsitePreviewOpen').on('click.metisWebsitePreviewOpen', '#metis-layout-preview-open', function() {
             self._openLayoutPreviewModal();
         });
-        $(document).on('change', '#metis-layout-preview-select', function() {
+        $(document).off('change.metisWebsitePreviewSelect').on('change.metisWebsitePreviewSelect', '#metis-layout-preview-select', function() {
             var key = String($(this).val() || '').trim();
             self._renderLayoutPreviewCanvas(key);
         });
-        $(document).on('change', '#metis-layout-preview-source', function() {
+        $(document).off('change.metisWebsitePreviewSource').on('change.metisWebsitePreviewSource', '#metis-layout-preview-source', function() {
             var key = String($('#metis-layout-preview-select').val() || '').trim();
             self._renderLayoutPreviewCanvas(key);
         });
-        $(document).on('click', '#metis-layout-preview-modal [data-action=\"close\"]', function() {
+        $(document).off('click.metisWebsitePreviewClose').on('click.metisWebsitePreviewClose', '#metis-layout-preview-modal [data-action=\"close\"]', function() {
             $('#metis-layout-preview-modal').attr('hidden', 'hidden');
         });
     },
@@ -1238,7 +1242,17 @@ var MetisWebsite = {
 };
 
 window.MetisWebsite = MetisWebsite;
-$(function() { MetisWebsite.init(); });
+function initMetisWebsiteModule() {
+    MetisWebsite.init();
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMetisWebsiteModule);
+} else {
+    initMetisWebsiteModule();
+}
+if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
+    Metis.page.register('website', initMetisWebsiteModule);
+}
 
 })(window.jQuery || null);
 

@@ -336,8 +336,28 @@ color:white;
 #closeHermes{
 padding:0;
 background:transparent;
-font-size:30px;
+border:none;
+width:40px;
+height:40px;
+display:inline-flex;
+align-items:center;
+justify-content:center;
+color:#fff;
+cursor:pointer;
 line-height:1;
+}
+
+#closeHermes svg{
+width:24px;
+height:24px;
+display:block;
+stroke:currentColor;
+}
+
+.metis-hermes-close-icon{
+display:inline-flex;
+align-items:center;
+justify-content:center;
 }
 
 /* INPUT */

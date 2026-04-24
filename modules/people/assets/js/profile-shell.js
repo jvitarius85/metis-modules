@@ -1,4 +1,10 @@
-document.addEventListener('DOMContentLoaded', function () {
+function initMetisPeopleProfileShell(context) {
+    const scope = context && context.root ? context.root : document;
+    const hasPeopleUi = scope.querySelector('.metis-people-detail, .metis-people-role-detail, .metis-people-activity-log, .metis-people-profile-card');
+    if (!hasPeopleUi) return;
+    if (scope !== document && scope.getAttribute('data-metis-people-shell-initialized') === '1') return;
+    if (scope !== document) scope.setAttribute('data-metis-people-shell-initialized', '1');
+
     const ajax = window.metisPeopleAjax || null;
 
     function normalize(v) { return Metis.util.normalize(v); }
@@ -244,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (panel) panel.classList.add('is-active');
     }
 
-    document.addEventListener('click', function (e) {
+    scope.addEventListener('click', function (e) {
         const btn = e.target.closest('.metis-people-tab-nav-btn, .metis-tab-btn');
         if (!btn) return;
         const target = String(btn.dataset.tabTarget || '').trim();
@@ -255,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     const modules = window.MetisPeopleProfileModules || {};
-    const context = {
+    const moduleContext = {
         ajax: ajax,
         normalize: normalize,
         showAlert: showAlert,
@@ -267,10 +273,10 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     if (typeof modules.initOverview === 'function') {
-        modules.initOverview(context);
+        modules.initOverview(moduleContext);
     }
     if (typeof modules.initWorkspace === 'function') {
-        modules.initWorkspace(context);
+        modules.initWorkspace(moduleContext);
     }
     // Person detail behavior.
     const personDetailRoot = document.querySelector('.metis-people-detail');
@@ -1157,4 +1163,12 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    initMetisPeopleProfileShell({ root: document, reason: 'dom-ready', url: window.location.href });
 });
+
+if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
+    Metis.page.register('people-profile-shell', initMetisPeopleProfileShell);
+}

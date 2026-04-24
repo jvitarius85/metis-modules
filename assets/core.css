@@ -2520,6 +2520,26 @@ body.metis-help-mode [data-help-fallback] {
     cursor: help;
 }
 
+.metis-help-guided-target {
+    outline: 3px solid rgba(79, 70, 229, 0.88);
+    outline-offset: 4px;
+    box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.18);
+    border-radius: 12px;
+    animation: metis-help-guided-pulse 1.6s ease-in-out 2;
+}
+
+@keyframes metis-help-guided-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.22);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(79, 70, 229, 0.08);
+    }
+    100% {
+        box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.18);
+    }
+}
+
 .metis-help-hovercard {
     position: absolute;
     z-index: 99999;

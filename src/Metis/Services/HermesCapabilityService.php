@@ -5,6 +5,7 @@ namespace Metis\Services;
 
 use Metis\Core\Application;
 use Metis\Core\Jobs\JobQueue;
+use Metis\Hermes\HelpIssueResolver;
 
 final class HermesCapabilityService {
     public function __construct(
@@ -12,7 +13,8 @@ final class HermesCapabilityService {
         private readonly HermesDirectoryService $directory,
         private readonly HermesUserAdminService $userAdmin,
         private readonly HermesSystemOperationsService $systemOps,
-        private readonly ?JobQueue $jobs = null
+        private readonly ?JobQueue $jobs = null,
+        private readonly ?HelpIssueResolver $helpIssueResolver = null
     ) {}
 
     public function createUser( array $payload ): array {
@@ -76,6 +78,87 @@ final class HermesCapabilityService {
             'subject' => (string) ( $payload['subject'] ?? $payload['email'] ?? $payload['query'] ?? '' ),
             'entity_hint' => 'person',
         ] );
+    }
+
+    public function lookupProfile( array $payload ): array {
+        return $this->directory->lookupProfile( (array) ( $payload['profile_request'] ?? $payload ) );
+    }
+
+    public function diagnosePermissions( array $payload ): array {
+        if ( ! Application::has_service( 'security_diagnostics' ) ) {
+            return $this->error( 'EXECUTION_FAILED', 'Security diagnostics service is unavailable.' );
+        }
+
+        return Application::service( 'security_diagnostics' )->diagnosePermissions( (array) ( $payload['diagnostic_request'] ?? $payload ) );
+    }
+
+    public function queryGivingSummary( array $payload ): array {
+        return $this->directory->queryGivingSummary( (array) ( $payload['giving_request'] ?? $payload ) );
+    }
+
+    public function queryCapabilityActors( array $payload ): array {
+        return $this->directory->queryCapabilityActors( (array) ( $payload['capability_request'] ?? $payload ) );
+    }
+
+    public function getEntityAttribute( array $payload ): array {
+        $request = (array) ( $payload['attribute_request'] ?? [] );
+        $subject = trim( (string) ( $request['subject'] ?? '' ) );
+        $attribute = trim( strtolower( (string) ( $request['attribute'] ?? '' ) ) );
+        if ( $subject === '' || $attribute === '' ) {
+            return $this->error( 'INVALID_INPUT', 'Subject and attribute are required.' );
+        }
+
+        $profile = $this->directory->lookupProfile( [
+            'subject' => $subject,
+            'entity_hint' => (string) ( $request['entity_hint'] ?? 'auto' ),
+        ] );
+        if ( (string) ( $profile['status'] ?? '' ) !== 'success' ) {
+            return $profile;
+        }
+
+        $data = (array) ( $profile['profile'] ?? [] );
+        $person = (array) ( $data['person'] ?? [] );
+        $contact = (array) ( $data['contact'] ?? [] );
+        $value = match ( $attribute ) {
+            'email' => (string) ( $person['email'] ?? $contact['email'] ?? '' ),
+            'phone' => (string) ( $contact['phone'] ?? '' ),
+            'address' => (string) ( $contact['address'] ?? '' ),
+            'workspace_email' => (string) ( $person['workspace_email'] ?? '' ),
+            'status' => (string) ( $person['status'] ?? '' ),
+            'name' => (string) ( $data['name'] ?? '' ),
+            default => '',
+        };
+
+        if ( $value === '' ) {
+            return $this->error( 'ENTITY_NOT_FOUND', sprintf( 'Attribute [%s] is not available for [%s].', $attribute, $subject ) );
+        }
+
+        return [
+            'status' => 'success',
+            'attribute' => $attribute,
+            'value' => $value,
+            'message' => sprintf( '%s: %s', $attribute, $value ),
+        ];
+    }
+
+    public function resolveHelpIssue( array $payload ): array {
+        if ( $this->helpIssueResolver === null ) {
+            return $this->error( 'EXECUTION_FAILED', 'Help issue resolver is unavailable.' );
+        }
+
+        $message = trim( (string) ( $payload['user_message'] ?? $payload['query'] ?? '' ) );
+        if ( $message === '' ) {
+            return $this->error( 'INVALID_INPUT', 'A help issue message is required.' );
+        }
+
+        $currentUserId = function_exists( 'get_current_user_id' ) ? (int) \get_current_user_id() : 0;
+        return $this->helpIssueResolver->resolve(
+            $message,
+            $currentUserId,
+            (string) ( $payload['current_route'] ?? '' ),
+            (string) ( $payload['current_module'] ?? '' ),
+            (array) ( $payload['session_context'] ?? [] )
+        );
     }
 
     public function clearCache( array $payload ): array {

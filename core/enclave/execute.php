@@ -17,6 +17,17 @@ use Metis\Core\Application;
  * @param array<string,mixed> $options
  * @return array<string,mixed>
  */
+function metis_core_enclave_operation_for_tool( array $tool ): string {
+    $operation = trim( (string) ( $tool['enclave_action'] ?? '' ) );
+    if ( $operation === '' || $operation === 'hermes.tool.execute' ) {
+        return ! empty( $tool['requires_approval'] )
+            ? 'hermes.tool.execute'
+            : 'hermes.tool.query';
+    }
+
+    return $operation;
+}
+
 function metis_core_enclave_execute_tool( array $tool, array $payload = [], array $options = [] ): array {
     $tool_key = trim( (string) ( $tool['tool_key'] ?? '' ) );
     if ( $tool_key === '' ) {
@@ -35,9 +46,15 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
         ];
     }
 
-    $operation = trim( (string) ( $tool['enclave_action'] ?? '' ) );
-    if ( $operation === '' ) {
-        $operation = 'hermes.tool.execute';
+    $operation = metis_core_enclave_operation_for_tool( $tool );
+
+    $requestNonce = '';
+    foreach ( [ 'metis_action_nonce', '_wpnonce', 'security', '_ajax_nonce', 'nonce' ] as $field ) {
+        $candidate = $_REQUEST[ $field ] ?? '';
+        if ( is_string( $candidate ) && trim( $candidate ) !== '' ) {
+            $requestNonce = trim( $candidate );
+            break;
+        }
     }
 
     $request = function_exists( 'metis_security_runtime_request_context' )
@@ -45,6 +62,8 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
             'tool_key' => $tool_key,
             'payload' => $payload,
             'options' => $options,
+            'metis_action_nonce' => $requestNonce,
+            'nonce' => $requestNonce,
         ] )
         : [
             'actor' => [],
@@ -53,6 +72,8 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
                 'tool_key' => $tool_key,
                 'payload' => $payload,
                 'options' => $options,
+                'metis_action_nonce' => $requestNonce,
+                'nonce' => $requestNonce,
             ],
         ];
 
@@ -102,19 +123,38 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
             }
         );
     } catch ( Throwable $throwable ) {
+        $error_code = 'EXECUTION_FAILED';
+        $raw_code = '';
+        if ( method_exists( $throwable, 'code_name' ) ) {
+            $raw_code = (string) $throwable->code_name();
+        }
+
+        if ( $raw_code === 'operation_not_registered' ) {
+            $error_code = 'TOOL_NOT_FOUND';
+        } elseif ( in_array( $raw_code, [ 'authentication_required', 'invalid_session', 'permission_denied', 'invalid_nonce', 'rate_limit_exceeded' ], true ) ) {
+            $error_code = 'PERMISSION_DENIED';
+        }
+
         return [
             'status' => 'error',
-            'error_code' => 'EXECUTION_FAILED',
+            'error_code' => $error_code,
             'message' => $throwable->getMessage() !== ''
                 ? $throwable->getMessage()
                 : 'Tool execution failed.',
+            'enclave_request_id' => (string) ( $request['meta']['request_id'] ?? '' ),
         ];
     }
 
-    return is_array( $result )
+    $normalized = is_array( $result )
         ? $result
         : [
             'status' => 'success',
             'result' => $result,
         ];
+
+    if ( ! isset( $normalized['enclave_request_id'] ) ) {
+        $normalized['enclave_request_id'] = (string) ( $request['meta']['request_id'] ?? '' );
+    }
+
+    return $normalized;
 }
