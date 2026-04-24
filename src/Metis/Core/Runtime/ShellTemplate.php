@@ -77,6 +77,14 @@ $is_editor_shell = $shell_mode === 'editor'
 <?php endif; ?>
 
 <div id="mw-toast-container" aria-live="polite" aria-atomic="true"></div>
+<?php
+if ( $help_ui_enabled ) {
+    $help_search_view = METIS_PATH . 'modules/help/views/search.php';
+    if ( is_file( $help_search_view ) ) {
+        require $help_search_view;
+    }
+}
+?>
 
 <?php if ( ! $is_editor_shell ) : ?>
 <header class="mw-topbar" id="mw-topbar">

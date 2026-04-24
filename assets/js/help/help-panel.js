@@ -25,8 +25,8 @@ Metis.helpPanel = (function () {
             '</div>' +
             '<div class="metis-help-panel__body"></div>' +
             '<div class="metis-help-panel__actions">' +
-                '<button type="button" class="mw-btn mw-btn-ghost metis-help-panel__walkthrough" style="display:none;">Start Walkthrough</button>' +
-                '<a class="mw-btn metis-help-panel__doc" href="#" target="_blank" rel="noopener" style="display:none;">Open Full Documentation</a>' +
+                '<button type="button" class="mw-btn mw-btn-ghost metis-help-panel__walkthrough" hidden>Start Walkthrough</button>' +
+                '<a class="mw-btn metis-help-panel__doc" href="#" target="_blank" rel="noopener" hidden>Open Full Documentation</a>' +
             '</div>';
 
         document.body.appendChild(panel);
@@ -66,22 +66,22 @@ Metis.helpPanel = (function () {
 
         if (topic && topic.learn_more_url) {
             docLink.href = String(topic.learn_more_url);
-            docLink.style.display = '';
+            docLink.hidden = false;
         } else {
             docLink.removeAttribute('href');
-            docLink.style.display = 'none';
+            docLink.hidden = true;
         }
 
         const walkthroughId = options.walkthrough || (topic && topic.walkthroughs && topic.walkthroughs[0]) || '';
         if (walkthroughId) {
-            walkthroughButton.style.display = '';
+            walkthroughButton.hidden = false;
             walkthroughButton.onclick = function () {
                 if (Metis.walkthrough && typeof Metis.walkthrough.start === 'function') {
                     Metis.walkthrough.start(String(walkthroughId));
                 }
             };
         } else {
-            walkthroughButton.style.display = 'none';
+            walkthroughButton.hidden = true;
             walkthroughButton.onclick = null;
         }
 

@@ -42,6 +42,17 @@ final class HermesSecurityIntegration {
      */
     private static function policies(): array {
         return [
+            new \Metis_Security_Policy(
+                operation:              'hermes.tool.execute',
+                module:                 'hermes',
+                permission:             'edit',
+                require_authentication: true,
+                require_session:        true,
+                require_nonce:          true,
+                nonce_key:              'metis_ajax:metis_hermes_execute_action',
+                rate_limit:             60,
+                rate_window_seconds:    60
+            ),
 
             // ---- Core Hermes action execution (existing) ----------------
             new \Metis_Security_Policy(

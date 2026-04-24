@@ -8,7 +8,7 @@ final class HermesOperationalEngine {
     /** Data-oriented intents routed to HermesReportingService. */
     private const DATA_INTENTS = [ 'list', 'search', 'get', 'count', 'aggregate', 'top', 'export' ];
 
-    private HermesIntentParser        $parser;
+    private ConversationalParser      $parser;
     private HermesContextPackLoader   $contextLoader;
     private HermesCommandRegistry     $commands;
     private HermesPermissionValidator $permissions;
@@ -19,7 +19,7 @@ final class HermesOperationalEngine {
     private ?HermesDebugLogger        $debugLogger;
 
     public function __construct(
-        HermesIntentParser        $parser,
+        ConversationalParser      $parser,
         HermesContextPackLoader   $contextLoader,
         HermesCommandRegistry     $commands,
         HermesPermissionValidator $permissions,
@@ -41,10 +41,31 @@ final class HermesOperationalEngine {
     }
 
     public function process( string $query ): array {
-        $intent = $this->parser->parse( $query );
+        $parsed = $this->parser->parse( $query );
+        $intent = [
+            'action' => (string) ( $parsed['selected_intent'] ?? 'unknown' ),
+            'confidence' => (float) ( $parsed['confidence_score'] ?? 0.0 ),
+            'payload' => (array) ( $parsed['intents'][0]['payload'] ?? [] ),
+        ];
 
         if ( $this->debugLogger ) {
             $this->debugLogger->query( $query, (string) ( $intent['action'] ?? $intent['intent'] ?? 'unknown' ) );
+        }
+
+        if ( ! empty( $parsed['requires_clarification'] ) ) {
+            return [
+                'intent'        => $intent,
+                'command'       => null,
+                'context_packs' => [],
+                'action_plan'   => [],
+                'permission'    => [ 'status' => 'clarification_required', 'required_permission' => '', 'reason' => '' ],
+                'response'      => [
+                    'status' => 'clarification_required',
+                    'message' => (string) ( $parsed['clarification_prompt'] ?? 'Please clarify the request.' ),
+                    'response_type' => 'ClarificationPrompt',
+                ],
+                'parsed' => $parsed,
+            ];
         }
 
         // Route entity-attribute queries directly
@@ -57,7 +78,7 @@ final class HermesOperationalEngine {
             return $this->processDataIntent( $intent );
         }
 
-        $command = (array) ( $intent['command'] ?? [] );
+        $command = $this->commands->definition( (string) ( $parsed['selected_intent'] ?? $intent['action'] ?? '' ) );
 
         if ( $command === [] ) {
             return [
@@ -70,6 +91,7 @@ final class HermesOperationalEngine {
             ];
         }
 
+        $intent['payload'] = (array) ( $parsed['intents'][0]['payload'] ?? [] );
         $prep = $this->prepareIntentPayload( $intent, $command );
         $intent = (array) ( $prep['intent'] ?? $intent );
         $payloadError = (string) ( $prep['error'] ?? '' );
@@ -104,6 +126,7 @@ final class HermesOperationalEngine {
             'action_plan'   => $plan,
             'permission'    => $permission,
             'response'      => $response,
+            'parsed'        => $parsed,
         ];
     }
 
@@ -161,7 +184,11 @@ final class HermesOperationalEngine {
     }
 
     public function validatePreparedAction( array $payload, array $actor = [] ): array {
-        $operation = \metis_key_clean( (string) ( $payload['operation'] ?? '' ) );
+        $executionPlan = array_values( array_filter(
+            (array) ( $payload['execution_plan'] ?? [] ),
+            static fn ( mixed $step ): bool => is_array( $step )
+        ) );
+        $operation = \metis_key_clean( (string) ( $payload['operation'] ?? ( $executionPlan[0]['intent'] ?? '' ) ) );
         $command   = $this->commands->definition( $operation );
 
         if ( ! is_array( $command ) ) {
@@ -177,6 +204,7 @@ final class HermesOperationalEngine {
             'permission'       => $permission,
             'action_plan'      => (array) ( $payload['action_plan'] ?? [] ),
             'command_payload'  => (array) ( $payload['command_payload'] ?? [] ),
+            'execution_plan'   => $executionPlan,
         ];
     }
 
@@ -191,7 +219,41 @@ final class HermesOperationalEngine {
         $command      = (array) ( $prepared['command'] ?? [] );
         $plan         = (array) ( $prepared['action_plan'] ?? [] );
         $contextPacks = (array) ( $prepared['context_packs'] ?? [] );
-        $result       = $this->execution->execute( $command, (array) ( $prepared['command_payload'] ?? [] ) );
+        $executionPlan = (array) ( $prepared['execution_plan'] ?? [] );
+        $stepResults = [];
+
+        if ( count( $executionPlan ) > 1 ) {
+            foreach ( $executionPlan as $step ) {
+                $stepIntent = \metis_key_clean( (string) ( $step['intent'] ?? '' ) );
+                $stepCommand = $this->commands->definition( $stepIntent );
+                if ( $stepCommand === [] ) {
+                    throw new \RuntimeException( sprintf( 'Plan step [%s] is not registered.', $stepIntent ) );
+                }
+
+                $stepResult = $this->execution->execute( $stepCommand, (array) ( $step['payload'] ?? [] ) );
+                $stepResults[] = [
+                    'step' => (int) ( $step['step'] ?? count( $stepResults ) + 1 ),
+                    'intent' => $stepIntent,
+                    'result' => $stepResult,
+                ];
+
+                if ( in_array( (string) ( $stepResult['status'] ?? '' ), [ 'error', 'failed' ], true ) ) {
+                    return [
+                        'status' => 'error',
+                        'message' => sprintf( 'Execution stopped at step %d.', (int) ( $step['step'] ?? count( $stepResults ) ) ),
+                        'steps' => $stepResults,
+                    ];
+                }
+            }
+
+            $result = [
+                'status' => 'success',
+                'steps' => $stepResults,
+                'message' => 'Execution plan completed.',
+            ];
+        } else {
+            $result = $this->execution->execute( $command, (array) ( $prepared['command_payload'] ?? [] ) );
+        }
 
         return $this->responses->executionResult( $command, $contextPacks, $plan, $result );
     }
@@ -458,7 +520,7 @@ final class HermesOperationalEngine {
         }
         // Fallback: check if the intent action is a known data intent
         // and no command is mapped.
-        return $intent['command'] === null
+        return ( $intent['command'] ?? null ) === null
             && in_array( strtolower( (string) ( $intent['intent'] ?? $intent['action'] ?? '' ) ), self::DATA_INTENTS, true );
     }
 

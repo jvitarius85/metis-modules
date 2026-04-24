@@ -1,6 +1,8 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
+require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
+
 if (!metis_board_can_view()) {
     echo '<div class="mw-alert mw-alert-error">You do not have permission to view board.</div>';
     return;
@@ -22,87 +24,36 @@ $people_table = Metis_Tables::get('people');
 $newsletter_lists_table = Metis_Tables::get('newsletter_lists');
 $has_newsletter_lists = $can_manage && function_exists('metis_board_table_exists') && metis_board_table_exists($newsletter_lists_table);
 
-$rows = $db->fetchAll(
-    "SELECT m.id, m.meeting_code, m.title, m.meeting_date, m.meeting_type, m.location, m.status, m.updated_at,
-            m.google_calendar_event_id, m.google_drive_folder_id,
-            c.name AS committee_name,
-            (SELECT COUNT(*) FROM {$actions_table} a WHERE a.meeting_id = m.id AND a.status <> 'done') AS open_actions,
-            (SELECT COUNT(*) FROM {$decisions_table} d WHERE d.meeting_id = m.id) AS decisions_count
-     FROM {$meetings_table} m
-     LEFT JOIN {$committees_table} c ON c.id = m.committee_id
-     ORDER BY m.meeting_date DESC, m.id DESC
-     LIMIT 300",
-);
+$rows = metis_board_fetch_dashboard_meetings(300);
 
-$committee_list_select = $has_newsletter_lists ? 'nl.name AS newsletter_list_name' : "'' AS newsletter_list_name";
-$committee_list_join = $has_newsletter_lists ? "LEFT JOIN {$newsletter_lists_table} nl ON nl.id = c.newsletter_list_id" : '';
-$committees = $db->fetchAll(
-    "SELECT c.id, c.committee_code, c.name, c.description, c.chair_person_id, c.newsletter_list_id, c.is_active, c.updated_at,
-            p.display_name AS chair_name,
-            {$committee_list_select},
-            (SELECT COUNT(*) FROM {$meetings_table} m WHERE m.committee_id = c.id) AS meeting_count
-     FROM {$committees_table} c
-     LEFT JOIN {$people_table} p ON p.id = c.chair_person_id
-     {$committee_list_join}
-     ORDER BY c.name ASC",
-);
+$committees = metis_board_fetch_dashboard_committees($can_manage);
 
 $newsletter_lists = [];
 if ($can_manage && $has_newsletter_lists) {
-    $newsletter_lists = $db->fetchAll(
-        "SELECT id, name
-         FROM {$newsletter_lists_table}
-         WHERE is_active = 1
-         ORDER BY name ASC"
-    ) ?: [];
+    $newsletter_lists = metis_board_fetch_dashboard_newsletter_lists();
 }
 
-$open_actions = $db->fetchAll(
-    "SELECT a.id, a.action_code, a.title, a.status, a.priority, a.due_date, a.owner_person_id,
-            m.meeting_code, m.title AS meeting_title,
-            p.display_name AS owner_name
-     FROM {$actions_table} a
-     LEFT JOIN {$meetings_table} m ON m.id = a.meeting_id
-     LEFT JOIN {$people_table} p ON p.id = a.owner_person_id
-     WHERE a.status <> 'done'
-     ORDER BY (a.due_date IS NULL), a.due_date ASC, a.updated_at DESC
-     LIMIT 12",
-);
+$open_actions = metis_board_fetch_dashboard_open_actions(12);
 
-$recent_announcements = $db->fetchAll(
-    "SELECT id, announcement_code, title, status, publish_at, updated_at
-     FROM {$announcements_table}
-     ORDER BY updated_at DESC
-     LIMIT 10",
-);
+$recent_announcements = metis_board_fetch_dashboard_announcements(10);
 
 $board_people = [];
 if ($can_manage) {
-    $board_people = $db->fetchAll(
-        "SELECT id, pid, display_name, email
-         FROM {$people_table}
-         WHERE status = 'active' AND (is_board = 1 OR is_staff = 1)
-         ORDER BY display_name ASC",
-    ) ?: [];
+    $board_people = metis_board_fetch_dashboard_people_options();
 }
 
 $meeting_options = [];
 if ($can_manage) {
-    $meeting_options = $db->fetchAll(
-        "SELECT id, meeting_code, title, meeting_date
-         FROM {$meetings_table}
-         ORDER BY meeting_date DESC
-         LIMIT 500",
-    ) ?: [];
+    $meeting_options = metis_board_fetch_dashboard_meeting_options(500);
 }
 
-$now = metis_current_time('mysql');
-$total_meetings = (int) $db->scalar("SELECT COUNT(*) FROM {$meetings_table}");
-$upcoming_meetings = (int) $db->scalar("SELECT COUNT(*) FROM {$meetings_table} WHERE meeting_date >= %s AND status IN ('scheduled','draft')", [$now]);
-$open_action_count = (int) $db->scalar("SELECT COUNT(*) FROM {$actions_table} WHERE status <> 'done'");
-$committee_count = (int) $db->scalar("SELECT COUNT(*) FROM {$committees_table} WHERE is_active = 1");
-$compliance_overdue = (int) $db->scalar("SELECT COUNT(*) FROM {$compliance_table} WHERE status <> 'completed' AND due_date IS NOT NULL AND due_date < %s", [metis_current_time('Y-m-d')]);
-$decision_count = (int) $db->scalar("SELECT COUNT(*) FROM {$decisions_table}");
+$kpis = metis_board_fetch_dashboard_kpis();
+$total_meetings = (int) ( $kpis['total_meetings'] ?? 0 );
+$upcoming_meetings = (int) ( $kpis['upcoming_meetings'] ?? 0 );
+$open_action_count = (int) ( $kpis['open_action_count'] ?? 0 );
+$committee_count = (int) ( $kpis['committee_count'] ?? 0 );
+$compliance_overdue = (int) ( $kpis['compliance_overdue'] ?? 0 );
+$decision_count = (int) ( $kpis['decision_count'] ?? 0 );
 ?>
 
 <div class="metis-board"

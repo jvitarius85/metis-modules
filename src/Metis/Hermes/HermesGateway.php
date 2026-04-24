@@ -115,9 +115,11 @@ final class HermesGateway {
             if ( (string) ( $response['status'] ?? '' ) === 'awaiting_approval' && is_array( $processed['command'] ?? null ) ) {
                 $payload = [
                     'intent' => (array) ( $processed['intent'] ?? [] ),
+                    'parser' => (array) ( $processed['parsed'] ?? [] ),
                     'query' => $query,
                     'operation' => (string) ( $processed['action_plan']['operation'] ?? '' ),
                     'command_payload' => (array) ( $processed['intent']['payload'] ?? [] ),
+                    'execution_plan' => (array) ( $processed['parsed']['execution_plan'] ?? [] ),
                     'action_plan' => (array) ( $processed['action_plan'] ?? [] ),
                     'context_packs' => (array) ( $processed['context_packs'] ?? [] ),
                     'required_permission' => (string) ( $processed['action_plan']['required_permission'] ?? '' ),
@@ -161,6 +163,17 @@ final class HermesGateway {
                 'query' => $query,
                 'answer' => (string) ( $response['message'] ?? '' ),
                 'intent' => (string) ( $processed['intent']['action'] ?? '' ),
+            ] );
+            $this->audit->commandTrace( [
+                'session_code' => (string) ( $session['session_code'] ?? '' ),
+                'user_id' => $user_id,
+                'raw_input' => $query,
+                'normalized_input' => (string) ( $processed['parsed']['normalized_input'] ?? strtolower( trim( $query ) ) ),
+                'selected_intent' => (string) ( $processed['parsed']['selected_intent'] ?? $processed['intent']['action'] ?? '' ),
+                'tool_key' => (string) ( $processed['command']['tool_key'] ?? '' ),
+                'confidence_score' => (float) ( $processed['parsed']['confidence_score'] ?? 0 ),
+                'payload' => (array) ( $processed['intent']['payload'] ?? [] ),
+                'result' => (array) ( $response ?? [] ),
             ] );
             $this->audit->conversation( 'query', [
                 'session_code' => (string) ( $session['session_code'] ?? '' ),
@@ -337,6 +350,16 @@ final class HermesGateway {
         }
         try {
             $this->audit->approval( 'action_executed', $action_code, [ 'status' => 'executed' ] );
+            $this->audit->commandTrace( [
+                'session_code' => (string) ( $action['session_code'] ?? '' ),
+                'user_id' => \metis_current_user_id(),
+                'raw_input' => (string) ( $action['title'] ?? '' ),
+                'normalized_input' => (string) ( $action['title'] ?? '' ),
+                'selected_intent' => (string) ( $action['action_type'] ?? '' ),
+                'tool_key' => (string) ( $action['payload']['action_plan']['tool_key'] ?? '' ),
+                'payload' => (array) ( $action['payload'] ?? [] ),
+                'result' => $responseResult,
+            ] );
         } catch ( \Throwable ) {
             // Never fail an action response due to audit write issues.
         }

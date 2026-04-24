@@ -1,14 +1,15 @@
 <?php if (!defined('METIS_ROOT')) exit; ?>
 
 <?php
+require_once __DIR__ . '/_dashboard_data.php';
+
 $db = metis_db();
 
 $format_money = static function ( float $amount ): string {
     return '$' . metis_number_format( $amount, 2 );
 };
 $table_exists = static function ( string $table ) use ( $db ): bool {
-    $exists = $db->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
-    return $exists === $table;
+    return metis_portal_dashboard_table_exists( $db, $table );
 };
 
 $now_dt        = metis_current_datetime();
@@ -45,65 +46,33 @@ $newsletter_campaigns_table = Metis_Tables::get( 'newsletter_campaigns' );
 $newsletter_messages_table = Metis_Tables::get( 'newsletter_messages' );
 
 if ( $table_exists( $transactions_table ) ) {
-    $donation_summary = (object) ( $db->fetchOne(
-        "
-        SELECT
-            COALESCE(SUM(CASE WHEN tran_date >= %s THEN amount ELSE 0 END), 0) AS raised_30d,
-            COALESCE(SUM(CASE WHEN tran_date >= %s THEN amount ELSE 0 END), 0) AS raised_month,
-            COALESCE(SUM(CASE WHEN tran_date >= %s THEN amount ELSE 0 END), 0) AS raised_ytd,
-            COALESCE(SUM(
-                CASE
-                    WHEN (deposit_batch_id IS NULL OR deposit_batch_id = '')
-                      AND LOWER(COALESCE(status, '')) = 'completed'
-                    THEN amount
-                    ELSE 0
-                END
-            ), 0) AS open_deposit_total,
-            COUNT(
-                CASE
-                    WHEN (deposit_batch_id IS NULL OR deposit_batch_id = '')
-                      AND LOWER(COALESCE(status, '')) = 'completed'
-                    THEN 1
-                    ELSE NULL
-                END
-            ) AS open_deposit_count
-        FROM {$transactions_table}
-        ",
-        [ $last_30_start, $month_start, $year_start ]
-    ) ?? [] );
-
-    $active_campaigns = 0;
-    $total_campaigns  = 0;
-
-    if ( $table_exists( $campaigns_table ) ) {
-        $campaign_counts = (object) ( $db->fetchOne(
-            "
-            SELECT
-                COUNT(*) AS total_campaigns,
-                SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active_campaigns
-            FROM {$campaigns_table}
-            "
-        ) ?? [] );
-
-        $active_campaigns = (int) ( $campaign_counts->active_campaigns ?? 0 );
-        $total_campaigns  = (int) ( $campaign_counts->total_campaigns ?? 0 );
-    }
+    $donation_summary = metis_portal_dashboard_donation_stats(
+        $db,
+        $transactions_table,
+        $campaigns_table,
+        $last_30_start,
+        $month_start,
+        $year_start,
+        $table_exists( $campaigns_table )
+    );
+    $active_campaigns = (int) ( $donation_summary['active_campaigns'] ?? 0 );
+    $total_campaigns  = (int) ( $donation_summary['total_campaigns'] ?? 0 );
 
     $donations_metrics = [
         [
             'label' => 'Last 30 Days',
-            'value' => $format_money( (float) ( $donation_summary->raised_30d ?? 0 ) ),
+            'value' => $format_money( (float) ( $donation_summary['raised_30d'] ?? 0 ) ),
             'note'  => 'Recent giving',
         ],
         [
             'label' => 'This Month',
-            'value' => $format_money( (float) ( $donation_summary->raised_month ?? 0 ) ),
+            'value' => $format_money( (float) ( $donation_summary['raised_month'] ?? 0 ) ),
             'note'  => $now_dt->format( 'F Y' ),
         ],
         [
             'label' => 'Open Queue',
-            'value' => $format_money( (float) ( $donation_summary->open_deposit_total ?? 0 ) ),
-            'note'  => metis_number_format( (int) ( $donation_summary->open_deposit_count ?? 0 ) ) . ' gifts to batch',
+            'value' => $format_money( (float) ( $donation_summary['open_deposit_total'] ?? 0 ) ),
+            'note'  => metis_number_format( (int) ( $donation_summary['open_deposit_count'] ?? 0 ) ) . ' gifts to batch',
         ],
         [
             'label' => 'Campaigns',
@@ -114,53 +83,38 @@ if ( $table_exists( $transactions_table ) ) {
 
     $finance_metrics[] = [
         'label' => 'Month to Date',
-        'value' => $format_money( (float) ( $donation_summary->raised_month ?? 0 ) ),
+        'value' => $format_money( (float) ( $donation_summary['raised_month'] ?? 0 ) ),
         'note'  => 'From transactions',
     ];
     $finance_metrics[] = [
         'label' => 'Year to Date',
-        'value' => $format_money( (float) ( $donation_summary->raised_ytd ?? 0 ) ),
+        'value' => $format_money( (float) ( $donation_summary['raised_ytd'] ?? 0 ) ),
         'note'  => 'Gross revenue this year',
     ];
     $finance_metrics[] = [
         'label' => 'Awaiting Deposit',
-        'value' => $format_money( (float) ( $donation_summary->open_deposit_total ?? 0 ) ),
-        'note'  => metis_number_format( (int) ( $donation_summary->open_deposit_count ?? 0 ) ) . ' unsettled transactions',
+        'value' => $format_money( (float) ( $donation_summary['open_deposit_total'] ?? 0 ) ),
+        'note'  => metis_number_format( (int) ( $donation_summary['open_deposit_count'] ?? 0 ) ) . ' unsettled transactions',
     ];
 }
 
 if ( $table_exists( $contacts_table ) ) {
-    $total_contacts = (int) $db->scalar( "SELECT COUNT(*) FROM {$contacts_table}" );
-    $with_did       = (int) $db->scalar( "SELECT COUNT(*) FROM {$contacts_table} WHERE did IS NOT NULL AND did <> ''" );
-    $without_did    = max( 0, $total_contacts - $with_did );
-    $duplicate_count = 0;
-
-    $duplicate_rows = $db->fetchAll(
-        "SELECT LOWER(TRIM(email)) AS email_key, COUNT(*) AS matches
-         FROM {$contacts_table}
-         WHERE email IS NOT NULL AND TRIM(email) <> ''
-         GROUP BY LOWER(TRIM(email))
-         HAVING COUNT(*) > 1"
-    );
-
-    foreach ( $duplicate_rows as $row ) {
-        $duplicate_count += 1;
-    }
+    $contact_stats = metis_portal_dashboard_contacts_stats( $db, $contacts_table );
 
     $contacts_metrics = [
         [
             'label' => 'Contacts',
-            'value' => metis_number_format( $total_contacts ),
+            'value' => metis_number_format( (int) ( $contact_stats['total_contacts'] ?? 0 ) ),
             'note'  => 'Total records',
         ],
         [
             'label' => 'Donor IDs',
-            'value' => metis_number_format( $with_did ),
-            'note'  => metis_number_format( $without_did ) . ' without donor IDs',
+            'value' => metis_number_format( (int) ( $contact_stats['with_did'] ?? 0 ) ),
+            'note'  => metis_number_format( (int) ( $contact_stats['without_did'] ?? 0 ) ) . ' without donor IDs',
         ],
         [
             'label' => 'Duplicates',
-            'value' => metis_number_format( $duplicate_count ),
+            'value' => metis_number_format( (int) ( $contact_stats['duplicate_count'] ?? 0 ) ),
             'note'  => 'Potential duplicate groups',
         ],
     ];
@@ -174,72 +128,93 @@ if ( $table_exists( $newsletter_lists_table ) && $table_exists( $newsletter_subs
             [ ( new DateTimeImmutable( 'now', metis_newsletter_resolved_timezone() ) )->modify( '-30 days' )->format( 'Y-m-d H:i:s' ) ]
         );
     }
+    $newsletter_stats = metis_portal_dashboard_newsletter_stats(
+        $db,
+        $newsletter_lists_table,
+        $newsletter_subs_table,
+        $newsletter_campaigns_table,
+        $newsletter_messages_table,
+        $newsletter_sent_30d
+    );
 
     $newsletter_metrics = [
         [
             'label' => 'Subscribers',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$newsletter_subs_table} WHERE status = 'subscribed'" ) ),
+            'value' => metis_number_format( (int) ( $newsletter_stats['subscribers'] ?? 0 ) ),
             'note'  => 'Confirmed subscribers',
         ],
         [
             'label' => 'Queued',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$newsletter_messages_table} WHERE status = 'queued'" ) ),
+            'value' => metis_number_format( (int) ( $newsletter_stats['queued'] ?? 0 ) ),
             'note'  => 'Waiting to send',
         ],
         [
             'label' => 'Sent 30d',
-            'value' => metis_number_format( $newsletter_sent_30d ),
+            'value' => metis_number_format( (int) ( $newsletter_stats['sent_30d'] ?? 0 ) ),
             'note'  => 'Delivered in 30 days',
         ],
         [
             'label' => 'Lists',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$newsletter_lists_table} WHERE is_active = 1" ) ),
-            'note'  => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$newsletter_campaigns_table}" ) ) . ' campaigns total',
+            'value' => metis_number_format( (int) ( $newsletter_stats['active_lists'] ?? 0 ) ),
+            'note'  => metis_number_format( (int) ( $newsletter_stats['total_campaigns'] ?? 0 ) ) . ' campaigns total',
         ],
     ];
 }
 
 if ( $table_exists( $board_meetings_table ) && $table_exists( $board_actions_table ) && $table_exists( $board_decisions_table ) && $table_exists( $board_committees_table ) ) {
     $now_mysql = metis_current_time( 'mysql' );
+    $board_stats = metis_portal_dashboard_board_overview_stats(
+        $db,
+        $board_meetings_table,
+        $board_actions_table,
+        $board_decisions_table,
+        $board_committees_table,
+        $now_mysql
+    );
     $board_metrics = [
         [
             'label' => 'Meetings',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$board_meetings_table}" ) ),
-            'note'  => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$board_meetings_table} WHERE meeting_date >= %s AND status IN ('scheduled','draft')", [ $now_mysql ] ) ) . ' upcoming',
+            'value' => metis_number_format( (int) ( $board_stats['total_meetings'] ?? 0 ) ),
+            'note'  => metis_number_format( (int) ( $board_stats['upcoming_meetings'] ?? 0 ) ) . ' upcoming',
         ],
         [
             'label' => 'Open Actions',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$board_actions_table} WHERE status <> 'done'" ) ),
+            'value' => metis_number_format( (int) ( $board_stats['open_actions'] ?? 0 ) ),
             'note'  => 'Outstanding governance tasks',
         ],
         [
             'label' => 'Decisions',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$board_decisions_table}" ) ),
+            'value' => metis_number_format( (int) ( $board_stats['decision_count'] ?? 0 ) ),
             'note'  => 'Recorded decisions',
         ],
         [
             'label' => 'Committees',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$board_committees_table} WHERE is_active = 1" ) ),
+            'value' => metis_number_format( (int) ( $board_stats['committee_count'] ?? 0 ) ),
             'note'  => 'Active committees',
         ],
     ];
 }
 
 if ( $table_exists( $people_table ) ) {
+    $people_stats = metis_portal_dashboard_people_stats(
+        $db,
+        $people_table,
+        $table_exists( $requests_table ) ? $requests_table : null
+    );
     $people_metrics = [
         [
             'label' => 'People',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$people_table}" ) ),
-            'note'  => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$people_table} WHERE status = 'active'" ) ) . ' active',
+            'value' => metis_number_format( (int) ( $people_stats['total_people'] ?? 0 ) ),
+            'note'  => metis_number_format( (int) ( $people_stats['active_people'] ?? 0 ) ) . ' active',
         ],
         [
             'label' => 'Staff',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$people_table} WHERE is_staff = 1" ) ),
-            'note'  => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$people_table} WHERE is_board = 1" ) ) . ' board members',
+            'value' => metis_number_format( (int) ( $people_stats['staff_count'] ?? 0 ) ),
+            'note'  => metis_number_format( (int) ( $people_stats['board_count'] ?? 0 ) ) . ' board members',
         ],
         [
             'label' => 'Workspace',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$people_table} WHERE is_workspace_user = 1" ) ),
+            'value' => metis_number_format( (int) ( $people_stats['workspace_count'] ?? 0 ) ),
             'note'  => 'Linked Workspace users',
         ],
     ];
@@ -247,14 +222,18 @@ if ( $table_exists( $people_table ) ) {
     if ( $table_exists( $requests_table ) ) {
         $people_metrics[] = [
             'label' => 'Requests',
-            'value' => metis_number_format( (int) $db->scalar( "SELECT COUNT(*) FROM {$requests_table} WHERE status = 'pending'" ) ),
+            'value' => metis_number_format( (int) ( $people_stats['pending_requests'] ?? 0 ) ),
             'note'  => 'Pending access requests',
         ];
     }
 }
 
 if ( function_exists( 'metis_calendar_workspace_settings_all' ) ) {
-    $workspace = metis_calendar_workspace_settings_all();
+    $workspace = metis_portal_dashboard_remember(
+        'calendar_workspace',
+        120,
+        static fn (): array => metis_calendar_workspace_settings_all()
+    );
     $calendar_count = count( (array) ( $workspace['calendars'] ?? [] ) );
     $calendar_metrics = [
         [
@@ -271,8 +250,16 @@ if ( function_exists( 'metis_calendar_workspace_settings_all' ) ) {
 }
 
 if ( function_exists( 'metis_drive_configured_drives' ) && function_exists( 'metis_drive_users_home_setting' ) ) {
-    $drive_configs = metis_drive_configured_drives();
-    $users_home    = metis_drive_users_home_setting();
+    $drive_configs = metis_portal_dashboard_remember(
+        'drive_configs',
+        120,
+        static fn (): array => (array) metis_drive_configured_drives()
+    );
+    $users_home    = metis_portal_dashboard_remember(
+        'drive_users_home',
+        120,
+        static fn (): array => (array) metis_drive_users_home_setting()
+    );
     $drive_metrics = [
         [
             'label' => 'Drives',
@@ -288,37 +275,31 @@ if ( function_exists( 'metis_drive_configured_drives' ) && function_exists( 'met
 }
 
 if ( $table_exists( $deposits_table ) ) {
-    $deposit_summary = (object) ( $db->fetchOne(
-        "
-        SELECT
-            COALESCE(SUM(CASE WHEN deposit_date >= %s THEN COALESCE(net_total, total_amount, 0) ELSE 0 END), 0) AS month_net,
-            COALESCE(SUM(CASE WHEN status IN ('pending', 'in_transit') THEN COALESCE(net_total, total_amount, 0) ELSE 0 END), 0) AS pending_total,
-            COALESCE(SUM(CASE WHEN status IN ('pending', 'in_transit') THEN 1 ELSE 0 END), 0) AS pending_count
-        FROM {$deposits_table}
-        ",
-        [ $month_start ]
-    ) ?? [] );
+    $finance_settlement_stats = metis_portal_dashboard_finance_settlement_stats(
+        $db,
+        $deposits_table,
+        $month_start,
+        $table_exists( $recons_table ) ? $recons_table : null
+    );
 
     $finance_metrics[1] = [
         'label' => 'Settled This Month',
-        'value' => $format_money( (float) ( $deposit_summary->month_net ?? 0 ) ),
+        'value' => $format_money( (float) ( $finance_settlement_stats['month_net'] ?? 0 ) ),
         'note'  => 'Deposits cleared to bank',
     ];
 
     $finance_metrics[3] = [
         'label' => 'Pending Payouts',
-        'value' => $format_money( (float) ( $deposit_summary->pending_total ?? 0 ) ),
-        'note'  => metis_number_format( (int) ( $deposit_summary->pending_count ?? 0 ) ) . ' deposits pending',
+        'value' => $format_money( (float) ( $finance_settlement_stats['pending_total'] ?? 0 ) ),
+        'note'  => metis_number_format( (int) ( $finance_settlement_stats['pending_count'] ?? 0 ) ) . ' deposits pending',
     ];
-}
-
-if ( $table_exists( $recons_table ) ) {
-    $open_recons = (int) $db->scalar( "SELECT COUNT(*) FROM {$recons_table} WHERE status <> 'finalized'" );
-    $finance_metrics[] = [
-        'label' => 'Open Recons',
-        'value' => metis_number_format( $open_recons ),
-        'note'  => 'Periods still to match',
-    ];
+    if ( $table_exists( $recons_table ) ) {
+        $finance_metrics[] = [
+            'label' => 'Open Recons',
+            'value' => metis_number_format( (int) ( $finance_settlement_stats['open_recons'] ?? 0 ) ),
+            'note'  => 'Periods still to match',
+        ];
+    }
 }
 
 $grandys_metrics = [];
@@ -354,8 +335,9 @@ $job_queue_table = Metis_Tables::get( 'job_queue' );
 $pending_jobs_count = 0;
 $failed_jobs_count  = 0;
 if ( $table_exists( $job_queue_table ) ) {
-    $pending_jobs_count = (int) $db->scalar( "SELECT COUNT(*) FROM {$job_queue_table} WHERE status = 'queued'" );
-    $failed_jobs_count  = (int) $db->scalar( "SELECT COUNT(*) FROM {$job_queue_table} WHERE status = 'failed'" );
+    $job_stats = metis_portal_dashboard_job_stats( $db, $job_queue_table );
+    $pending_jobs_count = (int) ( $job_stats['pending_jobs_count'] ?? 0 );
+    $failed_jobs_count  = (int) ( $job_stats['failed_jobs_count'] ?? 0 );
 }
 
 $can_access_module = static function ( string $module_slug ): bool {
@@ -382,31 +364,24 @@ $drive_home_ready   = empty( $users_home['drive_id'] ) ? false : true;
 $current_person_id  = function_exists( 'metis_auth_current_person_id' ) ? (int) metis_auth_current_person_id() : 0;
 $my_board_actions   = [];
 
-if ( $table_exists( $board_meetings_table ) ) {
-    $upcoming_meetings = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_meetings_table} WHERE meeting_date >= %s AND meeting_date <= %s AND status IN ('scheduled','draft')",
-        [ $now_mysql, $next_week_mysql ]
-    );
-}
-if ( $table_exists( $board_actions_table ) ) {
-    $open_board_actions = (int) $db->scalar( "SELECT COUNT(*) FROM {$board_actions_table} WHERE status <> 'done'" );
-}
-if ( $table_exists( $requests_table ) ) {
-    $pending_requests = (int) $db->scalar( "SELECT COUNT(*) FROM {$requests_table} WHERE status = 'pending'" );
-}
-if ( $table_exists( $newsletter_messages_table ) ) {
-    $queued_emails = (int) $db->scalar( "SELECT COUNT(*) FROM {$newsletter_messages_table} WHERE status = 'queued'" );
-}
-if ( $table_exists( $transactions_table ) ) {
-    $open_queue_row = (array) ( $db->fetchOne(
-        "SELECT
-            COUNT(CASE WHEN (deposit_batch_id IS NULL OR deposit_batch_id = '') AND LOWER(COALESCE(status, '')) = 'completed' THEN 1 ELSE NULL END) AS open_count,
-            COALESCE(SUM(CASE WHEN (deposit_batch_id IS NULL OR deposit_batch_id = '') AND LOWER(COALESCE(status, '')) = 'completed' THEN amount ELSE 0 END), 0) AS open_total
-         FROM {$transactions_table}"
-    ) ?? [] );
-    $open_deposit_count = (int) ( $open_queue_row['open_count'] ?? 0 );
-    $open_deposit_total = (float) ( $open_queue_row['open_total'] ?? 0 );
-}
+$watch_stats = metis_portal_dashboard_watch_stats(
+    $db,
+    [
+        $table_exists( $board_meetings_table ) ? $board_meetings_table : '',
+        $table_exists( $board_actions_table ) ? $board_actions_table : '',
+        $table_exists( $requests_table ) ? $requests_table : '',
+        $table_exists( $newsletter_messages_table ) ? $newsletter_messages_table : '',
+        $table_exists( $transactions_table ) ? $transactions_table : '',
+    ],
+    $now_mysql,
+    $next_week_mysql
+);
+$upcoming_meetings = (int) ( $watch_stats['upcoming_meetings'] ?? 0 );
+$open_board_actions = (int) ( $watch_stats['open_board_actions'] ?? 0 );
+$pending_requests = (int) ( $watch_stats['pending_requests'] ?? 0 );
+$queued_emails = (int) ( $watch_stats['queued_emails'] ?? 0 );
+$open_deposit_count = (int) ( $watch_stats['open_deposit_count'] ?? 0 );
+$open_deposit_total = (float) ( $watch_stats['open_deposit_total'] ?? 0 );
 
 $stash_attention = (int) ( $stash_stats['new_tickets'] ?? 0 ) + (int) ( $stash_stats['waitlist'] ?? 0 );
 
@@ -491,296 +466,44 @@ $board_action_counts = [
 
 if ( $can_access_module( 'board' ) && $current_person_id > 0 && $table_exists( $board_actions_table ) && $table_exists( $board_meetings_table ) ) {
     $my_board_actions = $load_board_actions( $board_action_filter );
-
-    $board_action_counts['mine'] = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_actions_table} a
-         WHERE a.owner_person_id = %d
-           AND a.status NOT IN ('done','completed','closed')",
-        [ $current_person_id ]
-    );
-    $board_action_counts['overdue'] = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_actions_table} a
-         WHERE a.owner_person_id = %d
-           AND a.status NOT IN ('done','completed','closed')
-           AND a.due_date IS NOT NULL
-           AND a.due_date < %s",
-        [ $current_person_id, $today_date ]
-    );
-    $board_action_counts['due7'] = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_actions_table} a
-         WHERE a.owner_person_id = %d
-           AND a.status NOT IN ('done','completed','closed')
-           AND a.due_date IS NOT NULL
-           AND a.due_date >= %s
-           AND a.due_date <= %s",
-        [ $current_person_id, $today_date, $due7_date ]
-    );
-    $board_action_counts['done'] = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_actions_table} a
-         WHERE a.owner_person_id = %d
-           AND a.status IN ('done','completed','closed')",
-        [ $current_person_id ]
-    );
-    $board_action_counts['today'] = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_actions_table} a
-         WHERE a.owner_person_id = %d
-           AND a.status NOT IN ('done','completed','closed')
-           AND a.due_date = %s",
-        [ $current_person_id, $today_date ]
-    );
-    $board_action_counts['blocked'] = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$board_actions_table} a
-         WHERE a.owner_person_id = %d
-           AND LOWER(COALESCE(a.status, '')) IN ('blocked','on_hold','stalled')",
-        [ $current_person_id ]
+    $board_action_counts = metis_portal_dashboard_board_action_counts(
+        $db,
+        $board_actions_table,
+        $current_person_id,
+        $today_date,
+        $due7_date
     );
 }
 
-$needs_attention = [];
-if ( $can_access_module( 'board' ) && $open_board_actions > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Board action items are pending',
-        'detail' => metis_number_format( $open_board_actions ) . ' open action items need follow-up.',
-        'url' => metis_portal_url( 'board', 'dashboard' ),
-        'cta' => 'Review actions',
-        'severity' => 'critical',
-    ];
-}
-if ( $can_access_module( 'board' ) && $upcoming_meetings > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Board meetings coming up this week',
-        'detail' => metis_number_format( $upcoming_meetings ) . ' meetings are in the next 7 days.',
-        'url' => metis_portal_url( 'board', 'dashboard' ),
-        'cta' => 'Open calendar',
-        'severity' => 'soon',
-    ];
-}
-if ( $can_access_module( 'donations' ) && $open_deposit_count > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Deposit batching is waiting',
-        'detail' => metis_number_format( $open_deposit_count ) . ' gifts are still unbatched (' . $format_money( $open_deposit_total ) . ').',
-        'url' => metis_portal_url( 'donations', 'deposits' ),
-        'cta' => 'Open deposits',
-        'severity' => 'critical',
-    ];
-}
-if ( $can_access_module( 'people' ) && $pending_requests > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Access requests are pending',
-        'detail' => metis_number_format( $pending_requests ) . ' people are waiting on access approval.',
-        'url' => metis_portal_url( 'people', 'access_requests' ),
-        'cta' => 'Review requests',
-        'severity' => 'soon',
-    ];
-}
-if ( $can_access_module( 'newsletter' ) && $queued_emails > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Newsletter send queue is not empty',
-        'detail' => metis_number_format( $queued_emails ) . ' messages are queued for delivery.',
-        'url' => metis_portal_url( 'newsletter', 'campaigns' ),
-        'cta' => 'Open campaigns',
-        'severity' => 'info',
-    ];
-}
-if ( $can_access_module( 'grandys_stash' ) && $stash_attention > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Grandy\'s Stash needs processing',
-        'detail' => metis_number_format( $stash_attention ) . ' tickets are waiting for action or inventory.',
-        'url' => metis_portal_url( 'grandys_stash', 'dashboard' ),
-        'cta' => 'Open inbox',
-        'severity' => 'critical',
-    ];
-}
-if ( $can_access_module( 'calendar' ) && ! $calendar_ready ) {
-    $needs_attention[] = [
-        'title' => 'Calendar workspace is not configured',
-        'detail' => 'Calendar setup still needs to be completed.',
-        'url' => metis_portal_url( 'settings', 'calendar' ),
-        'cta' => 'Configure calendar',
-        'severity' => 'info',
-    ];
-}
-if ( $can_access_module( 'drive' ) && ! $drive_home_ready ) {
-    $needs_attention[] = [
-        'title' => 'Drive user home is not enabled',
-        'detail' => 'People folders cannot be auto-managed until a home drive is configured.',
-        'url' => metis_portal_url( 'settings', 'drive' ),
-        'cta' => 'Configure drive',
-        'severity' => 'info',
-    ];
-}
-if ( $can_access_module( 'settings' ) && $failed_jobs_count > 0 ) {
-    $needs_attention[] = [
-        'title' => 'Background jobs are failing',
-        'detail' => metis_number_format( $failed_jobs_count ) . ' failed jobs are in the queue.',
-        'url' => metis_portal_url( 'settings', 'scheduler' ),
-        'cta' => 'Review jobs',
-        'severity' => 'critical',
-    ];
-}
-
-$needs_attention_groups = [
-    'critical' => [],
-    'soon' => [],
-    'info' => [],
-];
-foreach ( $needs_attention as $item ) {
-    $severity = (string) ( $item['severity'] ?? 'info' );
-    if ( ! isset( $needs_attention_groups[ $severity ] ) ) {
-        $severity = 'info';
-    }
-    $needs_attention_groups[ $severity ][] = $item;
-}
-
-$today_priority = [];
-if ( $can_access_module( 'board' ) ) {
-    $today_priority[] = [
-        'title' => 'Overdue',
-        'count' => (int) ( $board_action_counts['overdue'] ?? 0 ),
-        'filter' => 'overdue',
-        'note' => 'Past due board actions',
-    ];
-    $today_priority[] = [
-        'title' => 'Due Today',
-        'count' => (int) ( $board_action_counts['today'] ?? 0 ),
-        'filter' => 'today',
-        'note' => 'Actions due today',
-    ];
-    $today_priority[] = [
-        'title' => 'Blocked',
-        'count' => (int) ( $board_action_counts['blocked'] ?? 0 ),
-        'filter' => 'blocked',
-        'note' => 'Blocked or on hold',
-    ];
-}
-
-$today_stats = [
+$dashboard_view = metis_portal_build_dashboard_view_model(
     [
-        'label' => 'Needs Attention',
-        'value' => metis_number_format( count( $needs_attention ) ),
-        'note'  => 'Role-scoped critical items',
-    ],
-    [
-        'label' => 'Open Board Actions',
-        'value' => metis_number_format( $open_board_actions ),
-        'note'  => 'Outstanding governance tasks',
-    ],
-    [
-        'label' => 'Upcoming Meetings (7d)',
-        'value' => metis_number_format( $upcoming_meetings ),
-        'note'  => 'Scheduled or draft meetings',
-    ],
-    [
-        'label' => 'Queued Jobs',
-        'value' => metis_number_format( $pending_jobs_count ),
-        'note'  => 'Background queue waiting',
-    ],
-];
-
-$normalize_metrics = static function ( array $metrics ): array {
-    $normalized = array_slice( $metrics, 0, 3 );
-    while ( count( $normalized ) < 3 ) {
-        $normalized[] = [
-            'label' => '—',
-            'value' => '—',
-            'note'  => '',
-        ];
-    }
-    return $normalized;
-};
-$focus_updated_label = metis_current_datetime()->format( 'M j, g:i a' );
-
-$focus_cards_by_key = [];
-if ( $can_access_module( 'board' ) ) {
-    $focus_cards_by_key['board'] = [
-        'title' => 'Board',
-        'desc'  => 'Meetings, decisions, attendance, and open actions.',
-        'url'   => metis_portal_url( 'board', 'dashboard' ),
-        'metrics' => $normalize_metrics( $board_metrics ),
-        'updated' => $focus_updated_label,
-    ];
-}
-if ( $can_access_module( 'people' ) ) {
-    $focus_cards_by_key['people'] = [
-        'title' => 'People',
-        'desc'  => 'Profiles, access approvals, and workspace links.',
-        'url'   => metis_portal_url( 'people', 'dashboard' ),
-        'metrics' => $normalize_metrics( $people_metrics ),
-        'updated' => $focus_updated_label,
-    ];
-}
-if ( $can_access_module( 'grandys_stash' ) ) {
-    $focus_cards_by_key['grandys_stash'] = [
-        'title' => 'Grandy\'s Stash',
-        'desc'  => 'Request queue, waitlist pressure, and fulfillment.',
-        'url'   => metis_portal_url( 'grandys_stash', 'dashboard' ),
-        'metrics' => $normalize_metrics( $grandys_metrics ),
-        'updated' => $focus_updated_label,
-    ];
-}
-if ( $can_access_module( 'donations' ) || $can_access_module( 'finance' ) ) {
-    $focus_cards_by_key['finance'] = [
-        'title' => 'Finance',
-        'desc'  => 'Revenue, deposits, and reconciliation status.',
-        'url'   => $can_access_module( 'donations' ) ? metis_portal_url( 'donations', 'dashboard' ) : metis_portal_url( 'finance', 'finance' ),
-        'metrics' => $normalize_metrics( $finance_metrics ),
-        'updated' => $focus_updated_label,
-    ];
-}
-if ( $can_access_module( 'newsletter' ) ) {
-    $focus_cards_by_key['communications'] = [
-        'title' => 'Communications',
-        'desc'  => 'Newsletter queue and campaign activity.',
-        'url'   => metis_portal_url( 'newsletter', 'dashboard' ),
-        'metrics' => $normalize_metrics( $newsletter_metrics ),
-        'updated' => $focus_updated_label,
-    ];
-}
-
-$role_priority = [];
-if ( $can_access_module( 'board' ) ) {
-    $role_priority = [ 'board', 'people', 'grandys_stash', 'finance', 'communications' ];
-} elseif ( $can_access_module( 'donations' ) || $can_access_module( 'finance' ) ) {
-    $role_priority = [ 'finance', 'people', 'communications', 'board', 'grandys_stash' ];
-} elseif ( $can_access_module( 'newsletter' ) ) {
-    $role_priority = [ 'communications', 'people', 'board', 'finance', 'grandys_stash' ];
-} elseif ( $can_access_module( 'people' ) ) {
-    $role_priority = [ 'people', 'board', 'finance', 'communications', 'grandys_stash' ];
-}
-
-$focus_cards = [];
-foreach ( $role_priority as $key ) {
-    if ( isset( $focus_cards_by_key[ $key ] ) ) {
-        $focus_cards[] = $focus_cards_by_key[ $key ];
-        unset( $focus_cards_by_key[ $key ] );
-    }
-}
-foreach ( $focus_cards_by_key as $card ) {
-    $focus_cards[] = $card;
-}
-
-$system_watch = [
-    [
-        'label' => 'Pending background jobs',
-        'value' => metis_number_format( $pending_jobs_count ),
-        'state' => $pending_jobs_count > 0 ? 'warn' : 'ok',
-    ],
-    [
-        'label' => 'Failed background jobs',
-        'value' => metis_number_format( $failed_jobs_count ),
-        'state' => $failed_jobs_count > 0 ? 'alert' : 'ok',
-    ],
-    [
-        'label' => 'Calendar workspace',
-        'value' => $calendar_ready ? 'Ready' : 'Needs setup',
-        'state' => $calendar_ready ? 'ok' : 'warn',
-    ],
-    [
-        'label' => 'Drive user home',
-        'value' => $drive_home_ready ? 'Ready' : 'Needs setup',
-        'state' => $drive_home_ready ? 'ok' : 'warn',
-    ],
-];
+        'can_access_module' => $can_access_module,
+        'format_money' => $format_money,
+        'open_board_actions' => $open_board_actions,
+        'upcoming_meetings' => $upcoming_meetings,
+        'open_deposit_count' => $open_deposit_count,
+        'open_deposit_total' => $open_deposit_total,
+        'pending_requests' => $pending_requests,
+        'queued_emails' => $queued_emails,
+        'stash_attention' => $stash_attention,
+        'calendar_ready' => $calendar_ready,
+        'drive_home_ready' => $drive_home_ready,
+        'failed_jobs_count' => $failed_jobs_count,
+        'pending_jobs_count' => $pending_jobs_count,
+        'board_action_counts' => $board_action_counts,
+        'board_metrics' => $board_metrics,
+        'people_metrics' => $people_metrics,
+        'grandys_metrics' => $grandys_metrics,
+        'finance_metrics' => $finance_metrics,
+        'newsletter_metrics' => $newsletter_metrics,
+    ]
+);
+$needs_attention = $dashboard_view['needs_attention'];
+$needs_attention_groups = $dashboard_view['needs_attention_groups'];
+$today_priority = $dashboard_view['today_priority'];
+$today_stats = $dashboard_view['today_stats'];
+$focus_cards = $dashboard_view['focus_cards'];
+$system_watch = $dashboard_view['system_watch'];
 ?>
 
 <div class="mw-page-title"><?php echo metis_escape_html( metis_portal_name() ); ?> Dashboard</div>

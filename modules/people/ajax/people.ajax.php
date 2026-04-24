@@ -1,6 +1,8 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
+require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+
 function metis_people_ajax_verify(): void {
     metis_people_ensure_schema();
     metis_people_seed_permissions_and_roles();
@@ -1366,6 +1368,7 @@ metis_ajax_register_handler( 'metis_people_save_position', function () {
          LIMIT 1",
         [ $group_key, $position_key ]
     );
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(
         [
             'position' => $saved ? metis_people_position_payload( (array) $saved ) : null,
@@ -1391,6 +1394,7 @@ metis_ajax_register_handler( 'metis_people_delete_position', function () {
         [ '%d' ],
         [ '%d' ]
     );
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(
         [
             'position_id' => $position_id,
@@ -1880,6 +1884,7 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
         'status' => $status,
         'lifecycle_status' => $lifecycle_status,
     ]);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'person_id' => $person_id,
         'pid' => $person_pid,
@@ -1918,6 +1923,7 @@ metis_ajax_register_handler( 'metis_people_save_avatar', function () {
     }
     metis_db()->update($people_table, ['avatar_url' => $url], ['id' => $person_id], ['%s'], ['%d']);
     metis_people_log_activity($person_id, 'avatar_updated', 'Updated profile photo', []);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['avatar_url' => $url]);
 });
 
@@ -2000,6 +2006,7 @@ metis_ajax_register_handler( 'metis_people_offboard_person', function () {
         ]
     );
     metis_people_log_activity($person_id, 'offboarded', 'Ran offboarding checklist', ['pid' => $pid]);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['pid' => $pid]);
 });
 
@@ -2042,6 +2049,7 @@ metis_ajax_register_handler( 'metis_people_add_document', function () {
         'created_by_person_id' => $actor > 0 ? $actor : null,
     ], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d']);
     metis_people_log_activity($person_id, 'document_added', 'Added document reference', ['doc_type' => $doc_type, 'doc_label' => $doc_label]);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'ok' => 1,
         'doc_id' => (int) $db->lastInsertId(),
@@ -2101,6 +2109,7 @@ metis_ajax_register_handler( 'metis_people_grant_emergency_access', function () 
         ], ['%d', '%d', '%s', '%s']);
     }
     metis_people_log_activity($person_id, 'emergency_access_granted', 'Granted emergency access', ['role_key' => $role_key, 'hours' => $hours]);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['ok' => 1]);
 });
 
@@ -2118,6 +2127,7 @@ metis_ajax_register_handler( 'metis_people_delete_document', function () {
     }
     $db->delete($documents_table, ['id' => $doc_id], ['%d']);
     metis_people_log_activity((int) $doc['person_id'], 'document_deleted', 'Deleted document reference', ['doc_label' => (string) ($doc['doc_label'] ?? '')]);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['ok' => 1]);
 });
 
@@ -2138,6 +2148,7 @@ metis_ajax_register_handler( 'metis_people_revoke_emergency_access', function ()
     }
     $db->update($emergency_table, ['revoked_at' => metis_current_time('mysql')], ['id' => $entry_id], ['%s'], ['%d']);
     metis_people_log_activity((int) $entry['person_id'], 'emergency_access_revoked', 'Revoked emergency access', ['entry_id' => $entry_id]);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['ok' => 1]);
 });
 

@@ -80,4 +80,8 @@ final class HermesAuditLogger {
             'context'  => $context,
         ] );
     }
+
+    public function commandTrace( array $entry ): void {
+        $this->repository->logCommandTrace( $entry );
+    }
 }

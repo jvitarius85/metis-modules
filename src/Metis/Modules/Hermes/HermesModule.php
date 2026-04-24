@@ -10,6 +10,7 @@ use Metis\Hermes\HermesAuditLogger;
 use Metis\Hermes\HermesCommandRegistry;
 use Metis\Hermes\HermesContextBuilder;
 use Metis\Hermes\HermesContextPackLoader;
+use Metis\Hermes\ConversationalParser;
 use Metis\Hermes\HermesDiagnosticEngine;
 use Metis\Hermes\HermesDocumentationIndex;
 use Metis\Hermes\HermesExecutionEngine;
@@ -106,6 +107,14 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_command_registry' ) ) {
             $registry->singleton( 'hermes_command_registry', static fn (): HermesCommandRegistry => new HermesCommandRegistry() );
         }
+        if ( ! $registry->has( 'hermes_conversational_parser' ) ) {
+            $registry->singleton( 'hermes_conversational_parser', static fn (): ConversationalParser => new ConversationalParser(
+                Application::service( 'hermes_command_registry' ),
+                Application::service( 'hermes_entity_resolver' ),
+                Application::service( 'hermes_memory_store' ),
+                Application::service( 'hermes_intent_parser' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_intent_parser' ) ) {
             $registry->singleton( 'hermes_intent_parser', static fn (): HermesIntentParser => new HermesIntentParser(
                 Application::service( 'hermes_command_registry' ),
@@ -119,7 +128,9 @@ final class HermesModule {
             $registry->singleton( 'hermes_permission_validator', static fn (): HermesPermissionValidator => new HermesPermissionValidator( Application::service( 'permissions' ) ) );
         }
         if ( ! $registry->has( 'hermes_execution_engine' ) ) {
-            $registry->singleton( 'hermes_execution_engine', static fn (): HermesExecutionEngine => new HermesExecutionEngine() );
+            $registry->singleton( 'hermes_execution_engine', static fn (): HermesExecutionEngine => new HermesExecutionEngine(
+                Application::service( 'hermes_tool_registry' )
+            ) );
         }
         if ( ! $registry->has( 'hermes_response_renderer' ) ) {
             $registry->singleton( 'hermes_response_renderer', static fn (): HermesResponseRenderer => new HermesResponseRenderer() );
@@ -137,7 +148,7 @@ final class HermesModule {
         }
         if ( ! $registry->has( 'hermes_operational_engine' ) ) {
             $registry->singleton( 'hermes_operational_engine', static fn (): HermesOperationalEngine => new HermesOperationalEngine(
-                Application::service( 'hermes_intent_parser' ),
+                Application::service( 'hermes_conversational_parser' ),
                 Application::service( 'hermes_context_pack_loader' ),
                 Application::service( 'hermes_command_registry' ),
                 Application::service( 'hermes_permission_validator' ),
@@ -146,6 +157,15 @@ final class HermesModule {
                 Application::service( 'hermes_entity_resolver' ),
                 Application::service( 'hermes_attribute_resolver' ),
                 Application::service( 'hermes_debug_logger' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_capabilities' ) ) {
+            $registry->singleton( 'hermes_capabilities', static fn (): \Metis\Services\HermesCapabilityService => new \Metis\Services\HermesCapabilityService(
+                Application::service( 'db' ),
+                Application::service( 'hermes_directory' ),
+                Application::service( 'hermes_user_admin' ),
+                Application::service( 'hermes_system_ops' ),
+                function_exists( 'metis_job_queue' ) ? \metis_job_queue() : null
             ) );
         }
         if ( ! $registry->has( 'hermes_context_builder' ) ) {

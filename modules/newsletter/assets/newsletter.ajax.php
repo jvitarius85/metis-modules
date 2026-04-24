@@ -1,6 +1,8 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
+require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+
 function metis_newsletter_ajax_verify_nonce(): void {
     $nonce = isset($_POST['nonce']) ? metis_text_clean(metis_runtime_unslash($_POST['nonce'])) : '';
     $action_nonce = isset($_POST['metis_action_nonce']) ? metis_text_clean(metis_runtime_unslash($_POST['metis_action_nonce'])) : '';
@@ -441,6 +443,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_defaults', function () {
     Core_Settings_Service::set('newsletter_default_from_email', $from_email, true);
     Core_Settings_Service::set('newsletter_default_reply_to', $reply_to, true);
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'from_name' => $from_name,
         'from_email' => $from_email,
@@ -458,6 +461,7 @@ metis_ajax_register_handler( 'metis_newsletter_layout_profile_save', function ()
     $profile = \Metis\Modules\Website\Services\LayoutProfileService::sanitizeNewsletterProfile($requested);
     Core_Settings_Service::set('newsletter_layout_profile', $profile, true);
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'newsletter_layout_profile' => $profile,
     ]);
@@ -502,6 +506,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_theme_defaults', function ()
     Core_Settings_Service::set('newsletter_theme_divider_style', $divider_style, true);
     Core_Settings_Service::set('newsletter_theme_divider_weight', $divider_weight, true);
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'theme_defaults' => [
             'header_html' => $header_html,
@@ -609,6 +614,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_template', function () {
     metis_newsletter_save_revision('template', $template_id, (string) ($payload['doc_json'] ?? ''), (string) ($payload['html_body'] ?? ''), (string) ($payload['text_body'] ?? ''), 'Template saved');
     metis_newsletter_audit_log('template_saved', 'template', $template_id, ['name' => $name]);
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'template_id' => $template_id,
         'template_code' => $saved_template_code,
@@ -710,6 +716,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_list', function () {
         }
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['list_id' => $list_id]);
 });
 
@@ -953,6 +960,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
         $saved_editor_body_html = metis_newsletter_extract_region_html((string) ($saved_row['html_body'] ?? ''), 'body');
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'campaign_id' => $campaign_id,
         'campaign_code' => (string) ($saved_row['campaign_code'] ?? ''),
@@ -1122,6 +1130,7 @@ metis_ajax_register_handler( 'metis_newsletter_queue_campaign', function () {
         metis_runtime_send_json_error('Failed to queue campaign.', 500);
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'queued' => (int) ($result['queued'] ?? 0),
         'campaign_id' => $campaign_id,
@@ -1236,6 +1245,8 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
     }
     $db->update($campaigns_table, ['status' => 'test_ready', 'test_sent_at' => metis_current_time('mysql'), 'updated_at' => metis_current_time('mysql')], ['id' => $campaign_id], ['%s', '%s', '%s'], ['%d']);
     metis_newsletter_audit_log('campaign_test_sent', 'campaign', $campaign_id, ['test_email' => $test_email]);
+    metis_portal_dashboard_forget_all();
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['campaign_id' => $campaign_id]);
 });
 
@@ -1251,6 +1262,7 @@ metis_ajax_register_handler( 'metis_newsletter_archive_campaign', function () {
     $ok = $db->update($campaigns_table, ['status' => 'archived', 'archived_at' => metis_current_time('mysql'), 'updated_at' => metis_current_time('mysql')], ['id' => $campaign_id], ['%s', '%s', '%s'], ['%d']);
     if ($ok === false) metis_runtime_send_json_error('Unable to archive campaign.', 500);
     metis_newsletter_audit_log('campaign_archived', 'campaign', $campaign_id);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['campaign_id' => $campaign_id]);
 });
 
@@ -1431,6 +1443,7 @@ metis_ajax_register_handler( 'metis_newsletter_run_queue', function () {
     $limit = isset($_POST['limit']) ? (int) metis_runtime_unslash($_POST['limit']) : 100;
     $result = metis_newsletter_process_queue($limit);
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success($result);
 });
 
@@ -1563,6 +1576,7 @@ metis_ajax_register_handler( 'metis_newsletter_upsert_subscription', function ()
         metis_runtime_send_json_error('Failed to save subscriber.', metis_newsletter_error_status($result['status'] ?? 500));
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'contact_id' => (int) ($result['contact_id'] ?? 0),
         'list_id' => (int) ($result['list_id'] ?? 0),
@@ -1590,6 +1604,7 @@ metis_ajax_register_handler( 'metis_newsletter_record_event', function () {
 
     $ok = metis_newsletter_track_event_for_message($message_code, $event_type, $reason);
     if (!$ok) metis_runtime_send_json_error('Failed to record event.', 500);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['recorded' => true, 'message_code' => $message_code]);
 });
 
@@ -1612,6 +1627,7 @@ metis_ajax_register_handler( 'metis_newsletter_sync_google_usage', function () {
         metis_runtime_send_json_error('Failed to sync Google usage.', 500);
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'date' => (string) ($result['date'] ?? ''),
         'imported' => (int) ($result['imported'] ?? 0),

@@ -1,6 +1,8 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
+require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+
 /**
  * Donations Deposits AJAX Handler
  *
@@ -146,6 +148,7 @@ function metis_ajax_sync_deposits(): void {
     }
 
     metis_reports_clear_cache();
+    metis_portal_dashboard_forget_all();
 
     metis_runtime_send_json_success( [
         'inserted' => $inserted,
@@ -385,6 +388,7 @@ function metis_ajax_backfill_deposit_totals(): void {
     }
 
     metis_reports_clear_cache();
+    metis_portal_dashboard_forget_all();
 
     metis_runtime_send_json_success( [
         'filled'  => $filled,
@@ -600,6 +604,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
         }
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success( [
         'updated' => $updated,
         'skipped' => $skipped,
@@ -897,6 +902,7 @@ function metis_ajax_link_stripe_payouts(): void {
     }
 
     metis_reports_clear_cache();
+    metis_portal_dashboard_forget_all();
 
     metis_runtime_send_json_success( [
         'linked'        => $linked,
@@ -1100,6 +1106,7 @@ function metis_ajax_verify_deposit_links(): void {
     }
 
     metis_reports_clear_cache();
+    metis_portal_dashboard_forget_all();
 
     metis_runtime_send_json_success( [
         'verified'  => $verified,
@@ -1400,6 +1407,7 @@ function metis_ajax_import_stripe_charges(): void {
     }
 
     metis_reports_clear_cache();
+    metis_portal_dashboard_forget_all();
 
     metis_runtime_send_json_success( [
         'imported'   => $imported,

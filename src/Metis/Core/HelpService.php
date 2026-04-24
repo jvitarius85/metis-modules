@@ -26,6 +26,7 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
         private string $help_index_path;
         private string $walkthroughs_path;
         private string $root_url;
+        private ?\Metis\Core\HelpSearchStore $search_store = null;
 
         /** @var array<string, mixed>|null */
         private ?array $cached_index = null;
@@ -60,6 +61,7 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
         }
 
         public function bootstrap_payload( string $domain = '', string $view = '' ): array {
+            $this->ensureSearchSchema();
             $current_topic = $this->current_topic_id( $domain, $view );
             $payload = [
                 'enabled' => $this->enabled(),
@@ -78,6 +80,16 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
                 }
             }
 
+            return $payload;
+        }
+
+        /**
+         * @return array{results: array<int, array<string, mixed>>, total: int, page: int, categories: array<int, array<string, mixed>>}
+         */
+        public function searchIndex( string $query, string $category = '', int $limit = 10, int $page = 1 ): array {
+            $this->ensureSearchSchema();
+            $payload = $this->searchStore()->search( $query, $category, $limit, $page );
+            $payload['categories'] = $this->searchCategories();
             return $payload;
         }
 
@@ -476,6 +488,32 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
                 'trigger' => (string) ( $definition['trigger'] ?? 'manual' ),
                 'steps' => $steps,
             ];
+        }
+
+        private function ensureSearchSchema(): void {
+            $this->searchStore()->ensureSchema();
+        }
+
+        private function searchStore(): \Metis\Core\HelpSearchStore {
+            if ( $this->search_store instanceof \Metis\Core\HelpSearchStore ) {
+                return $this->search_store;
+            }
+
+            $this->search_store = new \Metis\Core\HelpSearchStore( null, $this->docs_path );
+            return $this->search_store;
+        }
+
+        /**
+         * @return array<int, array<string, mixed>>
+         */
+        private function searchCategories(): array {
+            $this->ensureSearchSchema();
+            $table = \Metis_Tables::get( 'help_categories' );
+            return \metis_db()->fetchAll(
+                "SELECT id, name, slug, sort_order
+                 FROM {$table}
+                 ORDER BY sort_order ASC, name ASC"
+            );
         }
     }
 }

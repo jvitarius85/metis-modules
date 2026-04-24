@@ -3,39 +3,39 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
-use Metis\Core\Application;
-
 final class HermesExecutionEngine {
+    public function __construct(
+        private readonly HermesToolRegistry $tools
+    ) {}
+
     public function execute( array $command, array $payload = [] ): array {
         $this->assertPayloadMatchesSchema( $payload, (array) ( $command['input_schema'] ?? [] ) );
 
-        $serviceCall = (array) ( $command['service'] ?? [] );
-        $serviceName = \metis_key_clean( (string) ( $serviceCall['service'] ?? '' ) );
-        $method      = (string) ( $serviceCall['method'] ?? '' );
-
-        if ( $serviceName === '' || $method === '' ) {
-            throw new \RuntimeException( 'Hermes command service is not configured.' );
+        $tool_key = trim( (string) ( $command['tool_key'] ?? '' ) );
+        if ( $tool_key === '' ) {
+            return [
+                'status' => 'error',
+                'error_code' => 'TOOL_NOT_FOUND',
+                'message' => 'Command is missing a tool mapping.',
+            ];
         }
 
-        $service = Application::service( $serviceName );
-        if ( ! is_object( $service ) || ! method_exists( $service, $method ) ) {
-            throw new \RuntimeException( sprintf( 'Hermes command service [%s::%s] is unavailable.', $serviceName, $method ) );
+        $tool = $this->tools->definition( $tool_key );
+        if ( $tool === [] ) {
+            return [
+                'status' => 'error',
+                'error_code' => 'TOOL_NOT_FOUND',
+                'message' => sprintf( 'Tool [%s] is not registered.', $tool_key ),
+            ];
         }
 
-        $arguments = [];
-        foreach ( (array) ( $serviceCall['arguments'] ?? [] ) as $argument ) {
-            $arguments[] = $argument;
-        }
+        $this->assertPayloadMatchesSchema( $payload, (array) ( $tool['input_schema'] ?? [] ), 'tool_payload' );
 
-        foreach ( (array) ( $serviceCall['arguments_from_payload'] ?? [] ) as $payloadKey ) {
-            $arguments[] = $payload[ (string) $payloadKey ] ?? null;
-        }
+        require_once METIS_PATH . 'core/enclave/execute.php';
 
-        /** @var callable $callable */
-        $callable = [ $service, $method ];
-        $result   = call_user_func_array( $callable, $arguments );
-
-        return is_array( $result ) ? $result : [ 'status' => 'completed', 'result' => $result ];
+        return \metis_core_enclave_execute_tool( $tool, $payload, [
+            'command_key' => (string) ( $command['key'] ?? '' ),
+        ] );
     }
 
     private function assertPayloadMatchesSchema( array $payload, array $schema, string $path = 'payload' ): void {
@@ -66,6 +66,27 @@ final class HermesExecutionEngine {
 
         if ( $type === 'string' && ! is_string( $value ) ) {
             throw new \RuntimeException( sprintf( 'Hermes command payload field [%s] must be a string.', $path ) );
+        }
+
+        if ( $type === 'array' ) {
+            if ( ! is_array( $value ) ) {
+                throw new \RuntimeException( sprintf( 'Hermes command payload field [%s] must be an array.', $path ) );
+            }
+
+            $itemSchema = is_array( $schema['items'] ?? null ) ? (array) $schema['items'] : [];
+            foreach ( $value as $index => $item ) {
+                if ( $itemSchema !== [] ) {
+                    $this->assertValueMatchesSchema( $item, $itemSchema, $path . '[' . (string) $index . ']' );
+                }
+            }
+        }
+
+        if ( $type === 'integer' && ! is_int( $value ) ) {
+            throw new \RuntimeException( sprintf( 'Hermes command payload field [%s] must be an integer.', $path ) );
+        }
+
+        if ( $type === 'boolean' && ! is_bool( $value ) ) {
+            throw new \RuntimeException( sprintf( 'Hermes command payload field [%s] must be a boolean.', $path ) );
         }
 
         if ( $type === 'object' ) {

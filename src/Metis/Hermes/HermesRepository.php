@@ -311,6 +311,54 @@ final class HermesRepository {
         return $rows;
     }
 
+    public function logCommandTrace( array $entry ): void {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $db->insert(
+            \Metis_Tables::get( 'hermes_command_logs' ),
+            [
+                'session_code' => (string) ( $entry['session_code'] ?? '' ) !== '' ? (string) $entry['session_code'] : null,
+                'user_id' => ! empty( $entry['user_id'] ) ? (int) $entry['user_id'] : null,
+                'raw_input' => (string) ( $entry['raw_input'] ?? '' ) !== '' ? (string) $entry['raw_input'] : null,
+                'normalized_input' => (string) ( $entry['normalized_input'] ?? '' ) !== '' ? (string) $entry['normalized_input'] : null,
+                'selected_intent' => (string) ( $entry['selected_intent'] ?? '' ) !== '' ? (string) $entry['selected_intent'] : null,
+                'tool_key' => (string) ( $entry['tool_key'] ?? '' ) !== '' ? (string) $entry['tool_key'] : null,
+                'confidence_score' => isset( $entry['confidence_score'] ) ? (float) $entry['confidence_score'] : null,
+                'payload_json' => $this->encodeJson( (array) ( $entry['payload'] ?? [] ) ),
+                'enclave_request_id' => (string) ( $entry['enclave_request_id'] ?? '' ) !== '' ? (string) $entry['enclave_request_id'] : null,
+                'result_json' => $this->encodeJson( (array) ( $entry['result'] ?? [] ) ),
+            ],
+            [ '%s', '%d', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s' ]
+        );
+    }
+
+    public function recentCommandLogs( string $session_code = '', int $limit = 20 ): array {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $limit = max( 1, min( 100, $limit ) );
+        if ( $session_code !== '' ) {
+            $rows = $db->fetchAll(
+                'SELECT * FROM ' . \Metis_Tables::get( 'hermes_command_logs' ) . ' WHERE session_code = %s ORDER BY id DESC LIMIT %d',
+                [ $session_code, $limit ]
+            );
+        } else {
+            $rows = $db->fetchAll(
+                'SELECT * FROM ' . \Metis_Tables::get( 'hermes_command_logs' ) . ' ORDER BY id DESC LIMIT %d',
+                [ $limit ]
+            );
+        }
+
+        foreach ( $rows as &$row ) {
+            $row['payload'] = $this->decodeJson( (string) ( $row['payload_json'] ?? '' ) );
+            $row['result'] = $this->decodeJson( (string) ( $row['result_json'] ?? '' ) );
+            unset( $row['payload_json'], $row['result_json'] );
+        }
+
+        return $rows;
+    }
+
     public function upsertMemory( string $memory_key, string $memory_type, string $scope_key, array $contents ): void {
         SchemaManager::ensureSchema();
         $db = $this->db();

@@ -1,6 +1,9 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
+require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
+require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+
 function metis_board_ajax_verify(bool $manage = true): void {
     unset($manage);
     metis_board_ensure_schema();
@@ -37,30 +40,14 @@ function metis_board_fetch_meeting_documents(int $meeting_id): array {
 
 function metis_board_fetch_committee_summary(int $committee_id): array {
     if ($committee_id < 1) return [];
-    $db = metis_db();
-    $committees_table = Metis_Tables::get('board_committees');
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $people_table = Metis_Tables::get('people');
-    $newsletter_lists_table = Metis_Tables::get('newsletter_lists');
-    $has_newsletter_lists = function_exists('metis_board_table_exists') && metis_board_table_exists($newsletter_lists_table);
-    $list_select = $has_newsletter_lists
-        ? "nl.name AS newsletter_list_name"
-        : "'' AS newsletter_list_name";
-    $list_join = $has_newsletter_lists
-        ? " LEFT JOIN {$newsletter_lists_table} nl ON nl.id = c.newsletter_list_id"
-        : '';
-    $row = $db->fetchOne(
-        "SELECT c.id, c.committee_code, c.name, c.description, c.chair_person_id, c.newsletter_list_id, c.is_active, c.updated_at,
-                p.display_name AS chair_name,
-                (SELECT COUNT(*) FROM {$meetings_table} m WHERE m.committee_id = c.id) AS meeting_count,
-                {$list_select}
-         FROM {$committees_table} c
-         LEFT JOIN {$people_table} p ON p.id = c.chair_person_id
-         {$list_join}
-         WHERE c.id = %d
-         LIMIT 1",
-        [ $committee_id ]
-    );
+    $rows = metis_board_fetch_dashboard_committees(true);
+    $row = null;
+    foreach ( $rows as $candidate ) {
+        if ( (int) ( $candidate['id'] ?? 0 ) === $committee_id ) {
+            $row = $candidate;
+            break;
+        }
+    }
     if (!$row) return [];
     return [
         'id' => (int) ($row['id'] ?? 0),
@@ -240,40 +227,40 @@ function metis_board_fetch_meeting_summary(int $meeting_id): array {
     if ($meeting_id < 1) return [];
     $db = metis_db();
     $meetings_table = Metis_Tables::get('board_meetings');
-    $committees_table = Metis_Tables::get('board_committees');
-    $actions_table = Metis_Tables::get('board_action_items');
-    $decisions_table = Metis_Tables::get('board_decisions');
     $row = $db->fetchOne(
-        "SELECT m.id, m.meeting_code, m.title, m.committee_id, m.meeting_date, m.meeting_type, m.location, m.status, m.updated_at,
-                m.google_calendar_event_id, m.google_drive_folder_id, m.agenda_json, m.minutes_html,
-                c.name AS committee_name,
-                (SELECT COUNT(*) FROM {$actions_table} a WHERE a.meeting_id = m.id AND a.status <> 'done') AS open_actions,
-                (SELECT COUNT(*) FROM {$decisions_table} d WHERE d.meeting_id = m.id) AS decisions_count
+        "SELECT m.agenda_json, m.minutes_html
          FROM {$meetings_table} m
-         LEFT JOIN {$committees_table} c ON c.id = m.committee_id
          WHERE m.id = %d
          LIMIT 1",
         [ $meeting_id ]
     );
+    $summary = null;
+    foreach ( metis_board_fetch_dashboard_meetings(300) as $candidate ) {
+        if ( (int) ( $candidate['id'] ?? 0 ) === $meeting_id ) {
+            $summary = $candidate;
+            break;
+        }
+    }
+    if ( ! $summary ) return [];
     if (!$row) return [];
-    $meeting_code = (string) ($row['meeting_code'] ?? '');
+    $meeting_code = (string) ($summary['meeting_code'] ?? '');
     return [
-        'id' => (int) ($row['id'] ?? 0),
+        'id' => (int) ($summary['id'] ?? 0),
         'meeting_code' => $meeting_code,
-        'title' => (string) ($row['title'] ?? ''),
-        'committee_id' => (int) ($row['committee_id'] ?? 0),
-        'meeting_date' => (string) ($row['meeting_date'] ?? ''),
-        'meeting_type' => (string) ($row['meeting_type'] ?? 'board'),
-        'location' => (string) ($row['location'] ?? ''),
-        'status' => (string) ($row['status'] ?? 'draft'),
-        'updated_at' => (string) ($row['updated_at'] ?? ''),
-        'google_calendar_event_id' => (string) ($row['google_calendar_event_id'] ?? ''),
-        'google_drive_folder_id' => (string) ($row['google_drive_folder_id'] ?? ''),
+        'title' => (string) ($summary['title'] ?? ''),
+        'committee_id' => (int) ($summary['committee_id'] ?? 0),
+        'meeting_date' => (string) ($summary['meeting_date'] ?? ''),
+        'meeting_type' => (string) ($summary['meeting_type'] ?? 'board'),
+        'location' => (string) ($summary['location'] ?? ''),
+        'status' => (string) ($summary['status'] ?? 'draft'),
+        'updated_at' => (string) ($summary['updated_at'] ?? ''),
+        'google_calendar_event_id' => (string) ($summary['google_calendar_event_id'] ?? ''),
+        'google_drive_folder_id' => (string) ($summary['google_drive_folder_id'] ?? ''),
         'agenda_json' => (string) ($row['agenda_json'] ?? ''),
         'minutes_html' => (string) ($row['minutes_html'] ?? ''),
-        'committee_name' => (string) ($row['committee_name'] ?? ''),
-        'open_actions' => (int) ($row['open_actions'] ?? 0),
-        'decisions_count' => (int) ($row['decisions_count'] ?? 0),
+        'committee_name' => (string) ($summary['committee_name'] ?? ''),
+        'open_actions' => (int) ($summary['open_actions'] ?? 0),
+        'decisions_count' => (int) ($summary['decisions_count'] ?? 0),
         'meeting_url' => ($meeting_code !== '' && function_exists('metis_board_meeting_url')) ? (string) metis_board_meeting_url($meeting_code) : '',
     ];
 }
@@ -454,6 +441,7 @@ metis_ajax_register_handler( 'metis_board_save_committee', function () {
         $committee_id = (int) $db->lastInsertId();
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'committee_id' => $committee_id,
         'committee' => metis_board_fetch_committee_summary($committee_id),
@@ -537,6 +525,7 @@ metis_ajax_register_handler( 'metis_board_save_meeting', function () {
         }
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'meeting_id' => $meeting_id,
         'meeting' => metis_board_fetch_meeting_summary($meeting_id),
@@ -592,6 +581,7 @@ metis_ajax_register_handler( 'metis_board_save_decision', function () {
         metis_entity_id_service()->register('board_decision_point', $decision_id, (string) ($payload['board_decision_uid'] ?? $payload['decision_code'] ?? ''));
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'decision_id' => $decision_id,
         'decision' => metis_board_fetch_decision_summary($decision_id),
@@ -645,6 +635,7 @@ metis_ajax_register_handler( 'metis_board_save_action_item', function () {
         metis_entity_id_service()->register('board_action_item', $new_id, (string) ($payload['board_action_uid'] ?? $payload['action_code'] ?? ''));
     }
     $saved = metis_board_fetch_action_item_summary($new_id);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'action_item_id' => $new_id,
         'action_item' => [
@@ -690,6 +681,7 @@ metis_ajax_register_handler( 'metis_board_resolve_action_item', function () {
     }
 
     $saved = metis_board_fetch_action_item_summary($action_item_id);
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'action_item_id' => $action_item_id,
         'open_count_delta' => $was_open ? -1 : 0,
@@ -730,6 +722,7 @@ metis_ajax_register_handler( 'metis_board_save_announcement', function () {
     if (!$ok) metis_runtime_send_json_error('Failed to save announcement.', 500);
 
     $announcement_id = (int) $db->lastInsertId();
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'announcement_id' => $announcement_id,
         'announcement' => metis_board_fetch_announcement_summary($announcement_id),
@@ -2862,6 +2855,7 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         $publish_email = metis_board_send_packet_publish_email($meeting_id);
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'meeting_id' => $meeting_id,
         'payload' => $payload,
@@ -2956,6 +2950,7 @@ metis_ajax_register_handler( 'metis_board_update_decision', function () {
         metis_runtime_send_json_error('Failed to update decision.', 500);
     }
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'decision_id' => $decision_id,
         'outcome' => $outcome,
@@ -3028,6 +3023,7 @@ metis_ajax_register_handler( 'metis_board_upsert_attendance', function () {
     }
     $required = (int) floor($board_eligible / 2) + 1;
 
+    metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success([
         'attendance_id' => $existing_id,
         'present_count' => $present_count,

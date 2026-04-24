@@ -19,6 +19,8 @@ class Metis_Integrity_Manager {
     private const GIT_RESTORE_OPTION   = 'integrity_git_restore_enabled';
 
     private static bool $booted = false;
+    private static bool $ensuring_runtime = false;
+    private static bool $building_baseline = false;
     private static ?array $git_repository_state = null;
 
     public static function init(): void {
@@ -56,15 +58,38 @@ class Metis_Integrity_Manager {
     }
 
     public static function ensure_runtime(): void {
-        self::ensure_storage_directories();
-
-        if ( ! self::manifest_exists() && self::manifest_backup_exists() ) {
-            self::restore_manifest_from_backup();
+        if ( self::$ensuring_runtime ) {
+            return;
         }
 
-        $manifest = self::load_manifest();
-        if ( is_array( $manifest ) && (string) ( $manifest['version'] ?? '' ) !== self::current_version() ) {
-            self::build_baseline( 'version_change' );
+        self::$ensuring_runtime = true;
+
+        self::ensure_storage_directories();
+
+        try {
+            if ( ! self::manifest_exists() && self::manifest_backup_exists() ) {
+                self::restore_manifest_from_backup();
+            }
+
+            $manifest = self::load_manifest();
+            if (
+                ! self::$building_baseline
+                && is_array( $manifest )
+                && (string) ( $manifest['version'] ?? '' ) !== self::current_version()
+            ) {
+                try {
+                    self::build_baseline( 'version_change' );
+                } catch ( Throwable $e ) {
+                    if ( class_exists( 'Metis_Logger', false ) ) {
+                        Metis_Logger::warn( 'Integrity baseline refresh skipped during runtime boot', [
+                            'reason' => 'version_change',
+                            'error'  => $e->getMessage(),
+                        ] );
+                    }
+                }
+            }
+        } finally {
+            self::$ensuring_runtime = false;
         }
     }
 
@@ -239,46 +264,71 @@ class Metis_Integrity_Manager {
     }
 
     public static function build_baseline( string $reason = 'manual' ): bool {
-        self::ensure_runtime();
-
-        $files = self::build_current_manifest();
-        if ( empty( $files ) ) {
-            Metis_Logger::error( 'Integrity baseline generation failed: no files discovered', [ 'reason' => $reason ] );
+        if ( self::$building_baseline ) {
             return false;
         }
 
-        self::clear_recovery_directory();
+        self::$building_baseline = true;
 
-        foreach ( $files as $relative => $entry ) {
-            $source      = self::absolute_path( $relative );
-            $destination = self::recovery_file_path( $relative );
+        self::ensure_runtime();
 
-            if ( ! is_string( $source ) || ! file_exists( $source ) ) {
-                continue;
+        try {
+            $files = self::build_current_manifest();
+            if ( empty( $files ) ) {
+                Metis_Logger::error( 'Integrity baseline generation failed: no files discovered', [ 'reason' => $reason ] );
+                return false;
             }
 
-            metis_runtime_make_dir( dirname( $destination ) );
-            copy( $source, $destination );
+            self::clear_recovery_directory();
+
+            foreach ( $files as $relative => $entry ) {
+                $source      = self::absolute_path( $relative );
+                $destination = self::recovery_file_path( $relative );
+
+                if ( ! is_string( $source ) || ! file_exists( $source ) ) {
+                    continue;
+                }
+
+                if ( ! metis_runtime_make_dir( dirname( $destination ) ) ) {
+                    Metis_Logger::warn( 'Integrity baseline refresh could not create recovery directory', [
+                        'reason'      => $reason,
+                        'path'        => dirname( $destination ),
+                        'source_path' => $source,
+                    ] );
+                    return false;
+                }
+
+                if ( ! @copy( $source, $destination ) ) {
+                    Metis_Logger::warn( 'Integrity baseline refresh could not copy recovery file', [
+                        'reason'           => $reason,
+                        'source_path'      => $source,
+                        'destination_path' => $destination,
+                    ] );
+                    return false;
+                }
+            }
+
+            $manifest = [
+                'generated_at' => metis_current_time( 'mysql' ),
+                'version'      => self::current_version(),
+                'reason'       => $reason,
+                'git'          => self::git_manifest_metadata(),
+                'files'        => $files,
+            ];
+
+            $written = self::write_manifest( $manifest );
+
+            if ( $written ) {
+                Metis_Logger::info( 'Integrity baseline refreshed', [
+                    'reason' => $reason,
+                    'files'  => count( $files ),
+                ] );
+            }
+
+            return $written;
+        } finally {
+            self::$building_baseline = false;
         }
-
-        $manifest = [
-            'generated_at' => metis_current_time( 'mysql' ),
-            'version'      => self::current_version(),
-            'reason'       => $reason,
-            'git'          => self::git_manifest_metadata(),
-            'files'        => $files,
-        ];
-
-        $written = self::write_manifest( $manifest );
-
-        if ( $written ) {
-            Metis_Logger::info( 'Integrity baseline refreshed', [
-                'reason' => $reason,
-                'files'  => count( $files ),
-            ] );
-        }
-
-        return $written;
     }
 
     public static function initialize_baseline( string $reason = 'manual' ): bool {

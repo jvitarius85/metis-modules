@@ -98,6 +98,91 @@ final class HermesUserAdminService {
         ];
     }
 
+    public function updateUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $person = $this->requirePerson( (string) ( $request['subject'] ?? $request['email'] ?? '' ) );
+        $personId = (int) ( $person['id'] ?? 0 );
+        if ( $personId < 1 ) {
+            throw new \RuntimeException( 'No matching person record was found.' );
+        }
+
+        $peopleTable = \Metis_Tables::get( 'people' );
+        $updates = [];
+        foreach ( [ 'first_name', 'last_name', 'display_name', 'email', 'workspace_email', 'status', 'lifecycle_status' ] as $field ) {
+            if ( array_key_exists( $field, $request ) ) {
+                $updates[ $field ] = is_string( $request[ $field ] ) ? trim( (string) $request[ $field ] ) : $request[ $field ];
+            }
+        }
+
+        if ( $updates === [] ) {
+            throw new \RuntimeException( 'No user fields were provided to update.' );
+        }
+
+        $this->database()->update( $peopleTable, $updates, [ 'id' => $personId ] );
+
+        if ( ! empty( $request['roles'] ) ) {
+            $this->replaceUserRoles( $personId, $this->normalizeKeys( (array) $request['roles'] ) );
+        }
+
+        return [
+            'status' => 'success',
+            'user' => [
+                'pid' => (string) ( $person['pid'] ?? '' ),
+                'name' => trim( (string) ( $updates['display_name'] ?? $this->personName( $person ) ) ),
+            ],
+            'updated_fields' => array_keys( $updates ),
+            'message' => sprintf( 'Updated %s.', $this->personName( $person ) ),
+        ];
+    }
+
+    public function disableUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $person = $this->requirePerson( (string) ( $request['subject'] ?? $request['email'] ?? '' ) );
+        $personId = (int) ( $person['id'] ?? 0 );
+
+        $this->database()->update(
+            \Metis_Tables::get( 'people' ),
+            [
+                'status' => 'inactive',
+                'lifecycle_status' => 'inactive',
+            ],
+            [ 'id' => $personId ]
+        );
+
+        return [
+            'status' => 'success',
+            'user' => [
+                'pid' => (string) ( $person['pid'] ?? '' ),
+                'name' => $this->personName( $person ),
+            ],
+            'message' => sprintf( 'Disabled %s.', $this->personName( $person ) ),
+        ];
+    }
+
+    public function enableUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $person = $this->requirePerson( (string) ( $request['subject'] ?? $request['email'] ?? '' ) );
+        $personId = (int) ( $person['id'] ?? 0 );
+
+        $this->database()->update(
+            \Metis_Tables::get( 'people' ),
+            [
+                'status' => 'active',
+                'lifecycle_status' => 'active',
+            ],
+            [ 'id' => $personId ]
+        );
+
+        return [
+            'status' => 'success',
+            'user' => [
+                'pid' => (string) ( $person['pid'] ?? '' ),
+                'name' => $this->personName( $person ),
+            ],
+            'message' => sprintf( 'Enabled %s.', $this->personName( $person ) ),
+        ];
+    }
+
     public function offboardUser( mixed $request = null ): array {
         $request = is_array( $request ) ? $request : [];
         $person = $this->requirePerson( (string) ( $request['subject'] ?? '' ) );

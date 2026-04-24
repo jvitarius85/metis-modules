@@ -393,4 +393,9 @@ $carddav_tokens = function_exists('metis_contacts_carddav_list_tokens')
                 </div>
                 <div class="metis-contact-actions">
                     <button type="button" class="mw-btn mw-btn-ghost" id="metis-profile-passkey-label-cancel">Cancel</button>
-                    <button type="button" class="mw-btn" id="metis-profile-passkey-label-save">Sav
+                    <button type="button" class="mw-btn" id="metis-profile-passkey-label-save">Save Passkey</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

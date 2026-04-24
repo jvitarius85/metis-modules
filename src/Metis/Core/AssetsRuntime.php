@@ -88,9 +88,16 @@ metis_on('metis_assets_enqueue', function () {
         true
     );
 
+    metis_runtime_register_style_alias(
+        'metis-help-css',
+        $asset_base_url . 'assets/css/help.css',
+        [ 'metis-core' ],
+        $asset_version
+    );
+
     metis_runtime_register_script_alias(
         'metis-help-search',
-        $asset_base_url . 'assets/js/help/help-search.js',
+        $asset_base_url . 'assets/js/help-search.js',
         [ 'metis-core', 'metis-help-panel' ],
         $asset_version,
         true
@@ -198,6 +205,8 @@ metis_on('metis_assets_enqueue', function () {
         'docs_base_url' => rtrim( $asset_base_url, '/' ),
         'ajax_url' => metis_ajax_endpoint_url(),
         'nonce' => metis_runtime_create_nonce( 'metis_core' ),
+        'search_endpoint' => function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/enclave/help/search.php' ) : rtrim( $asset_base_url, '/' ) . '/enclave/help/search.php',
+        'search_nonce' => metis_runtime_create_nonce( 'metis_help_search_route' ),
         'action_nonces' => [
             'metis_help_index' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_help_index' ) ),
             'metis_help_topic' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_help_topic' ) ),
@@ -223,6 +232,7 @@ metis_on('metis_assets_enqueue', function () {
     }
 
     if ( $help_enabled ) {
+        metis_runtime_enqueue_style( 'metis-help-css' );
         metis_runtime_enqueue_script( 'metis-help-panel' );
         metis_runtime_enqueue_script( 'metis-help-search' );
         if ( $walkthrough_enabled ) {

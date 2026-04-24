@@ -3,7 +3,15 @@ declare(strict_types=1);
 
 if ( ! function_exists( 'metis_runtime_make_dir' ) ) {
     function metis_runtime_make_dir( string $target ): bool {
-        return is_dir( $target ) || mkdir( $target, 0775, true );
+        if ( is_dir( $target ) ) {
+            return true;
+        }
+
+        if ( @mkdir( $target, 0775, true ) ) {
+            return true;
+        }
+
+        return is_dir( $target );
     }
 }
 

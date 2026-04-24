@@ -17,6 +17,7 @@ final class SchemaManager {
         $actions_table   = \Metis_Tables::get( 'hermes_actions' );
         $reports_table   = \Metis_Tables::get( 'hermes_reports' );
         $memory_table    = \Metis_Tables::get( 'hermes_memory' );
+        $logs_table      = \Metis_Tables::get( 'hermes_command_logs' );
 
         \metis_db_delta( "CREATE TABLE {$sessions_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -95,6 +96,26 @@ final class SchemaManager {
             UNIQUE KEY memory_key (memory_key),
             KEY type_scope (memory_type, scope_key),
             KEY updated_at (updated_at)
+        ) {$charset_collate};" );
+
+        \metis_db_delta( "CREATE TABLE {$logs_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            session_code VARCHAR(32) DEFAULT NULL,
+            user_id BIGINT UNSIGNED DEFAULT NULL,
+            raw_input LONGTEXT DEFAULT NULL,
+            normalized_input LONGTEXT DEFAULT NULL,
+            selected_intent VARCHAR(64) DEFAULT NULL,
+            tool_key VARCHAR(120) DEFAULT NULL,
+            confidence_score DECIMAL(5,4) DEFAULT NULL,
+            payload_json LONGTEXT DEFAULT NULL,
+            enclave_request_id VARCHAR(64) DEFAULT NULL,
+            result_json LONGTEXT DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY session_created (session_code, created_at),
+            KEY user_created (user_id, created_at),
+            KEY intent_created (selected_intent, created_at),
+            KEY tool_created (tool_key, created_at)
         ) {$charset_collate};" );
 
         if ( function_exists( 'metis_entity_id_service' ) ) {
