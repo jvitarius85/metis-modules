@@ -1,10 +1,10 @@
 <?php
 return array (
-  'host' => '10.0.4.130',
-  'port' => 3306,
-  'database' => 'metis',
-  'username' => 'root',
-  'password' => 'admin',
+  'host' => '',
+  'port' => '',
+  'database' => '',
+  'username' => '',
+  'password' => '',
   'prefix' => '',
   'charset' => 'utf8mb4',
   'collation' => 'utf8mb4_unicode_ci',

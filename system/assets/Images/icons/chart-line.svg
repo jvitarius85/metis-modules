@@ -1,9 +1,0 @@
-<svg id="Chart-Line--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
-  <desc>
-    Chart Line Streamline Icon: https://streamlinehq.com
-  </desc>
-  <defs></defs>
-  <title>chart--line</title>
-  <path d="m2.335 14 3.195 -6 3.65 3.245a1 1 0 0 0 0.85 0.235 1 1 0 0 0 0.71 -0.535L13.5 5.45l-0.91 -0.45 -2.745 5.5 -3.65 -3.245a1 1 0 0 0 -0.84 -0.255 1 1 0 0 0 -0.71 0.5L2 12.5V1H1v13a1 1 0 0 0 1 1h13v-1Z" fill="currentColor" stroke-width="0.5"></path>
-  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
-</svg>

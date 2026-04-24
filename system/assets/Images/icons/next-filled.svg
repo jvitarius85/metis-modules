@@ -1,9 +1,0 @@
-<svg id="Next-Filled--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
-  <desc>
-    Next Filled Streamline Icon: https://streamlinehq.com
-  </desc>
-  <defs></defs>
-  <path d="M1 8A7 7 0 1 0 8 1 7 7 0 0 0 1 8Zm3 -0.5h6.075l-2.79 -2.8037L8 4l4 4 -4 4 -0.715 -0.7136L10.075 8.5H4Z" fill="currentColor" stroke-width="0.5"></path>
-  <path id="inner-path" d="m8 4 -0.715 0.6965L10.075 7.5 4 7.5l0 1 6.075 0 -2.79 2.7865L8 12l4 -4 -4 -4z" fill="none" stroke-width="0.5"></path>
-  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
-</svg>
