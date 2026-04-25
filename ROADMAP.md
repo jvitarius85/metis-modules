@@ -12,6 +12,7 @@ This roadmap summarizes the major planned work areas for future Metis releases.
 - Release notes and rollback UX
 - Encrypted backups and recovery kit PDF
 - Installer capacity readiness checks
+- Login and SSO redirect continuity
 
 ## Platform Foundation
 
