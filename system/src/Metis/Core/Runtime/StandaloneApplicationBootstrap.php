@@ -599,12 +599,12 @@ function metis_standalone_install_complete_defaults(): void {
     metis_standalone_install_set_default( 'auth_login_lock_threshold_subject', 10, false );
     metis_standalone_install_set_default( 'auth_login_lock_threshold_ip', 30, false );
     metis_standalone_install_set_default( 'webhook_rate_limit_per_minute', 120, false );
-    metis_standalone_install_set_default( 'integrity_auto_heal_enabled', false, false );
-    metis_standalone_install_set_default( 'integrity_quarantine_enabled', false, false );
-    metis_standalone_install_set_default( 'integrity_git_restore_enabled', false, false );
-    metis_standalone_install_set_default( 'recovery_preboot_enabled', false, false );
-    metis_standalone_install_set_default( 'recovery_runtime_enabled', false, false );
-    metis_standalone_install_set_default( 'recovery_file_mutation_enabled', false, false );
+    metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
+    metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );
+    metis_standalone_install_set_default( 'integrity_git_restore_enabled', true, false );
+    metis_standalone_install_set_default( 'recovery_preboot_enabled', true, false );
+    metis_standalone_install_set_default( 'recovery_runtime_enabled', true, false );
+    metis_standalone_install_set_default( 'recovery_file_mutation_enabled', true, false );
     metis_standalone_install_set_default( 'payment_statuses', [ 'pending', 'completed', 'refunded', 'failed', 'voided' ] );
     if ( $base_url !== '' ) {
         metis_standalone_install_set_default( 'site_url', $base_url );
@@ -627,6 +627,31 @@ function metis_standalone_install_complete_defaults(): void {
     Core_Settings_Service::set( 'metis_install_cleanup_removed', $removed, false );
     Core_Settings_Service::set( 'metis_installed_at', gmdate( 'c' ), true );
     Core_Settings_Service::set( 'metis_install_completed', true, true );
+}
+
+function metis_standalone_enable_recovery_defaults(): void {
+    if ( ! class_exists( 'Core_Settings_Service' ) ) {
+        return;
+    }
+
+    $version = defined( 'METIS_VERSION' ) ? (string) METIS_VERSION : 'unknown';
+    $activation_key = 'metis_recovery_defaults_enabled_' . preg_replace( '/[^a-z0-9_]+/i', '_', $version );
+    if ( (bool) Core_Settings_Service::get( $activation_key, false ) ) {
+        return;
+    }
+
+    foreach ( [
+        'integrity_auto_heal_enabled',
+        'integrity_quarantine_enabled',
+        'integrity_git_restore_enabled',
+        'recovery_preboot_enabled',
+        'recovery_runtime_enabled',
+        'recovery_file_mutation_enabled',
+    ] as $setting ) {
+        Core_Settings_Service::set( $setting, true, false );
+    }
+
+    Core_Settings_Service::set( $activation_key, true, false );
 }
 
 function metis_standalone_core_schema_signature(): string {
@@ -1806,6 +1831,7 @@ function metis_standalone_boot(): void {
     metis_register_core_services();
 
     Metis_Integrity_Manager::init();
+    metis_standalone_enable_recovery_defaults();
     \Metis\Core\Recovery\RecoverySchema::ensureSchema();
     $preboot_recovery = ( new \Metis\Core\Recovery\PrebootIntegrityService() )->checkAndRecover( 'standalone_preboot' );
     if ( (string) ( $preboot_recovery['status'] ?? '' ) === 'maintenance' ) {

@@ -9,6 +9,10 @@ final class RecoveryPlaybookService {
         $dir = $this->playbookDir();
         $playbooks = [];
         foreach (glob($dir . '/*.php') ?: [] as $path) {
+            if (basename($path) === 'index.php') {
+                continue;
+            }
+
             $loaded = require $path;
             if (!is_array($loaded)) {
                 continue;

@@ -30,15 +30,15 @@ final class RecoveryPolicyService {
     }
 
     public function prebootRecoveryEnabled(): bool {
-        return $this->settingEnabled('recovery_preboot_enabled', false);
+        return $this->settingEnabled('recovery_preboot_enabled', (bool) $this->get('recovery_preboot_enabled', false));
     }
 
     public function runtimeRecoveryEnabled(): bool {
-        return $this->settingEnabled('recovery_runtime_enabled', false);
+        return $this->settingEnabled('recovery_runtime_enabled', (bool) $this->get('recovery_runtime_enabled', false));
     }
 
     public function automaticFileRecoveryEnabled(): bool {
-        return $this->settingEnabled('recovery_file_mutation_enabled', false)
+        return $this->settingEnabled('recovery_file_mutation_enabled', (bool) $this->get('recovery_file_mutation_enabled', false))
             && (bool) $this->get('automatic_file_recovery_enabled', false);
     }
 
@@ -52,6 +52,20 @@ final class RecoveryPolicyService {
 
     public function allowedRemote(): string {
         return trim((string) $this->get('allowed_git_remote', ''));
+    }
+
+    /** @return array<int,string> */
+    public function allowedRemotes(): array {
+        $remotes = (array) $this->get('allowed_git_remotes', []);
+        $legacy = $this->allowedRemote();
+        if ($legacy !== '') {
+            $remotes[] = $legacy;
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn(mixed $remote): string => trim((string) $remote),
+            $remotes
+        ))));
     }
 
     public function lockTtlSeconds(): int {
@@ -92,6 +106,10 @@ final class RecoveryPolicyService {
         return [
             'allow_git_recovery' => false,
             'automatic_file_recovery_enabled' => false,
+            'recovery_preboot_enabled' => false,
+            'recovery_runtime_enabled' => false,
+            'recovery_file_mutation_enabled' => false,
+            'allowed_git_remotes' => [],
             'allowed_fallback_branch' => 'stable',
             'allow_latest_fallback' => false,
             'max_recovery_attempts' => 2,

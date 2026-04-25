@@ -22,8 +22,7 @@ final class GitRecoveryService {
         }
 
         $remote = trim((string) ($this->runGit(['config', '--get', 'remote.origin.url'])['stdout'] ?? ''));
-        $allowed = $this->policy->allowedRemote();
-        if ($allowed !== '' && $remote !== $allowed && rtrim($remote, '/') !== rtrim($allowed, '/')) {
+        if (!$this->remoteAllowed($remote)) {
             $this->logger->log('Git recovery refused because remote is not allowed.', ['remote' => $remote], 'error');
             return ['status' => 'failed', 'reason' => 'remote_not_allowed', 'remote' => $remote];
         }
@@ -76,12 +75,11 @@ final class GitRecoveryService {
     public function dryRun(): array {
         $remote = trim((string) ($this->runGit(['config', '--get', 'remote.origin.url'])['stdout'] ?? ''));
         $ref = $this->installedRef();
-        $allowed = $this->policy->allowedRemote();
         return [
-            'status' => $this->policy->allowGitRecovery() && $ref !== '' && ($allowed === '' || rtrim($remote, '/') === rtrim($allowed, '/')) ? 'pass' : 'warn',
+            'status' => $this->policy->allowGitRecovery() && $ref !== '' && $this->remoteAllowed($remote) ? 'pass' : 'warn',
             'git_recovery_allowed' => $this->policy->allowGitRecovery(),
             'remote' => $remote,
-            'allowed_remote' => $allowed,
+            'allowed_remotes' => $this->policy->allowedRemotes(),
             'installed_ref' => $ref,
             'latest_fallback_allowed' => $this->policy->allowLatestFallback(),
         ];
@@ -105,6 +103,22 @@ final class GitRecoveryService {
         }
 
         return $this->policy->allowLatestFallback() ? $this->policy->fallbackBranch() : '';
+    }
+
+    private function remoteAllowed(string $remote): bool {
+        $allowed = $this->policy->allowedRemotes();
+        if ($allowed === []) {
+            return true;
+        }
+
+        $remote = rtrim($remote, '/');
+        foreach ($allowed as $candidate) {
+            if ($remote === rtrim($candidate, '/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @param array<int,string> $args @return array<string,mixed> */
