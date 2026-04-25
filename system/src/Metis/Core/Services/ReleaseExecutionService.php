@@ -12,7 +12,18 @@ final class ReleaseExecutionService {
 
     public function isEnabled(): bool {
         $raw = (string) ( \getenv( 'METIS_ENABLE_RELEASE_MANAGER' ) ?: '' );
-        return \in_array( \strtolower( $raw ), [ '1', 'true', 'yes', 'on' ], true );
+        if ( $raw !== '' ) {
+            return \in_array( \strtolower( $raw ), [ '1', 'true', 'yes', 'on' ], true );
+        }
+
+        try {
+            if ( \class_exists( 'Core_Settings_Service' ) ) {
+                return (bool) \Core_Settings_Service::get( 'release_manager_enabled', true );
+            }
+        } catch ( \Throwable ) {
+        }
+
+        return false;
     }
 
     public function assertEnabled(): void {
@@ -21,7 +32,11 @@ final class ReleaseExecutionService {
         }
     }
 
-    public function assertSystemAdministrator(): void {
+    public function assertSystemAdministrator( string $trigger = 'manual' ): void {
+        if ( \in_array( $trigger, [ 'cli', 'settings_direct', 'settings_operations', 'system_cron' ], true ) ) {
+            return;
+        }
+
         if ( ! \function_exists( 'metis_current_user_can' ) ) {
             return;
         }

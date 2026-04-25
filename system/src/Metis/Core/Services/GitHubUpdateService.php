@@ -177,6 +177,23 @@ final class GitHubUpdateService {
         return $releases;
     }
 
+    public function downloadReleaseArchive(string $tag, string $destination): array {
+        $settings = $this->repositoryConfig();
+        $owner = (string) ($settings['owner'] ?? '');
+        $repo = (string) ($settings['repo'] ?? '');
+        if ($owner === '' || $repo === '') {
+            throw new \RuntimeException('GitHub repository settings are required before release archives can be downloaded.');
+        }
+
+        return $this->github->downloadRepositoryZipball(
+            $owner,
+            $repo,
+            $tag,
+            $destination,
+            (string) ($settings['token'] ?? '')
+        );
+    }
+
     private function repositoryConfig(): array {
         $fileConfig = $this->config->loadFile('config/update.php', []);
         $currentVersion = (string) ($fileConfig['current_version'] ?? '');
@@ -463,6 +480,7 @@ final class GitHubUpdateService {
                 'tag' => $tagName,
                 'version' => $version,
                 'commit' => $commit,
+                'zipball_url' => (string) ($tag['zipball_url'] ?? ''),
                 'source' => 'remote_tag_api',
                 'trusted' => true,
                 'cached' => false,

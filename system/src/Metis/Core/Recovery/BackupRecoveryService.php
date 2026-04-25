@@ -88,13 +88,14 @@ final class BackupRecoveryService {
             'files' => $copied,
         ];
         @file_put_contents($target . '/manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $backupPath = $this->archiveBackupDirectory($target);
 
         try {
             if (function_exists('\metis_db') && class_exists('\Metis_Tables')) {
                 \metis_db()->replace(\Metis_Tables::get('recovery_backups'), [
                     'backup_reference' => $reference,
                     'backup_type' => 'emergency_files',
-                    'backup_path' => $target,
+                    'backup_path' => $backupPath,
                     'includes_files' => 1,
                     'includes_database' => 0,
                     'source_context' => $context,
@@ -107,7 +108,7 @@ final class BackupRecoveryService {
         }
 
         $this->logger->log('Emergency recovery backup created.', $manifest);
-        return ['backup_reference' => $reference, 'backup_path' => $target, 'files' => $copied];
+        return ['backup_reference' => $reference, 'backup_path' => $backupPath, 'files' => $copied];
     }
 
     /** @param array<int,array<string,mixed>> $issues @return array<int,string> */
@@ -170,6 +171,71 @@ final class BackupRecoveryService {
             return $target;
         }
         return '';
+    }
+
+    private function archiveBackupDirectory(string $target): string {
+        if (!class_exists('\ZipArchive') || !is_dir($target)) {
+            return $target;
+        }
+
+        $archive = rtrim($target, '/\\') . '.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($archive, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return $target;
+        }
+
+        $root = realpath($target);
+        if (!is_string($root) || $root === '') {
+            $zip->close();
+            return $target;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                continue;
+            }
+            $path = $item->getPathname();
+            $relative = ltrim(substr($path, strlen($root)), DIRECTORY_SEPARATOR);
+            $zipPath = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+            if ($item->isDir()) {
+                $zip->addEmptyDir($zipPath);
+            } elseif ($item->isFile()) {
+                $zip->addFile($path, $zipPath);
+            }
+        }
+
+        $zip->close();
+        if (is_file($archive)) {
+            $this->removeDirectory($target);
+            return $archive;
+        }
+
+        return $target;
+    }
+
+    private function removeDirectory(string $path): void {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if (!$item instanceof \SplFileInfo) {
+                continue;
+            }
+            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+        }
+
+        @rmdir($path);
     }
 
     private function isPreserved(string $relative): bool {

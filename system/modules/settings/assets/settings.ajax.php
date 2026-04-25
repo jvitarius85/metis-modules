@@ -22,6 +22,45 @@ if ( ! function_exists( 'metis_settings_queue_operation_response' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_release_progress_dir' ) ) {
+    function metis_settings_release_progress_dir(): string {
+        return rtrim( (string) METIS_PATH, '/\\' ) . '/storage/runtime/release/progress';
+    }
+}
+
+if ( ! function_exists( 'metis_settings_release_progress_token' ) ) {
+    function metis_settings_release_progress_token( string $token ): string {
+        return preg_match( '/^[A-Za-z0-9_-]{16,64}$/', $token ) === 1 ? $token : '';
+    }
+}
+
+if ( ! function_exists( 'metis_settings_release_progress_path' ) ) {
+    function metis_settings_release_progress_path( string $token ): string {
+        return metis_settings_release_progress_dir() . '/' . $token . '.json';
+    }
+}
+
+if ( ! function_exists( 'metis_settings_write_release_progress' ) ) {
+    function metis_settings_write_release_progress( string $token, array $payload ): void {
+        $token = metis_settings_release_progress_token( $token );
+        if ( $token === '' ) {
+            return;
+        }
+
+        $dir = metis_settings_release_progress_dir();
+        if ( ! is_dir( $dir ) ) {
+            metis_runtime_make_dir( $dir );
+        }
+
+        $payload['token'] = $token;
+        $payload['updated_at'] = (string) ( $payload['updated_at'] ?? metis_current_time( 'mysql' ) );
+        @file_put_contents(
+            metis_settings_release_progress_path( $token ),
+            metis_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ?: '{}',
+            LOCK_EX
+        );
+    }
+}
 
 if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) ) {
     function metis_settings_checker_recompute_security_offenses( array $report ): array {
@@ -773,6 +812,95 @@ metis_ajax_register_handler( 'metis_release_apply', function () {
 }, [
     'module' => 'settings',
     'permission' => 'edit',
+] );
+
+metis_ajax_register_handler( 'metis_release_apply_now', function () {
+    if ( ! function_exists( 'metis_release_apply_with_progress' ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Release manager is not available.' ], 503 );
+    }
+
+    $tag = metis_text_clean( (string) ( $_POST['tag'] ?? '' ) );
+    $token = metis_settings_release_progress_token( (string) ( $_POST['progress_token'] ?? '' ) );
+    if ( $tag === '' ) {
+        metis_runtime_send_json_error( [ 'message' => 'A release tag is required.' ], 400 );
+    }
+    if ( $token === '' ) {
+        metis_runtime_send_json_error( [ 'message' => 'A progress token is required.' ], 400 );
+    }
+
+    @ignore_user_abort( true );
+    @set_time_limit( 0 );
+
+    $write_progress = static function ( array $progress ) use ( $token, $tag ): void {
+        metis_settings_write_release_progress( $token, [
+            'tag' => $tag,
+            'stage' => (string) ( $progress['stage'] ?? 'running' ),
+            'message' => (string) ( $progress['message'] ?? 'Running update.' ),
+            'percent' => (int) ( $progress['percent'] ?? 0 ),
+            'context' => is_array( $progress['context'] ?? null ) ? $progress['context'] : [],
+            'done' => false,
+        ] );
+    };
+
+    $write_progress( [
+        'stage' => 'start',
+        'message' => 'Starting release update.',
+        'percent' => 1,
+    ] );
+
+    try {
+        $result = metis_release_apply_with_progress( $tag, 'settings_direct', $write_progress );
+    } catch ( Throwable $throwable ) {
+        $result = [
+            'ok' => false,
+            'status' => 'exception',
+            'message' => $throwable->getMessage(),
+            'exception' => get_class( $throwable ),
+        ];
+    }
+
+    metis_settings_write_release_progress( $token, [
+        'tag' => $tag,
+        'stage' => ! empty( $result['ok'] ) ? 'complete' : 'failed',
+        'message' => (string) ( $result['message'] ?? ( ! empty( $result['ok'] ) ? 'Release update completed.' : 'Release update failed.' ) ),
+        'percent' => 100,
+        'done' => true,
+        'result' => $result,
+    ] );
+
+    metis_runtime_send_json_success( [
+        'message' => (string) ( $result['message'] ?? ( ! empty( $result['ok'] ) ? 'Release update completed.' : 'Release update failed.' ) ),
+        'release_result' => $result,
+        'progress_token' => $token,
+    ] );
+}, [
+    'module' => 'settings',
+    'permission' => 'edit',
+    'nonce_action' => metis_ajax_nonce_action( 'metis_release_apply_now' ),
+] );
+
+metis_ajax_register_handler( 'metis_release_apply_progress', function () {
+    $token = metis_settings_release_progress_token( (string) ( $_POST['progress_token'] ?? '' ) );
+    if ( $token === '' ) {
+        metis_runtime_send_json_error( [ 'message' => 'A progress token is required.' ], 400 );
+    }
+
+    $path = metis_settings_release_progress_path( $token );
+    $progress = [];
+    if ( is_file( $path ) ) {
+        $raw = file_get_contents( $path );
+        $decoded = is_string( $raw ) ? json_decode( $raw, true ) : [];
+        $progress = is_array( $decoded ) ? $decoded : [];
+    }
+
+    metis_runtime_send_json_success( [
+        'message' => 'Release progress loaded.',
+        'progress' => $progress,
+    ] );
+}, [
+    'module' => 'settings',
+    'permission' => 'edit',
+    'nonce_action' => metis_ajax_nonce_action( 'metis_release_apply_progress' ),
 ] );
 
 metis_ajax_register_handler( 'metis_release_rollback', function () {

@@ -1332,6 +1332,56 @@
 .kpi-trend.is-positive { color: #15803d; }
 .kpi-trend.is-negative { color: #b91c1c; }
 
+.metis-release-progress {
+    margin-top: 12px;
+    padding: 14px 16px;
+    background: var(--metis-surface);
+    border: 1px solid var(--metis-border);
+    border-radius: 5px;
+}
+
+.metis-release-progress__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--metis-text);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.metis-release-progress__bar {
+    height: 10px;
+    margin-top: 12px;
+    overflow: hidden;
+    background: var(--metis-row-even-bg, #f8f9fd);
+    border: 1px solid var(--metis-border);
+    border-radius: 999px;
+}
+
+.metis-release-progress__bar span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--metis-primary);
+    transition: width 180ms ease;
+}
+
+.metis-release-progress__status {
+    margin-top: 10px;
+    color: var(--metis-text-muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.metis-release-progress.is-complete .metis-release-progress__bar span {
+    background: #15803d;
+}
+
+.metis-release-progress.is-failed .metis-release-progress__bar span {
+    background: #b91c1c;
+}
+
 @media (max-width: 900px) {
     .metis-newsletter-stats { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
 }

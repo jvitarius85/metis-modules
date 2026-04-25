@@ -599,6 +599,7 @@ function metis_standalone_install_complete_defaults(): void {
     metis_standalone_install_set_default( 'auth_login_lock_threshold_subject', 10, false );
     metis_standalone_install_set_default( 'auth_login_lock_threshold_ip', 30, false );
     metis_standalone_install_set_default( 'webhook_rate_limit_per_minute', 120, false );
+    metis_standalone_install_set_default( 'release_manager_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_git_restore_enabled', true, false );
@@ -644,6 +645,7 @@ function metis_standalone_enable_recovery_defaults(): void {
         'integrity_auto_heal_enabled',
         'integrity_quarantine_enabled',
         'integrity_git_restore_enabled',
+        'release_manager_enabled',
         'recovery_preboot_enabled',
         'recovery_runtime_enabled',
         'recovery_file_mutation_enabled',

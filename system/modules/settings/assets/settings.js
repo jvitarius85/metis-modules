@@ -1877,31 +1877,134 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function releaseProgressToken() {
+        const source = new Uint8Array(16);
+        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+            window.crypto.getRandomValues(source);
+            return Array.from(source).map(function (byte) {
+                return byte.toString(16).padStart(2, '0');
+            }).join('');
+        }
+        return String(Date.now()) + String(Math.random()).replace(/\D/g, '').slice(0, 18);
+    }
+
+    function releaseProgressPanel(button, tag) {
+        let panel = document.querySelector('[data-release-progress-panel]');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.className = 'metis-release-progress';
+            panel.setAttribute('data-release-progress-panel', '1');
+            panel.innerHTML = [
+                '<div class="metis-release-progress__head">',
+                '  <strong data-release-progress-title>Release Update</strong>',
+                '  <span data-release-progress-percent>0%</span>',
+                '</div>',
+                '<div class="metis-release-progress__bar" aria-hidden="true"><span data-release-progress-bar></span></div>',
+                '<div class="metis-release-progress__status" data-release-progress-status>Preparing update...</div>'
+            ].join('');
+            const actions = button.closest('.metis-settings-actions');
+            if (actions && actions.parentNode) {
+                actions.parentNode.insertBefore(panel, actions.nextSibling);
+            } else {
+                button.insertAdjacentElement('afterend', panel);
+            }
+        }
+
+        const title = panel.querySelector('[data-release-progress-title]');
+        if (title) title.textContent = 'Release Update ' + tag;
+        panel.classList.remove('is-complete', 'is-failed');
+        panel.hidden = false;
+        return panel;
+    }
+
+    function updateReleaseProgressPanel(panel, progress) {
+        if (!panel) return;
+        const percent = Math.max(0, Math.min(100, parseInt((progress && progress.percent) || 0, 10) || 0));
+        const status = String((progress && progress.message) || 'Running update...');
+        const bar = panel.querySelector('[data-release-progress-bar]');
+        const percentEl = panel.querySelector('[data-release-progress-percent]');
+        const statusEl = panel.querySelector('[data-release-progress-status]');
+        if (bar) bar.style.width = percent + '%';
+        if (percentEl) percentEl.textContent = percent + '%';
+        if (statusEl) statusEl.textContent = status;
+        panel.classList.toggle('is-complete', String((progress && progress.stage) || '') === 'complete');
+        panel.classList.toggle('is-failed', String((progress && progress.stage) || '') === 'failed');
+    }
+
+    function pollReleaseProgress(token, panel, stopWhenDone) {
+        const action = 'metis_release_apply_progress';
+        const body = new FormData();
+        body.append('action', action);
+        body.append('progress_token', token);
+        body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+        body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+        return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+            const progress = data && data.progress ? data.progress : {};
+            updateReleaseProgressPanel(panel, progress);
+            return !!(stopWhenDone && progress && progress.done);
+        }).catch(function () {
+            return false;
+        });
+    }
+
     document.querySelectorAll('[data-release-apply-tag]').forEach(function (button) {
         button.addEventListener('click', function () {
             const tag = String(button.getAttribute('data-release-apply-tag') || '').trim();
             if (!tag) return;
-            confirmAction('Apply trusted release ' + tag + '? Metis will run an integrity check and create a backup first.', {
+            confirmAction('Apply trusted release ' + tag + ' now? Metis will run integrity checks, create a backup, and update this installation directly.', {
                 title: 'Apply Release',
                 confirmLabel: 'Apply Release'
             }).then(function (confirmed) {
                 if (!confirmed) return;
-                const action = 'metis_release_apply';
+                const action = 'metis_release_apply_now';
+                const token = releaseProgressToken();
+                const panel = releaseProgressPanel(button, tag);
                 const body = new FormData();
                 body.append('action', action);
                 body.append('tag', tag);
+                body.append('progress_token', token);
                 body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
                 body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
 
                 const originalLabel = button.textContent;
                 button.disabled = true;
-                button.textContent = 'Queueing...';
+                button.textContent = 'Applying...';
+                updateReleaseProgressPanel(panel, { percent: 1, message: 'Starting release update.' });
+
+                let polling = true;
+                const pollTimer = window.setInterval(function () {
+                    if (!polling) return;
+                    pollReleaseProgress(token, panel, true).then(function (done) {
+                        if (done) {
+                            polling = false;
+                            window.clearInterval(pollTimer);
+                        }
+                    });
+                }, 750);
 
                 Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
-                    showToast('success', String(data.message || 'Release queued.'));
+                    const result = data && data.release_result ? data.release_result : {};
+                    updateReleaseProgressPanel(panel, {
+                        stage: result.ok ? 'complete' : 'failed',
+                        percent: 100,
+                        message: String(data.message || (result.ok ? 'Release update completed.' : 'Release update failed.'))
+                    });
+                    if (result.ok) {
+                        showToast('success', String(data.message || 'Release update completed.'));
+                        window.setTimeout(function () {
+                            window.location.reload();
+                        }, 1200);
+                    } else {
+                        showToast('error', String(data.message || result.message || 'Release update failed.'));
+                    }
                 }).catch(function (error) {
+                    updateReleaseProgressPanel(panel, { stage: 'failed', percent: 100, message: error && error.message ? error.message : 'Release update failed.' });
                     showToast('error', error && error.message ? error.message : 'Release update failed.');
                 }).finally(function () {
+                    polling = false;
+                    window.clearInterval(pollTimer);
+                    pollReleaseProgress(token, panel, false);
                     button.disabled = false;
                     button.textContent = originalLabel;
                 });

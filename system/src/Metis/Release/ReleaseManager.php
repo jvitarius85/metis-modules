@@ -12,6 +12,33 @@ final class ReleaseManager {
     private const CACHE_FILE = 'release-cache.json';
     private const STATE_FILE = 'state.json';
     private const HISTORY_FILE = 'release-history.json';
+    private const ARCHIVE_PROTECTED_DIRS = [
+        '.git',
+        '.github',
+        'meta',
+        'storage',
+    ];
+    private const ARCHIVE_PROTECTED_FILES = [
+        '.DS_Store',
+        '.env',
+        '.gitignore',
+        'AGENTS.md',
+        'INSTALL.md',
+        'MODULE_GUIDE.md',
+        'README.md',
+        'ROADMAP.md',
+        'SECURITY.md',
+        'system/config/database.php',
+        'system/config/update.php',
+    ];
+
+    /** @var null|callable(array<string,mixed>):void */
+    private $progressReporter = null;
+
+    public function setProgressReporter( ?callable $reporter ): self {
+        $this->progressReporter = $reporter;
+        return $this;
+    }
 
     public function ensureRuntime(): void {
         $this->ensureStorageDirectories();
@@ -125,7 +152,7 @@ final class ReleaseManager {
 
     public function checkForUpdates( bool $force_refresh = false, string $trigger = 'manual' ): array {
         $this->releaseExecution()->assertEnabled();
-        $this->releaseExecution()->assertSystemAdministrator();
+        $this->releaseExecution()->assertSystemAdministrator( $trigger );
         $this->releaseExecution()->auditAction( 'check', [
             'force_refresh' => $force_refresh,
             'trigger' => $trigger,
@@ -149,14 +176,16 @@ final class ReleaseManager {
 
     public function applyRelease( string $tag, string $trigger = 'manual' ): array {
         $this->releaseExecution()->assertEnabled();
-        $this->releaseExecution()->assertSystemAdministrator();
+        $this->releaseExecution()->assertSystemAdministrator( $trigger );
         $tag = $this->normalizeTag( $tag );
         $this->releaseExecution()->auditAction( 'apply', [
             'tag' => $tag,
             'trigger' => $trigger,
         ] );
+        $this->progress( 'start', 'Preparing release update.', 2, [ 'tag' => $tag ] );
 
         if ( $tag === '' ) {
+            $this->progress( 'failed', 'Release tag is missing.', 100 );
             return [
                 'ok' => false,
                 'status' => 'invalid_tag',
@@ -169,6 +198,7 @@ final class ReleaseManager {
         $releases_payload = $this->refreshTrustedReleases( true, 'apply' );
         $release = $this->findReleaseByTag( $tag, $releases_payload['releases'] ?? [] );
         if ( $release === null ) {
+            $this->progress( 'failed', 'Requested release is not trusted.', 100 );
             return [
                 'ok' => false,
                 'status' => 'untrusted_release',
@@ -178,14 +208,12 @@ final class ReleaseManager {
 
         $repository = $this->repositoryState( true );
         if ( $repository === null ) {
-            return [
-                'ok' => false,
-                'status' => 'git_unavailable',
-                'message' => 'Git repository state could not be resolved.',
-            ];
+            $this->progress( 'archive_mode', 'Git is unavailable; switching to trusted archive update.', 10 );
+            return $this->applyArchiveRelease( $tag, $release, $trigger );
         }
 
         if ( ! empty( $repository['dirty'] ) ) {
+            $this->progress( 'failed', 'Repository has tracked changes.', 100 );
             return [
                 'ok' => false,
                 'status' => 'dirty_worktree',
@@ -195,6 +223,7 @@ final class ReleaseManager {
         }
 
         if ( (string) ( $repository['exact_tag'] ?? '' ) === $tag ) {
+            $this->progress( 'complete', 'Requested release is already installed.', 100 );
             return [
                 'ok' => true,
                 'status' => 'already_installed',
@@ -204,8 +233,10 @@ final class ReleaseManager {
             ];
         }
 
+        $this->progress( 'integrity', 'Running integrity preflight.', 15 );
         $integrity = $this->preflightIntegrityCheck( 'pre_update' );
         if ( ! empty( $integrity['blocked'] ) ) {
+            $this->progress( 'failed', 'Integrity preflight blocked the update.', 100 );
             return [
                 'ok' => false,
                 'status' => 'integrity_blocked',
@@ -214,8 +245,10 @@ final class ReleaseManager {
             ];
         }
 
+        $this->progress( 'modules', 'Running module compliance preflight.', 25 );
         $compliance = $this->preflightModuleComplianceCheck();
         if ( ! empty( $compliance['blocked'] ) ) {
+            $this->progress( 'failed', 'Module compliance blocked the update.', 100 );
             return [
                 'ok' => false,
                 'status' => 'module_compliance_blocked',
@@ -224,8 +257,10 @@ final class ReleaseManager {
             ];
         }
 
+        $this->progress( 'backup', 'Creating pre-update backup.', 35 );
         $backup = $this->runPreUpdateBackup( $trigger );
         if ( empty( $backup['ok'] ) ) {
+            $this->progress( 'failed', 'Pre-update backup failed.', 100 );
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
@@ -240,7 +275,9 @@ final class ReleaseManager {
             'version' => Version::current(),
         ];
 
+        $this->progress( 'fetch', 'Verifying release tag locally.', 55 );
         if ( ! $this->ensureLocalTagAvailable( $tag, $repository ) ) {
+            $this->progress( 'failed', 'Release tag could not be fetched.', 100 );
             return [
                 'ok' => false,
                 'status' => 'tag_unavailable',
@@ -249,6 +286,7 @@ final class ReleaseManager {
             ];
         }
 
+        $this->progress( 'checkout', 'Checking out release tag.', 68 );
         $checkout = $this->runCommand( [
             $this->gitBinary(),
             '-C',
@@ -259,6 +297,7 @@ final class ReleaseManager {
         ] );
 
         if ( (int) ( $checkout['exit_code'] ?? 1 ) !== 0 ) {
+            $this->progress( 'failed', 'Git checkout failed.', 100 );
             return [
                 'ok' => false,
                 'status' => 'checkout_failed',
@@ -267,11 +306,14 @@ final class ReleaseManager {
             ];
         }
 
+        $this->progress( 'baseline', 'Rebuilding integrity baseline.', 82 );
         $postflight = $this->finalizeCheckout( $tag, $release, $trigger, $backup, $previous, 'release_apply' );
         if ( ! empty( $postflight['ok'] ) ) {
+            $this->progress( 'complete', 'Release update completed.', 100 );
             return $postflight;
         }
 
+        $this->progress( 'rollback', 'Postflight failed; attempting rollback.', 92 );
         $rollback_target = $previous['tag'] !== '' ? 'refs/tags/' . $previous['tag'] : $previous['commit'];
         if ( $rollback_target !== '' ) {
             $this->runCommand( [
@@ -286,12 +328,13 @@ final class ReleaseManager {
         }
 
         $postflight['rolled_back'] = $rollback_target !== '';
+        $this->progress( 'failed', 'Release update failed.', 100 );
         return $postflight;
     }
 
     public function rollback( string $trigger = 'manual' ): array {
         $this->releaseExecution()->assertEnabled();
-        $this->releaseExecution()->assertSystemAdministrator();
+        $this->releaseExecution()->assertSystemAdministrator( $trigger );
         $this->releaseExecution()->auditAction( 'rollback', [
             'trigger' => $trigger,
         ] );
@@ -491,6 +534,402 @@ final class ReleaseManager {
         }
 
         return \metis_backup_run_now( 'release_' . $trigger );
+    }
+
+    private function applyArchiveRelease( string $tag, array $release, string $trigger ): array {
+        if ( ! \class_exists( '\ZipArchive' ) ) {
+            $this->progress( 'failed', 'ZipArchive is unavailable.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'archive_unavailable',
+                'message' => 'Git is unavailable and PHP ZipArchive is not installed, so Metis cannot apply a release archive safely.',
+            ];
+        }
+
+        if ( ! \class_exists( '\Metis\Core\Application' ) || ! \Metis\Core\Application::has_service( 'github_update' ) ) {
+            $this->progress( 'failed', 'GitHub update service is unavailable.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'archive_unavailable',
+                'message' => 'Git is unavailable and the GitHub update service is not available.',
+            ];
+        }
+
+        $this->progress( 'integrity', 'Running integrity preflight.', 15 );
+        $integrity = $this->preflightIntegrityCheck( 'pre_update_archive' );
+        if ( ! empty( $integrity['blocked'] ) ) {
+            $this->progress( 'failed', 'Integrity preflight blocked the update.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'integrity_blocked',
+                'message' => 'Integrity verification must pass before an archive update can be applied.',
+                'integrity' => $integrity,
+            ];
+        }
+
+        $this->progress( 'modules', 'Running module compliance preflight.', 25 );
+        $compliance = $this->preflightModuleComplianceCheck();
+        if ( ! empty( $compliance['blocked'] ) ) {
+            $this->progress( 'failed', 'Module compliance blocked the update.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'module_compliance_blocked',
+                'message' => 'Module compliance verification must pass before an archive update can be applied.',
+                'module_compliance' => $compliance,
+            ];
+        }
+
+        $this->progress( 'backup', 'Creating pre-update backup.', 35 );
+        $backup = $this->runPreUpdateBackup( $trigger );
+        if ( empty( $backup['ok'] ) ) {
+            $this->progress( 'failed', 'Pre-update backup failed.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'backup_failed',
+                'message' => 'Pre-update backup failed.',
+                'backup' => $backup,
+            ];
+        }
+
+        $this->progress( 'download', 'Downloading trusted release archive.', 52 );
+        $archive = $this->downloadReleaseArchive( $tag );
+        if ( empty( $archive['ok'] ) ) {
+            $this->progress( 'failed', 'Release archive download failed.', 100 );
+            return $archive + [
+                'ok' => false,
+                'status' => 'archive_download_failed',
+                'message' => 'Release archive could not be downloaded.',
+            ];
+        }
+
+        $this->progress( 'extract', 'Validating and extracting release archive.', 64 );
+        $extracted = $this->extractReleaseArchive( (string) $archive['path'], $tag );
+        if ( empty( $extracted['ok'] ) ) {
+            $this->progress( 'failed', 'Release archive extraction failed.', 100 );
+            return $extracted + [
+                'ok' => false,
+                'status' => 'archive_extract_failed',
+                'message' => 'Release archive could not be extracted.',
+            ];
+        }
+
+        $this->progress( 'apply', 'Applying release files.', 76 );
+        $applied = $this->copyArchivePayload( (string) $extracted['source_root'] );
+        if ( empty( $applied['ok'] ) ) {
+            $this->progress( 'failed', 'Release files could not be applied.', 100 );
+            return $applied + [
+                'ok' => false,
+                'status' => 'archive_apply_failed',
+                'message' => 'Release archive files could not be copied into place.',
+            ];
+        }
+
+        $this->progress( 'baseline', 'Rebuilding integrity baseline.', 88 );
+        return $this->finalizeArchiveApply(
+            $tag,
+            $release,
+            $trigger,
+            $backup,
+            [
+                'tag' => (string) ( $this->readState()['installed_tag'] ?? '' ),
+                'commit' => (string) ( $this->readState()['installed_commit'] ?? '' ),
+                'version' => Version::current(),
+            ],
+            [
+                'archive' => $archive,
+                'extracted' => $extracted,
+                'applied' => $applied,
+            ]
+        );
+    }
+
+    private function downloadReleaseArchive( string $tag ): array {
+        $archive_path = $this->cacheDir() . '/release-' . preg_replace( '/[^A-Za-z0-9_.-]/', '-', $tag ) . '.zip';
+
+        try {
+            $download = \Metis\Core\Application::service( 'github_update' )->downloadReleaseArchive( $tag, $archive_path );
+        } catch ( \Throwable $throwable ) {
+            return [
+                'ok' => false,
+                'status' => 'archive_download_failed',
+                'message' => $throwable->getMessage(),
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'status' => 'downloaded',
+            'path' => (string) ( $download['path'] ?? $archive_path ),
+            'bytes' => (int) ( $download['bytes'] ?? 0 ),
+            'sha256' => (string) ( $download['sha256'] ?? '' ),
+            'url' => (string) ( $download['url'] ?? '' ),
+        ];
+    }
+
+    private function extractReleaseArchive( string $archive_path, string $tag ): array {
+        $extract_dir = $this->cacheDir() . '/extract-' . preg_replace( '/[^A-Za-z0-9_.-]/', '-', $tag ) . '-' . date( 'YmdHis' );
+        if ( ! \is_dir( $extract_dir ) && ! \metis_runtime_make_dir( $extract_dir ) ) {
+            return [
+                'ok' => false,
+                'status' => 'archive_extract_failed',
+                'message' => 'Unable to create release extraction directory.',
+            ];
+        }
+
+        $zip = new \ZipArchive();
+        if ( $zip->open( $archive_path ) !== true ) {
+            return [
+                'ok' => false,
+                'status' => 'archive_extract_failed',
+                'message' => 'Unable to open release archive.',
+            ];
+        }
+
+        for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+            $entry = (string) $zip->getNameIndex( $i );
+            $normalized = str_replace( '\\', '/', $entry );
+            if (
+                $normalized === ''
+                || str_starts_with( $normalized, '/' )
+                || str_contains( $normalized, '/../' )
+                || str_starts_with( $normalized, '../' )
+            ) {
+                $zip->close();
+                return [
+                    'ok' => false,
+                    'status' => 'archive_invalid',
+                    'message' => 'Release archive contains an unsafe path.',
+                ];
+            }
+        }
+
+        $ok = $zip->extractTo( $extract_dir );
+        $zip->close();
+        if ( ! $ok ) {
+            return [
+                'ok' => false,
+                'status' => 'archive_extract_failed',
+                'message' => 'Unable to extract release archive.',
+            ];
+        }
+
+        $children = array_values(
+            array_filter(
+                scandir( $extract_dir ) ?: [],
+                static fn ( string $name ): bool => $name !== '.' && $name !== '..' && is_dir( $extract_dir . '/' . $name )
+            )
+        );
+        $source_root = isset( $children[0] ) ? $extract_dir . '/' . $children[0] : $extract_dir;
+
+        foreach ( [ 'index.php', 'system/src/Metis/Core/Version.php' ] as $required ) {
+            if ( ! \is_file( rtrim( $source_root, '/' ) . '/' . $required ) ) {
+                return [
+                    'ok' => false,
+                    'status' => 'archive_invalid',
+                    'message' => 'Release archive does not contain the expected Metis application structure.',
+                    'missing' => $required,
+                ];
+            }
+        }
+
+        return [
+            'ok' => true,
+            'status' => 'extracted',
+            'extract_dir' => $extract_dir,
+            'source_root' => $source_root,
+        ];
+    }
+
+    private function copyArchivePayload( string $source_root ): array {
+        $source_root = rtrim( str_replace( '\\', '/', $source_root ), '/' );
+        $target_root = rtrim( str_replace( '\\', '/', (string) \METIS_PATH ), '/' );
+        $copied = 0;
+        $skipped = 0;
+        $failures = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator( $source_root, \FilesystemIterator::SKIP_DOTS ),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ( $iterator as $item ) {
+            if ( ! $item instanceof \SplFileInfo ) {
+                continue;
+            }
+
+            $source_path = str_replace( '\\', '/', $item->getPathname() );
+            $relative = ltrim( substr( $source_path, strlen( $source_root ) ), '/' );
+            if ( $relative === '' || $this->archivePathIsProtected( $relative ) ) {
+                $skipped++;
+                continue;
+            }
+
+            $target_path = $target_root . '/' . $relative;
+            if ( $item->isDir() ) {
+                if ( ! \is_dir( $target_path ) && ! \metis_runtime_make_dir( $target_path ) ) {
+                    $failures[] = [ 'path' => $relative, 'reason' => 'mkdir_failed' ];
+                }
+                continue;
+            }
+
+            if ( ! $item->isFile() ) {
+                $skipped++;
+                continue;
+            }
+
+            $target_dir = dirname( $target_path );
+            if ( ! \is_dir( $target_dir ) && ! \metis_runtime_make_dir( $target_dir ) ) {
+                $failures[] = [ 'path' => $relative, 'reason' => 'mkdir_failed' ];
+                continue;
+            }
+
+            if ( \is_dir( $target_path ) ) {
+                $failures[] = [ 'path' => $relative, 'reason' => 'target_is_directory' ];
+                continue;
+            }
+
+            if ( ! @copy( $source_path, $target_path ) ) {
+                $failures[] = [ 'path' => $relative, 'reason' => 'copy_failed' ];
+                continue;
+            }
+
+            $copied++;
+        }
+
+        return [
+            'ok' => $failures === [],
+            'status' => $failures === [] ? 'applied' : 'failed',
+            'copied' => $copied,
+            'skipped' => $skipped,
+            'failures' => array_slice( $failures, 0, 25 ),
+            'failure_count' => count( $failures ),
+        ];
+    }
+
+    private function archivePathIsProtected( string $relative ): bool {
+        $relative = ltrim( str_replace( '\\', '/', $relative ), '/' );
+        foreach ( self::ARCHIVE_PROTECTED_DIRS as $dir ) {
+            if ( $relative === $dir || str_starts_with( $relative, $dir . '/' ) ) {
+                return true;
+            }
+        }
+
+        foreach ( self::ARCHIVE_PROTECTED_FILES as $file ) {
+            if ( $relative === $file ) {
+                return true;
+            }
+        }
+
+        if ( preg_match( '#^system/config/.+\\.local\\.php$#', $relative ) === 1 ) {
+            return true;
+        }
+
+        if ( str_starts_with( $relative, 'system/config/auth/' ) ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function finalizeArchiveApply( string $tag, array $release, string $trigger, array $backup, array $previous, array $archive_result ): array {
+        $this->invalidateConfigCache();
+
+        $baseline_built = true;
+        $baseline_signed = false;
+        $signature_required = false;
+
+        if ( \class_exists( 'Metis_Integrity_Manager' ) ) {
+            $baseline_built = \Metis_Integrity_Manager::build_baseline( 'release_archive_apply:' . $tag );
+            $verification = \Metis_Integrity_Manager::verify_baseline();
+            $signature_required = ! empty( $verification['signature_required'] );
+            $baseline_signed = ! $signature_required ? true : \Metis_Integrity_Manager::sign_baseline();
+        }
+
+        if ( ! $baseline_built || ! $baseline_signed ) {
+            $this->progress( 'failed', 'Integrity baseline could not be established.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'baseline_failed',
+                'message' => 'Release archive was applied, but the new integrity baseline could not be established.',
+                'baseline_built' => $baseline_built,
+                'baseline_signed' => $baseline_signed,
+                'signature_required' => $signature_required,
+                'archive' => $archive_result,
+            ];
+        }
+
+        $state = $this->readState();
+        $installed_commit = (string) ( $release['commit'] ?? '' );
+
+        $this->persistState(
+            array_merge(
+                $state,
+                [
+                    'installed_version' => (string) ( $release['version'] ?? $this->versionFromTag( $tag ) ),
+                    'installed_tag' => $tag,
+                    'installed_commit' => $installed_commit,
+                    'previous_tag' => (string) ( $previous['tag'] ?? '' ),
+                    'previous_version' => (string) ( $previous['version'] ?? '' ),
+                    'previous_commit' => (string) ( $previous['commit'] ?? '' ),
+                    'last_action' => 'release_archive_apply',
+                    'last_action_at' => \metis_current_time( 'mysql' ),
+                    'last_backup_run_uuid' => (string) ( $backup['run_uuid'] ?? '' ),
+                ]
+            )
+        );
+
+        $this->appendHistory( [
+            'action' => 'release_archive_apply',
+            'trigger' => $trigger,
+            'tag' => $tag,
+            'version' => (string) ( $release['version'] ?? '' ),
+            'commit' => $installed_commit,
+            'backup_run_uuid' => (string) ( $backup['run_uuid'] ?? '' ),
+            'occurred_at' => \metis_current_time( 'mysql' ),
+        ] );
+
+        if ( \class_exists( 'Metis_Logger' ) ) {
+            \Metis_Logger::info( 'Release archive mutation completed', [
+                'trigger' => $trigger,
+                'tag' => $tag,
+                'commit' => $installed_commit,
+                'copied' => (int) ( $archive_result['applied']['copied'] ?? 0 ),
+            ] );
+        }
+
+        $this->progress( 'complete', 'Release update completed.', 100 );
+
+        return [
+            'ok' => true,
+            'status' => 'release_archive_apply',
+            'message' => sprintf( 'Release %s was installed from a trusted GitHub archive.', $tag ),
+            'release' => $release,
+            'backup' => $backup,
+            'archive' => $archive_result,
+            'repository' => [
+                'available' => false,
+                'mode' => 'archive',
+            ],
+            'baseline_built' => $baseline_built,
+            'baseline_signed' => $baseline_signed,
+        ];
+    }
+
+    private function progress( string $stage, string $message, int $percent, array $context = [] ): void {
+        if ( ! \is_callable( $this->progressReporter ) ) {
+            return;
+        }
+
+        try {
+            ( $this->progressReporter )( [
+                'stage' => $stage,
+                'message' => $message,
+                'percent' => max( 0, min( 100, $percent ) ),
+                'context' => $context,
+                'updated_at' => \function_exists( 'metis_current_time' ) ? \metis_current_time( 'mysql' ) : \gmdate( 'Y-m-d H:i:s' ),
+            ] );
+        } catch ( \Throwable ) {
+        }
     }
 
     private function finalizeCheckout( string $tag, array $release, string $trigger, array $backup, array $previous, string $reason ): array {

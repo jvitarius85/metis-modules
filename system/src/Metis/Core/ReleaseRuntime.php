@@ -61,6 +61,16 @@ function metis_release_apply( string $tag, string $trigger = 'manual' ): array {
     return metis_release_manager()->applyRelease( $tag, $trigger );
 }
 
+function metis_release_apply_with_progress( string $tag, string $trigger, callable $progress ): array {
+    $manager = metis_release_manager();
+    $manager->setProgressReporter( $progress );
+    try {
+        return $manager->applyRelease( $tag, $trigger );
+    } finally {
+        $manager->setProgressReporter( null );
+    }
+}
+
 function metis_release_rollback( string $trigger = 'manual' ): array {
     return metis_release_manager()->rollback( $trigger );
 }

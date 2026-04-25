@@ -173,25 +173,23 @@ final class BackupService {
             ] );
 
             $upload_map = [
-                'database' => 'database',
-                'config'   => 'config',
-                'media'    => 'media',
-                'runtime'  => 'runtime',
-                'full'     => 'full',
+                'full' => '',
             ];
 
             foreach ( $upload_map as $component => $folder_name ) {
-                $component_folder = $this->ensureDriveFolderPath( $drive_cfg, array_merge( $drive_segments, [ $folder_name ] ) );
-                if ( empty( $component_folder['ok'] ) ) {
+                $component_folder = $folder_name === ''
+                    ? $run_folder
+                    : $this->ensureDriveFolderPath( $drive_cfg, array_merge( $drive_segments, [ $folder_name ] ) );
+                if ( empty( $component_folder['ok'] ) && $folder_name !== '' ) {
                     throw new \RuntimeException( 'Could not create a component folder in Google Drive.' );
                 }
 
                 $upload = $this->uploadFileToDrive(
                     $drive_cfg,
-                    (string) ( $component_folder['folder_id'] ?? '' ),
+                    (string) ( $component_folder['folder_id'] ?? $root_folder_id ),
                     (string) ( $component_archives[ $component ]['local_path'] ?? '' ),
                     (string) ( $component_archives[ $component ]['archive_name'] ?? '' ),
-                    $component === 'database' ? 'application/gzip' : 'application/zip'
+                    'application/zip'
                 );
                 if ( empty( $upload['ok'] ) ) {
                     throw new \RuntimeException( 'File upload failed.' );
@@ -213,6 +211,7 @@ final class BackupService {
                 'created'  => true,
                 'uploaded' => true,
             ];
+            $metadata['component_archives'] = $component_archives;
 
             $this->updateRun( $run_id, [
                 'status'              => self::SUCCESS,
@@ -237,10 +236,13 @@ final class BackupService {
                 'metadata'       => $metadata,
             ];
         } catch ( \Throwable $e ) {
+            $this->cleanupLocalRunArtifacts( $run_id, $run_uuid, $local_dir );
+
             $this->updateRun( $run_id, [
                 'status'        => self::FAILED,
                 'completed_at'  => \metis_current_time( 'mysql' ),
                 'last_error'    => 'Backup run failed. Review logs for details.',
+                'local_path'     => '',
             ] );
 
             if ( \class_exists( 'Metis_Logger' ) ) {
