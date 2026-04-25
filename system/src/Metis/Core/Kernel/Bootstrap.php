@@ -274,11 +274,8 @@ if ( ! function_exists( 'metis_kernel_handle_install_redirect' ) ) {
         $request_path  = metis_kernel_request_path();
         $script_dir    = rtrim( metis_kernel_public_base_path(), '/' );
         $install_path  = ( $script_dir === '' || $script_dir === '/' ? '' : $script_dir ) . '/install';
-        $has_database_config = function_exists( 'metis_standalone_has_database_config' )
-            ? metis_standalone_has_database_config()
-            : is_file( METIS_CONFIG_PATH . 'database.php' );
-
-        if ( ! is_file( $install_lock ) && ! $has_database_config && $request_path !== $install_path ) {
+        $request_is_install = rtrim( $request_path, '/' ) === rtrim( $install_path, '/' );
+        if ( ! is_file( $install_lock ) && ! $request_is_install ) {
             header( 'Location: ' . $install_path, true, 302 );
             exit;
         }

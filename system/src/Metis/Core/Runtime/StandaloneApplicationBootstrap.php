@@ -273,7 +273,11 @@ function metis_standalone_has_database_config(): bool {
     return true;
 }
 
-function metis_standalone_write_database_config( array $config ): void {
+function metis_standalone_mark_installed(): void {
+    file_put_contents( rtrim( (string) METIS_PATH, '/\\' ) . '/storage/install.lock', "installed\n", LOCK_EX );
+}
+
+function metis_standalone_write_database_config( array $config, bool $write_install_lock = true ): void {
     $dir = dirname( metis_standalone_database_config_path() );
     if ( ! is_dir( $dir ) ) {
         mkdir( $dir, 0775, true );
@@ -281,14 +285,676 @@ function metis_standalone_write_database_config( array $config ): void {
 
     $payload = "<?php\nreturn " . var_export( $config, true ) . ";\n";
     file_put_contents( metis_standalone_database_config_path(), $payload, LOCK_EX );
-    file_put_contents( rtrim( (string) METIS_PATH, '/\\' ) . '/storage/install.lock', "installed\n", LOCK_EX );
+    if ( $write_install_lock ) {
+        metis_standalone_mark_installed();
+    }
     metis_standalone_invalidate_config_cache();
     metis_standalone_compiled_config( true );
+}
+
+function metis_standalone_install_chmod( string $path, int $mode ): void {
+    if ( file_exists( $path ) || is_dir( $path ) ) {
+        @chmod( $path, $mode );
+    }
+}
+
+function metis_standalone_install_ensure_directory( string $path ): void {
+    if ( ! is_dir( $path ) ) {
+        @mkdir( $path, 0775, true );
+    }
+
+    metis_standalone_install_chmod( $path, 0775 );
+}
+
+function metis_standalone_install_ensure_permissions(): void {
+    foreach (
+        [
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/backups',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/cache',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/logs',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/media',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/runtime',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/tmp',
+            rtrim( (string) METIS_PATH, '/\\' ) . '/storage/uploads',
+            METIS_CONFIG_PATH,
+        ] as $directory
+    ) {
+        metis_standalone_install_ensure_directory( $directory );
+    }
+
+    foreach ( [ metis_standalone_database_config_path(), rtrim( (string) METIS_PATH, '/\\' ) . '/storage/install.lock' ] as $file ) {
+        if ( is_file( $file ) ) {
+            metis_standalone_install_chmod( $file, 0664 );
+        }
+    }
+}
+
+function metis_standalone_install_required_directories(): array {
+    return [
+        'Storage' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage',
+        'Backups' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/backups',
+        'Cache' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/cache',
+        'Logs' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/logs',
+        'Media' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/media',
+        'Runtime' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/runtime',
+        'Temporary Files' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/tmp',
+        'Uploads' => rtrim( (string) METIS_PATH, '/\\' ) . '/storage/uploads',
+        'Configuration' => METIS_CONFIG_PATH,
+    ];
+}
+
+function metis_standalone_install_precheck_rows(): array {
+    $rows = [];
+    $add = static function ( string $key, string $label, string $status, string $message, bool $repairable = false ) use ( &$rows ): void {
+        $rows[] = [
+            'key' => $key,
+            'label' => $label,
+            'status' => $status,
+            'message' => $message,
+            'repairable' => $repairable,
+        ];
+    };
+
+    $add(
+        'php_version',
+        'PHP Version',
+        version_compare( PHP_VERSION, '8.1.0', '>=' ) ? 'pass' : 'fail',
+        'Running PHP ' . PHP_VERSION . '. Metis requires PHP 8.1 or newer.'
+    );
+
+    foreach ( [ 'mysqli', 'json', 'mbstring', 'openssl', 'pdo' ] as $extension ) {
+        $loaded = extension_loaded( $extension );
+        $add(
+            'ext_' . $extension,
+            strtoupper( $extension ) . ' Extension',
+            $loaded ? 'pass' : 'fail',
+            $loaded ? 'Available.' : 'Required PHP extension is not loaded.'
+        );
+    }
+
+    foreach ( metis_standalone_install_required_directories() as $label => $path ) {
+        $exists = is_dir( $path );
+        $writable = $exists && is_writable( $path );
+        $add(
+            'dir_' . metis_key_clean( $label ),
+            $label . ' Directory',
+            $exists && $writable ? 'pass' : 'fail',
+            $exists
+                ? ( $writable ? 'Writable.' : 'Exists but is not writable by PHP.' )
+                : 'Directory is missing.',
+            true
+        );
+    }
+
+    $external_backup = '/Volumes/NAS/backups 2';
+    $external_exists = is_dir( $external_backup );
+    $external_writable = $external_exists && is_writable( $external_backup );
+    $add(
+        'external_backup',
+        'External Backup Location',
+        $external_exists && $external_writable ? 'pass' : 'warn',
+        $external_exists
+            ? ( $external_writable ? 'Writable.' : 'Exists but is not writable by PHP.' )
+            : 'Not detected on this server. Configure external backups after install if this path is mounted later.',
+        $external_exists
+    );
+
+    return $rows;
+}
+
+function metis_standalone_install_precheck_summary( array $rows ): array {
+    $blocking = 0;
+    $warnings = 0;
+    $repairable = false;
+    foreach ( $rows as $row ) {
+        $status = (string) ( $row['status'] ?? '' );
+        if ( $status === 'fail' ) {
+            $blocking++;
+        } elseif ( $status === 'warn' ) {
+            $warnings++;
+        }
+        if ( ! empty( $row['repairable'] ) && $status === 'fail' ) {
+            $repairable = true;
+        }
+    }
+
+    return [
+        'ok' => $blocking === 0,
+        'blocking' => $blocking,
+        'warnings' => $warnings,
+        'repairable' => $repairable,
+    ];
+}
+
+function metis_standalone_install_json( array $payload, int $status = 200 ): never {
+    if ( function_exists( 'metis_send_status' ) ) {
+        metis_send_status( $status );
+    } else {
+        header( sprintf( 'HTTP/1.1 %d', $status ), true, $status );
+    }
+    header( 'Content-Type: application/json; charset=UTF-8' );
+    echo metis_json_encode( $payload, JSON_UNESCAPED_SLASHES ) ?: '{}';
+    exit;
+}
+
+function metis_standalone_install_remove_path( string $relative_path ): bool {
+    $root = rtrim( (string) METIS_PATH, '/\\' );
+    $target = $root . '/' . trim( $relative_path, '/\\' );
+    if ( ! file_exists( $target ) && ! is_link( $target ) ) {
+        return false;
+    }
+
+    $root_real = realpath( $root );
+    $target_real = realpath( $target );
+    if ( ! is_string( $root_real ) || ( ! is_string( $target_real ) && ! is_link( $target ) ) ) {
+        return false;
+    }
+
+    if ( is_string( $target_real ) && ! str_starts_with( $target_real, rtrim( $root_real, '/\\' ) . DIRECTORY_SEPARATOR ) ) {
+        return false;
+    }
+
+    if ( is_file( $target ) || is_link( $target ) ) {
+        return @unlink( $target );
+    }
+
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator( $target, FilesystemIterator::SKIP_DOTS ),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ( $items as $item ) {
+        $path = $item->getPathname();
+        if ( $item->isDir() && ! $item->isLink() ) {
+            @rmdir( $path );
+        } else {
+            @unlink( $path );
+        }
+    }
+
+    return @rmdir( $target );
+}
+
+function metis_standalone_install_cleanup_download_artifacts(): array {
+    $removed = [];
+    $paths = [
+        [
+            '.DS_Store',
+            '.deploymentignore',
+            '.distignore',
+            '.editorconfig',
+            '.gitattributes',
+            '.github',
+            '.gitignore',
+            '.metis-integrity',
+            'AGENTS.md',
+            'README.md',
+            'columns',
+            'config',
+            'database',
+            'docs',
+            'enclave',
+            'src',
+            'tests',
+            'tools',
+        ],
+        glob( rtrim( (string) METIS_PATH, '/\\' ) . '/*.md' ) ?: [],
+    ];
+
+    foreach ( array_merge( ...$paths ) as $relative_path ) {
+        $relative_path = is_string( $relative_path ) && str_starts_with( $relative_path, rtrim( (string) METIS_PATH, '/\\' ) . DIRECTORY_SEPARATOR )
+            ? basename( $relative_path )
+            : (string) $relative_path;
+        if ( metis_standalone_install_remove_path( $relative_path ) ) {
+            $removed[] = $relative_path;
+        }
+    }
+
+    return $removed;
+}
+
+function metis_standalone_install_set_default( string $key, mixed $value, bool $autoload = true, bool $overwrite = false ): bool {
+    if ( ! class_exists( 'Core_Settings_Service' ) ) {
+        return false;
+    }
+
+    if ( ! $overwrite && Core_Settings_Service::has( $key ) ) {
+        return false;
+    }
+
+    return Core_Settings_Service::set( $key, $value, $autoload );
+}
+
+function metis_standalone_install_complete_defaults(): void {
+    if ( ! class_exists( 'Core_Settings_Service' ) ) {
+        return;
+    }
+
+    $already_completed = (bool) Core_Settings_Service::get( 'metis_install_completed', false );
+    if ( $already_completed ) {
+        return;
+    }
+
+    $site_name = 'Metis Portal';
+    $tagline = '';
+    $timezone = 'UTC';
+    $base_url = '';
+    if ( function_exists( 'metis_standalone_database_config' ) ) {
+        $config = metis_standalone_database_config();
+        $base_url = trim( (string) ( $config['base_url'] ?? '' ) );
+        $configured_site_name = trim( (string) ( $config['install_site_name'] ?? '' ) );
+        if ( $configured_site_name !== '' ) {
+            $site_name = $configured_site_name;
+        }
+        $tagline = trim( (string) ( $config['install_tagline'] ?? '' ) );
+        $configured_timezone = trim( (string) ( $config['install_timezone'] ?? '' ) );
+        if ( $configured_timezone !== '' && in_array( $configured_timezone, timezone_identifiers_list(), true ) ) {
+            $timezone = $configured_timezone;
+        }
+    }
+
+    metis_standalone_install_set_default( 'portal_name', $site_name );
+    metis_standalone_install_set_default( 'org_name', $site_name );
+    metis_standalone_install_set_default( 'login_organization_name', $site_name );
+    metis_standalone_install_set_default( 'org_tagline', $tagline );
+    metis_standalone_install_set_default( 'portal_slug', 'admin' );
+    metis_standalone_install_set_default( 'timezone', $timezone );
+    metis_standalone_install_set_default( 'site_timezone', $timezone );
+    metis_standalone_install_set_default( 'date_format', 'm/d/y' );
+    metis_standalone_install_set_default( 'date_format_mode', 'preset' );
+    metis_standalone_install_set_default( 'time_format', 'g:i:s a' );
+    metis_standalone_install_set_default( 'time_format_mode', 'preset' );
+    metis_standalone_install_set_default( 'backup_retention_runs', 14, false );
+    metis_standalone_install_set_default( 'backup_environment', 'production', false );
+    metis_standalone_install_set_default( 'auth_ip_rate_limit_per_minute', 20, false );
+    metis_standalone_install_set_default( 'auth_login_lock_threshold_subject', 10, false );
+    metis_standalone_install_set_default( 'auth_login_lock_threshold_ip', 30, false );
+    metis_standalone_install_set_default( 'webhook_rate_limit_per_minute', 120, false );
+    metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
+    metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );
+    metis_standalone_install_set_default( 'integrity_git_restore_enabled', true, false );
+    metis_standalone_install_set_default( 'recovery_preboot_enabled', true, false );
+    metis_standalone_install_set_default( 'recovery_runtime_enabled', true, false );
+    metis_standalone_install_set_default( 'payment_statuses', [ 'pending', 'completed', 'refunded', 'failed', 'voided' ] );
+    if ( $base_url !== '' ) {
+        metis_standalone_install_set_default( 'site_url', $base_url );
+    }
+
+    Core_Settings_Service::set( 'system_cron_disabled_tasks', [], false );
+    if ( trim( (string) Core_Settings_Service::get( 'system_cron_secret', '' ) ) === '' ) {
+        Core_Settings_Service::set( 'system_cron_secret', bin2hex( random_bytes( 24 ) ), false );
+    }
+
+    if ( function_exists( 'metis_backup_service' ) ) {
+        metis_backup_service()->ensureSchema();
+    }
+
+    if ( function_exists( 'metis_release_manager' ) ) {
+        metis_release_manager()->ensureRuntime();
+    }
+
+    $removed = metis_standalone_install_cleanup_download_artifacts();
+    Core_Settings_Service::set( 'metis_install_cleanup_removed', $removed, false );
+    Core_Settings_Service::set( 'metis_installed_at', gmdate( 'c' ), true );
+    Core_Settings_Service::set( 'metis_install_completed', true, true );
+}
+
+function metis_standalone_install_timezone_label( string $timezone ): string {
+    try {
+        $now = new DateTimeImmutable( 'now', new DateTimeZone( $timezone ) );
+        $offset = $now->format( 'P' );
+        $name = str_replace( [ '_', '/' ], [ ' ', ' / ' ], $timezone );
+        $abbr = $now->format( 'T' );
+        return $name . ' (' . $abbr . ', UTC' . $offset . ')';
+    } catch ( Throwable ) {
+        return $timezone;
+    }
+}
+
+function metis_standalone_install_timezone_options(): array {
+    $priority = [
+        'UTC',
+        'America/New_York',
+        'America/Chicago',
+        'America/Denver',
+        'America/Phoenix',
+        'America/Los_Angeles',
+        'America/Anchorage',
+        'Pacific/Honolulu',
+    ];
+
+    $zones = array_values( array_unique( array_merge( $priority, timezone_identifiers_list() ) ) );
+    $options = [];
+    foreach ( $zones as $zone ) {
+        $options[ $zone ] = metis_standalone_install_timezone_label( $zone );
+    }
+
+    return $options;
+}
+
+function metis_standalone_install_validate_database_config( array $config ): void {
+    foreach ( [ 'host', 'database', 'username' ] as $required ) {
+        if ( trim( (string) ( $config[ $required ] ?? '' ) ) === '' ) {
+            throw new InvalidArgumentException( 'Database host, database name, and username are required.' );
+        }
+    }
+
+    mysqli_report( MYSQLI_REPORT_OFF );
+    $mysqli = mysqli_init();
+    if ( ! $mysqli instanceof mysqli ) {
+        throw new RuntimeException( 'Database driver could not be initialized.' );
+    }
+
+    $host = trim( (string) ( $config['host'] ?? '' ) );
+    $connected = @$mysqli->real_connect(
+        $host,
+        (string) ( $config['username'] ?? '' ),
+        (string) ( $config['password'] ?? '' ),
+        (string) ( $config['database'] ?? '' ),
+        (int) ( $config['port'] ?? 3306 )
+    );
+
+    if ( ! $connected ) {
+        $message = trim( (string) ( $mysqli->connect_error ?: mysqli_connect_error() ) );
+        throw new RuntimeException( $message !== '' ? $message : 'Database connection failed.' );
+    }
+
+    if ( ! $mysqli->set_charset( (string) ( $config['charset'] ?? 'utf8mb4' ) ) ) {
+        $error = trim( (string) $mysqli->error );
+        $mysqli->close();
+        throw new RuntimeException( $error !== '' ? $error : 'Database charset could not be selected.' );
+    }
+
+    if ( ! $mysqli->query( 'SELECT 1' ) ) {
+        $error = trim( (string) $mysqli->error );
+        $mysqli->close();
+        throw new RuntimeException( $error !== '' ? $error : 'Database verification query failed.' );
+    }
+
+    $mysqli->close();
+}
+
+function metis_standalone_install_boot_database_context( array $db ): void {
+    $basePath = rtrim( dirname( $_SERVER['SCRIPT_NAME'] ?? '' ), '/' );
+    $GLOBALS['metis_runtime_config'] = [
+        'db_charset' => (string) ( $db['charset'] ?? 'utf8mb4' ),
+        'db_collation' => (string) ( $db['collation'] ?? 'utf8mb4_unicode_ci' ),
+        'db_socket' => (string) ( $db['socket'] ?? '' ),
+        'db_host' => (string) ( $db['host'] ?? '' ),
+        'db_port' => (int) ( $db['port'] ?? 3306 ),
+        'db_name' => (string) ( $db['database'] ?? '' ),
+        'base_path' => $basePath === '/' ? '' : $basePath,
+        'app_key' => (string) ( $db['app_key'] ?? 'metis-local-key' ),
+        'base_url' => trim( (string) ( $db['base_url'] ?? '' ) ),
+    ];
+
+    $GLOBALS['metis_db_connection'] = new MetisRuntimeDbConnection(
+        (string) $db['username'],
+        (string) ( $db['password'] ?? '' ),
+        (string) $db['database'],
+        (string) $db['host'] . ':' . (int) ( $db['port'] ?? 3306 ),
+        (string) ( $db['prefix'] ?? '' )
+    );
+
+    require_once dirname( __DIR__ ) . '/SettingsService.php';
+    require_once dirname( __DIR__ ) . '/TablesRegistry.php';
+    require_once dirname( __DIR__ ) . '/CoreHelpers.php';
+    require_once dirname( __DIR__ ) . '/AuditRuntime.php';
+    require_once METIS_SRC_PATH . 'Metis/Core/Webhooks/WebhookRuntime.php';
+    require_once dirname( __DIR__ ) . '/BackupRuntime.php';
+    require_once METIS_SRC_PATH . 'Metis/Core/Cron/CronRuntime.php';
+    require_once dirname( __DIR__ ) . '/DatabaseRuntime.php';
+    require_once METIS_SRC_PATH . 'Metis/Core/Auth/AuthRuntime.php';
+    require_once METIS_SRC_PATH . 'Metis/Core/Runtime/UploadsRuntime.php';
+    metis_standalone_require_recovery_runtime();
+
+    Metis_Tables::init();
+    metis_register_core_services();
+    Metis::service( 'settings' )->init();
+}
+
+function metis_standalone_install_require_module_file( string $module, string $relative_path ): void {
+    $path = METIS_MODULES_PATH . $module . '/' . ltrim( $relative_path, '/\\' );
+    if ( is_file( $path ) ) {
+        require_once $path;
+    }
+}
+
+function metis_standalone_require_recovery_runtime(): void {
+    foreach ( [
+        'RecoveryPolicyService.php',
+        'RecoverySchema.php',
+        'RecoveryAuditLogger.php',
+        'RecoveryPlaybookService.php',
+        'RecoveryVerifier.php',
+        'BackupRecoveryService.php',
+        'GitRecoveryService.php',
+        'RecoveryLockService.php',
+        'PrebootIntegrityService.php',
+    ] as $file ) {
+        $path = METIS_SRC_PATH . 'Metis/Core/Recovery/' . $file;
+        if ( is_file( $path ) ) {
+            require_once $path;
+        }
+    }
+}
+
+function metis_standalone_install_call_schema( string $label, callable $callback, array &$created ): void {
+    $callback();
+    $created[] = $label;
+}
+
+function metis_standalone_install_ensure_all_schema(): array {
+    $created = [];
+    metis_standalone_require_recovery_runtime();
+
+    metis_standalone_install_call_schema( 'metis_install_db', static function (): void {
+        if ( function_exists( 'metis_install_db' ) ) {
+            metis_install_db();
+        }
+    }, $created );
+
+    metis_standalone_install_call_schema( 'metis_audit_ensure_schema', static function (): void {
+        if ( function_exists( 'metis_audit_ensure_schema' ) ) {
+            metis_audit_ensure_schema();
+        }
+    }, $created );
+
+    metis_standalone_install_call_schema( 'metis_webhook_ensure_schema', static function (): void {
+        if ( function_exists( 'metis_webhook_ensure_schema' ) ) {
+            metis_webhook_ensure_schema();
+        }
+    }, $created );
+
+    metis_standalone_install_call_schema( 'metis_media_ensure_schema', static function (): void {
+        if ( function_exists( 'metis_media_ensure_schema' ) ) {
+            metis_media_ensure_schema();
+        }
+    }, $created );
+
+    metis_standalone_install_require_module_file( 'drive', 'includes/schema.php' );
+
+    $schema_installers = [
+        'contacts' => static function (): void { \Metis\Modules\Contacts\SchemaManager::ensureSchema(); },
+        'people' => static function (): void { \Metis\Modules\People\SchemaManager::ensureSchema(); },
+        'forms' => static function (): void { \Metis\Modules\Forms\SchemaManager::ensureSchema(); },
+        'forms_import' => static function (): void { \Metis\Modules\FormsImport\SchemaManager::ensureSchema(); },
+        'newsletter' => static function (): void { \Metis\Modules\Newsletter\SchemaManager::ensureSchema(); },
+        'board' => static function (): void { \Metis\Modules\Board\SchemaManager::ensureSchema(); },
+        'calendar' => static function (): void { \Metis\Modules\Calendar\SyncStore::ensureSchema(); },
+        'finance' => static function (): void { \Metis\Modules\Finance\SchemaManager::ensureSchema(); },
+        'hermes' => static function (): void { \Metis\Modules\Hermes\SchemaManager::ensureSchema(); },
+        'website' => static function (): void { \Metis\Modules\Website\SchemaManager::ensureSchema(); },
+        'import' => static function (): void { \Metis\Modules\Import\SchemaManager::ensureSchema(); },
+        'communications_inbound' => static function (): void { \Metis\Modules\CommunicationsInbound\SchemaManager::ensureSchema(); },
+        'grandy_stash' => static function (): void { \Metis\Modules\GrandyStash\GrandyStashSchemaManager::ensureSchema(); },
+        'drive' => static function (): void {
+            if ( function_exists( 'metis_drive_ensure_schema' ) ) {
+                metis_drive_ensure_schema();
+            }
+        },
+        'recovery' => static function (): void { \Metis\Core\Recovery\RecoverySchema::ensureSchema(); },
+    ];
+
+    foreach ( $schema_installers as $label => $installer ) {
+        metis_standalone_install_call_schema( $label, $installer, $created );
+    }
+
+    if ( function_exists( 'metis_backup_service' ) ) {
+        metis_standalone_install_call_schema( 'backup_service', static function (): void {
+            metis_backup_service()->ensureSchema();
+        }, $created );
+    }
+
+    if ( function_exists( 'metis_entity_id_service' ) ) {
+        metis_standalone_install_call_schema( 'entity_id_service', static function (): void {
+            metis_entity_id_service()->ensureSchema();
+        }, $created );
+    }
+
+    if ( class_exists( '\Metis\Core\HelpSearchStore' ) ) {
+        metis_standalone_install_call_schema( 'help_search_store', static function (): void {
+            ( new \Metis\Core\HelpSearchStore() )->ensureSchema();
+        }, $created );
+    }
+
+    return $created;
+}
+
+function metis_standalone_install_config_from_request( array $source ): array {
+    return [
+        'host' => metis_text_clean( (string) ( $source['db_host'] ?? '' ) ),
+        'port' => (int) metis_text_clean( (string) ( $source['db_port'] ?? '3306' ) ),
+        'database' => metis_text_clean( (string) ( $source['db_name'] ?? '' ) ),
+        'username' => metis_text_clean( (string) ( $source['db_user'] ?? '' ) ),
+        'password' => (string) ( $source['db_password'] ?? '' ),
+        'socket' => '',
+        'prefix' => metis_key_clean( (string) ( $source['db_prefix'] ?? '' ) ),
+        'charset' => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+        'app_key' => metis_text_clean( (string) ( $source['app_key'] ?? '' ) ),
+        'base_url' => trim( filter_var( (string) ( $source['base_url'] ?? '' ), FILTER_SANITIZE_URL ) ?: '' ),
+        'install_site_name' => metis_text_clean( (string) ( $source['site_name'] ?? 'Metis Portal' ) ),
+        'install_tagline' => metis_text_clean( (string) ( $source['site_tagline'] ?? '' ) ),
+        'install_timezone' => metis_text_clean( (string) ( $source['site_timezone'] ?? 'UTC' ) ),
+    ];
+}
+
+function metis_standalone_install_admin_from_request( array $source ): array {
+    $email = metis_email_clean( (string) ( $source['admin_email'] ?? '' ) );
+    $display = metis_text_clean( (string) ( $source['admin_display_name'] ?? '' ) );
+    $name_parts = preg_split( '/\s+/', trim( $display ), 2 ) ?: [];
+    $login_source = $email !== '' ? strstr( $email, '@', true ) : '';
+    if ( $login_source === false || $login_source === '' ) {
+        $login_source = $display !== '' ? $display : 'admin';
+    }
+
+    $admin = [
+        'first_name' => metis_text_clean( (string) ( $name_parts[0] ?? '' ) ),
+        'last_name' => metis_text_clean( (string) ( $name_parts[1] ?? '' ) ),
+        'user_email' => $email,
+        'user_login' => metis_key_clean( (string) $login_source ),
+        'display_name' => $display,
+        'password' => (string) ( $source['admin_password'] ?? '' ),
+        'password_confirm' => (string) ( $source['admin_password_confirm'] ?? '' ),
+    ];
+    return $admin;
+}
+
+function metis_standalone_install_validate_config_and_admin( array $config, array $admin, bool $validate_database = true ): void {
+    if ( $config['install_site_name'] === '' ) {
+        throw new InvalidArgumentException( 'Site name is required.' );
+    }
+    if ( ! in_array( $config['install_timezone'], timezone_identifiers_list(), true ) ) {
+        throw new InvalidArgumentException( 'Timezone must be valid.' );
+    }
+    if ( $admin['display_name'] === '' || $admin['user_email'] === '' || ! metis_email_is_valid( $admin['user_email'] ) ) {
+        throw new InvalidArgumentException( 'First administrator display name and a valid email are required.' );
+    }
+    if ( $admin['user_login'] === '' ) {
+        throw new InvalidArgumentException( 'First administrator email must include a usable local part.' );
+    }
+    if ( strlen( (string) $admin['password'] ) < 12 ) {
+        throw new InvalidArgumentException( 'First administrator password must be at least 12 characters.' );
+    }
+    if ( ! hash_equals( (string) $admin['password'], (string) $admin['password_confirm'] ) ) {
+        throw new InvalidArgumentException( 'First administrator passwords do not match.' );
+    }
+    if ( $validate_database ) {
+        metis_standalone_install_validate_database_config( $config );
+    }
+}
+
+function metis_standalone_install_schema_steps(): array {
+    return [
+        'metis_install_db' => 'Core tables',
+        'metis_audit_ensure_schema' => 'Audit tables',
+        'metis_webhook_ensure_schema' => 'Webhook tables',
+        'metis_media_ensure_schema' => 'Media tables',
+        'contacts' => 'Contacts module',
+        'people' => 'People module',
+        'forms' => 'Forms module',
+        'forms_import' => 'Forms import tables',
+        'newsletter' => 'Newsletter module',
+        'board' => 'Board module',
+        'calendar' => 'Calendar module',
+        'finance' => 'Finance module',
+        'hermes' => 'Hermes module',
+        'website' => 'Website module',
+        'import' => 'Import module',
+        'communications_inbound' => 'Communications inbound tables',
+        'grandy_stash' => 'Grandy Stash module',
+        'drive' => 'Drive module',
+        'recovery' => 'Recovery tables',
+        'backup_service' => 'Backup service tables',
+        'entity_id_service' => 'Entity ID tables',
+        'help_search_store' => 'Help search tables',
+    ];
+}
+
+function metis_standalone_install_run_schema_step( string $step ): void {
+    metis_standalone_install_require_module_file( 'drive', 'includes/schema.php' );
+    metis_standalone_require_recovery_runtime();
+
+    $callbacks = [
+        'metis_install_db' => static function (): void { if ( function_exists( 'metis_install_db' ) ) { metis_install_db(); } },
+        'metis_audit_ensure_schema' => static function (): void { if ( function_exists( 'metis_audit_ensure_schema' ) ) { metis_audit_ensure_schema(); } },
+        'metis_webhook_ensure_schema' => static function (): void { if ( function_exists( 'metis_webhook_ensure_schema' ) ) { metis_webhook_ensure_schema(); } },
+        'metis_media_ensure_schema' => static function (): void { if ( function_exists( 'metis_media_ensure_schema' ) ) { metis_media_ensure_schema(); } },
+        'contacts' => static function (): void { \Metis\Modules\Contacts\SchemaManager::ensureSchema(); },
+        'people' => static function (): void { \Metis\Modules\People\SchemaManager::ensureSchema(); },
+        'forms' => static function (): void { \Metis\Modules\Forms\SchemaManager::ensureSchema(); },
+        'forms_import' => static function (): void { \Metis\Modules\FormsImport\SchemaManager::ensureSchema(); },
+        'newsletter' => static function (): void { \Metis\Modules\Newsletter\SchemaManager::ensureSchema(); },
+        'board' => static function (): void { \Metis\Modules\Board\SchemaManager::ensureSchema(); },
+        'calendar' => static function (): void { \Metis\Modules\Calendar\SyncStore::ensureSchema(); },
+        'finance' => static function (): void { \Metis\Modules\Finance\SchemaManager::ensureSchema(); },
+        'hermes' => static function (): void { \Metis\Modules\Hermes\SchemaManager::ensureSchema(); },
+        'website' => static function (): void { \Metis\Modules\Website\SchemaManager::ensureSchema(); },
+        'import' => static function (): void { \Metis\Modules\Import\SchemaManager::ensureSchema(); },
+        'communications_inbound' => static function (): void { \Metis\Modules\CommunicationsInbound\SchemaManager::ensureSchema(); },
+        'grandy_stash' => static function (): void { \Metis\Modules\GrandyStash\GrandyStashSchemaManager::ensureSchema(); },
+        'drive' => static function (): void { if ( function_exists( 'metis_drive_ensure_schema' ) ) { metis_drive_ensure_schema(); } },
+        'recovery' => static function (): void { \Metis\Core\Recovery\RecoverySchema::ensureSchema(); },
+        'backup_service' => static function (): void { if ( function_exists( 'metis_backup_service' ) ) { metis_backup_service()->ensureSchema(); } },
+        'entity_id_service' => static function (): void { if ( function_exists( 'metis_entity_id_service' ) ) { metis_entity_id_service()->ensureSchema(); } },
+        'help_search_store' => static function (): void { if ( class_exists( '\Metis\Core\HelpSearchStore' ) ) { ( new \Metis\Core\HelpSearchStore() )->ensureSchema(); } },
+    ];
+
+    if ( ! isset( $callbacks[ $step ] ) ) {
+        throw new InvalidArgumentException( 'Unknown installer schema step.' );
+    }
+
+    $callbacks[ $step ]();
 }
 
 function metis_standalone_render_database_setup( string $error = '', array $old = [] ): never {
     $request_method = strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) );
     $status_code = $request_method === 'POST' && $error !== '' ? 422 : 200;
+    $prechecks = metis_standalone_install_precheck_rows();
+    $precheck_summary = metis_standalone_install_precheck_summary( $prechecks );
+    $schema_steps = metis_standalone_install_schema_steps();
     if ( function_exists( 'metis_send_status' ) ) {
         metis_send_status( $status_code );
     } else {
@@ -303,72 +969,462 @@ function metis_standalone_render_database_setup( string $error = '', array $old 
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Metis Setup</title>
     <style>
-        body { font-family: Georgia, serif; margin: 0; background: var(--metis-surface, #fff); color: #1f2330; }
-        .wrap { max-width: 760px; margin: 48px auto; padding: 32px; background: rgba(255,255,255,.92); border: 1px solid #d8dfe8; box-shadow: 0 20px 60px rgba(34,42,58,.08); }
-        h1 { margin-top: 0; font-size: 2rem; }
-        p { line-height: 1.5; }
+        :root { --ink:#182033; --muted:#647089; --line:#d9e1ee; --panel:#fff; --page:#f5f7fb; --primary:#4358c9; --primary-dark:#314199; --ok:#166534; --warn:#8a5b00; --bad:#9f1d1d; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--page); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .shell { width: min(1180px, calc(100% - 40px)); margin: 34px auto; display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 18px; }
+        .rail, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+        .rail { padding: 24px; align-self: start; position: sticky; top: 24px; }
+        .brand { letter-spacing: .18em; text-transform: uppercase; font-size: 12px; color: var(--primary); font-weight: 800; }
+        h1 { margin: 12px 0 8px; font-size: 34px; line-height: 1.05; letter-spacing: 0; }
+        h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: 0; }
+        h3 { margin: 0; font-size: 15px; letter-spacing: 0; }
+        p { line-height: 1.5; color: var(--muted); }
+        .steps { display: grid; gap: 10px; margin-top: 28px; }
+        .step { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: center; color: var(--muted); font-weight: 700; }
+        .dot { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: #fff; color: var(--muted); }
+        .step.is-active { color: var(--primary-dark); }
+        .step.is-active .dot { border-color: var(--primary); background: #eef1ff; color: var(--primary-dark); }
+        .panel { overflow: hidden; }
+	        .section { padding: 26px; border-top: 1px solid var(--line); }
+	        .section:first-child { border-top: 0; }
+	        .installer-page { display: none; }
+	        .installer-page.is-active { display: block; }
+	        .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .section-copy { margin: 5px 0 0; max-width: 680px; }
         .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; }
-        input { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #bcc8d6; background: #fff; }
         .full { grid-column: 1 / -1; }
-        .error { margin-bottom: 16px; padding: 12px; background: #fff2f0; color: #8a2a1f; border: 1px solid #e7b2ab; }
-        button { margin-top: 20px; padding: 12px 18px; border: 0; background: #24324a; color: #fff; cursor: pointer; }
-        @media (max-width: 720px) { .wrap { margin: 20px; padding: 24px; } .grid { grid-template-columns: 1fr; } }
+        label { display: block; font-size: 13px; font-weight: 800; margin-bottom: 7px; color: #313b52; }
+        input, select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: var(--ink); font: inherit; }
+        input:focus, select:focus { outline: 2px solid #c8d1ff; border-color: var(--primary); }
+        .help { margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+        .checks { display: grid; gap: 8px; }
+        .check { display: grid; grid-template-columns: 88px minmax(180px, .8fr) 1fr; gap: 14px; align-items: center; padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+        .badge { display: inline-flex; justify-content: center; align-items: center; min-height: 26px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+        .badge.pass { background: #eaf7ef; color: var(--ok); }
+        .badge.warn { background: #fff7df; color: var(--warn); }
+        .badge.fail { background: #fff0f0; color: var(--bad); }
+        .check-title { font-weight: 800; }
+        .check-msg { color: var(--muted); font-size: 13px; }
+	        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+	        .page-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+	        .page-nav .right { margin-left: auto; }
+        button { min-height: 42px; padding: 10px 16px; border: 1px solid var(--primary); border-radius: 6px; background: var(--primary); color: #fff; cursor: pointer; font-weight: 900; font: inherit; }
+        button.secondary { background: #fff; color: var(--primary-dark); border-color: #bfc8f8; }
+        button:disabled { opacity: .55; cursor: not-allowed; }
+        .error, .notice { margin-bottom: 16px; padding: 12px 14px; border-radius: 6px; border: 1px solid; }
+        .error { background: #fff0f0; color: var(--bad); border-color: #f0b9b9; }
+        .notice { background: #eef6ff; color: #1d4b83; border-color: #bdd7f5; }
+        .progress-wrap { display: none; margin-top: 20px; border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: #fbfcff; }
+        .progress-wrap.is-visible { display: block; }
+        .progress-bar { height: 10px; border-radius: 999px; background: #e6ebf4; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0; background: var(--primary); transition: width .22s ease; }
+        .progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-weight: 800; }
+        .progress-detail { color: var(--muted); font-size: 13px; margin-top: 6px; }
+        @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .rail { position: static; } .check { grid-template-columns: 1fr; } }
+        @media (max-width: 680px) { .shell { width: calc(100% - 24px); margin: 18px auto; } .grid { grid-template-columns: 1fr; } .section { padding: 20px; } h1 { font-size: 28px; } }
     </style>
 </head>
 <body>
-    <div class="wrap">
-        <h1>Connect Metis to a database</h1>
-        <p>`index.php` is now the application entrypoint. Before Metis can boot, it needs direct database credentials for the native Metis runtime.</p>
-        <?php if ( $error !== '' ) : ?>
-            <div class="error"><?php echo metis_esc_html( $error ); ?></div>
-        <?php endif; ?>
-        <form method="post">
-            <input type="hidden" name="metis_setup" value="1">
-            <?php echo \Metis\Core\Application::has_service( 'csrf' )
-                ? \Metis\Core\Application::service( 'csrf' )->hiddenFields( 'metis_installer_setup' )
-                : ''; ?>
-            <div class="grid">
-                <div>
-                    <label for="db_host">Host</label>
-                    <input id="db_host" name="db_host" value="<?php echo metis_esc_attr( (string) ( $old['db_host'] ?? '127.0.0.1' ) ); ?>" required>
-                </div>
-                <div>
-                    <label for="db_port">Port</label>
-                    <input id="db_port" name="db_port" value="<?php echo metis_esc_attr( (string) ( $old['db_port'] ?? '3306' ) ); ?>" required>
-                </div>
-                <div>
-                    <label for="db_name">Database</label>
-                    <input id="db_name" name="db_name" value="<?php echo metis_esc_attr( (string) ( $old['db_name'] ?? '' ) ); ?>" required>
-                </div>
-                <div>
-                    <label for="db_prefix">Table Prefix</label>
-                    <input id="db_prefix" name="db_prefix" value="<?php echo metis_esc_attr( (string) ( $old['db_prefix'] ?? '' ) ); ?>" placeholder="Leave blank for metis_*">
-                </div>
-                <div>
-                    <label for="db_user">Username</label>
-                    <input id="db_user" name="db_user" value="<?php echo metis_esc_attr( (string) ( $old['db_user'] ?? '' ) ); ?>" required>
-                </div>
-                <div>
-                    <label for="db_password">Password</label>
-                    <input id="db_password" name="db_password" type="password" value="">
-                </div>
-                <div class="full">
-                    <label for="db_socket">Socket Path (optional)</label>
-                    <input id="db_socket" name="db_socket" value="<?php echo metis_esc_attr( (string) ( $old['db_socket'] ?? '' ) ); ?>" placeholder="/tmp/mysql.sock">
-                </div>
-                <div class="full">
-                    <label for="app_key">Application Key</label>
-                    <input id="app_key" name="app_key" value="<?php echo metis_esc_attr( (string) ( $old['app_key'] ?? bin2hex( random_bytes( 24 ) ) ) ); ?>" required>
-                </div>
-                <div class="full">
-                    <label for="base_url">Base URL (optional)</label>
-                    <input id="base_url" name="base_url" value="<?php echo metis_esc_attr( (string) ( $old['base_url'] ?? '' ) ); ?>" placeholder="https://app.example.com/metis">
-                </div>
+    <main class="shell">
+        <aside class="rail">
+            <div class="brand">Metis Setup</div>
+            <h1>Install with confidence.</h1>
+            <p>Metis verifies the server, prepares storage, creates the database schema, and enables the first administrator before opening the portal.</p>
+            <div class="steps" aria-label="Install steps">
+                <div class="step is-active" data-step-indicator="precheck"><span class="dot">1</span><span>System Check</span></div>
+                <div class="step" data-step-indicator="database"><span class="dot">2</span><span>Database</span></div>
+                <div class="step" data-step-indicator="branding"><span class="dot">3</span><span>Branding</span></div>
+                <div class="step" data-step-indicator="admin"><span class="dot">4</span><span>Administrator</span></div>
+                <div class="step" data-step-indicator="install"><span class="dot">5</span><span>Install</span></div>
             </div>
-            <button type="submit">Save and boot Metis</button>
-        </form>
-    </div>
+        </aside>
+        <section class="panel">
+            <?php if ( $error !== '' ) : ?>
+                <div class="section"><div class="error"><?php echo metis_esc_html( $error ); ?></div></div>
+            <?php endif; ?>
+            <div id="metis-install-alert" class="section" hidden></div>
+            <form id="metis-install-form" method="post">
+                <input type="hidden" name="metis_setup" value="1">
+                <?php echo \Metis\Core\Application::has_service( 'csrf' )
+                    ? \Metis\Core\Application::service( 'csrf' )->hiddenFields( 'metis_installer_setup' )
+                    : ''; ?>
+	                <section class="section installer-page is-active" data-installer-page="precheck">
+                    <div class="section-head">
+                        <div>
+                            <h2>System Requirements</h2>
+                            <p class="section-copy">The installer checks required PHP capabilities and writable locations before any database work begins.</p>
+                        </div>
+                        <span id="metis-precheck-summary" class="badge <?php echo ! empty( $precheck_summary['ok'] ) ? 'pass' : 'fail'; ?>">
+                            <?php echo ! empty( $precheck_summary['ok'] ) ? 'Ready' : 'Needs attention'; ?>
+                        </span>
+                    </div>
+                    <div id="metis-precheck-list" class="checks">
+                        <?php foreach ( $prechecks as $check ) : ?>
+                            <div class="check">
+                                <span class="badge <?php echo metis_esc_attr( (string) $check['status'] ); ?>"><?php echo metis_esc_html( (string) $check['status'] ); ?></span>
+                                <span class="check-title"><?php echo metis_esc_html( (string) $check['label'] ); ?></span>
+                                <span class="check-msg"><?php echo metis_esc_html( (string) $check['message'] ); ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+	                    <div class="actions">
+	                        <button type="button" class="secondary" id="metis-run-precheck">Run Check Again</button>
+	                        <button type="button" class="secondary" id="metis-fix-permissions" <?php echo empty( $precheck_summary['repairable'] ) ? 'hidden' : ''; ?>>Correct Permissions</button>
+	                    </div>
+	                    <div class="page-nav">
+	                        <span></span>
+	                        <button type="button" class="right" data-next-page="database">Continue</button>
+	                    </div>
+	                </section>
+	                <section class="section installer-page" data-installer-page="database">
+                    <div class="section-head">
+                        <div>
+                            <h2>Database Connection</h2>
+                            <p class="section-copy">Credentials are verified before config is written. The installer uses the server’s normal PHP database configuration.</p>
+                        </div>
+                    </div>
+                    <div class="grid">
+                        <div>
+                            <label for="db_host">Host</label>
+                            <input id="db_host" name="db_host" value="<?php echo metis_esc_attr( (string) ( $old['db_host'] ?? '127.0.0.1' ) ); ?>" required>
+                        </div>
+                        <div>
+                            <label for="db_port">Port</label>
+                            <input id="db_port" name="db_port" value="<?php echo metis_esc_attr( (string) ( $old['db_port'] ?? '3306' ) ); ?>" inputmode="numeric" required>
+                        </div>
+                        <div>
+                            <label for="db_name">Database</label>
+                            <input id="db_name" name="db_name" value="<?php echo metis_esc_attr( (string) ( $old['db_name'] ?? '' ) ); ?>" required>
+                        </div>
+                        <div>
+                            <label for="db_prefix">Table Prefix</label>
+                            <input id="db_prefix" name="db_prefix" value="<?php echo metis_esc_attr( (string) ( $old['db_prefix'] ?? '' ) ); ?>" placeholder="Leave blank for metis_*">
+                        </div>
+                        <div>
+                            <label for="db_user">Username</label>
+                            <input id="db_user" name="db_user" value="<?php echo metis_esc_attr( (string) ( $old['db_user'] ?? '' ) ); ?>" required>
+                        </div>
+                        <div>
+                            <label for="db_password">Password</label>
+                            <input id="db_password" name="db_password" type="password" value="">
+	                        </div>
+	                    </div>
+	                    <div class="page-nav">
+	                        <button type="button" class="secondary" data-prev-page="precheck">Back</button>
+	                        <button type="button" class="right" data-next-page="branding">Verify Database</button>
+	                    </div>
+	                </section>
+	                <section class="section installer-page" data-installer-page="branding">
+                    <div class="section-head">
+                        <div>
+                            <h2>Branding</h2>
+                            <p class="section-copy">These values seed the portal identity and public website defaults.</p>
+                        </div>
+                    </div>
+                    <div class="grid">
+                        <div>
+                            <label for="site_name">Site Name</label>
+                            <input id="site_name" name="site_name" value="<?php echo metis_esc_attr( (string) ( $old['site_name'] ?? 'Metis Portal' ) ); ?>" required>
+                        </div>
+                        <div>
+                            <label for="site_tagline">Tagline</label>
+                            <input id="site_tagline" name="site_tagline" value="<?php echo metis_esc_attr( (string) ( $old['site_tagline'] ?? '' ) ); ?>" placeholder="Access. Visibility. Leadership.">
+                        </div>
+                        <div class="full">
+                            <label for="base_url">Base URL</label>
+                            <input id="base_url" name="base_url" value="<?php echo metis_esc_attr( (string) ( $old['base_url'] ?? '' ) ); ?>" placeholder="https://app.example.com/metis">
+                        </div>
+                        <div class="full">
+                            <label for="app_key">Application Key</label>
+                            <input id="app_key" name="app_key" value="<?php echo metis_esc_attr( (string) ( $old['app_key'] ?? bin2hex( random_bytes( 24 ) ) ) ); ?>" required>
+                            <div class="help">Used for signed platform tokens and protected runtime operations.</div>
+                        </div>
+                        <div class="full">
+                            <label for="site_timezone">Timezone</label>
+                            <?php $selected_timezone = (string) ( $old['site_timezone'] ?? 'UTC' ); ?>
+                            <select id="site_timezone" name="site_timezone" required>
+                                <?php foreach ( metis_standalone_install_timezone_options() as $timezone => $label ) : ?>
+                                    <option value="<?php echo metis_esc_attr( $timezone ); ?>" <?php echo $selected_timezone === $timezone ? 'selected' : ''; ?>>
+                                        <?php echo metis_esc_html( $label ); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+	                        </div>
+	                    </div>
+	                    <div class="page-nav">
+	                        <button type="button" class="secondary" data-prev-page="database">Back</button>
+	                        <button type="button" class="right" data-next-page="admin">Continue</button>
+	                    </div>
+	                </section>
+	                <section class="section installer-page" data-installer-page="admin">
+                    <div class="section-head">
+                        <div>
+                            <h2>First Administrator</h2>
+                            <p class="section-copy">This account receives the initial administrator permissions and can finish security configuration after login.</p>
+                        </div>
+                    </div>
+                    <div class="grid">
+	                        <div>
+	                            <label for="admin_display_name">Display Name</label>
+	                            <input id="admin_display_name" name="admin_display_name" value="<?php echo metis_esc_attr( (string) ( $old['admin_display_name'] ?? '' ) ); ?>" autocomplete="name" required>
+	                        </div>
+	                        <div>
+	                            <label for="admin_email">Email</label>
+	                            <input id="admin_email" name="admin_email" type="email" value="<?php echo metis_esc_attr( (string) ( $old['admin_email'] ?? '' ) ); ?>" required>
+	                        </div>
+	                        <div>
+	                            <label for="admin_password">Password</label>
+	                            <input id="admin_password" name="admin_password" type="password" minlength="12" value="" required>
+                        </div>
+                        <div>
+                            <label for="admin_password_confirm">Confirm Password</label>
+                            <input id="admin_password_confirm" name="admin_password_confirm" type="password" minlength="12" value="" required>
+	                        </div>
+	                    </div>
+	                    <div class="page-nav">
+	                        <button type="button" class="secondary" data-prev-page="branding">Back</button>
+	                        <button type="button" class="right" data-next-page="install">Continue</button>
+	                    </div>
+	                </section>
+	                <section class="section installer-page" data-installer-page="install">
+                    <div class="section-head">
+                        <div>
+                            <h2>Install Metis</h2>
+                            <p class="section-copy">The installer will create schema one module at a time, seed platform settings, enable protections, and open the admin portal.</p>
+                        </div>
+                    </div>
+	                    <div class="actions">
+	                        <button type="button" class="secondary" data-prev-page="admin">Back</button>
+	                        <button type="submit" id="metis-install-submit">Begin Installation</button>
+	                    </div>
+                    <div id="metis-install-progress" class="progress-wrap" aria-live="polite">
+                        <div class="progress-bar"><div id="metis-progress-fill" class="progress-fill"></div></div>
+                        <div class="progress-meta"><span id="metis-progress-title">Preparing</span><span id="metis-progress-percent">0%</span></div>
+                        <div id="metis-progress-detail" class="progress-detail">Waiting to begin.</div>
+                    </div>
+                </section>
+            </form>
+        </section>
+    </main>
+    <script>
+    (function () {
+        const schemaSteps = <?php echo metis_json_encode( $schema_steps, JSON_UNESCAPED_SLASHES ) ?: '{}'; ?>;
+        const form = document.getElementById('metis-install-form');
+        const alertBox = document.getElementById('metis-install-alert');
+        const precheckList = document.getElementById('metis-precheck-list');
+        const precheckSummary = document.getElementById('metis-precheck-summary');
+        const repairButton = document.getElementById('metis-fix-permissions');
+        const submitButton = document.getElementById('metis-install-submit');
+        const progress = document.getElementById('metis-install-progress');
+        const fill = document.getElementById('metis-progress-fill');
+        const pct = document.getElementById('metis-progress-percent');
+	        const title = document.getElementById('metis-progress-title');
+	        const detail = document.getElementById('metis-progress-detail');
+	        const indicators = Array.from(document.querySelectorAll('[data-step-indicator]'));
+	        const pages = Array.from(document.querySelectorAll('[data-installer-page]'));
+
+        function setAlert(message, type) {
+            if (!message) {
+                alertBox.hidden = true;
+                alertBox.className = 'section';
+                alertBox.textContent = '';
+                return;
+            }
+            alertBox.hidden = false;
+            alertBox.className = 'section ' + (type === 'error' ? 'error' : 'notice');
+            alertBox.textContent = message;
+        }
+
+	        function activeStep(key) {
+	            indicators.forEach(function (node) {
+	                node.classList.toggle('is-active', node.getAttribute('data-step-indicator') === key);
+	            });
+	        }
+
+	        function showPage(key) {
+	            pages.forEach(function (node) {
+	                node.classList.toggle('is-active', node.getAttribute('data-installer-page') === key);
+	            });
+	            activeStep(key);
+	            setAlert('', '');
+	        }
+
+	        function validatePage(key) {
+	            const page = document.querySelector('[data-installer-page="' + key + '"]');
+	            if (!page) {
+	                return true;
+	            }
+	            const fields = Array.from(page.querySelectorAll('input, select'));
+	            for (const field of fields) {
+	                if (typeof field.reportValidity === 'function' && !field.reportValidity()) {
+	                    return false;
+	                }
+	            }
+	            return true;
+	        }
+
+        function formData(action, extra) {
+            const data = new FormData(form);
+            data.set('metis_setup_action', action);
+            Object.keys(extra || {}).forEach(function (key) {
+                data.set(key, extra[key]);
+            });
+            return data;
+        }
+
+        async function post(action, extra) {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData(action, extra || {}),
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Installer request failed.');
+            }
+            return data;
+        }
+
+        function renderChecks(rows, summary) {
+            precheckList.innerHTML = '';
+            rows.forEach(function (row) {
+                const item = document.createElement('div');
+                item.className = 'check';
+                item.innerHTML = '<span class="badge ' + row.status + '">' + row.status + '</span><span class="check-title"></span><span class="check-msg"></span>';
+                item.querySelector('.check-title').textContent = row.label || '';
+                item.querySelector('.check-msg').textContent = row.message || '';
+                precheckList.appendChild(item);
+            });
+            const ok = summary && summary.ok;
+            precheckSummary.className = 'badge ' + (ok ? 'pass' : 'fail');
+            precheckSummary.textContent = ok ? 'Ready' : 'Needs attention';
+            repairButton.hidden = !(summary && summary.repairable);
+        }
+
+        async function runPrecheck() {
+            activeStep('precheck');
+            const data = await post('precheck');
+            renderChecks(data.checks || [], data.summary || {});
+            return data.summary && data.summary.ok;
+        }
+
+        function setProgress(index, total, heading, message) {
+            const value = Math.max(0, Math.min(100, Math.round((index / total) * 100)));
+            progress.classList.add('is-visible');
+            fill.style.width = value + '%';
+            pct.textContent = value + '%';
+            title.textContent = heading;
+            detail.textContent = message;
+        }
+
+        document.getElementById('metis-run-precheck')?.addEventListener('click', function () {
+            setAlert('', '');
+            runPrecheck().catch(function (error) { setAlert(error.message, 'error'); });
+        });
+
+	        repairButton?.addEventListener('click', async function () {
+            setAlert('', '');
+            repairButton.disabled = true;
+            try {
+                const data = await post('repair_permissions');
+                renderChecks(data.checks || [], data.summary || {});
+                setAlert(data.summary && data.summary.ok ? 'Permissions corrected.' : 'Permissions were updated where PHP had access. Remaining items need server-level attention.', data.summary && data.summary.ok ? 'notice' : 'error');
+            } catch (error) {
+                setAlert(error.message, 'error');
+            } finally {
+                repairButton.disabled = false;
+            }
+	        });
+
+	        document.querySelectorAll('[data-prev-page]').forEach(function (button) {
+	            button.addEventListener('click', function () {
+	                showPage(button.getAttribute('data-prev-page') || 'precheck');
+	            });
+	        });
+
+	        document.querySelectorAll('[data-next-page]').forEach(function (button) {
+	            button.addEventListener('click', async function () {
+	                const next = button.getAttribute('data-next-page') || 'precheck';
+	                const currentPage = pages.find(function (page) { return page.classList.contains('is-active'); });
+	                const current = currentPage ? currentPage.getAttribute('data-installer-page') : 'precheck';
+	                if (!validatePage(current || 'precheck')) {
+	                    return;
+	                }
+	                setAlert('', '');
+	                button.disabled = true;
+	                try {
+	                    if (current === 'precheck') {
+	                        const ready = await runPrecheck();
+	                        if (!ready) {
+	                            throw new Error('System requirements need attention before continuing.');
+	                        }
+	                    }
+	                    if (current === 'database') {
+	                        await post('validate_database');
+	                        setAlert('Database credentials verified.', 'notice');
+	                    }
+	                    showPage(next);
+	                } catch (error) {
+	                    setAlert(error.message, 'error');
+	                } finally {
+	                    button.disabled = false;
+	                }
+	            });
+	        });
+
+        form?.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            setAlert('', '');
+            submitButton.disabled = true;
+            activeStep('install');
+            const schemaKeys = Object.keys(schemaSteps);
+            const total = 5 + schemaKeys.length;
+            let done = 0;
+            const completed = [];
+
+            try {
+                setProgress(done, total, 'Checking system', 'Verifying required folders and PHP capabilities.');
+                const ready = await runPrecheck();
+                if (!ready) {
+                    throw new Error('System requirements need attention before installation can continue.');
+                }
+                done++;
+
+                activeStep('database');
+                setProgress(done, total, 'Verifying database', 'Testing database credentials before writing configuration.');
+                await post('validate_database');
+                done++;
+
+                setProgress(done, total, 'Creating configuration', 'Writing the secure runtime database configuration.');
+                await post('write_config');
+                done++;
+
+                for (const key of schemaKeys) {
+                    setProgress(done, total, 'Setting up database', 'Creating ' + schemaSteps[key] + '.');
+                    await post('schema', { schema_step: key });
+                    completed.push(key);
+                    done++;
+                }
+
+                activeStep('admin');
+                setProgress(done, total, 'Creating administrator', 'Creating the first Metis administrator account.');
+                await post('create_admin');
+                done++;
+
+                setProgress(done, total, 'Finalizing Metis', 'Enabling protections, cleanup, and install lock.');
+                const result = await post('finalize', { schema_created: JSON.stringify(completed) });
+                done++;
+                setProgress(done, total, 'Complete', 'Opening the admin portal.');
+                window.location.href = result.redirect || '<?php echo metis_escape_js( metis_home_url( '/admin/' ) ); ?>';
+            } catch (error) {
+                setAlert(error.message, 'error');
+                submitButton.disabled = false;
+            }
+        });
+    })();
+    </script>
 </body>
 </html>
 <?php
@@ -380,48 +1436,125 @@ function metis_standalone_handle_database_setup(): void {
         return;
     }
 
-    if ( metis_standalone_configuration_exists() && ! metis_standalone_installer_recovery_enabled() ) {
+    if ( is_file( rtrim( (string) METIS_PATH, '/\\' ) . '/storage/install.lock' ) && ! metis_standalone_installer_recovery_enabled() ) {
         metis_standalone_render_database_setup( 'Installer is disabled after configuration has been written. Enable METIS_INSTALLER_RECOVERY to run recovery setup.' );
     }
 
     \Metis\Core\Application::service( 'csrf' )->requireValidToken( $_POST, 'metis_installer_setup', 'Invalid installer request.' );
 
-    $config = [
-        'host' => metis_text_clean( (string) ( $_POST['db_host'] ?? '' ) ),
-        'port' => (int) metis_text_clean( (string) ( $_POST['db_port'] ?? '3306' ) ),
-        'database' => metis_text_clean( (string) ( $_POST['db_name'] ?? '' ) ),
-        'username' => metis_text_clean( (string) ( $_POST['db_user'] ?? '' ) ),
-        'password' => (string) ( $_POST['db_password'] ?? '' ),
-        'socket' => metis_text_clean( (string) ( $_POST['db_socket'] ?? '' ) ),
-        'prefix' => metis_key_clean( (string) ( $_POST['db_prefix'] ?? '' ) ),
-        'charset' => 'utf8mb4',
-        'collation' => 'utf8mb4_unicode_ci',
-        'app_key' => metis_text_clean( (string) ( $_POST['app_key'] ?? '' ) ),
-        'base_url' => trim( filter_var( (string) ( $_POST['base_url'] ?? '' ), FILTER_SANITIZE_URL ) ?: '' ),
-    ];
-
-    $probe = @new mysqli( $config['host'], $config['username'], $config['password'], $config['database'], $config['port'] );
-    if ( $probe->connect_errno ) {
+    $action = metis_key_clean( (string) ( $_POST['metis_setup_action'] ?? '' ) );
+    if ( $action !== '' ) {
         try {
-            $conn = metis_runtime_connect_mysqli(
-                $config['host'],
-                $config['username'],
-                $config['password'],
-                $config['database'],
-                (int) $config['port'],
-                (string) $config['socket']
-            );
-            $conn->close();
-        } catch ( Throwable $e ) {
-            metis_standalone_boot_log( 'setup_connection_failed', [ 'error' => $e->getMessage(), 'config' => [ 'host' => $config['host'], 'port' => $config['port'], 'socket' => $config['socket'], 'database' => $config['database'], 'username' => $config['username'] ] ] );
-            metis_standalone_render_database_setup( 'Connection failed. Verify database settings and try again.', $_POST );
-        }
-    } else {
-        $probe->close();
+            if ( $action === 'precheck' ) {
+                $checks = metis_standalone_install_precheck_rows();
+                metis_standalone_install_json( [ 'ok' => true, 'checks' => $checks, 'summary' => metis_standalone_install_precheck_summary( $checks ) ] );
+            }
+
+            if ( $action === 'repair_permissions' ) {
+                metis_standalone_install_ensure_permissions();
+                $checks = metis_standalone_install_precheck_rows();
+                metis_standalone_install_json( [ 'ok' => true, 'checks' => $checks, 'summary' => metis_standalone_install_precheck_summary( $checks ) ] );
+            }
+
+	            $config = metis_standalone_install_config_from_request( $_POST );
+	            $admin = metis_standalone_install_admin_from_request( $_POST );
+
+	            if ( $action === 'validate_database' ) {
+	                metis_standalone_install_validate_database_config( $config );
+	                metis_standalone_install_json( [ 'ok' => true, 'message' => 'Database verified.' ] );
+	            }
+
+            if ( $action === 'write_config' ) {
+                metis_standalone_install_validate_config_and_admin( $config, $admin, true );
+                metis_standalone_install_ensure_permissions();
+                metis_standalone_write_database_config( $config, false );
+                metis_standalone_install_json( [ 'ok' => true, 'message' => 'Configuration written.' ] );
+            }
+
+            if ( $action === 'schema' ) {
+                metis_standalone_install_validate_config_and_admin( $config, $admin, false );
+                metis_standalone_install_boot_database_context( $config );
+                $schema_step = metis_key_clean( (string) ( $_POST['schema_step'] ?? '' ) );
+                metis_standalone_install_run_schema_step( $schema_step );
+                metis_standalone_install_json( [ 'ok' => true, 'step' => $schema_step, 'label' => metis_standalone_install_schema_steps()[ $schema_step ] ?? $schema_step ] );
+            }
+
+            if ( $action === 'create_admin' ) {
+                metis_standalone_install_validate_config_and_admin( $config, $admin, false );
+                metis_standalone_install_boot_database_context( $config );
+                if ( function_exists( 'metis_install_db' ) ) {
+                    metis_install_db();
+                }
+                if ( metis_auth_has_users() ) {
+                    $existing_id = (int) metis_db()->scalar( 'SELECT id FROM ' . metis_auth_table() . ' ORDER BY id ASC LIMIT 1' );
+                    Core_Settings_Service::set( 'metis_install_first_admin_user_id', $existing_id, false );
+                    metis_standalone_install_json( [ 'ok' => true, 'user_id' => $existing_id, 'existing' => true ] );
+                }
+                $admin_user = metis_auth_register_first_user( $admin );
+                Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) ( $admin_user['id'] ?? 0 ), false );
+                metis_standalone_install_json( [ 'ok' => true, 'user_id' => (int) ( $admin_user['id'] ?? 0 ) ] );
+            }
+
+            if ( $action === 'finalize' ) {
+                metis_standalone_install_validate_config_and_admin( $config, $admin, false );
+                metis_standalone_install_boot_database_context( $config );
+                metis_standalone_install_complete_defaults();
+                $schema_created = json_decode( (string) ( $_POST['schema_created'] ?? '[]' ), true );
+                Core_Settings_Service::set( 'metis_install_schema_installers', is_array( $schema_created ) ? array_values( array_map( 'strval', $schema_created ) ) : [], false );
+                if ( (int) Core_Settings_Service::get( 'metis_install_first_admin_user_id', 0 ) < 1 && function_exists( 'metis_auth_table' ) ) {
+                    Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) metis_db()->scalar( 'SELECT id FROM ' . metis_auth_table() . ' ORDER BY id ASC LIMIT 1' ), false );
+                }
+                metis_standalone_mark_installed();
+                metis_standalone_install_ensure_permissions();
+                metis_standalone_install_json( [ 'ok' => true, 'redirect' => metis_home_url( '/admin/' ) ] );
+            }
+
+            metis_standalone_install_json( [ 'ok' => false, 'error' => 'Unknown installer action.' ], 400 );
+	        } catch ( Throwable $e ) {
+	            metis_standalone_boot_log( 'setup_ajax_failed', [
+	                'action' => $action,
+	                'schema_step' => metis_key_clean( (string) ( $_POST['schema_step'] ?? '' ) ),
+	                'exception' => $e::class,
+	                'error' => $e->getMessage(),
+	                'file' => $e->getFile(),
+	                'line' => $e->getLine(),
+	            ] );
+	            metis_standalone_install_json( [
+	                'ok' => false,
+	                'action' => $action,
+	                'schema_step' => metis_key_clean( (string) ( $_POST['schema_step'] ?? '' ) ),
+	                'error' => $e->getMessage(),
+	            ], 422 );
+	        }
     }
 
-    metis_standalone_write_database_config( $config );
-    metis_runtime_redirect( metis_home_url( '/' ) );
+    $config = metis_standalone_install_config_from_request( $_POST );
+    $admin = metis_standalone_install_admin_from_request( $_POST );
+
+    try {
+        metis_standalone_install_validate_config_and_admin( $config, $admin, true );
+    } catch ( Throwable $e ) {
+        metis_standalone_boot_log( 'setup_connection_failed', [ 'error' => $e->getMessage(), 'config' => [ 'host' => $config['host'], 'port' => $config['port'], 'socket' => $config['socket'], 'database' => $config['database'], 'username' => $config['username'] ] ] );
+        metis_standalone_render_database_setup( $e->getMessage(), $_POST );
+    }
+
+    try {
+        metis_standalone_install_ensure_permissions();
+        metis_standalone_write_database_config( $config, false );
+        metis_standalone_install_boot_database_context( $config );
+        $schema_created = metis_standalone_install_ensure_all_schema();
+        $admin_user = metis_auth_register_first_user( $admin );
+        metis_standalone_install_complete_defaults();
+        Core_Settings_Service::set( 'metis_install_schema_installers', $schema_created, false );
+        Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) ( $admin_user['id'] ?? 0 ), false );
+        metis_standalone_mark_installed();
+        metis_standalone_install_ensure_permissions();
+    } catch ( Throwable $e ) {
+        metis_standalone_boot_log( 'setup_install_failed', [ 'error' => $e->getMessage() ] );
+        metis_standalone_render_database_setup( 'Install could not complete. Review the server logs, then verify database permissions and administrator details.', $_POST );
+    }
+
+    metis_runtime_redirect( metis_home_url( '/admin/' ) );
 }
 
 function metis_standalone_boot(): void {
@@ -434,12 +1567,18 @@ function metis_standalone_boot(): void {
         $script_dir   = rtrim( dirname( (string) ( $_SERVER['SCRIPT_NAME'] ?? '/index.php' ) ), '/' );
         $install_path = ( $script_dir === '' || $script_dir === '/' ? '' : $script_dir ) . '/install';
         $has_database_config = metis_standalone_has_database_config();
+        $install_complete = is_file( $install_lock );
+        $request_is_install = rtrim( $request_path, '/' ) === rtrim( $install_path, '/' );
 
-        if ( metis_standalone_configuration_exists() && ! $has_database_config && ! metis_standalone_installer_recovery_enabled() ) {
+        if ( PHP_SAPI !== 'cli' && ! $install_complete && ! $request_is_install ) {
+            metis_runtime_redirect( $install_path );
+        }
+
+        if ( $install_complete && metis_standalone_configuration_exists() && ! $has_database_config && ! metis_standalone_installer_recovery_enabled() ) {
             metis_standalone_render_database_setup( 'Installer is disabled because configuration already exists. Enable METIS_INSTALLER_RECOVERY for recovery mode.' );
         }
 
-        if ( ! is_file( $install_lock ) && ! $has_database_config && $request_path === $install_path ) {
+        if ( ! $install_complete && $request_is_install ) {
             $existing = metis_standalone_database_config();
             $defaults = [
                 'db_host' => (string) ( $existing['host'] ?? '127.0.0.1' ),
@@ -450,7 +1589,11 @@ function metis_standalone_boot(): void {
                 'db_socket' => (string) ( $existing['socket'] ?? '' ),
                 'app_key' => (string) ( $existing['app_key'] ?? '' ),
                 'base_url' => (string) ( $existing['base_url'] ?? '' ),
-            ];
+                'site_name' => (string) ( $existing['install_site_name'] ?? 'Metis Portal' ),
+	                'site_timezone' => (string) ( $existing['install_timezone'] ?? 'UTC' ),
+	                'admin_display_name' => '',
+	                'admin_email' => '',
+	            ];
 
             metis_standalone_handle_database_setup();
             metis_standalone_render_database_setup(
@@ -543,9 +1686,16 @@ function metis_standalone_boot(): void {
     require_once dirname( __DIR__ ) . '/ManagerRuntime.php';
     require_once dirname( __DIR__ ) . '/DatabaseRuntime.php';
     require_once dirname( __DIR__ ) . '/RenameTablesRuntime.php';
+    metis_standalone_require_recovery_runtime();
     metis_register_core_services();
 
     Metis_Integrity_Manager::init();
+    \Metis\Core\Recovery\RecoverySchema::ensureSchema();
+    $preboot_recovery = ( new \Metis\Core\Recovery\PrebootIntegrityService() )->checkAndRecover( 'standalone_preboot' );
+    if ( (string) ( $preboot_recovery['status'] ?? '' ) === 'maintenance' ) {
+        \Metis\Core\Recovery\metis_recovery_render_maintenance_page( $preboot_recovery );
+        exit;
+    }
     Metis_Logger::core_loaded();
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'core_loaded' ] );
 
@@ -608,6 +1758,19 @@ function metis_standalone_boot(): void {
             metis_install_db();
             metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_db_complete' ] );
         }
+
+        metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_defaults_start' ] );
+        metis_standalone_install_ensure_permissions();
+        metis_standalone_install_complete_defaults();
+        try {
+            \Metis\Core\Recovery\RecoverySchema::ensureSchema();
+            ( new \Metis\Core\Recovery\RecoveryVerifier() )->rebuildManifest( 'install_defaults' );
+        } catch ( \Throwable $recovery_manifest_error ) {
+            metis_standalone_boot_log( 'recovery_manifest_build_failed', [
+                'error' => $recovery_manifest_error->getMessage(),
+            ] );
+        }
+        metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_defaults_complete' ] );
 
         Metis_Logger::info( 'Standalone bootstrap completed' );
         metis_standalone_boot_log( 'boot_complete' );

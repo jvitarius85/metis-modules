@@ -40,6 +40,33 @@ final class Metis_Cron_Manager {
         );
 
         self::register_task(
+            'recovery_integrity_check',
+            static function (): array {
+                $service = new \Metis\Core\Recovery\PrebootIntegrityService();
+                $snapshot = $service->dashboardSnapshot();
+                $status = (string) ( $snapshot['status'] ?? 'unknown' );
+                return [
+                    'status' => $status === 'critical' ? 'failed' : 'ok',
+                    'message' => $status === 'critical'
+                        ? 'Recovery integrity check detected critical issues.'
+                        : 'Recovery integrity check completed.',
+                    'snapshot' => [
+                        'status' => $status,
+                        'manifest' => $snapshot['manifest'] ?? [],
+                        'backup' => $snapshot['backup'] ?? [],
+                        'git' => $snapshot['git'] ?? [],
+                    ],
+                ];
+            },
+            [
+                'label'    => 'Recovery Integrity Check',
+                'interval' => HOUR_IN_SECONDS,
+                'lock_ttl' => 20 * MINUTE_IN_SECONDS,
+                'module'   => 'core',
+            ]
+        );
+
+        self::register_task(
             'cache_cleanup',
             [ self::class, 'run_cache_cleanup' ],
             [
