@@ -26,6 +26,9 @@ final class ReleaseManager {
         $state = $this->readState();
         $current = $this->currentRelease( $repository, $state, $releases_payload['releases'] ?? [] );
         $latest = $this->latestRelease( $releases_payload['releases'] ?? [] );
+        $remote_status = (string) ( $releases_payload['remote_status'] ?? 'unavailable' );
+        $remote_available = \in_array( $remote_status, [ 'live', 'api', 'cached' ], true )
+            || ! empty( $releases_payload['remote_releases'] );
 
         $status = [
             'ok' => true,
@@ -38,10 +41,10 @@ final class ReleaseManager {
                 ? version_compare( (string) $latest['version'], (string) $current['version'], '>' )
                 : ( $latest !== null && $current === null ),
             'repository' => [
-                'available' => $repository !== null,
+                'available' => $repository !== null || $remote_available,
                 'clean' => $repository !== null
                     ? ( ( $repository['dirty_known'] ?? true ) ? empty( $repository['dirty'] ) : null )
-                    : false,
+                    : null,
                 'dirty_known' => $repository !== null ? (bool) ( $repository['dirty_known'] ?? true ) : false,
                 'head' => $repository['commit'] ?? '',
                 'tag' => $repository['exact_tag'] ?? '',
@@ -50,13 +53,13 @@ final class ReleaseManager {
             'trusted_releases' => $releases_payload['releases'] ?? [],
             'last_checked_at' => (string) ( $releases_payload['checked_at'] ?? '' ),
             'cache_age_seconds' => (int) ( $releases_payload['cache_age_seconds'] ?? 0 ),
-            'remote_status' => (string) ( $releases_payload['remote_status'] ?? 'unavailable' ),
+            'remote_status' => $remote_status,
             'remote_error' => (string) ( $releases_payload['remote_error'] ?? '' ),
             'state' => $state,
             'history' => $this->readHistory(),
         ];
 
-        if ( $repository === null ) {
+        if ( $repository === null && ! $remote_available ) {
             $status['status'] = 'git_unavailable';
             $status['ok'] = false;
         }
@@ -87,6 +90,9 @@ final class ReleaseManager {
         $current = $this->currentRelease( null, $state, $releases );
         $latest = $this->latestRelease( $releases );
         $installed_commit = (string) ( $state['installed_commit'] ?? '' );
+        $remote_status = (string) ( $releases_payload['remote_status'] ?? 'cache_only' );
+        $remote_available = \in_array( $remote_status, [ 'live', 'api', 'cached', 'cache_only' ], true )
+            && ( $releases !== [] || ! empty( $releases_payload['remote_releases'] ) );
 
         return [
             'ok' => true,
@@ -99,7 +105,7 @@ final class ReleaseManager {
                 ? version_compare( (string) $latest['version'], (string) $current['version'], '>' )
                 : ( $latest !== null && $current === null ),
             'repository' => [
-                'available' => $installed_commit !== '',
+                'available' => $installed_commit !== '' || $remote_available,
                 'clean' => null,
                 'dirty_known' => false,
                 'head' => $installed_commit,
@@ -109,7 +115,7 @@ final class ReleaseManager {
             'trusted_releases' => $releases,
             'last_checked_at' => (string) ( $releases_payload['checked_at'] ?? ( $state['last_checked_at'] ?? '' ) ),
             'cache_age_seconds' => $this->releaseCacheAge( $releases_payload ),
-            'remote_status' => (string) ( $releases_payload['remote_status'] ?? 'cache_only' ),
+            'remote_status' => $remote_status,
             'remote_error' => (string) ( $releases_payload['remote_error'] ?? '' ),
             'state' => $state,
             'history' => $this->readHistory(),
@@ -1192,6 +1198,14 @@ final class ReleaseManager {
     private function discoverRemoteReleasesFromGitHub(): array {
         if ( ! \class_exists( \Metis\Core\Application::class ) || ! \Metis\Core\Application::has_service( 'github_update' ) ) {
             return [];
+        }
+
+        try {
+            $releases = \Metis\Core\Application::service( 'github_update' )->semanticTagReleases( true );
+            if ( \is_array( $releases ) && $releases !== [] ) {
+                return $releases;
+            }
+        } catch ( \Throwable ) {
         }
 
         try {

@@ -147,6 +147,36 @@ final class GitHubUpdateService {
         return $this->normalizeModuleCatalog($cached);
     }
 
+    public function semanticTagReleases(bool $forceRefresh = false): array {
+        $settings = $this->repositoryConfig();
+        $owner = (string) ($settings['owner'] ?? '');
+        $repo = (string) ($settings['repo'] ?? '');
+        if ($owner === '' || $repo === '') {
+            return [];
+        }
+
+        $cacheKey = sprintf(
+            'api.github_semantic_tags.%s.%s',
+            metis_key_clean($owner),
+            metis_key_clean($repo)
+        );
+
+        if (!$forceRefresh) {
+            $cached = CacheService::get($cacheKey);
+            if (is_array($cached)) {
+                return $this->normalizeSemanticTagReleases($cached);
+            }
+        } else {
+            CacheService::forget($cacheKey);
+        }
+
+        $tags = $this->github->repositoryTags($owner, $repo, (string) ($settings['token'] ?? ''));
+        $releases = $this->normalizeSemanticTagReleases($tags);
+        CacheService::set($cacheKey, $releases, self::CACHE_TTL);
+
+        return $releases;
+    }
+
     private function repositoryConfig(): array {
         $fileConfig = $this->config->loadFile('config/update.php', []);
         $currentVersion = (string) ($fileConfig['current_version'] ?? '');
@@ -406,5 +436,49 @@ final class GitHubUpdateService {
 
         ksort($normalized);
         return array_values($normalized);
+    }
+
+    private function normalizeSemanticTagReleases(array $tags): array {
+        $releases = [];
+
+        foreach ($tags as $tag) {
+            if (!is_array($tag)) {
+                continue;
+            }
+
+            $tagName = metis_text_clean((string) ($tag['name'] ?? $tag['tag'] ?? ''));
+            $version = $this->versionFromTag($tagName);
+            if ($tagName === '' || $version === '') {
+                continue;
+            }
+
+            $commit = '';
+            if (is_array($tag['commit'] ?? null)) {
+                $commit = (string) ($tag['commit']['sha'] ?? '');
+            } else {
+                $commit = (string) ($tag['commit'] ?? '');
+            }
+
+            $releases[$tagName] = [
+                'tag' => $tagName,
+                'version' => $version,
+                'commit' => $commit,
+                'source' => 'remote_tag_api',
+                'trusted' => true,
+                'cached' => false,
+            ];
+        }
+
+        uasort(
+            $releases,
+            static fn(array $left, array $right): int => version_compare((string) $right['version'], (string) $left['version'])
+        );
+
+        return array_values($releases);
+    }
+
+    private function versionFromTag(string $tag): string {
+        $version = preg_replace('/^v/i', '', trim($tag)) ?? '';
+        return preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $version) === 1 ? $version : '';
     }
 }

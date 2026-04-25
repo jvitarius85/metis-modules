@@ -74,15 +74,36 @@ final class GitHubClient {
         return is_array($json) ? $json : [];
     }
 
-    private function latestTagRelease(string $owner, string $repo, array $headers): array {
+    public function repositoryTags(string $owner, string $repo, string $token = ''): array {
+        $headers = [
+            'Accept' => 'application/vnd.github+json',
+        ];
+
+        if ($token !== '') {
+            $headers['Authorization'] = 'Bearer ' . $token;
+        }
+
         $url = sprintf('https://api.github.com/repos/%s/%s/tags?per_page=100', rawurlencode($owner), rawurlencode($repo));
         $response = $this->http->get($url, $headers);
 
         if (($response['status'] ?? 0) >= 400) {
+            throw new \RuntimeException(sprintf('GitHub tag lookup failed with status [%d].', (int) ($response['status'] ?? 0)));
+        }
+
+        return is_array($response['json'] ?? null) ? $response['json'] : [];
+    }
+
+    private function latestTagRelease(string $owner, string $repo, array $headers): array {
+        try {
+            $tags = $this->repositoryTags(
+                $owner,
+                $repo,
+                str_replace('Bearer ', '', (string) ($headers['Authorization'] ?? ''))
+            );
+        } catch (\RuntimeException) {
             return [];
         }
 
-        $tags = is_array($response['json'] ?? null) ? $response['json'] : [];
         $best = null;
         $bestVersion = null;
 
