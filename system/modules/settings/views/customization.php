@@ -23,7 +23,6 @@ extract( $ctx, EXTR_SKIP );
                             <input type="color" id="theme_colors_<?php echo metis_escape_attr( $key ); ?>" value="<?php echo metis_escape_attr( (string) $theme_colors[ $key ] ); ?>" class="metis-theme-swatch" data-theme-color-input="theme_colors_<?php echo metis_escape_attr( $key ); ?>_text">
                             <input type="text" id="theme_colors_<?php echo metis_escape_attr( $key ); ?>_text" name="theme_colors[<?php echo metis_escape_attr( $key ); ?>]" value="<?php echo metis_escape_attr( (string) $theme_colors[ $key ] ); ?>" class="metis-input metis-theme-text" pattern="^#[A-Fa-f0-9]{6}$" inputmode="text" data-theme-color-text>
                         </div>
-                        <p class="metis-help">Default: <code><?php echo metis_escape_html( (string) $field['default'] ); ?></code> for <code><?php echo metis_escape_html( (string) $field['css_var'] ); ?></code>.</p>
                     </div>
                 <?php endforeach; ?>
             </div>
