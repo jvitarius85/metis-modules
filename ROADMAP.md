@@ -1,26 +1,49 @@
-# Roadmap
+# Metis Roadmap
 
-## Phase 1
+This roadmap summarizes the major planned work areas for future Metis releases.
 
-- Core infrastructure
-- Identity management
-- Donations module
-- Reporting tools
+## Stability / Release Trust
 
-## Phase 2
+- Installer production QA and recovery coverage
+- Recovery system validation and admin dashboard
+- Release manager production hardening
+- Backup and restore validation
+- Cron and operations reliability
+- Release notes and rollback UX
+- Encrypted backups and recovery kit PDF
+- Installer capacity readiness checks
 
-- Hermes intelligence integration
-- Website builder
-- Drive and document management
+## Platform Foundation
 
-## Phase 3
+- Module lifecycle hardening
+- Provider architecture for drive, calendar, email, payments, and finance
+- Installer integration options
+- Module update system independent from core releases
+- Apache and Nginx installer compatibility checks
 
-- automation playbooks
-- analytics expansion
-- plugin ecosystem
-- external integrations
+## Operational Visibility
 
-## Long-Term Vision
+- System health dashboard
+- Performance budget and slow-request diagnostics
+- Security and Secure Enclave audit coverage
+- Operational health and trust reporting
 
-Métis aims to become a unified operational platform capable of supporting
-organizations with automation, governance tools, and integrated intelligence.
+## Optional Providers
+
+- Offline donations mode for non-Stripe organizations
+- Local private drive with optional WebDAV
+- Email provider abstraction
+- Native calendar provider
+- Office suite integration research and implementation
+
+## UX Consistency
+
+- UI table and formatting consistency pass
+- Continued shared core CSS cleanup
+- Stable spacing, sticky headers, and consistent report/data grids
+
+## Product Expansion
+
+- Advanced accounting suite
+- Website editor expansion
+- Menus, banners, popups, reusable blocks, revisions, and publishing workflows

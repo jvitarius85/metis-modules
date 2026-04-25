@@ -1,130 +1,101 @@
-# Métis
+# Metis
 
-![Architecture](https://img.shields.io/badge/architecture-modular-blue)
-![Platform](https://img.shields.io/badge/platform-Metis-purple)
-![AI Layer](https://img.shields.io/badge/AI-Hermes-indigo)
-![Status](https://img.shields.io/badge/status-active-green)
+Metis is a modular operations platform for organizations that need one place for
+people, permissions, communications, donations, files, finance, governance,
+website content, automation, and system administration.
 
-## Overview
+The platform is designed as a standalone PHP application with a browser-based
+installer, a shared core UI, a module system, Secure Enclave protected actions,
+audited operations, backups, recovery services, and trusted release updates.
 
-**Métis** is a modular operational platform designed to centralize governance,
-communications, organizational data, and workflows within a unified system.
+## What Metis Provides
 
-Rather than relying on fragmented SaaS tools, Métis provides a stable
-infrastructure where people, information, and processes operate through
-shared services and consistent interfaces.
+- Centralized identity, users, roles, and permissions
+- Modular admin portal with consistent UI patterns
+- Donations, deposits, donors, and reporting
+- Board and governance workflows
+- Contacts, people, newsletter, forms, media, drive, calendar, and website tools
+- Basic finance and reconciliation workflows
+- Hermes operational assistant with permission-aware actions
+- Secure Enclave enforcement for sensitive operations
+- Browser installer with system checks and first-admin setup
+- Backup, recovery, integrity, and release management services
 
-Hermes serves as the intelligence layer that assists administrators with
-automation, reporting, and operational insight.
+## Current Official Modules
 
----
+Official modules are defined by trusted repository metadata.
 
-## Key Features
+- Portal
+- People
+- Profile
+- Settings
+- Contacts
+- Donations
+- Drive
+- Calendar
+- Finance
+- Newsletter
+- Forms
+- Board
+- Website
+- Hermes
+- Media
+- Help
 
-- Modular platform architecture
-- Centralized identity and permissions
-- Governance and board management tools
-- Integrated website builder
-- File and document management
-- Financial and donation tracking
-- Reporting and analytics
-- Hermes AI operational assistant
+Required modules cannot be disabled because they provide core platform access,
+identity, profile, and settings behavior.
 
----
+## Repository Layout
 
-## Platform Architecture
-
-```
-Users
-   │
-   ▼
-Router / Entry Point
-   │
-   ▼
-Authentication + Permissions
-   │
-   ▼
-Modules
-   │
-   ▼
-Core Services
-   │
-   ▼
-Database / External APIs
-```
-
-Hermes interacts with the system through structured playbooks and the
-platform service layer.
-
----
-
-## Core Modules
-
-```
-modules/
-├── people
-├── communications
-├── donations
-├── drive
-├── calendar
-├── governance
-├── reports
-├── website
+```text
+index.php              Application entry point
+system/                Core source, modules, config, assets, tools, docs
+system/src/            Core PHP services and runtime
+system/modules/        Metis modules
+system/assets/         Shared runtime assets
+system/config/         Local configuration templates and policies
+system/tools/          CLI maintenance tools
+system/docs/           Detailed system documentation
+storage/               Runtime storage, logs, cache, uploads, backups
 ```
 
----
+## Installation
 
-## Hermes Intelligence Layer
+Metis is installed from the browser. After files are uploaded or cloned to a
+server, open the site URL and follow the installer.
 
-Hermes enhances the platform by enabling:
+The installer validates requirements, checks writable folders, verifies database
+credentials, creates the configuration file, installs core and module tables,
+creates the first administrator, enables protections, and redirects to the admin
+portal.
 
-- administrative automation
-- contextual data queries
-- operational insights
-- workflow assistance
-- reporting generation
+See [INSTALL.md](INSTALL.md) for the installation checklist.
 
-Example requests:
+## Updates
 
-```
-List all board members who have permission to create users
-```
+Metis supports trusted release checks against the configured GitHub repository.
+Admins can review available releases and apply trusted updates from the admin
+portal. Updates require preflight checks and a pre-update backup before files are
+changed.
 
-```
-Create a new staff user with Drive and Calendar access
-```
+## Security
 
----
+Metis uses layered security controls:
 
-## Documentation
+- role and permission checks
+- CSRF/nonce validation
+- Secure Enclave policy enforcement
+- protected filesystem paths
+- audit logging
+- rate-limit and abuse checks
+- integrity and recovery services
 
-Additional documentation can be found in the `/docs` directory:
+See [SECURITY.md](SECURITY.md) for security expectations and vulnerability
+reporting.
 
-- Architecture overview
-- Hermes intelligence design
-- System map
-- Development guidelines
-- Vision and roadmap
+## Roadmap
 
----
+The public roadmap focuses on release trust, provider architecture, operational
+visibility, optional integrations, UI consistency, and product expansion.
 
-## Philosophy
-
-Métis is designed with several guiding principles:
-
-- modular architecture
-- security-first design
-- centralized shared services
-- maintainability and clarity
-- automation that respects governance
-
----
-
-## Summary
-
-Métis provides the **platform infrastructure**.
-
-Hermes provides the **operational intelligence**.
-
-Together they form a unified system designed to support organizations
-with stability, automation, and strategic clarity.
+See [ROADMAP.md](ROADMAP.md).
