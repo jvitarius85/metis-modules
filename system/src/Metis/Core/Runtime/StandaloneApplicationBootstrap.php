@@ -54,6 +54,10 @@ if ( ! function_exists( 'metis_portal_url' ) ) {
 }
 
 function metis_standalone_boot_log( string $message, array $context = [] ): void {
+    if ( ! metis_standalone_boot_trace_should_write( $message ) ) {
+        return;
+    }
+
     metis_standalone_raw_boot_log( $message, $context );
 
     if (
@@ -64,6 +68,30 @@ function metis_standalone_boot_log( string $message, array $context = [] ): void
     ) {
         Metis_Logger::info( 'standalone_' . $message, $context );
     }
+}
+
+function metis_standalone_boot_trace_enabled(): bool {
+    if ( defined( 'METIS_BOOT_TRACE' ) ) {
+        return (bool) METIS_BOOT_TRACE;
+    }
+
+    $env = getenv( 'METIS_BOOT_TRACE' );
+    if ( is_string( $env ) && trim( $env ) !== '' ) {
+        return in_array( strtolower( trim( $env ) ), [ '1', 'true', 'yes', 'on' ], true );
+    }
+
+    return defined( 'APP_DEBUG' ) && (bool) APP_DEBUG;
+}
+
+function metis_standalone_boot_trace_should_write( string $message ): bool {
+    if ( metis_standalone_boot_trace_enabled() ) {
+        return true;
+    }
+
+    $message = strtolower( trim( $message ) );
+    return str_contains( $message, 'failed' )
+        || str_contains( $message, 'exception' )
+        || str_contains( $message, 'error' );
 }
 
 function metis_standalone_boot_trace_path(): string {
@@ -571,11 +599,12 @@ function metis_standalone_install_complete_defaults(): void {
     metis_standalone_install_set_default( 'auth_login_lock_threshold_subject', 10, false );
     metis_standalone_install_set_default( 'auth_login_lock_threshold_ip', 30, false );
     metis_standalone_install_set_default( 'webhook_rate_limit_per_minute', 120, false );
-    metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
-    metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );
-    metis_standalone_install_set_default( 'integrity_git_restore_enabled', true, false );
-    metis_standalone_install_set_default( 'recovery_preboot_enabled', true, false );
-    metis_standalone_install_set_default( 'recovery_runtime_enabled', true, false );
+    metis_standalone_install_set_default( 'integrity_auto_heal_enabled', false, false );
+    metis_standalone_install_set_default( 'integrity_quarantine_enabled', false, false );
+    metis_standalone_install_set_default( 'integrity_git_restore_enabled', false, false );
+    metis_standalone_install_set_default( 'recovery_preboot_enabled', false, false );
+    metis_standalone_install_set_default( 'recovery_runtime_enabled', false, false );
+    metis_standalone_install_set_default( 'recovery_file_mutation_enabled', false, false );
     metis_standalone_install_set_default( 'payment_statuses', [ 'pending', 'completed', 'refunded', 'failed', 'voided' ] );
     if ( $base_url !== '' ) {
         metis_standalone_install_set_default( 'site_url', $base_url );
@@ -598,6 +627,27 @@ function metis_standalone_install_complete_defaults(): void {
     Core_Settings_Service::set( 'metis_install_cleanup_removed', $removed, false );
     Core_Settings_Service::set( 'metis_installed_at', gmdate( 'c' ), true );
     Core_Settings_Service::set( 'metis_install_completed', true, true );
+}
+
+function metis_standalone_core_schema_signature(): string {
+    $source = dirname( __DIR__ ) . '/DatabaseRuntime.php';
+    $mtime = is_file( $source ) ? (int) ( @filemtime( $source ) ?: 0 ) : 0;
+    $version = defined( 'METIS_VERSION' ) ? (string) METIS_VERSION : 'unknown';
+    return hash( 'sha256', $version . ':' . $mtime );
+}
+
+function metis_standalone_core_schema_needs_install(): bool {
+    if ( ! class_exists( 'Core_Settings_Service' ) ) {
+        return true;
+    }
+
+    return (string) Core_Settings_Service::get( 'metis_core_schema_signature', '' ) !== metis_standalone_core_schema_signature();
+}
+
+function metis_standalone_mark_core_schema_installed(): void {
+    if ( class_exists( 'Core_Settings_Service' ) ) {
+        Core_Settings_Service::set( 'metis_core_schema_signature', metis_standalone_core_schema_signature(), false );
+    }
 }
 
 function metis_standalone_install_timezone_label( string $timezone ): string {
@@ -884,6 +934,72 @@ function metis_standalone_install_validate_config_and_admin( array $config, arra
     if ( $validate_database ) {
         metis_standalone_install_validate_database_config( $config );
     }
+}
+
+function metis_standalone_install_first_admin_id(): int {
+    if ( ! function_exists( 'metis_auth_table' ) || ! function_exists( 'metis_auth_find_user' ) ) {
+        return 0;
+    }
+
+    try {
+        $configured_id = (int) Core_Settings_Service::get( 'metis_install_first_admin_user_id', 0 );
+        if ( $configured_id > 0 && is_array( metis_auth_find_user( 'id', $configured_id ) ) ) {
+            return $configured_id;
+        }
+    } catch ( Throwable ) {
+        // Continue to the database lookup below.
+    }
+
+    try {
+        if ( function_exists( 'metis_auth_has_users' ) && ! metis_auth_has_users() ) {
+            return 0;
+        }
+
+        $first_id = (int) metis_db()->scalar( 'SELECT id FROM ' . metis_auth_table() . ' ORDER BY id ASC LIMIT 1' );
+        if ( $first_id > 0 && is_array( metis_auth_find_user( 'id', $first_id ) ) ) {
+            return $first_id;
+        }
+    } catch ( Throwable ) {
+        return 0;
+    }
+
+    return 0;
+}
+
+function metis_standalone_install_ensure_first_admin( array $admin ): array {
+    if ( function_exists( 'metis_install_db' ) ) {
+        metis_install_db();
+    }
+
+    $existing_id = metis_standalone_install_first_admin_id();
+    if ( $existing_id > 0 ) {
+        Core_Settings_Service::set( 'metis_install_first_admin_user_id', $existing_id, false );
+        return [ 'id' => $existing_id, 'existing' => true ];
+    }
+
+    try {
+        $admin_user = metis_auth_register_first_user( $admin );
+    } catch ( RuntimeException $e ) {
+        if ( $e->getMessage() !== 'Initial account already exists.' ) {
+            throw $e;
+        }
+
+        $existing_id = metis_standalone_install_first_admin_id();
+        if ( $existing_id > 0 ) {
+            Core_Settings_Service::set( 'metis_install_first_admin_user_id', $existing_id, false );
+            return [ 'id' => $existing_id, 'existing' => true ];
+        }
+
+        throw $e;
+    }
+
+    $admin_id = (int) ( $admin_user['id'] ?? 0 );
+    if ( $admin_id < 1 || ! is_array( metis_auth_find_user( 'id', $admin_id ) ) ) {
+        throw new RuntimeException( 'First administrator account was not created.' );
+    }
+
+    Core_Settings_Service::set( 'metis_install_first_admin_user_id', $admin_id, false );
+    return [ 'id' => $admin_id, 'existing' => false ];
 }
 
 function metis_standalone_install_schema_steps(): array {
@@ -1482,28 +1598,22 @@ function metis_standalone_handle_database_setup(): void {
             if ( $action === 'create_admin' ) {
                 metis_standalone_install_validate_config_and_admin( $config, $admin, false );
                 metis_standalone_install_boot_database_context( $config );
-                if ( function_exists( 'metis_install_db' ) ) {
-                    metis_install_db();
-                }
-                if ( metis_auth_has_users() ) {
-                    $existing_id = (int) metis_db()->scalar( 'SELECT id FROM ' . metis_auth_table() . ' ORDER BY id ASC LIMIT 1' );
-                    Core_Settings_Service::set( 'metis_install_first_admin_user_id', $existing_id, false );
-                    metis_standalone_install_json( [ 'ok' => true, 'user_id' => $existing_id, 'existing' => true ] );
-                }
-                $admin_user = metis_auth_register_first_user( $admin );
-                Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) ( $admin_user['id'] ?? 0 ), false );
-                metis_standalone_install_json( [ 'ok' => true, 'user_id' => (int) ( $admin_user['id'] ?? 0 ) ] );
+                $admin_result = metis_standalone_install_ensure_first_admin( $admin );
+                metis_standalone_install_json( [
+                    'ok' => true,
+                    'user_id' => (int) $admin_result['id'],
+                    'existing' => (bool) $admin_result['existing'],
+                ] );
             }
 
             if ( $action === 'finalize' ) {
                 metis_standalone_install_validate_config_and_admin( $config, $admin, false );
                 metis_standalone_install_boot_database_context( $config );
+                $admin_result = metis_standalone_install_ensure_first_admin( $admin );
                 metis_standalone_install_complete_defaults();
                 $schema_created = json_decode( (string) ( $_POST['schema_created'] ?? '[]' ), true );
                 Core_Settings_Service::set( 'metis_install_schema_installers', is_array( $schema_created ) ? array_values( array_map( 'strval', $schema_created ) ) : [], false );
-                if ( (int) Core_Settings_Service::get( 'metis_install_first_admin_user_id', 0 ) < 1 && function_exists( 'metis_auth_table' ) ) {
-                    Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) metis_db()->scalar( 'SELECT id FROM ' . metis_auth_table() . ' ORDER BY id ASC LIMIT 1' ), false );
-                }
+                Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) $admin_result['id'], false );
                 metis_standalone_mark_installed();
                 metis_standalone_install_ensure_permissions();
                 metis_standalone_install_json( [ 'ok' => true, 'redirect' => metis_home_url( '/admin/' ) ] );
@@ -1543,10 +1653,10 @@ function metis_standalone_handle_database_setup(): void {
         metis_standalone_write_database_config( $config, false );
         metis_standalone_install_boot_database_context( $config );
         $schema_created = metis_standalone_install_ensure_all_schema();
-        $admin_user = metis_auth_register_first_user( $admin );
+        $admin_result = metis_standalone_install_ensure_first_admin( $admin );
         metis_standalone_install_complete_defaults();
         Core_Settings_Service::set( 'metis_install_schema_installers', $schema_created, false );
-        Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) ( $admin_user['id'] ?? 0 ), false );
+        Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) $admin_result['id'], false );
         metis_standalone_mark_installed();
         metis_standalone_install_ensure_permissions();
     } catch ( Throwable $e ) {
@@ -1622,6 +1732,9 @@ function metis_standalone_boot(): void {
             'app_key' => (string) ( $db['app_key'] ?? 'metis-local-key' ),
             'base_url' => trim( (string) ( $db['base_url'] ?? '' ) ),
         ];
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'CONFIG_LOADED' );
+        }
 
     metis_standalone_boot_log( 'boot_start', [
         'host' => (string) ( $db['host'] ?? '' ),
@@ -1639,6 +1752,9 @@ function metis_standalone_boot(): void {
         (string) $db['host'] . ':' . (int) ( $db['port'] ?? 3306 ),
         (string) ( $db['prefix'] ?? '' )
     );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'DB_CONNECTED' );
+    }
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'db_connect_ok' ] );
 
     if ( isset( $_GET['metis_action'] ) && $_GET['metis_action'] === 'logout' ) {
@@ -1706,8 +1822,14 @@ function metis_standalone_boot(): void {
 
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'load_modules' ] );
     require_once METIS_SRC_PATH . 'Metis/Core/Modules/ModulesRuntime.php';
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'MODULE_LOADED' );
+    }
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'modules_loaded' ] );
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_COMM_INBOUND_START' );
+    }
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'load_communications_inbound_core' ] );
     require_once METIS_SRC_PATH . 'Metis/Core/CommunicationsInboundRuntime.php';
     if ( function_exists( 'metis_communications_inbound_boot_required_for_request' ) && metis_communications_inbound_boot_required_for_request() ) {
@@ -1742,38 +1864,103 @@ function metis_standalone_boot(): void {
             ]
         );
     }
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_COMM_INBOUND_DONE' );
+    }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_REGISTER_RUNTIME_HOOKS' );
+    }
     metis_on( 'metis_runtime_loaded', static function (): void {
         Metis::service( 'settings' )->set( 'payment_statuses', [ 'pending', 'completed', 'refunded', 'failed', 'voided' ] );
     }, 5 );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_REGISTER_RUNTIME_HOOKS_DONE' );
+    }
 
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'run_hooks' ] );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_HOOK_INIT' );
+    }
     metis_do_action( 'init' );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_HOOK_INIT_DONE' );
+        Profiler::mark( 'BOOT_HOOK_ADMIN_INIT' );
+    }
     metis_do_action( 'metis_admin_init' );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_HOOK_ADMIN_INIT_DONE' );
+        Profiler::mark( 'BOOT_HOOK_RUNTIME_LOADED' );
+    }
     metis_do_action( 'metis_runtime_loaded' );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'BOOT_HOOK_RUNTIME_LOADED_DONE' );
+    }
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'hooks_complete' ] );
 
-        if ( function_exists( 'metis_install_db' ) ) {
+        if ( function_exists( 'metis_install_db' ) && metis_standalone_core_schema_needs_install() ) {
+            if ( class_exists( 'Profiler', false ) ) {
+                Profiler::mark( 'BOOT_INSTALL_DB' );
+            }
             metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_db_start' ] );
             metis_install_db();
+            metis_standalone_mark_core_schema_installed();
             metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_db_complete' ] );
+            if ( class_exists( 'Profiler', false ) ) {
+                Profiler::mark( 'BOOT_INSTALL_DB_DONE' );
+            }
+        } elseif ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'BOOT_INSTALL_DB_SKIPPED' );
         }
 
         metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_defaults_start' ] );
-        metis_standalone_install_ensure_permissions();
+        $install_completed_before_defaults = class_exists( 'Core_Settings_Service' )
+            ? (bool) Core_Settings_Service::get( 'metis_install_completed', false )
+            : false;
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'BOOT_INSTALL_PERMISSIONS' );
+        }
+        if ( ! $install_completed_before_defaults ) {
+            metis_standalone_install_ensure_permissions();
+        }
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'BOOT_INSTALL_PERMISSIONS_DONE' );
+            Profiler::mark( 'BOOT_INSTALL_DEFAULTS' );
+        }
         metis_standalone_install_complete_defaults();
-        try {
-            \Metis\Core\Recovery\RecoverySchema::ensureSchema();
-            ( new \Metis\Core\Recovery\RecoveryVerifier() )->rebuildManifest( 'install_defaults' );
-        } catch ( \Throwable $recovery_manifest_error ) {
-            metis_standalone_boot_log( 'recovery_manifest_build_failed', [
-                'error' => $recovery_manifest_error->getMessage(),
-            ] );
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'BOOT_INSTALL_DEFAULTS_DONE' );
+        }
+        if ( ! $install_completed_before_defaults ) {
+            try {
+                if ( class_exists( 'Profiler', false ) ) {
+                    Profiler::mark( 'BOOT_RECOVERY_SCHEMA' );
+                }
+                \Metis\Core\Recovery\RecoverySchema::ensureSchema();
+                if ( class_exists( 'Profiler', false ) ) {
+                    Profiler::mark( 'BOOT_RECOVERY_SCHEMA_DONE' );
+                    Profiler::mark( 'BOOT_RECOVERY_MANIFEST' );
+                }
+                ( new \Metis\Core\Recovery\RecoveryVerifier() )->rebuildManifest( 'install_defaults' );
+                if ( class_exists( 'Profiler', false ) ) {
+                    Profiler::mark( 'BOOT_RECOVERY_MANIFEST_DONE' );
+                }
+            } catch ( \Throwable $recovery_manifest_error ) {
+                metis_standalone_boot_log( 'recovery_manifest_build_failed', [
+                    'error' => $recovery_manifest_error->getMessage(),
+                ] );
+            }
+        } elseif ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'BOOT_RECOVERY_SCHEMA_SKIPPED' );
+            Profiler::mark( 'BOOT_RECOVERY_MANIFEST_SKIPPED' );
         }
         metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'install_defaults_complete' ] );
 
         Metis_Logger::info( 'Standalone bootstrap completed' );
         metis_standalone_boot_log( 'boot_complete' );
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'BOOT_COMPLETE' );
+        }
     } catch ( \Throwable $e ) {
         metis_standalone_raw_boot_log(
             'boot_exception',
@@ -1789,6 +1976,9 @@ function metis_standalone_boot(): void {
 }
 
 function metis_standalone_dispatch(): void {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'DISPATCH_START' );
+    }
     $request = metis_router_build_request();
     metis_error_kernel()->captureRequest( $request );
     metis_standalone_boot_log( 'dispatch_start', [
@@ -1801,5 +1991,8 @@ function metis_standalone_dispatch(): void {
         'redirect_url' => (string) ( $_SERVER['REDIRECT_URL'] ?? '' ),
     ] );
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'DISPATCH_ROUTE_REQUEST' );
+    }
     metis_kernel_route_request( 'web', $request );
 }

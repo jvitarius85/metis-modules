@@ -14,7 +14,7 @@ final class FinanceModule {
         self::$booted = true;
         \Metis_Logger::info( 'Finance V2 bootstrap loaded' );
 
-        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
 
         if ( \Metis\Core\Application::has_service( 'job_workers' ) ) {
             \metis_job_workers()->register(
@@ -36,6 +36,20 @@ final class FinanceModule {
     public static function canManage(): bool { return Access::canManage(); }
     public static function baseUrl(): string { return Support::baseUrl(); }
     public static function ensureSchema(): void { SchemaManager::ensureSchema(); }
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'finance_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
+    }
     public static function currentMode(): string { return ModeService::currentMode(); }
     public static function scheduleModeSwitch( string $targetMode, string $effectiveAt, int $requestedBy = 0 ): array {
         return ModeService::scheduleSwitch( $targetMode, $effectiveAt, $requestedBy );

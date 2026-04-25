@@ -34,6 +34,25 @@ function metis_runtime_has_action( string $hook ): bool {
     return ! empty( $GLOBALS['metis_hooks'][ $hook ] );
 }
 
+function metis_runtime_profiler_callback_label( string $hook, mixed $callback ): string {
+    if ( is_array( $callback ) && isset( $callback[0], $callback[1] ) ) {
+        $class = is_object( $callback[0] ) ? $callback[0]::class : (string) $callback[0];
+        $parts = explode( '\\', $class );
+        $label = end( $parts ) . '_' . (string) $callback[1];
+    } elseif ( is_string( $callback ) ) {
+        $parts = explode( '\\', $callback );
+        $label = (string) end( $parts );
+    } elseif ( $callback instanceof Closure ) {
+        $label = 'closure';
+    } else {
+        $label = 'callback';
+    }
+
+    $label = preg_replace( '/[^A-Za-z0-9_]+/', '_', $hook . '_' . $label );
+    $label = is_string( $label ) ? trim( $label, '_' ) : $hook;
+    return substr( 'HOOK_' . $label, 0, 96 );
+}
+
 function metis_runtime_do_action( string $hook, mixed ...$args ): void {
     if ( empty( $GLOBALS['metis_hooks'][ $hook ] ) ) {
         return;
@@ -42,7 +61,19 @@ function metis_runtime_do_action( string $hook, mixed ...$args ): void {
     foreach ( $GLOBALS['metis_hooks'][ $hook ] as $callbacks ) {
         foreach ( $callbacks as $registered ) {
             $accepted = (int) ( $registered['accepted_args'] ?? count( $args ) );
-            call_user_func_array( $registered['function'], array_slice( $args, 0, $accepted ) );
+            $profiler_label = class_exists( 'Profiler', false )
+                ? metis_runtime_profiler_callback_label( $hook, $registered['function'] ?? null )
+                : '';
+            if ( $profiler_label !== '' ) {
+                Profiler::mark( $profiler_label );
+            }
+            try {
+                call_user_func_array( $registered['function'], array_slice( $args, 0, $accepted ) );
+            } finally {
+                if ( $profiler_label !== '' ) {
+                    Profiler::mark( $profiler_label . '_DONE' );
+                }
+            }
         }
     }
 }

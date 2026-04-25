@@ -9,6 +9,7 @@ use Metis\Core\Recovery\GitRecoveryService;
 use Metis\Core\Recovery\RecoveryAuditLogger;
 use Metis\Core\Recovery\RecoveryLockService;
 use Metis\Core\Recovery\RecoveryPlaybookService;
+use Metis\Core\Recovery\RecoveryPolicyService;
 use Metis\Core\Recovery\RecoverySchema;
 use Metis\Core\Recovery\RecoveryVerifier;
 
@@ -29,7 +30,17 @@ final class SelfHealingService {
         $locks = new RecoveryLockService();
         $verifier = new RecoveryVerifier();
         $playbooks = new RecoveryPlaybookService();
+        $policy = new RecoveryPolicyService();
         $scan = $verifier->scan($trigger, false);
+        if (!$policy->runtimeRecoveryEnabled() || !$policy->automaticFileRecoveryEnabled()) {
+            return [
+                'status' => 'disabled',
+                'message' => 'Runtime recovery is disabled.',
+                'scan' => $scan,
+                'mutation_enabled' => false,
+            ];
+        }
+
         $issues = array_values((array) ($scan['issues'] ?? []));
         $firstIssue = is_array($issues[0] ?? null) ? (array) $issues[0] : [];
         $playbook = $playbooks->forIssueType((string) ($firstIssue['type'] ?? 'cache_corruption'));

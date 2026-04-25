@@ -12,6 +12,10 @@ final class BackupRecoveryService {
 
     /** @param array<int,array<string,mixed>> $issues @return array<string,mixed> */
     public function recoverIssues(array $issues, int $eventId = 0, string $trigger = 'manual'): array {
+        if (!$this->policy->automaticFileRecoveryEnabled()) {
+            return ['status' => 'skipped', 'reason' => 'file_recovery_disabled'];
+        }
+
         $files = $this->affectedFiles($issues);
         $backup = $this->backupCurrentFiles($files, $trigger);
         $restored = [];

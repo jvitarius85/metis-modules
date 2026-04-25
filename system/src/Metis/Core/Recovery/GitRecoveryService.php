@@ -13,6 +13,10 @@ final class GitRecoveryService {
 
     /** @param array<int,array<string,mixed>> $issues @return array<string,mixed> */
     public function recoverIssues(array $issues, int $eventId = 0, string $trigger = 'manual'): array {
+        if (!$this->policy->automaticFileRecoveryEnabled()) {
+            return ['status' => 'skipped', 'reason' => 'file_recovery_disabled'];
+        }
+
         if (!$this->policy->allowGitRecovery()) {
             return ['status' => 'skipped', 'reason' => 'git_recovery_disabled'];
         }

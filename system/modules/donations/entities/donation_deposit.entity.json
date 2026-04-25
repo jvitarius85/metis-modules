@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "entity": "donation_deposit",
+  "label": "Deposit",
+  "plural": "deposits",
+  "prefix": "DEP",
+  "table_key": "deposits",
+  "primary_key": "id",
+  "uid_column": "deposit_uid",
+  "module": "donations",
+  "aliases": ["deposit", "deposits", "settlement"],
+
+  "fields": {
+    "id":           { "type": "integer",  "label": "ID",           "filterable": true, "sortable": true  },
+    "deposit_uid":  { "type": "string",   "label": "UID",          "filterable": true, "sortable": false },
+    "batch_id":     { "type": "integer",  "label": "Batch",        "filterable": true, "sortable": false },
+    "total_amount": { "type": "decimal",  "label": "Total",        "filterable": true, "sortable": true, "aggregatable": true },
+    "gross_amount": { "type": "decimal",  "label": "Gross",        "filterable": true, "sortable": true, "aggregatable": true },
+    "fee_amount":   { "type": "decimal",  "label": "Fees",         "filterable": true, "sortable": true, "aggregatable": true },
+    "status":       { "type": "string",   "label": "Status",       "filterable": true, "sortable": true, "groupable": true   },
+    "deposit_date": { "type": "datetime", "label": "Deposit date", "filterable": true, "sortable": true, "date_field": true  },
+    "created_at":   { "type": "datetime", "label": "Created",      "filterable": true, "sortable": true, "date_field": true  }
+  },
+
+  "relationships": {
+    "transactions": { "entity": "donation_transaction", "foreign_key": "deposit_id",  "type": "has_many"   },
+    "batch":        { "entity": "deposit_batch",         "foreign_key": "batch_id",    "type": "belongs_to" }
+  },
+
+  "reporting": {
+    "aggregate_fields":  ["total_amount", "gross_amount", "fee_amount"],
+    "groupable_fields":  ["status"],
+    "filterable_fields": ["status", "deposit_date", "created_at"],
+    "date_fields":       ["deposit_date", "created_at"],
+    "default_sort":      "deposit_date",
+    "default_sort_dir":  "desc"
+  },
+
+  "permissions": { "view": "donations.view", "edit": "donations.edit" }
+}

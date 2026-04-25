@@ -21,7 +21,11 @@ final class HelpModule {
         }
 
         self::$booted = true;
-        \metis_on( 'init', static function (): void {
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSeeded' ], 6 );
+    }
+
+    public static function ensureRuntimeSeeded(): void {
+        $seed = static function (): void {
             try {
                 ( new HelpSearchStore() )->ensureSeeded();
             } catch ( \Throwable $e ) {
@@ -29,7 +33,18 @@ final class HelpModule {
                     \Metis_Logger::warn( 'help.seed_failed', [ 'message' => $e->getMessage() ] );
                 }
             }
-        }, 6 );
+        };
+
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'help_seed',
+                [ __FILE__, dirname( __DIR__, 2 ) . '/Core/HelpSearchStore.php' ],
+                $seed
+            );
+            return;
+        }
+
+        $seed();
     }
 
     public static function handleIndexRoute( Request $request ): Response {

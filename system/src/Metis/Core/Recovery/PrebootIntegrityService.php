@@ -18,6 +18,10 @@ final class PrebootIntegrityService {
     public function checkAndRecover(string $trigger = 'preboot'): array {
         RecoverySchema::ensureSchema();
         $scan = $this->verifier->scan($trigger, true);
+        if (!$this->policy->prebootRecoveryEnabled() || !$this->policy->automaticFileRecoveryEnabled()) {
+            return ['status' => 'disabled', 'scan' => $scan, 'mutation_enabled' => false];
+        }
+
         $critical = array_values(array_filter((array) ($scan['issues'] ?? []), static fn(array $issue): bool => (string) ($issue['severity'] ?? '') === 'critical'));
         if ($critical === []) {
             return ['status' => 'pass', 'scan' => $scan];

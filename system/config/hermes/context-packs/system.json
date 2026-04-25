@@ -1,0 +1,59 @@
+{
+  "type": "context_pack",
+  "key": "system",
+  "version": 1,
+  "module_slug": "hermes",
+  "title": "System Context Pack",
+  "description": "Operational knowledge for runtime health, background execution, system jobs, and environment-level actions.",
+  "source_modules": [
+    "hermes",
+    "settings"
+  ],
+  "objects": [
+    {
+      "key": "system_operation",
+      "name": "System Operation",
+      "description": "A privileged operational workflow initiated through Hermes.",
+      "identifiers": [
+        "operation_key",
+        "job_code"
+      ],
+      "important_fields": [
+        "status",
+        "requested_by",
+        "started_at",
+        "completed_at"
+      ]
+    }
+  ],
+  "permissions": [
+    {
+      "action": "execute",
+      "permission_key": "system.backup.execute",
+      "allowed_roles": [
+        "administrator",
+        "board"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "system.runtime_snapshot",
+      "category": "context",
+      "description": "Load worker, queue, and runtime state for a requested system operation.",
+      "required_permission": "execute"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "runtime_health_check",
+      "purpose": "Confirm core workers, queue health, and system dependencies are available before privileged work runs.",
+      "evidence": [
+        "worker registration",
+        "queue summary",
+        "runtime settings"
+      ],
+      "severity": "high"
+    }
+  ]
+}

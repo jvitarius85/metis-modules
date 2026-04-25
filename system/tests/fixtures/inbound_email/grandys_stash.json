@@ -1,0 +1,25 @@
+{
+  "id": "msg-stash-001",
+  "threadId": "thr-stash-001",
+  "historyId": "3104",
+  "internalDate": "1712109900000",
+  "labelIds": ["INBOX"],
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      { "name": "From", "value": "\"Case Manager\" <case.manager@example.org>" },
+      { "name": "To", "value": "stash@example.org" },
+      { "name": "Subject", "value": "Re: GST-000123 Wheelchair request" },
+      { "name": "Message-ID", "value": "<msg-stash-001@example.org>" },
+      { "name": "Date", "value": "Wed, 3 Apr 2024 10:03:00 -0500" }
+    ],
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "body": {
+          "data": "V2UncmUgZm9sbG93aW5nIHVwIG9uIHRoaXMgcmVxdWVzdC4"
+        }
+      }
+    ]
+  }
+}

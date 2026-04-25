@@ -1,0 +1,7 @@
+{
+    "metis_people_maintenance_last_run": 1777126803,
+    "metis_board_workflow_defaults_v2": "1",
+    "metis_newsletter_editor_rewrite_signature": "e39d72aa4dfaf507df132642beb6e0bc57d37957",
+    "metis_website_editor_rewrite_signature": "620e413dc1ca8daa508268a6c31f09c18ca1f26a",
+    "metis_last_route_signature": "admin|metis-webhooks|/api/ajax"
+}

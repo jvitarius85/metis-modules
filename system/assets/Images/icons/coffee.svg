@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="feather feather-coffee" id="Coffee--Streamline-Feather" height="16" width="16">
+  <desc>
+    Coffee Streamline Icon: https://streamlinehq.com
+  </desc>
+  <path d="M11.25 5h0.625a2.5 2.5 0 0 1 0 5h-0.625" stroke-width="1"></path>
+  <path d="M1.25 5h10v5.625a2.5 2.5 0 0 1 -2.5 2.5H3.75a2.5 2.5 0 0 1 -2.5 -2.5V5z" stroke-width="1"></path>
+  <path d="m3.75 0.625 0 1.875" stroke-width="1"></path>
+  <path d="m6.25 0.625 0 1.875" stroke-width="1"></path>
+  <path d="m8.75 0.625 0 1.875" stroke-width="1"></path>
+</svg>

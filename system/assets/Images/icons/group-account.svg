@@ -1,0 +1,12 @@
+<svg id="Group-Account--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Group Account Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <path d="M8.5 5.5h-3a1.5 1.5 0 0 0 -1.5 1.5v2h1v-2a0.5 0.5 0 0 1 0.5 -0.5h3a0.5 0.5 0 0 1 0.5 0.5v0.5h1v-0.5a1.5 1.5 0 0 0 -1.5 -1.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M5 3a2 2 0 1 0 2 -2 2 2 0 0 0 -2 2Zm3 0a1 1 0 1 1 -1 -1 1 1 0 0 1 1 1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M11 13.5h-3a1.00105 1.00105 0 0 1 -1 -1v-3a1.00105 1.00105 0 0 1 1 -1h3a1.00105 1.00105 0 0 1 1 1v3a1.00105 1.00105 0 0 1 -1 1Zm-3 -4v3h3v-3Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M4 15H2a1.00105 1.00105 0 0 1 -1 -1V2a1.00105 1.00105 0 0 1 1 -1h2v1H2v12h2Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M14 15h-2v-1h2V2h-2V1h2a1.00105 1.00105 0 0 1 1 1v12a1.00105 1.00105 0 0 1 -1 1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

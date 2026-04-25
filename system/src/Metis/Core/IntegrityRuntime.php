@@ -157,6 +157,10 @@ class Metis_Integrity_Manager {
             Metis_Logger::warn( 'Integrity discrepancy detected', $context );
             self::record_security_event( 'integrity_discrepancy', 'critical', 'detected', $context, $issue['path'], $issue['type'] );
 
+            if ( ! self::auto_heal_enabled() ) {
+                continue;
+            }
+
             if ( self::quarantine_enabled() && in_array( $issue['type'], [ 'modified', 'unexpected' ], true ) ) {
                 $quarantine_path = self::quarantine_file( $issue['path'] );
                 if ( $quarantine_path !== null ) {
@@ -165,10 +169,6 @@ class Metis_Integrity_Manager {
                         'quarantine' => $quarantine_path,
                     ];
                 }
-            }
-
-            if ( ! self::auto_heal_enabled() ) {
-                continue;
             }
 
             if ( in_array( $issue['type'], [ 'modified', 'missing' ], true ) ) {
@@ -1068,11 +1068,11 @@ class Metis_Integrity_Manager {
     }
 
     private static function auto_heal_enabled(): bool {
-        return self::get_flag( self::AUTO_HEAL_OPTION, false );
+        return self::recovery_file_mutation_enabled() && self::get_flag( self::AUTO_HEAL_OPTION, false );
     }
 
     private static function quarantine_enabled(): bool {
-        return self::get_flag( self::QUARANTINE_OPTION, false );
+        return self::recovery_file_mutation_enabled() && self::get_flag( self::QUARANTINE_OPTION, false );
     }
 
     private static function get_flag( string $key, bool $default ): bool {
@@ -1139,7 +1139,11 @@ class Metis_Integrity_Manager {
     }
 
     private static function git_restore_enabled(): bool {
-        return self::get_flag( self::GIT_RESTORE_OPTION, true );
+        return self::recovery_file_mutation_enabled() && self::get_flag( self::GIT_RESTORE_OPTION, false );
+    }
+
+    private static function recovery_file_mutation_enabled(): bool {
+        return self::get_flag( 'recovery_file_mutation_enabled', false );
     }
 
     private static function git_binary(): string {

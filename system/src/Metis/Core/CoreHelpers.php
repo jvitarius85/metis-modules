@@ -623,12 +623,28 @@ function metis_current_view_label( string $fallback = '' ): string {
 }
 
 function metis_sidebar_nav( array $modules, string $active_domain ): string {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_BUILD_NAV' );
+    }
+
     if ( ! function_exists( 'metis_navigation_service' ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_BUILD_NAV_DONE' );
+        }
         return '';
     }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_BUILD_NAV_TREE' );
+    }
     $items = metis_navigation_service()->visibleTree();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_BUILD_NAV_TREE_DONE' );
+    }
     if ( empty( $items ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_BUILD_NAV_DONE' );
+        }
         return '';
     }
 
@@ -818,6 +834,9 @@ function metis_sidebar_nav( array $modules, string $active_domain ): string {
         $html .= '</div></div>';
     }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_BUILD_NAV_DONE' );
+    }
     return $html;
 }
 
@@ -826,12 +845,22 @@ function metis_nav_build( array $modules, string $active_domain ): string {
 }
 
 function metis_sidebar_logout_nav( string $active_domain = '' ): string {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_BUILD_NAV_LOGOUT' );
+    }
+
     if ( ! function_exists( 'metis_navigation_service' ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_BUILD_NAV_LOGOUT_DONE' );
+        }
         return '';
     }
 
     $items = metis_navigation_service()->visibleTree();
     if ( empty( $items ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_BUILD_NAV_LOGOUT_DONE' );
+        }
         return '';
     }
 
@@ -844,6 +873,9 @@ function metis_sidebar_logout_nav( string $active_domain = '' ): string {
     }
 
     if ( ! is_array( $logoutItem ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_BUILD_NAV_LOGOUT_DONE' );
+        }
         return '';
     }
 
@@ -862,10 +894,16 @@ function metis_sidebar_logout_nav( string $active_domain = '' ): string {
     $icon_class = str_contains( (string) $icon, '<img' ) ? ' metis-sidebar-icon-image' : '';
     $url = $route !== '' ? metis_escape_url( $route ) : '#';
 
-    return '<a href="' . $url . '" class="metis-sidebar-item metis-sidebar-logout' . $active_cls . '" data-tooltip="' . metis_escape_attr( $label ) . '" aria-label="' . metis_escape_attr( $label ) . '"' . $aria_current . '>'
+    $html = '<a href="' . $url . '" class="metis-sidebar-item metis-sidebar-logout' . $active_cls . '" data-tooltip="' . metis_escape_attr( $label ) . '" aria-label="' . metis_escape_attr( $label ) . '"' . $aria_current . '>'
         . '<span class="metis-sidebar-icon' . $icon_class . '">' . $icon . '</span>'
         . '<span class="metis-sidebar-label">' . metis_escape_html( $label ) . '</span>'
         . '</a>';
+
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_BUILD_NAV_LOGOUT_DONE' );
+    }
+
+    return $html;
 }
 
 function metis_current_module_view_title( string $fallback = '' ): string {

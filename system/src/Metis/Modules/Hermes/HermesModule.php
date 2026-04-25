@@ -55,7 +55,7 @@ final class HermesModule {
         self::$booted = true;
         self::registerServices();
 
-        \metis_on( 'init', [ SchemaManager::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
         \metis_on( 'init', static function (): void {
             Application::service( 'hermes_worker_manager' )->register();
         }, 8 );
@@ -69,6 +69,21 @@ final class HermesModule {
         HermesSecurityIntegration::registerPolicies();
 
         \Metis_Logger::info( 'Hermes bootstrap loaded' );
+    }
+
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'hermes_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        SchemaManager::ensureSchema();
     }
 
     private static function registerServices(): void {

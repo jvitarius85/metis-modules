@@ -15,6 +15,23 @@ final class AccessManager {
             return;
         }
 
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'people_access_seed',
+                self::setupSignatureFiles(),
+                static function (): void {
+                    self::seedPermissionsAndRolesNow();
+                }
+            );
+            self::$seeded = true;
+            return;
+        }
+
+        self::seedPermissionsAndRolesNow();
+        self::$seeded = true;
+    }
+
+    private static function seedPermissionsAndRolesNow(): void {
         SchemaManager::ensureSchema();
         $db = self::db();
 
@@ -504,7 +521,6 @@ final class AccessManager {
             return null;
         }
 
-        SchemaManager::ensureSchema();
         self::seedPermissionsAndRoles();
         $db = self::db();
 
@@ -632,7 +648,6 @@ final class AccessManager {
             return true;
         }
 
-        SchemaManager::ensureSchema();
         self::seedPermissionsAndRoles();
         $db = self::db();
 
@@ -695,6 +710,22 @@ final class AccessManager {
 
     private static function db(): \Metis\Services\DatabaseService {
         return \metis_db();
+    }
+
+    private static function setupSignatureFiles(): array {
+        $files = [
+            __FILE__,
+            __DIR__ . '/SchemaManager.php',
+        ];
+
+        if ( defined( 'METIS_MODULES_PATH' ) ) {
+            $manifests = glob( rtrim( (string) METIS_MODULES_PATH, '/\\' ) . '/*/config/module.php' );
+            if ( is_array( $manifests ) ) {
+                $files = array_merge( $files, $manifests );
+            }
+        }
+
+        return $files;
     }
 
     private static function normalizePermissionKey( string $permission_key ): string {

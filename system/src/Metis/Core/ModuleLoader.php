@@ -1021,6 +1021,10 @@ final class ModuleLoader {
     }
 
     private function log( string $level, string $message, array $context = [] ): void {
+        if ( strtolower( $level ) === 'info' && ! $this->routineDiagnosticsEnabled() ) {
+            return;
+        }
+
         $logger = null;
 
         if ( Application::has_service( 'logger' ) ) {
@@ -1037,11 +1041,24 @@ final class ModuleLoader {
     }
 
     private function moduleLog( string $method, mixed ...$arguments ): void {
+        if ( ! $this->routineDiagnosticsEnabled() ) {
+            return;
+        }
+
         if ( ! class_exists( 'Metis_Logger' ) || ! method_exists( 'Metis_Logger', $method ) ) {
             return;
         }
 
         \Metis_Logger::{$method}( ...$arguments );
+    }
+
+    private function routineDiagnosticsEnabled(): bool {
+        if ( defined( 'APP_DEBUG' ) && (bool) APP_DEBUG ) {
+            return true;
+        }
+
+        $trace = getenv( 'METIS_BOOT_TRACE' );
+        return is_string( $trace ) && $trace === '1';
     }
 
     private function recordBootFailure( string $module, string $reason, array $context = [] ): void {

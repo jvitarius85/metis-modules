@@ -26,7 +26,20 @@ final class RecoveryPolicyService {
     }
 
     public function allowGitRecovery(): bool {
-        return (bool) $this->get('allow_git_recovery', false);
+        return $this->automaticFileRecoveryEnabled() && (bool) $this->get('allow_git_recovery', false);
+    }
+
+    public function prebootRecoveryEnabled(): bool {
+        return $this->settingEnabled('recovery_preboot_enabled', false);
+    }
+
+    public function runtimeRecoveryEnabled(): bool {
+        return $this->settingEnabled('recovery_runtime_enabled', false);
+    }
+
+    public function automaticFileRecoveryEnabled(): bool {
+        return $this->settingEnabled('recovery_file_mutation_enabled', false)
+            && (bool) $this->get('automatic_file_recovery_enabled', false);
     }
 
     public function allowLatestFallback(): bool {
@@ -78,6 +91,7 @@ final class RecoveryPolicyService {
 
         return [
             'allow_git_recovery' => false,
+            'automatic_file_recovery_enabled' => false,
             'allowed_fallback_branch' => 'stable',
             'allow_latest_fallback' => false,
             'max_recovery_attempts' => 2,
@@ -88,6 +102,24 @@ final class RecoveryPolicyService {
             'critical_files' => [],
             'preserve_paths' => [],
         ];
+    }
+
+    private function settingEnabled(string $key, bool $default): bool {
+        try {
+            if (\class_exists('Core_Settings_Service') && \Core_Settings_Service::has($key)) {
+                return (bool) \Core_Settings_Service::get($key, $default);
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            if (\function_exists('metis_get_option') && \defined('METIS_PREFIX')) {
+                return (bool) \metis_get_option(\METIS_PREFIX . '_' . $key, $default);
+            }
+        } catch (\Throwable) {
+        }
+
+        return $default;
     }
 
     private function configPath(): string {

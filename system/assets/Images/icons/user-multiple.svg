@@ -1,0 +1,12 @@
+<svg id="User-Multiple--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    User Multiple Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>user--multiple</title>
+  <path d="M15 15h-1v-2.5a2.50285 2.50285 0 0 0 -2.5 -2.5v-1a3.5039 3.5039 0 0 1 3.5 3.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M11 15h-1v-2.5a2.50295 2.50295 0 0 0 -2.5 -2.5H4.5a2.50295 2.50295 0 0 0 -2.5 2.5v2.5H1v-2.5a3.5041 3.5041 0 0 1 3.5 -3.5h3a3.5041 3.5041 0 0 1 3.5 3.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M10 1v1a2.5 2.5 0 0 1 0 5v1a3.5 3.5 0 0 0 0 -7Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M6 2a2.5 2.5 0 1 1 -2.5 2.5 2.5 2.5 0 0 1 2.5 -2.5m0 -1a3.5 3.5 0 1 0 3.5 3.5 3.5 3.5 0 0 0 -3.5 -3.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

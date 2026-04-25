@@ -15,7 +15,6 @@ final class GrandyStashModule {
         }
 
         self::$booted = true;
-        \metis_on( 'init', [ self::class, 'ensureReady' ], 6 );
         \metis_on( 'init', [ self::class, 'registerCronTasks' ], 8 );
     }
 

@@ -29,6 +29,7 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
         private string $walkthroughs_path;
         private string $root_url;
         private ?\Metis\Core\HelpSearchStore $search_store = null;
+        private bool $search_schema_checked = false;
 
         /** @var array<string, mixed>|null */
         private ?array $cached_index = null;
@@ -63,11 +64,11 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
         }
 
         public function bootstrap_payload( string $domain = '', string $view = '' ): array {
-            $this->ensureSearchSchema();
             $current_topic = $this->current_topic_id( $domain, $view );
+            $walkthrough_enabled = $this->walkthrough_enabled();
             $payload = [
                 'enabled' => $this->enabled(),
-                'walkthrough_enabled' => $this->walkthrough_enabled(),
+                'walkthrough_enabled' => $walkthrough_enabled,
                 'current_topic' => $current_topic,
                 'current_domain' => metis_help_plain_key( $domain ),
                 'current_view' => metis_help_plain_key( $view ),
@@ -75,7 +76,7 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
                 'docs_base_path' => $this->docs_path,
             ];
 
-            if ( $this->walkthrough_enabled() && function_exists( 'metis_service' ) ) {
+            if ( $walkthrough_enabled && function_exists( 'metis_service' ) ) {
                 $walkthrough = metis_service( 'walkthroughs' );
                 if ( $walkthrough instanceof Metis_Walkthrough_Service ) {
                     $payload['autostart'] = $walkthrough->autostart_candidate( $domain, $view );
@@ -589,7 +590,24 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
         }
 
         private function ensureSearchSchema(): void {
+            if ( $this->search_schema_checked ) {
+                return;
+            }
+
+            if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+                \metis_runtime_run_once_per_signature(
+                    'help_search_schema',
+                    [ __FILE__, __DIR__ . '/HelpSearchStore.php' ],
+                    function (): void {
+                        $this->searchStore()->ensureSchema();
+                    }
+                );
+                $this->search_schema_checked = true;
+                return;
+            }
+
             $this->searchStore()->ensureSchema();
+            $this->search_schema_checked = true;
         }
 
         private function searchStore(): \Metis\Core\HelpSearchStore {

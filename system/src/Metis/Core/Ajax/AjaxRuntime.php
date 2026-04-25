@@ -249,6 +249,11 @@ function metis_ajax_request_action( Metis_Http_Request $request ): string {
 }
 
 function metis_ajax_action_nonces(): array {
+    static $nonces = null;
+    if ( is_array( $nonces ) ) {
+        return $nonces;
+    }
+
     $nonces = [];
     foreach ( metis_ajax_registry()->all() as $action => $controller ) {
         $nonces[ $action ] = metis_runtime_create_nonce( (string) ( $controller['nonce_action'] ?? metis_ajax_nonce_action( $action ) ) );

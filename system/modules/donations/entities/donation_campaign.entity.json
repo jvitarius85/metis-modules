@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "entity": "donation_campaign",
+  "label": "Campaign",
+  "plural": "campaigns",
+  "prefix": "DCP",
+  "table_key": "campaigns",
+  "primary_key": "id",
+  "uid_column": "campaign_uid",
+  "module": "donations",
+  "aliases": ["campaign", "campaigns", "fundraiser", "appeal"],
+
+  "fields": {
+    "id":           { "type": "integer",  "label": "ID",          "filterable": true, "sortable": true  },
+    "campaign_uid": { "type": "string",   "label": "UID",         "filterable": true, "sortable": false },
+    "name":         { "type": "string",   "label": "Name",        "filterable": true, "sortable": true  },
+    "slug":         { "type": "string",   "label": "Slug",        "filterable": true, "sortable": true  },
+    "status":       { "type": "string",   "label": "Status",      "filterable": true, "sortable": true, "groupable": true },
+    "goal_amount":  { "type": "decimal",  "label": "Goal",        "filterable": true, "sortable": true, "aggregatable": true },
+    "raised_total": { "type": "decimal",  "label": "Raised",      "filterable": true, "sortable": true, "aggregatable": true },
+    "start_date":   { "type": "datetime", "label": "Start date",  "filterable": true, "sortable": true, "date_field": true  },
+    "end_date":     { "type": "datetime", "label": "End date",    "filterable": true, "sortable": true, "date_field": true  },
+    "created_at":   { "type": "datetime", "label": "Created",     "filterable": true, "sortable": true, "date_field": true  }
+  },
+
+  "relationships": {
+    "transactions": { "entity": "donation_transaction", "foreign_key": "campaign_id", "type": "has_many" }
+  },
+
+  "reporting": {
+    "aggregate_fields":  ["goal_amount", "raised_total"],
+    "groupable_fields":  ["status"],
+    "filterable_fields": ["status", "start_date", "end_date", "created_at"],
+    "date_fields":       ["start_date", "end_date", "created_at"],
+    "default_sort":      "start_date",
+    "default_sort_dir":  "desc"
+  },
+
+  "permissions": { "view": "donations.view", "edit": "donations.edit" }
+}

@@ -218,12 +218,18 @@ function metis_build_http_router(): Metis_Http_Router {
         }
     );
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_LOAD_MODULE_MANIFESTS' );
+    }
     $router->group(
         [ 'route.security' ],
         static function ( Metis_Http_Router $router ): void {
             metis_register_manifest_module_routes( $router );
         }
     );
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_LOAD_MODULE_MANIFESTS_DONE' );
+    }
 
     $router->group(
         [ 'portal.stack' ],
@@ -330,7 +336,15 @@ function metis_register_manifest_module_routes( Metis_Http_Router $router ): voi
         return;
     }
 
-    foreach ( $service->routes() as $route ) {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_MODULE_ROUTES' );
+    }
+    $manifest_routes = $service->routes();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_MODULE_ROUTES_DONE' );
+    }
+
+    foreach ( $manifest_routes as $route ) {
         $name = (string) ( $route['name'] ?? '' );
         $pattern = (string) ( $route['pattern'] ?? '' );
         $handler = $route['handler'] ?? null;
@@ -914,6 +928,11 @@ function metis_router_handle_svg_icon_request( Metis_Http_Request $request ): Me
 }
 
 function metis_router_build_request( array $attributes = [] ): Metis_Http_Request {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_START' );
+        Profiler::mark( 'ROUTER_PARSE_REQUEST' );
+    }
+
     $headers = [];
     foreach ( $_SERVER as $key => $value ) {
         if ( ! is_string( $key ) ) {
@@ -969,7 +988,7 @@ function metis_router_build_request( array $attributes = [] ): Metis_Http_Reques
         }
     }
 
-    return new Metis_Http_Request(
+    $request = new Metis_Http_Request(
         strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ),
         (string) ( $_SERVER['REQUEST_URI'] ?? '/' ),
         metis_request_path_relative_to_site(),
@@ -982,9 +1001,19 @@ function metis_router_build_request( array $attributes = [] ): Metis_Http_Reques
         $raw_body,
         $attributes
     );
+
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_PARSE_REQUEST_DONE' );
+    }
+
+    return $request;
 }
 
 function metis_router_emit_response( Metis_Http_Response $response ): void {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_RESOLVED' );
+    }
+
     if ( function_exists( 'metis_send_status' ) ) {
         metis_send_status( $response->status() );
     } else {
@@ -1015,7 +1044,13 @@ function metis_router_emit_response( Metis_Http_Response $response ): void {
         header( $name . ': ' . $value, true );
     }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'RENDER_START' );
+    }
     echo $response->body();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'RENDER_COMPLETE' );
+    }
 }
 
 function metis_router_handle_system_version_request( Metis_Http_Request $request ): Metis_Http_Response {
@@ -1389,17 +1424,32 @@ function metis_router_public_security_message( Metis_Security_Enclave_Exception 
 }
 
 function metis_router_require_route_security( Metis_Http_Request $request, callable $next ): Metis_Http_Response {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_PERMISSION_CHECK' );
+    }
     $policy = metis_router_route_policy( $request );
     if ( ! $policy instanceof Metis_Security_Policy ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_PERMISSION_CHECK_DONE' );
+        }
         return $next( $request );
+    }
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_PERMISSION_CHECK_DONE' );
     }
 
     if ( function_exists( 'metis_security_register_route_policies' ) ) {
         metis_security_register_route_policies();
     }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_ENCLAVE_CHECK' );
+    }
     $enclave = metis_security_enclave();
     if ( ! $enclave->has_policy( $policy->operation ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
+        }
         return metis_router_route_security_failure_response(
             $request,
             new Metis_Security_Enclave_Exception(
@@ -1420,7 +1470,13 @@ function metis_router_require_route_security( Metis_Http_Request $request, calla
             }
         );
     } catch ( Metis_Security_Enclave_Exception $e ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
+        }
         return metis_router_route_security_failure_response( $request, $e );
+    }
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
     }
 
     return $next(
@@ -1796,13 +1852,22 @@ function metis_router_require_portal_permissions( Metis_Http_Request $request, c
     $view   = metis_key_clean( (string) $request->attribute( 'view', '' ) );
 
     try {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_PERMISSION_CHECK' );
+        }
         metis_security_authorize_view( $domain, $view );
     } catch ( Metis_Security_Enclave_Exception $e ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_PERMISSION_CHECK_DONE' );
+        }
         $message = metis_router_public_security_message( $e );
         return Metis_Http_Response::html(
             '<div class="metis-error">' . metis_esc_html( $message ) . '</div>',
             $e->status()
         );
+    }
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_PERMISSION_CHECK_DONE' );
     }
 
     return $next( $request );
@@ -1885,7 +1950,13 @@ function metis_router_require_ajax_security( Metis_Http_Request $request, callab
         metis_security_register_ajax_policies();
     }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_ENCLAVE_CHECK' );
+    }
     if ( ! $enclave->has_policy( $operation ) ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
+        }
         return Metis_Http_Response::json(
             [
                 'status' => 'error',
@@ -1910,6 +1981,9 @@ function metis_router_require_ajax_security( Metis_Http_Request $request, callab
             }
         );
     } catch ( Metis_Security_Enclave_Exception $e ) {
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
+        }
         $message = metis_router_public_security_message( $e );
         return Metis_Http_Response::json(
             [
@@ -1921,6 +1995,9 @@ function metis_router_require_ajax_security( Metis_Http_Request $request, callab
             ],
             $e->status()
         );
+    }
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
     }
 
     metis_audit_log_activity( 'ajax_action_authorized', [
@@ -1960,6 +2037,10 @@ function metis_router_handle_batch_request( Metis_Http_Request $request ): Metis
     return $response;
 }
 function metis_router_handle_portal_request( Metis_Http_Request $request ): Metis_Http_Response {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_PORTAL_HANDLER' );
+    }
+
     $domain = metis_key_clean( (string) $request->attribute( 'domain', 'portal' ) );
     $view   = metis_key_clean( (string) $request->attribute( 'view', 'dashboard' ) );
 
@@ -1989,18 +2070,28 @@ function metis_router_handle_portal_request( Metis_Http_Request $request ): Meti
     }
 
     ob_start();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_SHELL_INCLUDE' );
+    }
     if ( function_exists( 'metis_security_trusted_include' ) ) {
         metis_security_trusted_include( $shell );
     } else {
         require_once $shell;
     }
     $body = (string) ob_get_clean();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_SHELL_INCLUDE_DONE' );
+    }
 
     Metis_Logger::info( 'Router dispatched portal request', [
         'route'  => 'portal.page',
         'domain' => $domain,
         'view'   => $view,
     ] );
+
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_PORTAL_HANDLER_DONE' );
+    }
 
     return Metis_Http_Response::html( $body, 200, [ 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0' ] );
 }

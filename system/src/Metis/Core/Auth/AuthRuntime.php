@@ -1602,24 +1602,32 @@ function metis_auth_api_error_response(
         'request_id' => $request_id,
     ] );
 
-    metis_audit_log_security( 'auth_action_failed', [
-        'module'   => 'core',
-        'severity' => $status >= 500 ? 'error' : 'warning',
-        'outcome'  => 'failed',
-        'resource' => [
-            'type'  => 'auth_action',
-            'id'    => $action_key,
-            'label' => $code_key,
-        ],
-        'context'  => [
-            'route'         => 'auth.api',
-            'endpoint'      => $endpoint,
-            'status_code'   => $status,
-            'error_code'    => $code_key,
-            'error_message' => $message,
-            'request_id'    => $request_id,
-        ],
-    ] );
+    try {
+        metis_audit_log_security( 'auth_action_failed', [
+            'module'   => 'core',
+            'severity' => $status >= 500 ? 'error' : 'warning',
+            'outcome'  => 'failed',
+            'resource' => [
+                'type'  => 'auth_action',
+                'id'    => $action_key,
+                'label' => $code_key,
+            ],
+            'context'  => [
+                'route'         => 'auth.api',
+                'endpoint'      => $endpoint,
+                'status_code'   => $status,
+                'error_code'    => $code_key,
+                'error_message' => $message,
+                'request_id'    => $request_id,
+            ],
+        ] );
+    } catch ( Throwable $audit_error ) {
+        metis_auth_log( 'api_error_audit_failed', [
+            'exception' => get_class( $audit_error ),
+            'message' => $audit_error->getMessage(),
+            'request_id' => $request_id,
+        ] );
+    }
 
     return Metis_Http_Response::json(
         [
@@ -1649,17 +1657,56 @@ function metis_auth_ui_error_message( Throwable $exception, string $context = 'l
 }
 
 function metis_router_handle_auth_resolve_request( Metis_Http_Request $request ): Metis_Http_Response {
+    $identifier = '';
+    $redirect = metis_portal_url();
+
     try {
-        metis_auth_rate_limit_check( 'auth_resolve', 20, 300 );
+        try {
+            metis_auth_rate_limit_check( 'auth_resolve', 20, 300 );
+        } catch ( Throwable $rate_limit_error ) {
+            if ( str_contains( $rate_limit_error->getMessage(), 'Too many sign-in attempts' ) ) {
+                return metis_auth_api_error_response( 'resolve_rate_limited', 'auth_resolve_rate_limited', $rate_limit_error->getMessage(), $rate_limit_error, 429, $request, 'auth_resolve' );
+            }
+
+            metis_auth_log( 'resolve_rate_limit_unavailable', [
+                'exception' => get_class( $rate_limit_error ),
+                'message' => $rate_limit_error->getMessage(),
+            ] );
+        }
+
         metis_register_core_services();
         $input = $request->input();
         $identifier = trim( (string) ( $input['identifier'] ?? '' ) );
         $redirect = metis_auth_normalize_redirect( (string) ( $input['redirect_to'] ?? '' ), metis_portal_url() );
+        if ( $identifier === '' ) {
+            throw new InvalidArgumentException( 'Email is required.' );
+        }
 
         $result = \Metis\Core\Application::service( 'auth_core' )->resolve( $identifier, $redirect );
 
         return Metis_Http_Response::json( [ 'success' => true, 'data' => $result ], 200 );
     } catch ( Throwable $e ) {
+        if ( $identifier !== '' ) {
+            metis_auth_log( 'resolve_degraded_to_password', [
+                'exception' => get_class( $e ),
+                'message' => $e->getMessage(),
+            ] );
+
+            return Metis_Http_Response::json(
+                [
+                    'success' => true,
+                    'data' => [
+                        'method' => 'password',
+                        'identifier' => $identifier,
+                        'password_fallback' => true,
+                        'methods' => [ 'password' ],
+                        'resolve_degraded' => true,
+                    ],
+                ],
+                200
+            );
+        }
+
         return metis_auth_api_error_response( 'resolve_failed', 'auth_resolve_failed', 'Unable to start sign-in.', $e, 400, $request, 'auth_resolve' );
     }
 }

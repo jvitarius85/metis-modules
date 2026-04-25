@@ -1,0 +1,15 @@
+.metis-template-centered_stack_marketing .metis-template-menu {
+  display: flex;
+  justify-content: center;
+}
+
+.metis-template-centered_stack_marketing .metis-template-menu .metis-shell-menu-list {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

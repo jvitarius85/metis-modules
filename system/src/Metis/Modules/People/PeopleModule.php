@@ -42,11 +42,11 @@ final class PeopleModule {
     }
 
     public static function handleInit(): void {
-        SchemaManager::ensureSchema();
-        AccessManager::seedPermissionsAndRoles();
+        self::ensureRuntimeSchema();
+        self::ensureRuntimeAccess();
         MaintenanceManager::runMaintenance();
 
-        if ( \metis_user_logged_in() && function_exists( 'metis_is_portal_request' ) && \metis_is_portal_request() ) {
+        if ( self::shouldWarmCurrentPerson() ) {
             AccessManager::getOrCreateCurrentPerson();
         }
     }
@@ -147,6 +147,43 @@ final class PeopleModule {
                 'email'       => (string) $event->payload( 'email', '' ),
             ]
         );
+    }
+
+    private static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'people_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        SchemaManager::ensureSchema();
+    }
+
+    private static function ensureRuntimeAccess(): void {
+        AccessManager::seedPermissionsAndRoles();
+    }
+
+    private static function shouldWarmCurrentPerson(): bool {
+        if ( ! \metis_user_logged_in() ) {
+            return false;
+        }
+
+        if (
+            function_exists( 'metis_request_path_relative_to_site' )
+            && function_exists( 'metis_parse_portal_path' )
+            && function_exists( 'metis_is_portal_request' )
+            && \metis_is_portal_request()
+        ) {
+            $parsed = \metis_parse_portal_path( \metis_request_path_relative_to_site() );
+            return (string) ( $parsed['domain'] ?? '' ) === 'people';
+        }
+
+        return false;
     }
 
     private static function registerEventSubscribers(): void {

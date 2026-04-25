@@ -1,0 +1,127 @@
+.metis-template.metis-template-compact_app_style {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.metis-template-compact_app_style .metis-template-header {
+  width: 100%;
+  display: block;
+  padding: 0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 1100;
+  background: var(--metis-color-surface, #fff);
+  backdrop-filter: blur(8px);
+  transition: box-shadow 180ms ease, background-color 180ms ease;
+  border-bottom: 0;
+}
+
+.metis-template-compact_app_style .metis-template-header-inner {
+  max-width: 1220px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 24px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 0;
+  transition: padding 180ms ease;
+}
+
+.metis-template-compact_app_style .metis-template-brand-logo {
+  display: block;
+  max-height: 82px;
+  max-width: 230px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transition: max-height 180ms ease, max-width 180ms ease;
+}
+
+.metis-template-compact_app_style .metis-template-main {
+  padding: 148px 18px 8px;
+}
+
+.metis-template-compact_app_style .metis-template-main-inner {
+  display: block;
+}
+
+.metis-template-compact_app_style .metis-template-region-content {
+  max-width: 1260px;
+  margin: 0 auto;
+}
+
+.metis-template-compact_app_style .metis-template-view-homepage .metis-template-region-hero {
+  max-width: 1260px;
+  margin: 0 auto 16px;
+}
+
+.metis-template-compact_app_style .metis-template-view-post .metis-template-region-content {
+  max-width: 780px;
+}
+
+.metis-template-compact_app_style .metis-template-main.has-sidebar .metis-template-main-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 28px;
+}
+
+.metis-template-compact_app_style .metis-template-main[data-sidebar-position="left"].has-sidebar .metis-template-main-inner {
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+}
+
+.metis-template-compact_app_style .metis-template-footer {
+  margin-top: auto;
+  padding: 18px 0 0;
+  border-top: 0;
+}
+
+.metis-template-compact_app_style .metis-template-footer-inner-wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 18px;
+}
+
+body.metis-template-scroll-condensed .metis-template-compact_app_style .metis-template-header {
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+body.metis-template-scroll-condensed .metis-template-compact_app_style .metis-template-header-inner {
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+
+body.metis-template-scroll-condensed .metis-template-compact_app_style .metis-template-brand-logo {
+  max-height: 62px;
+  max-width: 198px;
+}
+
+@media (max-width: 980px) {
+  .metis-template-compact_app_style {
+    padding: 0;
+  }
+
+  .metis-template-compact_app_style .metis-template-header-inner {
+    padding: 12px 14px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .metis-template-compact_app_style .metis-template-main {
+    padding: 136px 14px 8px;
+  }
+
+  .metis-template-compact_app_style .metis-template-footer-inner-wrap {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .metis-template-compact_app_style .metis-template-main.has-sidebar .metis-template-main-inner {
+    display: block;
+  }
+}

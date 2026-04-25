@@ -1,0 +1,11 @@
+<svg id="Align-Horizontal-Right--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" height="16" width="16">
+  <desc>
+    Align Horizontal Right Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>align--horizontal-right</title>
+  <path d="M4 24v-4a2.0023 2.0023 0 0 1 2-2h15a2.0023 2.0023 0 0 1 2 2v4a2.0023 2.0023 0 0 1-2 2H6a2.0023 2.0023 0 0 1-2-2Zm2 0h15v-4l-15-.0012Z" fill="currentColor"></path>
+  <path d="M12 12V8a2.0023 2.0023 0 0 1 2-2h7a2.0023 2.0023 0 0 1 2 2v4a2.0023 2.0023 0 0 1-2 2h-7a2.0023 2.0023 0 0 1-2-2Zm2 0h7V8l-7-.0012Z" fill="currentColor"></path>
+  <path transform="rotate(-180 27 16)" d="M26 2h2v28h-2Z" fill="currentColor"></path>
+  <path id="_Transparent_Rectangle_" transform="rotate(-180 16 16)" d="M0 0h32v32H0Z" fill="none"></path>
+</svg>

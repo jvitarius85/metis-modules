@@ -8,6 +8,11 @@ if (!defined('METIS_ROOT')) exit;
  */
 
 metis_on('metis_assets_enqueue', function () {
+    $asset_mark = static function ( string $label ): void {
+        if ( class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( $label );
+        }
+    };
     $asset_version = defined( 'METIS_VERSION' ) ? (string) METIS_VERSION : '1.0.0';
     $asset_base_url = defined( 'METIS_URL' ) ? (string) METIS_URL : metis_trailingslashit( metis_home_url( '/' ) );
     $domain = metis_key_clean( (string) metis_get_query_var( 'metis_domain' ) );
@@ -26,7 +31,10 @@ metis_on('metis_assets_enqueue', function () {
         return;
     }
 
+    $asset_mark( 'ASSETS_START' );
+
     // Core CSS/JS (NOTE: no /css/ subfolder)
+    $asset_mark( 'ASSETS_REGISTER_CORE' );
     metis_runtime_register_style_alias(
         'metis-runtime-theme',
         metis_runtime_asset_url(
@@ -134,7 +142,9 @@ metis_on('metis_assets_enqueue', function () {
         $asset_version,
         true
     );
+    $asset_mark( 'ASSETS_REGISTER_CORE_DONE' );
 
+    $asset_mark( 'ASSETS_ENQUEUE_CORE' );
     metis_runtime_enqueue_script( 'jquery' );
     metis_runtime_enqueue_style('metis-core');
     metis_runtime_enqueue_style( 'metis-runtime-theme' );
@@ -144,7 +154,9 @@ metis_on('metis_assets_enqueue', function () {
         metis_runtime_enqueue_style( 'metis-kpi-cards' );
         metis_runtime_enqueue_script( 'metis-kpi-cards' );
     }
+    $asset_mark( 'ASSETS_ENQUEUE_CORE_DONE' );
 
+    $asset_mark( 'ASSETS_THEME_VARS' );
     if ( class_exists( 'Core_Settings_Service' ) ) {
         $theme_defaults = [
             'metis_primary' => [ 'css_var' => '--metis-primary', 'default' => '#485bc7' ],
@@ -183,6 +195,7 @@ metis_on('metis_assets_enqueue', function () {
 }" );
         }
     }
+    $asset_mark( 'ASSETS_THEME_VARS_DONE' );
 
     // Core AJAX vars — available to all modules including the global code search.
     // Modules may overwrite metisAjax with their own nonce via localized inline config;
@@ -197,6 +210,7 @@ metis_on('metis_assets_enqueue', function () {
         'login_url' => function_exists( 'metis_auth_login_url' ) ? (string) metis_auth_login_url() : metis_home_url( '/login' ),
     ];
 
+    $asset_mark( 'ASSETS_CORE_LOCALIZE' );
     metis_runtime_localize_script( 'metis-core', 'metisAjax', [
         'ajax_url'      => metis_ajax_endpoint_url(),
         'nonce'         => metis_runtime_create_nonce( 'metis_core' ),
@@ -205,13 +219,17 @@ metis_on('metis_assets_enqueue', function () {
         'module_boot_failures' => function_exists( 'metis_module_boot_failures' ) ? metis_module_boot_failures() : [],
         'session' => $session_data,
     ] );
+    $asset_mark( 'ASSETS_CORE_LOCALIZE_DONE' );
 
+    $asset_mark( 'ASSETS_QUICK_ACTIONS' );
     if ( function_exists( 'metis_quick_actions_service' ) ) {
         metis_runtime_localize_script( 'metis-core', 'metisQuickActions', [
             'actions' => metis_quick_actions_service()->available(),
         ] );
     }
+    $asset_mark( 'ASSETS_QUICK_ACTIONS_DONE' );
 
+    $asset_mark( 'ASSETS_HELP_PAYLOAD' );
         $help_payload = [
         'enabled' => true,
         'walkthrough_enabled' => true,
@@ -233,7 +251,9 @@ metis_on('metis_assets_enqueue', function () {
             'metis_walkthrough_progress' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_walkthrough_progress' ) ),
         ],
     ];
+    $asset_mark( 'ASSETS_HELP_PAYLOAD_DONE' );
 
+    $asset_mark( 'ASSETS_HELP_SERVICE' );
     if ( function_exists( 'metis_help_service' ) ) {
         $help_service = metis_help_service();
         if ( $help_service instanceof Metis_Help_Service ) {
@@ -248,7 +268,9 @@ metis_on('metis_assets_enqueue', function () {
             );
         }
     }
+    $asset_mark( 'ASSETS_HELP_SERVICE_DONE' );
 
+    $asset_mark( 'ASSETS_HELP_ENQUEUE' );
     if ( $help_enabled ) {
         metis_runtime_enqueue_style( 'metis-help-css' );
         metis_runtime_enqueue_script( 'metis-help-panel' );
@@ -263,7 +285,9 @@ metis_on('metis_assets_enqueue', function () {
         }
         metis_runtime_localize_script( 'metis-help-ui', 'metisHelp', $help_payload );
     }
+    $asset_mark( 'ASSETS_HELP_ENQUEUE_DONE' );
 
+    $asset_mark( 'ASSETS_HERMES' );
     if ( function_exists( 'metis_get_module' ) && is_array( metis_get_module( 'hermes' ) ) && function_exists( 'metis_hermes_can_view' ) && metis_hermes_can_view() ) {
         $hermes_style_handle  = 'metis-hermes-global';
         $hermes_script_handle = 'metis-hermes-global';
@@ -306,7 +330,9 @@ metis_on('metis_assets_enqueue', function () {
             'user_avatar_url' => $user_avatar_url,
         ] );
     }
+    $asset_mark( 'ASSETS_HERMES_DONE' );
 
+    $asset_mark( 'ASSETS_ACCESSIBILITY' );
     if ( function_exists( 'metis_accessibility_settings' ) ) {
         $accessibility = metis_accessibility_settings();
         $profile_payload = [];
@@ -326,9 +352,11 @@ metis_on('metis_assets_enqueue', function () {
             'profiles' => $profile_payload,
         ] );
     }
+    $asset_mark( 'ASSETS_ACCESSIBILITY_DONE' );
 
     if (!$domain || !$view) {
         // template_redirect sets these; if missing, still allow core assets
+        $asset_mark( 'ASSETS_DONE' );
         return;
     }
 
@@ -358,13 +386,23 @@ metis_on('metis_assets_enqueue', function () {
             'media_library_url' => function_exists( 'metis_portal_url' ) ? metis_portal_url( 'media', 'library' ) : '',
         ] );
 
+        $asset_mark( 'ASSETS_DONE' );
         return;
     }
 
-    if (!function_exists('metis_get_modules')) return;
+    $asset_mark( 'ASSETS_MODULE_ASSETS' );
+    if (!function_exists('metis_get_modules')) {
+        $asset_mark( 'ASSETS_MODULE_ASSETS_DONE' );
+        $asset_mark( 'ASSETS_DONE' );
+        return;
+    }
 
     $modules = metis_get_modules();
-    if (empty($modules[$domain])) return;
+    if (empty($modules[$domain])) {
+        $asset_mark( 'ASSETS_MODULE_ASSETS_DONE' );
+        $asset_mark( 'ASSETS_DONE' );
+        return;
+    }
 
     $module = $modules[$domain];
     $cfg    = $module['config'] ?? [];
@@ -420,5 +458,7 @@ metis_on('metis_assets_enqueue', function () {
             }
         }
     }
+    $asset_mark( 'ASSETS_MODULE_ASSETS_DONE' );
+    $asset_mark( 'ASSETS_DONE' );
 
 });

@@ -12,7 +12,15 @@ final class SsoService {
     ) {}
 
     public function isEligibleAccount(?array $person, ?array $user): bool {
-        if (!$this->googleWorkspace->isConfigured()) {
+        try {
+            if (!$this->googleWorkspace->isConfigured()) {
+                return false;
+            }
+        } catch (\Throwable $e) {
+            $this->logger->warn('auth_google_workspace_config_unavailable', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
             return false;
         }
 
@@ -21,7 +29,16 @@ final class SsoService {
             return false;
         }
 
-        $hostedDomain = $this->googleWorkspace->hostedDomain();
+        try {
+            $hostedDomain = $this->googleWorkspace->hostedDomain();
+        } catch (\Throwable $e) {
+            $this->logger->warn('auth_google_workspace_domain_unavailable', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+            return false;
+        }
+
         if ($hostedDomain === '') {
             return true;
         }

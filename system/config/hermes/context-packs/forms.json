@@ -1,0 +1,192 @@
+{
+  "type": "context_pack",
+  "key": "forms",
+  "version": 1,
+  "module_slug": "forms",
+  "title": "Forms Context Pack",
+  "description": "Structured knowledge for form definitions, versions, submissions, publication endpoints, and downstream mappings.",
+  "source_modules": [
+    "forms",
+    "contacts",
+    "donations",
+    "grandys_stash"
+  ],
+  "objects": [
+    {
+      "key": "form",
+      "name": "Form",
+      "description": "Published or draft form definition with workflow purpose and endpoint configuration.",
+      "identifiers": [
+        "form_id",
+        "slug"
+      ],
+      "important_fields": [
+        "status",
+        "public_slug",
+        "submission_target",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "form_version",
+      "name": "Form Version",
+      "description": "Immutable configuration snapshot used to publish a concrete form revision.",
+      "identifiers": [
+        "version_id",
+        "form_id"
+      ],
+      "important_fields": [
+        "schema_hash",
+        "published_at",
+        "created_by"
+      ]
+    },
+    {
+      "key": "submission",
+      "name": "Submission",
+      "description": "Inbound form payload and routing result.",
+      "identifiers": [
+        "submission_id",
+        "form_id"
+      ],
+      "important_fields": [
+        "received_at",
+        "status",
+        "contact_cid",
+        "campaign_id"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from": "form",
+      "to": "form_version",
+      "type": "has_many",
+      "description": "Each form can accumulate multiple saved or published revisions."
+    },
+    {
+      "from": "form",
+      "to": "submission",
+      "type": "has_many",
+      "description": "Submissions are generated from a published form endpoint."
+    }
+  ],
+  "permissions": [
+    {
+      "action": "view",
+      "permission_key": "forms.view",
+      "allowed_roles": [
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "edit",
+      "permission_key": "forms.edit",
+      "allowed_roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "create",
+      "permission_key": "forms.create",
+      "allowed_roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    {
+      "action": "delete",
+      "permission_key": "forms.delete",
+      "allowed_roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    }
+  ],
+  "available_actions": [
+    {
+      "key": "forms.definition_snapshot",
+      "category": "context",
+      "description": "Load form structure, public route, versions, and downstream routing intent.",
+      "required_permission": "view"
+    },
+    {
+      "key": "forms.publication_diagnostic",
+      "category": "diagnostic",
+      "description": "Check whether a published endpoint, dynamic options, and submission routing are healthy.",
+      "required_permission": "view"
+    },
+    {
+      "key": "forms.publish_proposal",
+      "category": "action_proposal",
+      "description": "Prepare a publish, duplicate, or submission export operation for approval.",
+      "required_permission": "create"
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "submission_mapping_integrity",
+      "purpose": "Catch forms whose submissions do not create or update the expected downstream records.",
+      "evidence": [
+        "submission count",
+        "contact linkage",
+        "campaign linkage"
+      ],
+      "severity": "high"
+    },
+    {
+      "key": "public_route_health",
+      "purpose": "Verify that the public slug, form version, and published status align.",
+      "evidence": [
+        "route pattern",
+        "published version",
+        "form status"
+      ],
+      "severity": "medium"
+    }
+  ],
+  "common_operational_issues": [
+    {
+      "issue": "Public form accepts submissions but downstream records are missing.",
+      "symptoms": [
+        "submission exists",
+        "contact or campaign not updated"
+      ],
+      "likely_causes": [
+        "mapping drift",
+        "draft version published accidentally",
+        "dynamic options failure"
+      ],
+      "recommended_playbooks": [
+        "system_health_diagnostics",
+        "content_publishing_workflows"
+      ]
+    },
+    {
+      "issue": "Form cannot be published cleanly.",
+      "symptoms": [
+        "missing endpoint",
+        "stale revision",
+        "permission denial"
+      ],
+      "likely_causes": [
+        "insufficient role",
+        "invalid version state",
+        "related content dependency missing"
+      ],
+      "recommended_playbooks": [
+        "permission_diagnostics",
+        "content_publishing_workflows"
+      ]
+    }
+  ]
+}

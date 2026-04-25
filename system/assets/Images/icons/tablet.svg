@@ -1,0 +1,10 @@
+<svg id="Tablet--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" height="16" width="16">
+  <desc>
+    Tablet Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>tablet</title>
+  <path transform="rotate(90 16 25)" d="M15 22h2v6h-2Z" fill="currentColor"></path>
+  <path d="M25 30H7a2.0023 2.0023 0 0 1-2-2V4a2.002 2.002 0 0 1 2-2h18a2.0023 2.0023 0 0 1 2 2v24a2.0027 2.0027 0 0 1-2 2ZM7 4v24h18V4Z" fill="currentColor"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h32v32H0Z" fill="none"></path>
+</svg>

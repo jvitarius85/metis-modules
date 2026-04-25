@@ -16,11 +16,26 @@ final class FormsModule {
         }
 
         self::$booted = true;
-        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
     }
 
     public static function ensureSchema(): void {
         SchemaManager::ensureSchema();
+    }
+
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'forms_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
     }
 
     public static function canView(): bool {

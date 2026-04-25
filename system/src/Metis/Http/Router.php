@@ -79,6 +79,10 @@ final class Router {
     }
 
     public function dispatch( Request $request ): Response {
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_MATCH_ROUTE' );
+        }
+
         foreach ( $this->routes as $route ) {
             if ( ! in_array( strtoupper( $request->method() ), $route->methods, true ) ) {
                 continue;
@@ -113,12 +117,23 @@ final class Router {
                 }
             );
 
+            if ( \class_exists( 'Profiler', false ) ) {
+                \Profiler::mark( 'ROUTER_MATCH_ROUTE_DONE' );
+            }
+
             return $pipeline( $resolved );
+        }
+
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_FALLBACK_CHECK' );
         }
 
         $trace_id = function_exists( 'metis_audit_request_id' ) ? (string) \metis_audit_request_id() : '';
         if ( class_exists( ErrorPageRenderer::class ) ) {
             $renderer = new ErrorPageRenderer();
+            if ( \class_exists( 'Profiler', false ) ) {
+                \Profiler::mark( 'ROUTER_FALLBACK_CHECK_DONE' );
+            }
             return Response::html(
                 $renderer->render( 404, $trace_id !== '' ? $trace_id : 'router-404', 'No route matched this request path.', 'Route Not Found' ),
                 404,
@@ -129,6 +144,9 @@ final class Router {
             );
         }
 
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_FALLBACK_CHECK_DONE' );
+        }
         return Response::html( '<div class="metis-error">Route not found.</div>', 404 );
     }
 

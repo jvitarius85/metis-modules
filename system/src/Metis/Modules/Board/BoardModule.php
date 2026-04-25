@@ -14,8 +14,8 @@ final class BoardModule {
         self::$booted = true;
         \Metis_Logger::info( 'Board bootstrap loaded' );
 
-        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
-        \metis_on( 'init', [ self::class, 'seedWorkflowTemplates' ], 7 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'seedRuntimeWorkflowTemplates' ], 7 );
     }
 
     public static function canView(): bool { return Access::canView(); }
@@ -25,6 +25,34 @@ final class BoardModule {
     public static function tableExists( string $table ): bool { return SchemaManager::tableExists( $table ); }
     public static function ensureSchema(): void { SchemaManager::ensureSchema(); }
     public static function seedWorkflowTemplates(): void { SchemaManager::seedWorkflowTemplates(); }
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'board_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
+    }
+    public static function seedRuntimeWorkflowTemplates(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'board_workflow_templates',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::seedWorkflowTemplates();
+                }
+            );
+            return;
+        }
+
+        self::seedWorkflowTemplates();
+    }
     public static function formatDatetime( string $mysql_datetime, string $format = 'M j, Y g:i a' ): string { return Support::formatDatetime( $mysql_datetime, $format ); }
     public static function currentPersonId(): int { return Support::currentPersonId(); }
     public static function b64urlEncode( string $value ): string { return WorkspaceService::b64urlEncode( $value ); }

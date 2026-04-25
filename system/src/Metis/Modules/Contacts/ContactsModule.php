@@ -14,7 +14,7 @@ final class ContactsModule {
         self::$booted = true;
         \Metis_Logger::info( 'Contacts bootstrap loaded' );
 
-        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
         \metis_on( 'init', [ self::class, 'handleBackfillCidRequest' ], 20 );
         \metis_on( 'init', [ self::class, 'handleMigrateNotesRequest' ], 20 );
         \metis_on( 'init', [ self::class, 'handleCleanupMergeNotesRequest' ], 20 );
@@ -38,6 +38,21 @@ final class ContactsModule {
 
     public static function ensureSchema(): void {
         SchemaManager::ensureSchema();
+    }
+
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'contacts_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
     }
 
     public static function backfillCid(): int {

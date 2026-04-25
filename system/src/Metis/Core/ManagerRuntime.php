@@ -7,6 +7,9 @@ if (!defined('METIS_ROOT')) exit;
  */
 
 function metis_render_manager() {
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_RENDER_MANAGER' );
+    }
 
     $domain = metis_get_query_var('metis_domain');
     $view   = metis_get_query_var('metis_view');
@@ -16,13 +19,25 @@ function metis_render_manager() {
 
     if (!$domain || !$view) {
         echo '<div class="metis-error">No domain / view specified.</div>';
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_RENDER_MANAGER_DONE' );
+        }
         return;
     }
 
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_RESOLVE_VIEW' );
+    }
     $resolved = metis_resolve_view($domain, $view);
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_RESOLVE_VIEW_DONE' );
+    }
 
     if (!empty($resolved['error'])) {
         echo '<div class="metis-error">' . metis_escape_html($resolved['error']) . '</div>';
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_RENDER_MANAGER_DONE' );
+        }
         return;
     }
 
@@ -79,15 +94,24 @@ function metis_render_manager() {
 
     // Buffer the template so we can detect whether it already emitted a breadcrumb.
     ob_start();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_INCLUDE_VIEW' );
+    }
     if ( function_exists( 'metis_security_trusted_include' ) ) {
         metis_security_trusted_include( $resolved['template'], false );
     } else {
         include $resolved['template'];
     }
     $output = ob_get_clean();
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_INCLUDE_VIEW_DONE' );
+    }
 
     if ( $raw_template_mode ) {
         echo $output;
+        if ( class_exists( 'Profiler', false ) ) {
+            Profiler::mark( 'ROUTER_RENDER_MANAGER_DONE' );
+        }
         return;
     }
 
@@ -111,4 +135,7 @@ function metis_render_manager() {
     echo '<div class="metis-view-shell" data-metis-module="' . metis_escape_attr( (string) $domain ) . '" data-metis-view="' . metis_escape_attr( (string) $view ) . '" data-metis-topic="' . metis_escape_attr( $topic_id ) . '">';
     echo $output;
     echo '</div>';
+    if ( class_exists( 'Profiler', false ) ) {
+        Profiler::mark( 'ROUTER_RENDER_MANAGER_DONE' );
+    }
 }

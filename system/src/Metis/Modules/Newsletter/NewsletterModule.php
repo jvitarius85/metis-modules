@@ -14,7 +14,7 @@ final class NewsletterModule {
         self::$booted = true;
         \Metis_Logger::info( 'Newsletter bootstrap loaded' );
 
-        \metis_on( 'init', [ self::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
 
         if ( \class_exists( '\Metis_Cron_Manager' ) ) {
             \Metis_Cron_Manager::register_task(
@@ -55,6 +55,20 @@ final class NewsletterModule {
     public static function addColumnIfMissing( string $table, string $column, string $definition ): void { SchemaManager::addColumnIfMissing( $table, $column, $definition ); }
     public static function addIndexIfMissing( string $table, string $index_name, string $index_def ): void { SchemaManager::addIndexIfMissing( $table, $index_name, $index_def ); }
     public static function ensureSchema(): void { SchemaManager::ensureSchema(); }
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'newsletter_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
+    }
     public static function resolvedTimezone(): \DateTimeZone { return Support::resolvedTimezone(); }
     public static function formatDatetime( string $mysql_datetime, string $format = 'm/d/y g:ia' ): string { return Support::formatDatetime( $mysql_datetime, $format ); }
     public static function renderTemplate( string $html, array $contact ): string { return Support::renderTemplate( $html, $contact ); }

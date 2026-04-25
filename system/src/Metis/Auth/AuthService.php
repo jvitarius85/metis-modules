@@ -28,12 +28,45 @@ final class AuthService {
             throw new \InvalidArgumentException('Username or email is required.');
         }
 
-        return [
-            'method' => 'passkey',
-            'identifier' => $identifier,
-            'password_fallback' => true,
-            'passkey' => $this->passkeys->beginAuthentication($identifier),
+        $resolved = $this->resolver->resolve($identifier);
+        $methods = array_values(array_filter(array_map('strval', (array) ($resolved['methods'] ?? []))));
+        $hasPasskey = in_array('passkey', $methods, true);
+        $hasPassword = in_array('password', $methods, true);
+        $hasGoogleWorkspace = in_array('google_workspace', $methods, true);
+
+        $response = [
+            'method' => $hasPasskey ? 'passkey' : ($hasPassword ? 'password' : ($hasGoogleWorkspace ? 'google_workspace' : '')),
+            'identifier' => (string) ($resolved['identifier'] ?? $identifier),
+            'password_fallback' => $hasPassword,
+            'methods' => $methods,
         ];
+
+        if ($response['method'] === '') {
+            throw new \RuntimeException('No login method is available for this account.');
+        }
+
+        if ($response['method'] !== 'passkey') {
+            return $response;
+        }
+
+        try {
+            $response['passkey'] = $this->passkeys->beginAuthentication($identifier);
+            return $response;
+        } catch (\Throwable $e) {
+            if ($hasPassword) {
+                $response['method'] = 'password';
+                $response['passkey_unavailable'] = true;
+                return $response;
+            }
+
+            if ($hasGoogleWorkspace) {
+                $response['method'] = 'google_workspace';
+                $response['passkey_unavailable'] = true;
+                return $response;
+            }
+
+            throw $e;
+        }
     }
 
     public function beginGoogleWorkspaceLogin(string $redirect = ''): string {

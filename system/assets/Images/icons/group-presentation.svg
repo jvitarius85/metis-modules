@@ -1,0 +1,16 @@
+<svg id="Group-Presentation--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Group Presentation Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <path d="M5 15H4v-1.5H2v1.5H1v-1.5a1.00115 1.00115 0 0 1 1 -1h2a1.00115 1.00115 0 0 1 1 1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M15 15h-1v-1.5h-2v1.5h-1v-1.5a1.00115 1.00115 0 0 1 1 -1h2a1.00115 1.00115 0 0 1 1 1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M10 15h-1v-1.5h-2v1.5h-1v-1.5a1.00115 1.00115 0 0 1 1 -1h2a1.00115 1.00115 0 0 1 1 1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M7 11a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M2 11a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M12 11a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M9.5 9a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M4.5 9a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M13 7H3a1.00115 1.00115 0 0 1 -1 -1V2a1.00115 1.00115 0 0 1 1 -1h10a1.00115 1.00115 0 0 1 1 1v4a1.00115 1.00115 0 0 1 -1 1ZM3 2v4h10V2Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

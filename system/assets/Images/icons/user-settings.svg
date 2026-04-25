@@ -1,0 +1,10 @@
+<svg id="User-Settings--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    User Settings Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <path d="M15 5V4h-1.05055a2.4839 2.4839 0 0 0 -0.36595 -0.87645l0.745 -0.745 -0.707 -0.707 -0.745 0.745A2.4839 2.4839 0 0 0 12 2.05055V1h-1v1.05055a2.4839 2.4839 0 0 0 -0.87645 0.36595l-0.745 -0.745 -0.707 0.707 0.745 0.745A2.4839 2.4839 0 0 0 9.05055 4H8v1h1.05055a2.4839 2.4839 0 0 0 0.36595 0.87645l-0.745 0.745 0.707 0.707 0.745 -0.745a2.4839 2.4839 0 0 0 0.8765 0.366V8h1v-1.05055a2.4839 2.4839 0 0 0 0.87645 -0.36595l0.745 0.745 0.707 -0.707 -0.745 -0.745a2.4839 2.4839 0 0 0 0.366 -0.8765Zm-3.5 1a1.5 1.5 0 1 1 1.5 -1.5 1.50165 1.50165 0 0 1 -1.5 1.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M8 15h-1v-2.5a1.50165 1.50165 0 0 0 -1.5 -1.5H3.5a1.50165 1.50165 0 0 0 -1.5 1.5v2.5H1v-2.5a2.50295 2.50295 0 0 1 2.5 -2.5h2a2.50295 2.50295 0 0 1 2.5 2.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M4.5 5a1.5 1.5 0 1 1 -1.5 1.5 1.5 1.5 0 0 1 1.5 -1.5m0 -1a2.5 2.5 0 1 0 2.5 2.5 2.5 2.5 0 0 0 -2.5 -2.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

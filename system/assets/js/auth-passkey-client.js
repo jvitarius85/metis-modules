@@ -106,6 +106,19 @@
         }
     }
 
+    function hasMethod(data, method) {
+        return Array.isArray(data && data.methods) && data.methods.indexOf(method) !== -1;
+    }
+
+    function startGoogleWorkspace() {
+        if (!googleForm) {
+            throw new Error("Google Workspace sign-in is unavailable.");
+        }
+
+        setStatus("Opening Google Workspace sign-in...", false);
+        googleForm.submit();
+    }
+
     function startPasskey(data) {
         if (!window.PublicKeyCredential) {
             if (unsupported) {
@@ -168,10 +181,22 @@
             }
             if (method === "passkey") {
                 return startPasskey(data.passkey || {}).catch(function () {
-                    showPassword(data.identifier || ((identifier && identifier.value) || ""));
-                    setStatus("Passkey unavailable. Enter your password to continue.", false);
+                    if (data.password_fallback) {
+                        showPassword(data.identifier || ((identifier && identifier.value) || ""));
+                        setStatus("Passkey unavailable. Enter your password to continue.", false);
+                        return null;
+                    }
+                    if (hasMethod(data, "google_workspace")) {
+                        startGoogleWorkspace();
+                        return null;
+                    }
+                    setStatus("Passkey sign-in is unavailable for this account.", true);
                     return null;
                 });
+            }
+            if (method === "google_workspace") {
+                startGoogleWorkspace();
+                return null;
             }
             throw new Error("Unsupported authentication method.");
         }).catch(function (error) {

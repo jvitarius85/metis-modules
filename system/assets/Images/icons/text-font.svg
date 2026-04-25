@@ -1,0 +1,9 @@
+<svg id="Text-Font--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    Text Font Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <path d="M12.5 6h-2.5v1h2.5a0.5004 0.5004 0 0 1 0.5 0.5v1h-2a1.50165 1.50165 0 0 0 -1.5 1.5v0.5a1.50165 1.50165 0 0 0 1.5 1.5h3v-4.5a1.50165 1.50165 0 0 0 -1.5 -1.5Zm-1.5 5a0.5004 0.5004 0 0 1 -0.5 -0.5v-0.5a0.5004 0.5004 0 0 1 0.5 -0.5h2v1.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M8 12h1L6 3.5h-1L2 12h1l0.8468 -2.5h3.30675Zm-3.81445 -3.5 1.2483 -3.68555 0.1334 0.00025L6.815 8.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

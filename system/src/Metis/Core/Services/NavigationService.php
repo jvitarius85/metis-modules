@@ -13,7 +13,9 @@ final class NavigationService {
     private bool $seedReady = false;
     private bool $iconBackfillReady = false;
     private ?array $moduleIndex = null;
+    private ?array $visibleTreeCache = null;
     private array $syncedModules = [];
+    private array $permissionAllowedCache = [];
 
     public function __construct( DatabaseService $db ) {
         $this->db = $db;
@@ -31,26 +33,38 @@ final class NavigationService {
         $table = \Metis_Tables::get( 'navigation_items' );
         $charset = $this->charsetCollate();
 
-        \metis_db_delta(
-            "CREATE TABLE {$table} (
-                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                label VARCHAR(191) NOT NULL,
-                route VARCHAR(255) NOT NULL DEFAULT '',
-                icon TEXT NULL,
-                parent_id BIGINT UNSIGNED NULL,
-                position INT NOT NULL DEFAULT 0,
-                is_visible TINYINT(1) NOT NULL DEFAULT 1,
-                permissions_required VARCHAR(191) NOT NULL DEFAULT '',
-                module_key VARCHAR(191) NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
-                UNIQUE KEY uniq_module_key (module_key),
-                KEY idx_parent_position (parent_id, position),
-                KEY idx_visible (is_visible),
-                KEY idx_module_key (module_key)
-            ) {$charset};"
-        );
+        $ensure = function () use ( $table, $charset ): void {
+            \metis_db_delta(
+                "CREATE TABLE {$table} (
+                    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    label VARCHAR(191) NOT NULL,
+                    route VARCHAR(255) NOT NULL DEFAULT '',
+                    icon TEXT NULL,
+                    parent_id BIGINT UNSIGNED NULL,
+                    position INT NOT NULL DEFAULT 0,
+                    is_visible TINYINT(1) NOT NULL DEFAULT 1,
+                    permissions_required VARCHAR(191) NOT NULL DEFAULT '',
+                    module_key VARCHAR(191) NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    UNIQUE KEY uniq_module_key (module_key),
+                    KEY idx_parent_position (parent_id, position),
+                    KEY idx_visible (is_visible),
+                    KEY idx_module_key (module_key)
+                ) {$charset};"
+            );
+        };
+
+        if ( \function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'navigation_schema',
+                [ __FILE__ ],
+                $ensure
+            );
+        } else {
+            $ensure();
+        }
 
         $this->schemaReady = true;
     }
@@ -66,6 +80,15 @@ final class NavigationService {
         }
 
         if ( $this->seedReady ) {
+            return;
+        }
+
+        $seedVersion = \defined( 'METIS_VERSION' ) ? (string) \METIS_VERSION : 'unknown';
+        if (
+            \class_exists( 'Core_Settings_Service' )
+            && (string) \Core_Settings_Service::get( 'navigation_defaults_seeded_version', '' ) === $seedVersion
+        ) {
+            $this->seedReady = true;
             return;
         }
 
@@ -123,6 +146,9 @@ final class NavigationService {
         $this->backfillDefaultPositions();
 
         $this->seedReady = true;
+        if ( \class_exists( 'Core_Settings_Service' ) ) {
+            \Core_Settings_Service::set( 'navigation_defaults_seeded_version', $seedVersion, false );
+        }
     }
 
     public function ensureModuleEntry( string $slug, array $config ): void {
@@ -181,24 +207,62 @@ final class NavigationService {
             ],
             [ '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s' ]
         );
+        $this->visibleTreeCache = null;
     }
 
     public function visibleTree(): array {
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_SERVICE' );
+        }
+
+        if ( $this->visibleTreeCache !== null ) {
+            if ( \class_exists( 'Profiler', false ) ) {
+                \Profiler::mark( 'ROUTER_NAV_SERVICE_DONE' );
+            }
+            return $this->visibleTreeCache;
+        }
+
         if ( ! $this->persistenceAvailable() ) {
+            if ( \class_exists( 'Profiler', false ) ) {
+                \Profiler::mark( 'ROUTER_NAV_SERVICE_DONE' );
+            }
+            $this->visibleTreeCache = [];
             return [];
         }
 
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_SEED' );
+        }
         $this->seedDefaults();
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_SEED_DONE' );
+        }
+
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_SYNC' );
+        }
         $this->syncRegisteredModules();
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_SYNC_DONE' );
+        }
 
         $table = \Metis_Tables::get( 'navigation_items' );
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_QUERY' );
+        }
         $rows = $this->db->fetchAll(
             "SELECT id, label, route, icon, parent_id, position, is_visible, permissions_required, module_key
              FROM {$table}
              WHERE is_visible = 1
              ORDER BY parent_id ASC, position ASC, id ASC"
         );
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_QUERY_DONE' );
+        }
 
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_TREE' );
+        }
         $allowed = [];
         foreach ( $rows as $row ) {
             $permission = trim( (string) ( $row['permissions_required'] ?? '' ) );
@@ -253,6 +317,11 @@ final class NavigationService {
         }
 
         usort( $result, static fn ( array $a, array $b ): int => [ $a['position'], $a['id'] ] <=> [ $b['position'], $b['id'] ] );
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_NAV_TREE_DONE' );
+            \Profiler::mark( 'ROUTER_NAV_SERVICE_DONE' );
+        }
+        $this->visibleTreeCache = $result;
         return $result;
     }
 
@@ -265,7 +334,7 @@ final class NavigationService {
         }
 
         $this->seedDefaults();
-        $this->syncRegisteredModules( $modules );
+        $this->syncRegisteredModules( $modules, true );
 
         $table = \Metis_Tables::get( 'navigation_items' );
         $rows = $this->db->fetchAll(
@@ -445,6 +514,7 @@ final class NavigationService {
             }
         }
 
+        $this->visibleTreeCache = null;
         return [ 'updated' => $updated ];
     }
 
@@ -479,6 +549,7 @@ final class NavigationService {
             [ '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s' ]
         );
 
+        $this->visibleTreeCache = null;
         return (int) $this->db->lastInsertId();
     }
 
@@ -866,10 +937,17 @@ final class NavigationService {
             return true;
         }
 
-        if ( \function_exists( 'metis_security_user_can' ) ) {
-            return \metis_security_user_can( $permission );
+        if ( array_key_exists( $permission, $this->permissionAllowedCache ) ) {
+            return $this->permissionAllowedCache[ $permission ];
         }
 
+        if ( \function_exists( 'metis_security_user_can' ) ) {
+            $allowed = \metis_security_user_can( $permission );
+            $this->permissionAllowedCache[ $permission ] = $allowed;
+            return $allowed;
+        }
+
+        $this->permissionAllowedCache[ $permission ] = true;
         return true;
     }
 
@@ -965,12 +1043,28 @@ final class NavigationService {
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
     }
 
-    private function syncRegisteredModules( array $modules = [] ): void {
+    private function syncRegisteredModules( array $modules = [], bool $force = false ): void {
         if ( ! $this->persistenceAvailable() ) {
             return;
         }
 
         $modules = $modules !== [] ? $modules : $this->registeredModules();
+        $signature = $this->registeredModulesSignature( $modules );
+        if (
+            ! $force
+            && $signature !== ''
+            && \class_exists( 'Core_Settings_Service' )
+            && (string) \Core_Settings_Service::get( 'navigation_modules_synced_signature', '' ) === $signature
+        ) {
+            foreach ( array_keys( $modules ) as $slug ) {
+                $slug = \metis_key_clean( (string) $slug );
+                if ( $slug !== '' ) {
+                    $this->syncedModules[ $slug ] = true;
+                }
+            }
+            return;
+        }
+
         foreach ( $modules as $slug => $module ) {
             $slug = \metis_key_clean( (string) $slug );
             if ( $slug === '' || isset( $this->syncedModules[ $slug ] ) ) {
@@ -981,6 +1075,39 @@ final class NavigationService {
             $this->ensureModuleEntry( $slug, $config );
             $this->syncedModules[ $slug ] = true;
         }
+
+        if ( $signature !== '' && \class_exists( 'Core_Settings_Service' ) ) {
+            \Core_Settings_Service::set( 'navigation_modules_synced_signature', $signature, false );
+        }
+    }
+
+    private function registeredModulesSignature( array $modules ): string {
+        if ( $modules === [] ) {
+            return '';
+        }
+
+        $snapshot = [];
+        foreach ( $modules as $slug => $module ) {
+            $slug = \metis_key_clean( (string) $slug );
+            if ( $slug === '' || ! \is_array( $module ) ) {
+                continue;
+            }
+
+            $config = \is_array( $module['config'] ?? null ) ? $module['config'] : [];
+            $snapshot[ $slug ] = [
+                'label' => (string) ( $config['label'] ?? '' ),
+                'name' => (string) ( $config['name'] ?? '' ),
+                'icon' => (string) ( $config['icon'] ?? '' ),
+                'order' => (int) ( $config['order'] ?? $config['menu_order'] ?? 0 ),
+                'default_parent' => (string) ( $config['default_parent'] ?? '' ),
+                'navigation' => \is_array( $config['navigation'] ?? null ) ? $config['navigation'] : [],
+                'permissions' => \is_array( $config['permission_definitions'] ?? null ) ? $config['permission_definitions'] : [],
+                'manifest_mtime' => (int) ( $config['_manifest_mtime'] ?? 0 ),
+            ];
+        }
+
+        ksort( $snapshot );
+        return hash( 'sha256', \json_encode( $snapshot, JSON_UNESCAPED_SLASHES ) ?: serialize( $snapshot ) );
     }
 
     private function registeredModules(): array {

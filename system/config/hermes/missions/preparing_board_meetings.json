@@ -1,0 +1,59 @@
+{
+  "type": "mission",
+  "key": "preparing_board_meetings",
+  "version": 1,
+  "title": "Preparing Board Meetings",
+  "objective": "Coordinate governance preparation so a board meeting has complete records, documents, attendance context, and outbound notices.",
+  "required_context_packs": [
+    "board",
+    "communications",
+    "reports"
+  ],
+  "default_playbooks": [
+    "board_access_troubleshooting",
+    "announcement_workflows",
+    "system_health_diagnostics"
+  ],
+  "phases": [
+    {
+      "key": "meeting_readiness",
+      "playbooks": [
+        "board_access_troubleshooting"
+      ],
+      "outputs": [
+        "workspace readiness",
+        "packet readiness",
+        "attendance gaps"
+      ]
+    },
+    {
+      "key": "announcement_preparation",
+      "playbooks": [
+        "announcement_workflows"
+      ],
+      "outputs": [
+        "audience plan",
+        "publish proposal"
+      ]
+    },
+    {
+      "key": "final_health_check",
+      "playbooks": [
+        "system_health_diagnostics"
+      ],
+      "outputs": [
+        "staleness or queue risks",
+        "escalations"
+      ]
+    }
+  ],
+  "approval_gates": [
+    "packet publication",
+    "board announcement send"
+  ],
+  "success_criteria": [
+    "meeting workspace linked",
+    "packet assets available",
+    "announcement path validated"
+  ]
+}

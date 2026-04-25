@@ -21,8 +21,7 @@ final class WebsiteModule {
 
         self::$booted = true;
 
-        // Defer schema to init hook, consistent with all other modules
-        \metis_on( 'init', [ SchemaManager::class, 'ensureSchema' ], 5 );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
 
         // Boot block registry (no DB dependency)
         BlockRegistry::boot();
@@ -57,6 +56,21 @@ final class WebsiteModule {
      */
     public static function db(): object {
         return Application::service( 'db' );
+    }
+
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'website_schema',
+                [ __FILE__, __DIR__ . '/SchemaManager.php' ],
+                static function (): void {
+                    SchemaManager::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        SchemaManager::ensureSchema();
     }
 
     /**

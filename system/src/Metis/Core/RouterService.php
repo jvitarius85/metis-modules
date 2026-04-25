@@ -33,7 +33,13 @@ final class RouterService {
             throw new \RuntimeException( 'Router builder has not been configured.' );
         }
 
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_LOAD_ROUTES' );
+        }
         $router = call_user_func( $this->builder );
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_LOAD_ROUTES_DONE' );
+        }
         if ( ! $router instanceof Router ) {
             throw new \RuntimeException( 'Router builder did not return a Metis\Http\Router.' );
         }
@@ -43,6 +49,10 @@ final class RouterService {
     }
 
     public function dispatch( Request $request ): Response {
+        if ( \class_exists( 'Profiler', false ) ) {
+            \Profiler::mark( 'ROUTER_DISPATCH' );
+        }
+
         if ( Application::has_service( 'error_kernel' ) ) {
             /** @var \Metis\Core\Error\ErrorKernel $kernel */
             $kernel = Application::service( 'error_kernel' );

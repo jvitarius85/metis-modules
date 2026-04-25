@@ -1,0 +1,15 @@
+<svg id="List-Dropdown--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16">
+  <desc>
+    List Dropdown Streamline Icon: https://streamlinehq.com
+  </desc>
+  <defs></defs>
+  <title>dropdown-list</title>
+  <path d="M13 3V1H1v5h4.5v9h9.5V3ZM2 5V2h10v1H5.5v2Zm12 9H6.5V4h7.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M7.5 5.5h1v1h-1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M9.5 5.5h3.5v1h-3.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M7.5 8.5h1v1h-1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M9.5 8.5h3.5v1h-3.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M7.5 11.5h1v1h-1Z" fill="currentColor" stroke-width="0.5"></path>
+  <path d="M9.5 11.5h3.5v1h-3.5Z" fill="currentColor" stroke-width="0.5"></path>
+  <path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path>
+</svg>

@@ -622,6 +622,62 @@ if ( ! function_exists( 'metis_on' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_runtime_setup_signature' ) ) {
+    function metis_runtime_setup_signature( string $scope, array $files = [] ): string {
+        $payload = [
+            'scope'   => strtolower( preg_replace( '/[^a-z0-9_]+/i', '_', $scope ) ?? $scope ),
+            'version' => defined( 'METIS_VERSION' ) ? (string) METIS_VERSION : 'unknown',
+            'files'   => [],
+        ];
+
+        foreach ( $files as $file ) {
+            $path = (string) $file;
+            $payload['files'][] = [
+                $path,
+                is_file( $path ) ? (int) @filemtime( $path ) : 0,
+                is_file( $path ) ? (int) @filesize( $path ) : 0,
+            ];
+        }
+
+        $json = function_exists( 'metis_runtime_json_encode' )
+            ? metis_runtime_json_encode( $payload )
+            : ( json_encode( $payload, JSON_UNESCAPED_SLASHES ) ?: serialize( $payload ) );
+
+        return hash( 'sha256', $json );
+    }
+}
+
+if ( ! function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+    function metis_runtime_run_once_per_signature( string $scope, array $files, callable $callback ): void {
+        $scope = strtolower( preg_replace( '/[^a-z0-9_]+/i', '_', $scope ) ?? $scope );
+        if ( $scope === '' ) {
+            $callback();
+            return;
+        }
+
+        $signature = metis_runtime_setup_signature( $scope, $files );
+        $setting   = 'metis_runtime_setup_signatures';
+
+        if ( class_exists( 'Core_Settings_Service', false ) ) {
+            $signatures = \Core_Settings_Service::get( $setting, [] );
+            if ( is_array( $signatures ) && (string) ( $signatures[ $scope ] ?? '' ) === $signature ) {
+                return;
+            }
+        }
+
+        $callback();
+
+        if ( class_exists( 'Core_Settings_Service', false ) ) {
+            $signatures = \Core_Settings_Service::get( $setting, [] );
+            if ( ! is_array( $signatures ) ) {
+                $signatures = [];
+            }
+            $signatures[ $scope ] = $signature;
+            \Core_Settings_Service::set( $setting, $signatures, true );
+        }
+    }
+}
+
 if ( ! function_exists( 'metis_add_filter' ) ) {
     function metis_add_filter( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
         return metis_runtime_add_filter( $hook, $callback, $priority, $accepted_args );
