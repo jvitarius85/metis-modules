@@ -1864,7 +1864,10 @@ document.addEventListener('DOMContentLoaded', function () {
             releaseRefreshBtn.textContent = 'Queueing...';
 
             Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
-                showToast('success', String(data.message || 'Release metadata refresh queued.'));
+                showToast('success', String(data.message || 'Release metadata refreshed.'));
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 450);
             }).catch(function (error) {
                 showToast('error', error && error.message ? error.message : 'Release refresh failed.');
             }).finally(function () {

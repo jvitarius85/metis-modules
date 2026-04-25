@@ -744,7 +744,20 @@ metis_ajax_register_handler( 'metis_scheduler_build_integrity_baseline', functio
 ] );
 
 metis_ajax_register_handler( 'metis_release_check_updates', function () {
-    metis_settings_queue_operation_response( 'release.check', [], 'Release metadata refresh queued.' );
+    if ( ! function_exists( 'metis_release_status' ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Release manager is not available.' ], 503 );
+    }
+
+    $status = metis_release_status( true );
+    $module_catalog = function_exists( 'metis_github_update_service' )
+        ? metis_github_update_service()->moduleCatalog( true )
+        : [];
+
+    metis_runtime_send_json_success( [
+        'message' => 'Release and module metadata refreshed.',
+        'release_status' => $status,
+        'module_catalog' => $module_catalog,
+    ] );
 }, [
     'module' => 'settings',
     'permission' => 'view',
