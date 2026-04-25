@@ -71,6 +71,21 @@ portal.
 
 See [INSTALL.md](INSTALL.md) for the installation checklist.
 
+## System Requirements
+
+Baseline requirements:
+
+- PHP 8.1 or newer
+- MariaDB or MySQL with InnoDB
+- Apache with rewrite support, or Nginx with equivalent server rules
+- Writable `storage/` and `system/config/`
+- 2 GB RAM minimum, 4 GB preferred
+- 2 CPU cores minimum
+- 60 GB storage minimum, 100 GB preferred
+- PHP memory limit of 256 MB minimum, 512 MB preferred
+
+See [INSTALL.md](INSTALL.md) for the full server and installer requirements.
+
 ## Updates
 
 Metis supports trusted release checks against the configured GitHub repository.
