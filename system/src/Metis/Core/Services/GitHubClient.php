@@ -210,7 +210,7 @@ final class GitHubClient {
 
             $tagName = (string) ($tag['name'] ?? '');
             $version = ltrim($tagName, 'v');
-            if ($tagName === '' || !preg_match('/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.\-]+)?$/', $version)) {
+            if ($tagName === '' || !preg_match('/^\d+\.\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.\-]+)?$/', $version)) {
                 continue;
             }
 

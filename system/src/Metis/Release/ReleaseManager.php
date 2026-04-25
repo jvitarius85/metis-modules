@@ -526,14 +526,127 @@ final class ReleaseManager {
 
     private function runPreUpdateBackup( string $trigger ): array {
         if ( ! \function_exists( 'metis_backup_run_now' ) ) {
+            return $this->runLocalPreUpdateArchive( $trigger, [
+                'ok' => false,
+                'status' => 'managed_backup_unavailable',
+                'message' => 'Managed backup service is unavailable.',
+            ] );
+        }
+
+        $managed = \metis_backup_run_now( 'release_' . $trigger );
+        if ( ! empty( $managed['ok'] ) ) {
+            return $managed;
+        }
+
+        return $this->runLocalPreUpdateArchive( $trigger, $managed );
+    }
+
+    private function runLocalPreUpdateArchive( string $trigger, array $managed ): array {
+        if ( ! \class_exists( '\ZipArchive' ) ) {
             return [
-                'ok' => true,
-                'status' => 'skipped',
-                'message' => 'Backup service is unavailable; continuing without a managed backup snapshot.',
+                'ok' => false,
+                'status' => 'backup_failed',
+                'message' => 'Managed backup failed and PHP ZipArchive is unavailable for local release backup.',
+                'managed_backup' => $managed,
             ];
         }
 
-        return \metis_backup_run_now( 'release_' . $trigger );
+        $backup_dir = $this->storageDir() . '/backups';
+        if ( ! \is_dir( $backup_dir ) && ! \metis_runtime_make_dir( $backup_dir ) ) {
+            return [
+                'ok' => false,
+                'status' => 'backup_failed',
+                'message' => 'Managed backup failed and local release backup directory could not be created.',
+                'managed_backup' => $managed,
+            ];
+        }
+
+        $safe_trigger = preg_replace( '/[^A-Za-z0-9_.-]/', '-', $trigger ) ?: 'manual';
+        $archive_path = $backup_dir . '/release-pre-update-' . gmdate( 'Ymd-His' ) . '-' . $safe_trigger . '.zip';
+        $zip = new \ZipArchive();
+        if ( $zip->open( $archive_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE ) !== true ) {
+            return [
+                'ok' => false,
+                'status' => 'backup_failed',
+                'message' => 'Managed backup failed and local release backup archive could not be opened.',
+                'managed_backup' => $managed,
+            ];
+        }
+
+        $root = rtrim( str_replace( '\\', '/', (string) \METIS_PATH ), '/' );
+        $added = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator( $root, \FilesystemIterator::SKIP_DOTS ),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ( $iterator as $item ) {
+            if ( ! $item instanceof \SplFileInfo ) {
+                continue;
+            }
+
+            $path = str_replace( '\\', '/', $item->getPathname() );
+            $relative = ltrim( substr( $path, strlen( $root ) ), '/' );
+            if ( $relative === '' || $this->releaseBackupPathIsProtected( $relative ) ) {
+                continue;
+            }
+
+            if ( $item->isDir() ) {
+                $zip->addEmptyDir( $relative );
+                continue;
+            }
+
+            if ( $item->isFile() && $zip->addFile( $path, $relative ) ) {
+                $added++;
+            }
+        }
+
+        $zip->addFromString( 'release-backup.json', \metis_json_encode( [
+            'created_at' => gmdate( 'c' ),
+            'trigger' => $trigger,
+            'version' => Version::current(),
+            'managed_backup' => $managed,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ?: '{}' );
+        $zip->close();
+
+        if ( $added < 1 || ! \is_file( $archive_path ) ) {
+            @unlink( $archive_path );
+            return [
+                'ok' => false,
+                'status' => 'backup_failed',
+                'message' => 'Managed backup failed and local release backup archive is empty.',
+                'managed_backup' => $managed,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'status' => 'local_archive',
+            'message' => 'Managed backup failed; created a local pre-update release archive instead.',
+            'archive_path' => $archive_path,
+            'bytes' => (int) @filesize( $archive_path ),
+            'sha256' => (string) @hash_file( 'sha256', $archive_path ),
+            'files' => $added,
+            'managed_backup' => $managed,
+        ];
+    }
+
+    private function releaseBackupPathIsProtected( string $relative ): bool {
+        $relative = ltrim( str_replace( '\\', '/', $relative ), '/' );
+        foreach ( [ '.git', 'storage', 'meta' ] as $dir ) {
+            if ( $relative === $dir || str_starts_with( $relative, $dir . '/' ) ) {
+                return true;
+            }
+        }
+
+        foreach ( [ '.DS_Store', 'system/config/database.php', 'system/config/update.php' ] as $file ) {
+            if ( $relative === $file ) {
+                return true;
+            }
+        }
+
+        return preg_match( '#^system/config/.+\\.local\\.php$#', $relative ) === 1
+            || str_starts_with( $relative, 'system/config/auth/' );
     }
 
     private function applyArchiveRelease( string $tag, array $release, string $trigger ): array {
@@ -1514,7 +1627,7 @@ final class ReleaseManager {
         }
 
         $version = preg_replace( '/^v/i', '', $tag ) ?? '';
-        return preg_match( '/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $version ) === 1 ? $version : '';
+        return preg_match( '/^\d+\.\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/', $version ) === 1 ? $version : '';
     }
 
     private function readState(): array {

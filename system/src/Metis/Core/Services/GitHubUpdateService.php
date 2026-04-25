@@ -497,6 +497,6 @@ final class GitHubUpdateService {
 
     private function versionFromTag(string $tag): string {
         $version = preg_replace('/^v/i', '', trim($tag)) ?? '';
-        return preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $version) === 1 ? $version : '';
+        return preg_match('/^\d+\.\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$/', $version) === 1 ? $version : '';
     }
 }
