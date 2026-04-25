@@ -19,7 +19,7 @@
    "required_modules": [
     "portal",
     "people",
-    "settings"
+    "settings",
     "profile"
   ]
 }
