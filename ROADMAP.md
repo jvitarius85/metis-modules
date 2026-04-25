@@ -40,6 +40,7 @@ This roadmap summarizes the major planned work areas for future Metis releases.
 ## UX Consistency
 
 - UI table and formatting consistency pass
+- Standardized form fields and dropdown rendering
 - Continued shared core CSS cleanup
 - Stable spacing, sticky headers, and consistent report/data grids
 
