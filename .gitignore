@@ -16,6 +16,12 @@ system/config/database.php
 
 /uploads/*
 
+/grandys_stash/
+
+/storage/runtime/
+
+/storage/runtime/*
+
 # --- OS FILES ---
 .DS_Store
 
