@@ -1,20 +1,24 @@
-# Env + config
+# --- ENV / CONFIG ---
 .env
 config.php
 database.php
+system/config/database.php
 
-# Runtime
+# --- RUNTIME DATA ---
 /storage/*
-/logs/
-/cache/
+!/storage/.gitkeep
 
-# Uploads
-/uploads/
+/logs/*
+!/logs/.gitkeep
 
-# OS junk
+/cache/*
+!/cache/.gitkeep
+
+/uploads/*
+
+# --- OS FILES ---
 .DS_Store
 
-# Temp
+# --- TEMP FILES ---
 *.log
 *.tmp
-system/config/database.php
