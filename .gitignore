@@ -1,0 +1,20 @@
+# Env + config
+.env
+config.php
+database.php
+
+# Runtime
+/storage/*
+/logs/
+/cache/
+
+# Uploads
+/uploads/
+
+# OS junk
+.DS_Store
+
+# Temp
+*.log
+*.tmp
+system/config/database.php
