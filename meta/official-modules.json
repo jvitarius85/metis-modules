@@ -1,6 +1,7 @@
 {
   "official_modules": [
     "portal",
+    "media",
     "people",
     "settings",
     "contacts",
@@ -14,7 +15,6 @@
     "board",
     "website",
     "hermes",
-    "media",
     "help"
   ],
    "required_modules": [
