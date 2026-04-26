@@ -359,9 +359,14 @@ final class FormSubmissionRepository {
             return [ 'ok' => false, 'status' => 404, 'error' => 'Payment session not found.' ];
         }
 
-        $payment_intent_id = trim( (string) ( $payment_intent_id ?: $session['payment_intent_id'] ?? '' ) );
+        $expected_payment_intent_id = trim( (string) ( $session['payment_intent_id'] ?? '' ) );
+        $payment_intent_id = trim( (string) ( $payment_intent_id ?: $expected_payment_intent_id ) );
         if ( $payment_intent_id === '' ) {
             return [ 'ok' => false, 'status' => 422, 'error' => 'Payment intent is required.' ];
+        }
+
+        if ( $expected_payment_intent_id === '' || ! hash_equals( $expected_payment_intent_id, $payment_intent_id ) ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Payment session does not match the submitted payment.' ];
         }
 
         $existing = self::getSubmissionByPaymentIntent( $payment_intent_id );
@@ -397,14 +402,26 @@ final class FormSubmissionRepository {
             return [ 'ok' => false, 'status' => 422, 'error' => 'Payment has not completed successfully.' ];
         }
 
+        $raw = self::decodeJson( $session['payload_json'] ?? '' );
+        $normalized = self::decodeJson( $session['normalized_json'] ?? '' );
+        $totals = self::decodeJson( $session['totals_json'] ?? '' );
+
+        $expected_amount = (int) ( $totals['amount_cents'] ?? 0 );
+        $actual_amount = (int) ( $intent->amount ?? 0 );
+        if ( $expected_amount > 0 && $actual_amount !== $expected_amount ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Payment amount does not match the original session.' ];
+        }
+
+        $expected_currency = strtolower( trim( (string) ( $totals['currency'] ?? '' ) ) );
+        $actual_currency = strtolower( trim( (string) ( $intent->currency ?? '' ) ) );
+        if ( $expected_currency !== '' && $actual_currency !== '' && $actual_currency !== $expected_currency ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Payment currency does not match the original session.' ];
+        }
+
         $form = FormDefinitionRepository::getFormById( (int) ( $session['form_id'] ?? 0 ), false );
         if ( ! is_array( $form ) ) {
             return [ 'ok' => false, 'status' => 404, 'error' => 'Form not found.' ];
         }
-
-        $raw = self::decodeJson( $session['payload_json'] ?? '' );
-        $normalized = self::decodeJson( $session['normalized_json'] ?? '' );
-        $totals = self::decodeJson( $session['totals_json'] ?? '' );
 
         $charge = is_object( $intent->latest_charge ?? null ) ? $intent->latest_charge : null;
 

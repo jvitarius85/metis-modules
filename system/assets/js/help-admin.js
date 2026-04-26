@@ -45,7 +45,9 @@
         }
 
         source.addEventListener('input', function () {
-            target.innerHTML = String(source.value || '');
+            target.innerHTML = (window.Metis && Metis.util && typeof Metis.util.sanitizeHtmlFragment === 'function')
+                ? Metis.util.sanitizeHtmlFragment(source.value || '')
+                : '';
         });
     }
 

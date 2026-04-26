@@ -909,6 +909,9 @@
         function normalizeNewsletterEditorHtml(html) {
             var raw = s(html || '');
             if (!raw.trim()) return '';
+            if (window.Metis && Metis.util && typeof Metis.util.sanitizeHtmlFragment === 'function') {
+                raw = Metis.util.sanitizeHtmlFragment(raw);
+            }
             var template = document.createElement('template');
             template.innerHTML = raw;
             var frag = template.content;
@@ -916,7 +919,7 @@
             var text = s(frag.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
             var hasVisibleContent = !!frag.querySelector('img,hr,.metis-inline-divider,.metis-inline-image,iframe,video,table,ul,ol,blockquote,pre');
             if (!text && !hasVisibleContent) return '';
-            return raw;
+            return template.innerHTML;
         }
 
         function markNewsletterEditorEmpty(target) {
@@ -936,6 +939,9 @@
         function extractNewsletterBodyRegionHtml(html) {
             var raw = s(html || '');
             if (!raw.trim()) return '';
+            if (window.Metis && Metis.util && typeof Metis.util.sanitizeHtmlFragment === 'function') {
+                raw = Metis.util.sanitizeHtmlFragment(raw);
+            }
             var template = document.createElement('template');
             template.innerHTML = raw;
             var bodyRegion = template.content.querySelector('[data-metis-newsletter-region="body"]');

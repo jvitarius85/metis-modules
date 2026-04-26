@@ -868,17 +868,19 @@
             const lastDate    = r.last_gift  ? r.last_gift.slice(  0, 10 ) : '\u2014';
             const displayName = r.display_name || r.did;
             const segInfo     = segMap[ r.segment ] || { label: r.segment, cls: 'gray' };
+            const rowStyle    = profileUrl ? ' style="cursor:pointer"' : '';
+            const rowHref     = profileUrl ? ` data-href="${ esc( profileUrl ) }"` : '';
 
             html += `
-                <tr class="metis-premium-row metis-di-row"
+                <tr class="metis-premium-row metis-di-row${ profileUrl ? ' metis-clickable-row' : '' }"
                      data-name="${ esc( displayName.toLowerCase() ) }"
                      data-gross="${ r.gross }"
                      data-net="${ r.net }"
                      data-gifts="${ r.donation_count }"
                      data-last="${ lastDate }"
-                     ${ profileUrl ? `style="cursor:pointer" onclick="window.location='${ profileUrl }'"` : '' }>
+                     ${ rowStyle }${ rowHref }>
                     <td class="metis-premium-cell metis-col-donor-name">
-                        <div class="metis-donor-name">${ profileUrl ? `<a href="${ profileUrl }" class="metis-di-name-link" onclick="event.stopPropagation()">${ esc( displayName ) }</a>` : esc( displayName ) }</div>
+                        <div class="metis-donor-name">${ profileUrl ? `<a href="${ esc( profileUrl ) }" class="metis-di-name-link">${ esc( displayName ) }</a>` : esc( displayName ) }</div>
                         <div class="metis-donor-sub metis-muted">DID: ${ esc( r.did ) }</div>
                     </td>
                     <td class="metis-premium-cell metis-col-numeric">${ toMoney( r.gross ) }</td>
@@ -887,7 +889,7 @@
                     <td class="metis-premium-cell metis-col-numeric">${ toMoney( r.avg_gift ) }</td>
                     <td class="metis-premium-cell">${ esc( firstDate ) }</td>
                     <td class="metis-premium-cell">${ esc( lastDate ) }</td>
-                    <td class="metis-premium-cell"><span class="metis-badge metis-badge--${ segInfo.cls }">${ segInfo.label }</span></td>
+                    <td class="metis-premium-cell"><span class="metis-badge metis-badge--${ esc( segInfo.cls ) }">${ esc( segInfo.label ) }</span></td>
                 </tr>
             `;
         } );
@@ -896,6 +898,7 @@
 
         donorWrap.innerHTML     = html;
         donorWrap.style.display = '';
+        if (window.metisInitClickableRows) window.metisInitClickableRows(donorWrap);
 
         // Sorting
         let sortCol = 'gross', sortDir = -1;

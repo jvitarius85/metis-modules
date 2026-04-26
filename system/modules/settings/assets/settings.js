@@ -608,7 +608,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (libraryIcon) {
                     previewEl.innerHTML = iconMarkupFromLibrary(libraryIcon);
                 } else if (raw.charAt(0) === '<') {
-                    previewEl.innerHTML = raw;
+                    previewEl.innerHTML = (window.Metis && Metis.util && typeof Metis.util.sanitizeHtmlFragment === 'function')
+                        ? Metis.util.sanitizeHtmlFragment(raw)
+                        : '';
                 } else if (/^\/?svg\/[a-z0-9_-]+\/?$/i.test(raw)) {
                     const clean = raw.replace(/^\/+/, '').replace(/\/+$/, '');
                     previewEl.innerHTML = '<img src="/' + Metis.util.escapeHtml(clean) + '/" alt="Icon" loading="lazy" decoding="async">';

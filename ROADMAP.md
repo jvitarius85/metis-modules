@@ -20,6 +20,8 @@ This roadmap summarizes the major planned work areas for future Metis releases.
 - Provider architecture for drive, calendar, email, payments, and finance
 - Installer integration options
 - Module update system independent from core releases
+- Runtime consolidation and request cost reduction across boot, module
+  initialization, routing, nav, assets, AJAX, and shared services
 - Apache and Nginx installer compatibility checks
 
 ## Operational Visibility
@@ -41,6 +43,8 @@ This roadmap summarizes the major planned work areas for future Metis releases.
 
 - UI table and formatting consistency pass
 - Standardized form fields and dropdown rendering
+- JavaScript consolidation around shared rendering, sanitization, navigation, and
+  AJAX utilities
 - Continued shared core CSS cleanup
 - Stable spacing, sticky headers, and consistent report/data grids
 

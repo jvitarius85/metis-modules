@@ -29,6 +29,33 @@ Examples of sensitive operations include:
 - system settings changes
 - financial and donation operations
 
+## JavaScript Trust Boundary
+
+Browser JavaScript is treated as a user interface layer only. It must not be the
+source of truth for authentication, permissions, payments, release updates,
+backups, recovery, or Secure Enclave decisions.
+
+Client code may improve workflow speed and usability, but every privileged or
+state-changing action must still be validated server-side with authentication,
+permissions, nonce/CSRF checks, request validation, rate limiting where
+appropriate, and Secure Enclave enforcement for protected operations.
+
+JavaScript must follow these rules:
+
+- do not store secrets, private keys, raw access tokens, or recovery material in
+  browser-readable configuration
+- use public keys only where the provider requires them, such as Stripe
+  publishable keys
+- sanitize or escape server-provided HTML before inserting it into the DOM
+- use shared navigation helpers for dynamic redirects and clickable UI targets
+- avoid inline event handlers and `javascript:` URLs
+- prefer shared rendering helpers over hand-built HTML when adding reusable UI
+  controls
+
+Payment flows must bind the server-created payment session to the exact payment
+intent, amount, and currency before recording a submission or donation. Client
+payment state is never enough by itself.
+
 ## Audit Logging
 
 Sensitive activity should be logged with enough detail to support review without

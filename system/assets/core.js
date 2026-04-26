@@ -536,6 +536,35 @@ Metis.util = (function() {
             .replace(/'/g, '&#39;');
     }
 
+    function sanitizeHtmlFragment(value) {
+        var template = document.createElement('template');
+        template.innerHTML = String(value == null ? '' : value);
+
+        template.content.querySelectorAll('script, iframe, object, embed, link[rel="import"]').forEach(function(node) {
+            node.remove();
+        });
+
+        template.content.querySelectorAll('*').forEach(function(node) {
+            Array.prototype.slice.call(node.attributes || []).forEach(function(attribute) {
+                var name = String(attribute.name || '').toLowerCase();
+                var rawValue = String(attribute.value || '');
+                var normalizedValue = rawValue.replace(/[\u0000-\u001F\u007F\s]+/g, '').toLowerCase();
+
+                if (name.indexOf('on') === 0) {
+                    node.removeAttribute(attribute.name);
+                    return;
+                }
+
+                if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction')
+                    && normalizedValue.indexOf('javascript:') === 0) {
+                    node.removeAttribute(attribute.name);
+                }
+            });
+        });
+
+        return template.innerHTML;
+    }
+
     function normalize(value) {
         return String(value == null ? '' : value).toLowerCase().trim();
     }
@@ -553,6 +582,7 @@ Metis.util = (function() {
 
     return {
         escapeHtml: escapeHtml,
+        sanitizeHtmlFragment: sanitizeHtmlFragment,
         normalize: normalize,
         notify: notify
     };
@@ -1774,7 +1804,7 @@ Metis.quickActions = (function() {
         ensureModal();
         activePayload = payload || {};
         modalTitle.textContent = String(activePayload.title || 'Quick Action');
-        modalBody.innerHTML = String(activePayload.html || '');
+        modalBody.innerHTML = Metis.util.sanitizeHtmlFragment(activePayload.html || '');
         modalSubmit.textContent = String(activePayload.submit_label || 'Save');
         modalSubmit.disabled = !String(activePayload.submit_action || '').trim();
         setModalError('');
@@ -2999,6 +3029,17 @@ Metis.nav = (function() {
 
 function metisInitClickableRows(root) {
     root = root || document;
+
+    function navigateRow(row) {
+        var href = String(row && row.dataset ? row.dataset.href || '' : '').trim();
+        if (!href) return;
+        if (window.Metis && Metis.navigation && typeof Metis.navigation.go === 'function') {
+            Metis.navigation.go(href);
+            return;
+        }
+        window.location.assign(href);
+    }
+
     if (!root._metisClickableRowsKeyBound) {
         root._metisClickableRowsKeyBound = true;
         root.addEventListener('keydown', function(e) {
@@ -3007,14 +3048,14 @@ function metisInitClickableRows(root) {
             if (e.target.closest('a, button, input, select, textarea, .metis-btn')) return;
             if (e.key !== 'Enter' && e.key !== ' ') return;
             e.preventDefault();
-            window.location = row.dataset.href;
+            navigateRow(row);
         });
         root.addEventListener('click', function(e) {
             var row = e.target.closest('.metis-clickable-row');
             if (!row || !row.dataset.href) return;
             /* Don't navigate if click was on a button or link */
             if (e.target.closest('a, button, input, select, .metis-btn')) return;
-            window.location = row.dataset.href;
+            navigateRow(row);
         });
     }
     root.querySelectorAll('.metis-clickable-row[data-href]').forEach(function(row) {
@@ -3099,11 +3140,11 @@ Metis.codeSearch = (function() {
     var MIN_NUMERIC_LENGTH = 2;
 
     function escHtml(str) {
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return Metis.util.escapeHtml(str);
     }
 
     function escAttr(str) {
-        return String(str).replace(/"/g, '&quot;');
+        return Metis.util.escapeHtml(str);
     }
 
     function hideResult(result) {
@@ -3130,6 +3171,11 @@ Metis.codeSearch = (function() {
         var html = '';
         matches.forEach(function(item) {
             if (!item || !item.code) return;
+            var resultUrl = '';
+            if (item.url && window.Metis && Metis.navigation && typeof Metis.navigation.validate === 'function') {
+                var validation = Metis.navigation.validate(item.url);
+                resultUrl = validation.ok ? validation.href : '';
+            }
             html += '<div class="metis-code-result-item">'
                 + '<div class="metis-code-result-head">'
                 + '<div class="metis-code-result-label">' + escHtml(item.label || item.code) + '</div>'
@@ -3137,8 +3183,8 @@ Metis.codeSearch = (function() {
                 + '</div>'
                 + '<div class="metis-code-result-foot">'
                 + '<div class="metis-code-result-code">' + escHtml(item.code) + '</div>'
-                + (item.url
-                    ? '<a class="metis-code-result-link" href="' + escAttr(item.url) + '">Open &rarr;</a>'
+                + (resultUrl
+                    ? '<a class="metis-code-result-link" href="' + escAttr(resultUrl) + '">Open &rarr;</a>'
                     : '<span class="metis-code-result-no-url">No URL</span>'
                 )
                 + '</div>'
@@ -3233,12 +3279,22 @@ Metis.breadcrumb = {
         var el = document.getElementById(containerId);
         if (!el) return;
         var html = '';
-        items.forEach(function(item, i) {
-            if (i > 0) html += '<span class="metis-breadcrumb-sep">/</span>';
-            if (item.url && i < items.length - 1) {
-                html += '<a href="' + item.url + '">' + item.label + '</a>';
+        (Array.isArray(items) ? items : []).forEach(function(item, i) {
+            var label = Metis.util.escapeHtml(item && item.label ? item.label : '');
+            var url = item && item.url ? String(item.url) : '';
+            var validUrl = '';
+            if (url && window.Metis && Metis.navigation && typeof Metis.navigation.validate === 'function') {
+                var validation = Metis.navigation.validate(url);
+                validUrl = validation.ok ? validation.href : '';
             } else {
-                html += '<span class="metis-breadcrumb-current">' + item.label + '</span>';
+                validUrl = url;
+            }
+
+            if (i > 0) html += '<span class="metis-breadcrumb-sep">/</span>';
+            if (validUrl && i < items.length - 1) {
+                html += '<a href="' + Metis.util.escapeHtml(validUrl) + '">' + label + '</a>';
+            } else {
+                html += '<span class="metis-breadcrumb-current">' + label + '</span>';
             }
         });
         el.innerHTML = html;

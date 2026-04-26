@@ -323,7 +323,9 @@ avatar.style.backgroundImage=`url(${type==="hermes"?HERMES_AVATAR:USER_AVATAR})`
 
 const bubble=document.createElement("div")
 bubble.className="msg "+type
-bubble.innerHTML=html
+bubble.innerHTML=window.Metis && Metis.util && typeof Metis.util.sanitizeHtmlFragment==="function"
+?Metis.util.sanitizeHtmlFragment(html)
+:String(html||"")
 
 row.appendChild(avatar)
 row.appendChild(bubble)
