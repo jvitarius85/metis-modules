@@ -11,6 +11,7 @@ final class GitHubUpdateService {
     private const OFFICIAL_MODULES_PATH = 'meta/official-modules.json';
     private const RELEASES_MANIFEST_PATH = 'meta/releases.json';
     private const DEFAULT_MANIFEST_REF = 'stable';
+    private const DEFAULT_METADATA_REF = 'main';
 
     public function __construct(
         private readonly GitHubClient $github,
@@ -75,7 +76,7 @@ final class GitHubUpdateService {
             'api.github_module_catalog.%s.%s.%s',
             metis_key_clean($owner),
             metis_key_clean($repo),
-            metis_key_clean((string) ($settings['ref'] ?? ''))
+            metis_key_clean((string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''))
         );
 
         if (!$forceRefresh) {
@@ -94,7 +95,7 @@ final class GitHubUpdateService {
             $payload = $this->fetchModuleCatalogPayload(
                 $owner,
                 $repo,
-                (string) ($settings['ref'] ?? ''),
+                (string) ($settings['metadata_ref'] ?? ''),
                 (string) ($settings['token'] ?? '')
             );
         } catch (\Throwable $exception) {
@@ -190,7 +191,7 @@ final class GitHubUpdateService {
             'api.github_release_manifest.%s.%s.%s',
             metis_key_clean($owner),
             metis_key_clean($repo),
-            metis_key_clean((string) ($settings['ref'] ?? ''))
+            metis_key_clean((string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''))
         );
 
         if (!$forceRefresh) {
@@ -206,7 +207,7 @@ final class GitHubUpdateService {
             $payload = $this->fetchReleaseManifestPayload(
                 $owner,
                 $repo,
-                (string) ($settings['ref'] ?? ''),
+                (string) ($settings['metadata_ref'] ?? ''),
                 (string) ($settings['token'] ?? '')
             );
         } catch (\Throwable $exception) {
@@ -270,6 +271,7 @@ final class GitHubUpdateService {
             'owner' => $owner,
             'repo' => $repo,
             'ref' => $this->repositoryRef($fileConfig),
+            'metadata_ref' => $this->repositoryMetadataRef($fileConfig),
             'token' => $this->resolveToken($fileConfig),
             'current_version' => $currentVersion,
         ];
@@ -282,6 +284,15 @@ final class GitHubUpdateService {
         }
 
         return self::DEFAULT_MANIFEST_REF;
+    }
+
+    private function repositoryMetadataRef(array $fileConfig): string {
+        $ref = (string) ($fileConfig['github']['metadata_ref'] ?? $this->config->get('github_update_metadata_ref', ''));
+        if ($ref !== '') {
+            return metis_text_clean($ref);
+        }
+
+        return self::DEFAULT_METADATA_REF;
     }
 
     private function resolveToken(array $fileConfig): string {
@@ -497,7 +508,7 @@ final class GitHubUpdateService {
     }
 
     private function moduleCatalogRefs(string $preferredRef): array {
-        $refs = [ $preferredRef, '', 'main', 'stable' ];
+        $refs = [ $preferredRef, self::DEFAULT_METADATA_REF, '', self::DEFAULT_MANIFEST_REF ];
         $normalized = [];
 
         foreach ($refs as $ref) {

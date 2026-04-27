@@ -16,6 +16,8 @@ system/config/database.php
 
 /uploads/*
 
+/meta/*
+
 /grandys_stash/
 
 /storage/runtime/
