@@ -267,7 +267,31 @@ function metis_standalone_compiled_config( bool $force_rebuild = false ): array 
 
 function metis_standalone_read_config( string $name, array $default = [] ): array {
     $config = metis_standalone_compiled_config();
-    $value = $config['config'][ $name ] ?? $default;
+    $compiled = is_array( $config['config'] ?? null ) ? $config['config'] : [];
+    $value = $compiled[ $name ] ?? null;
+
+    if ( ! is_array( $value ) && $name === 'github' ) {
+        $update = is_array( $compiled['update'] ?? null ) ? $compiled['update'] : [];
+        $value = is_array( $update['github'] ?? null ) ? $update['github'] : null;
+    }
+
+    if ( ! is_array( $value ) && $name === 'release' ) {
+        $update = is_array( $compiled['update'] ?? null ) ? $compiled['update'] : [];
+        $github = is_array( $update['github'] ?? null ) ? $update['github'] : [];
+        $owner = trim( (string) ( $github['owner'] ?? '' ) );
+        $repo = trim( (string) ( $github['repo'] ?? '' ) );
+
+        $value = [
+            'remote_enabled' => true,
+            'remote' => $owner !== '' && $repo !== '' ? sprintf( 'https://github.com/%s/%s.git', $owner, $repo ) : 'origin',
+            'git_binary' => 'git',
+        ];
+    }
+
+    if ( ! is_array( $value ) ) {
+        $value = $default;
+    }
+
     return is_array( $value ) ? $value : $default;
 }
 
