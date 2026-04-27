@@ -136,6 +136,7 @@ final class HermesDefinitionLibrary {
             $suffix = substr( $relativePath, strlen( 'storage/config/hermes/' ) );
 
             return [
+                'system/config/hermes/' . $suffix,
                 'storage/config/hermes/' . $suffix,
                 'config/hermes/' . $suffix,
             ];
@@ -145,8 +146,9 @@ final class HermesDefinitionLibrary {
             $suffix = substr( $relativePath, strlen( 'config/hermes/' ) );
 
             return [
-                'storage/config/hermes/' . $suffix,
+                'system/config/hermes/' . $suffix,
                 'config/hermes/' . $suffix,
+                'storage/config/hermes/' . $suffix,
             ];
         }
 

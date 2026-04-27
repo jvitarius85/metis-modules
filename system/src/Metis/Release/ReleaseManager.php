@@ -1392,6 +1392,23 @@ final class ReleaseManager {
 
         $installed_tag = $this->normalizeTag( (string) ( $state['installed_tag'] ?? '' ) );
         if ( $installed_tag !== '' ) {
+            $installed_version = Version::current();
+            $installed_tag_version = $this->versionFromTag( $installed_tag );
+            if ( $installed_version !== '' && $installed_tag_version !== '' && $installed_version !== $installed_tag_version ) {
+                $version_release = $this->findReleaseByVersion( $installed_version, $releases );
+                if ( $version_release !== null ) {
+                    return $version_release;
+                }
+
+                return [
+                    'tag' => 'v' . $installed_version,
+                    'version' => $installed_version,
+                    'commit' => (string) ( $state['installed_commit'] ?? '' ),
+                    'source' => 'version_service',
+                    'trusted' => false,
+                ];
+            }
+
             return $this->findReleaseByTag( $installed_tag, $releases ) ?? [
                 'tag' => $installed_tag,
                 'version' => Version::current(),
@@ -1430,12 +1447,30 @@ final class ReleaseManager {
         return null;
     }
 
+    private function findReleaseByVersion( string $version, array $releases ): ?array {
+        $version = trim( $version );
+        if ( $version === '' ) {
+            return null;
+        }
+
+        foreach ( $releases as $release ) {
+            if ( trim( (string) ( $release['version'] ?? '' ) ) === $version ) {
+                return $release;
+            }
+        }
+
+        return null;
+    }
+
     private function syncInstalledVersion(): void {
         $state = $this->readState();
         $version = Version::current();
         $repository = $this->repositoryState();
         $tag = $this->normalizeTag( (string) ( $repository['exact_tag'] ?? ( $state['installed_tag'] ?? '' ) ) );
         $commit = (string) ( $repository['commit'] ?? ( $state['installed_commit'] ?? '' ) );
+        if ( $tag !== '' && $this->versionFromTag( $tag ) !== $version ) {
+            $tag = '';
+        }
 
         if (
             (string) ( $state['installed_version'] ?? '' ) === $version

@@ -6,6 +6,8 @@ config.php
 /storage/*
 /logs/
 /cache/
+!/Cache/
+!/Cache/**
 
 # Uploads
 /uploads/
