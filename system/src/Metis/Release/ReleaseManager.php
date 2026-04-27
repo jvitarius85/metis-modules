@@ -54,7 +54,7 @@ final class ReleaseManager {
         $current = $this->currentRelease( $repository, $state, $releases_payload['releases'] ?? [] );
         $latest = $this->latestRelease( $releases_payload['releases'] ?? [] );
         $remote_status = (string) ( $releases_payload['remote_status'] ?? 'unavailable' );
-        $remote_available = \in_array( $remote_status, [ 'live', 'api', 'cached' ], true )
+        $remote_available = \in_array( $remote_status, [ 'live', 'manifest', 'api', 'cached' ], true )
             || ! empty( $releases_payload['remote_releases'] );
 
         $status = [
@@ -118,7 +118,7 @@ final class ReleaseManager {
         $latest = $this->latestRelease( $releases );
         $installed_commit = (string) ( $state['installed_commit'] ?? '' );
         $remote_status = (string) ( $releases_payload['remote_status'] ?? 'cache_only' );
-        $remote_available = \in_array( $remote_status, [ 'live', 'api', 'cached', 'cache_only' ], true )
+        $remote_available = \in_array( $remote_status, [ 'live', 'manifest', 'api', 'cached', 'cache_only' ], true )
             && ( $releases !== [] || ! empty( $releases_payload['remote_releases'] ) );
 
         return [
@@ -714,6 +714,18 @@ final class ReleaseManager {
                 'message' => 'Release archive could not be downloaded.',
             ];
         }
+        $expected_hash = strtolower( trim( (string) ( $release['sha256'] ?? '' ) ) );
+        $actual_hash = strtolower( trim( (string) ( $archive['sha256'] ?? '' ) ) );
+        if ( $expected_hash !== '' && ( $actual_hash === '' || ! hash_equals( $expected_hash, $actual_hash ) ) ) {
+            $this->progress( 'failed', 'Release archive checksum did not match.', 100 );
+            return [
+                'ok' => false,
+                'status' => 'archive_checksum_failed',
+                'message' => 'Release archive checksum did not match the trusted release manifest.',
+                'expected_sha256' => $expected_hash,
+                'actual_sha256' => $actual_hash,
+            ];
+        }
 
         $this->progress( 'extract', 'Validating and extracting release archive.', 64 );
         $extracted = $this->extractReleaseArchive( (string) $archive['path'], $tag );
@@ -1229,8 +1241,24 @@ final class ReleaseManager {
             return [ 'status' => 'disabled', 'releases' => [] ];
         }
 
+        $manifest_releases = $this->discoverRemoteReleasesFromManifest( $force_refresh );
+        if ( $manifest_releases !== [] ) {
+            return [
+                'status' => 'manifest',
+                'releases' => $manifest_releases,
+            ];
+        }
+
         $remote = $this->remoteName();
         if ( $remote === '' ) {
+            $github_releases = $this->discoverRemoteReleasesFromGitHub();
+            if ( $github_releases !== [] ) {
+                return [
+                    'status' => 'api',
+                    'releases' => $github_releases,
+                ];
+            }
+
             return [ 'status' => 'no_remote', 'releases' => [] ];
         }
 
@@ -1289,6 +1317,19 @@ final class ReleaseManager {
             'status' => 'live',
             'releases' => array_values( $releases ),
         ];
+    }
+
+    private function discoverRemoteReleasesFromManifest( bool $force_refresh ): array {
+        if ( ! \class_exists( \Metis\Core\Application::class ) || ! \Metis\Core\Application::has_service( 'github_update' ) ) {
+            return [];
+        }
+
+        try {
+            $releases = \Metis\Core\Application::service( 'github_update' )->manifestReleases( $force_refresh );
+            return \is_array( $releases ) ? $releases : [];
+        } catch ( \Throwable ) {
+            return [];
+        }
     }
 
     private function releaseExecution(): \Metis\Core\Services\ReleaseExecutionService {

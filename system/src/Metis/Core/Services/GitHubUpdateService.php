@@ -9,6 +9,7 @@ use Metis\Core\Version;
 final class GitHubUpdateService {
     private const CACHE_TTL = 21600;
     private const OFFICIAL_MODULES_PATH = 'meta/official-modules.json';
+    private const RELEASES_MANIFEST_PATH = 'meta/releases.json';
     private const DEFAULT_MANIFEST_REF = 'stable';
 
     public function __construct(
@@ -173,6 +174,57 @@ final class GitHubUpdateService {
         $tags = $this->github->repositoryTags($owner, $repo, (string) ($settings['token'] ?? ''));
         $releases = $this->normalizeSemanticTagReleases($tags);
         CacheService::set($cacheKey, $releases, self::CACHE_TTL);
+
+        return $releases;
+    }
+
+    public function manifestReleases(bool $forceRefresh = false): array {
+        $settings = $this->repositoryConfig();
+        $owner = (string) ($settings['owner'] ?? '');
+        $repo = (string) ($settings['repo'] ?? '');
+        if ($owner === '' || $repo === '') {
+            return [];
+        }
+
+        $cacheKey = sprintf(
+            'api.github_release_manifest.%s.%s.%s',
+            metis_key_clean($owner),
+            metis_key_clean($repo),
+            metis_key_clean((string) ($settings['ref'] ?? ''))
+        );
+
+        if (!$forceRefresh) {
+            $cached = CacheService::get($cacheKey);
+            if (is_array($cached)) {
+                return $this->normalizeManifestReleases($cached);
+            }
+        } else {
+            CacheService::forget($cacheKey);
+        }
+
+        try {
+            $payload = $this->fetchReleaseManifestPayload(
+                $owner,
+                $repo,
+                (string) ($settings['ref'] ?? ''),
+                (string) ($settings['token'] ?? '')
+            );
+        } catch (\Throwable $exception) {
+            $this->logger->warn('github_release_manifest_lookup_failed', [
+                'owner' => $owner,
+                'repo' => $repo,
+                'ref' => (string) ($settings['ref'] ?? ''),
+                'message' => $exception->getMessage(),
+            ]);
+            return [];
+        }
+
+        $releases = $this->normalizeManifestReleases($payload);
+        if ($releases !== []) {
+            CacheService::set($cacheKey, $payload, self::CACHE_TTL);
+        } else {
+            CacheService::forget($cacheKey);
+        }
 
         return $releases;
     }
@@ -418,6 +470,32 @@ final class GitHubUpdateService {
         );
     }
 
+    private function fetchReleaseManifestPayload(string $owner, string $repo, string $preferredRef, string $token): array {
+        $attempted = [];
+
+        foreach ($this->moduleCatalogRefs($preferredRef) as $ref) {
+            try {
+                return $this->github->repositoryJsonFile(
+                    $owner,
+                    $repo,
+                    self::RELEASES_MANIFEST_PATH,
+                    $ref,
+                    $token
+                );
+            } catch (\RuntimeException $exception) {
+                $attempted[] = $ref !== '' ? $ref : '(default)';
+            }
+        }
+
+        throw new \RuntimeException(
+            sprintf(
+                'Unable to load [%s] from refs: %s',
+                self::RELEASES_MANIFEST_PATH,
+                implode(', ', $attempted)
+            )
+        );
+    }
+
     private function moduleCatalogRefs(string $preferredRef): array {
         $refs = [ $preferredRef, '', 'main', 'stable' ];
         $normalized = [];
@@ -482,6 +560,49 @@ final class GitHubUpdateService {
                 'commit' => $commit,
                 'zipball_url' => (string) ($tag['zipball_url'] ?? ''),
                 'source' => 'remote_tag_api',
+                'trusted' => true,
+                'cached' => false,
+            ];
+        }
+
+        uasort(
+            $releases,
+            static fn(array $left, array $right): int => version_compare((string) $right['version'], (string) $left['version'])
+        );
+
+        return array_values($releases);
+    }
+
+    private function normalizeManifestReleases(array $payload): array {
+        $rows = is_array($payload['releases'] ?? null) ? $payload['releases'] : [];
+        $releases = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $tagName = metis_text_clean((string) ($row['tag'] ?? $row['tag_name'] ?? ''));
+            $version = metis_text_clean((string) ($row['version'] ?? $this->versionFromTag($tagName)));
+            if ($tagName === '' || $version === '' || $this->versionFromTag($tagName) === '') {
+                continue;
+            }
+
+            $sha256 = strtolower(trim((string) ($row['sha256'] ?? '')));
+            if ($sha256 !== '' && preg_match('/^[a-f0-9]{64}$/', $sha256) !== 1) {
+                $sha256 = '';
+            }
+
+            $releases[$tagName] = [
+                'tag' => $tagName,
+                'version' => $version,
+                'commit' => trim((string) ($row['commit'] ?? '')),
+                'zipball_url' => trim((string) ($row['zipball_url'] ?? $row['zip_url'] ?? $row['archive_url'] ?? $row['download_url'] ?? '')),
+                'sha256' => $sha256,
+                'notes_url' => trim((string) ($row['notes_url'] ?? '')),
+                'published_at' => trim((string) ($row['published_at'] ?? '')),
+                'minimum_php' => trim((string) ($row['minimum_php'] ?? '')),
+                'source' => 'release_manifest',
                 'trusted' => true,
                 'cached' => false,
             ];

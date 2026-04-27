@@ -123,18 +123,22 @@ final class GitRecoveryService {
 
     /** @param array<int,string> $args @return array<string,mixed> */
     private function runGit(array $args): array {
+        if (!\function_exists('proc_open')) {
+            return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'proc_open unavailable'];
+        }
+
         $root = defined('METIS_PATH') ? rtrim((string) METIS_PATH, '/\\') : dirname(__DIR__, 5);
         $command = array_merge(['git', '-C', $root], $args);
         $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $process = @proc_open($command, $descriptors, $pipes);
+        $process = @\proc_open($command, $descriptors, $pipes);
         if (!is_resource($process)) {
             return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'Unable to start git process.'];
         }
-        $stdout = stream_get_contents($pipes[1]) ?: '';
-        $stderr = stream_get_contents($pipes[2]) ?: '';
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit = proc_close($process);
+        $stdout = \stream_get_contents($pipes[1]) ?: '';
+        $stderr = \stream_get_contents($pipes[2]) ?: '';
+        \fclose($pipes[1]);
+        \fclose($pipes[2]);
+        $exit = \proc_close($process);
         return ['exit_code' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
     }
 }

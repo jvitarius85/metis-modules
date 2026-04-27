@@ -93,6 +93,15 @@ Admins can review available releases and apply trusted updates from the admin
 portal. Updates require preflight checks and a pre-update backup before files are
 changed.
 
+Release discovery uses repository metadata in `meta/releases.json` first, then
+falls back to Git tags when the server supports Git process execution. When
+publishing a release, update the version, generate the manifest entry, then tag
+the release:
+
+```bash
+php system/tools/release_manifest.php add v1.9.4
+```
+
 ## Security
 
 Metis uses layered security controls:

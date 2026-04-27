@@ -96,7 +96,7 @@ final class BackupService {
             $component_archives['database'] = $this->describeFile( 'database', $database_file );
 
             $config_archive = $payload_dir . '/config.zip';
-            $this->zipDirectory( $this->metisPath( 'config' ), $config_archive, [], [ 'index.php' ] );
+            $this->zipDirectory( $this->configPath(), $config_archive, [], [ 'index.php' ] );
             $component_archives['config'] = $this->describeFile( 'config', $config_archive );
 
             $media_archive = $payload_dir . '/media.zip';
@@ -405,7 +405,7 @@ final class BackupService {
             $database_file  = $restore_dir . '/database/database.sql.gz';
 
             if ( \is_dir( $config_source ) ) {
-                $this->mirrorDirectory( $config_source, $this->metisPath( 'config' ) );
+                $this->mirrorDirectory( $config_source, $this->configPath() );
             }
             if ( \is_dir( $media_source ) ) {
                 $this->mirrorDirectory( $media_source, $this->metisPath( 'storage/media' ) );
@@ -534,7 +534,7 @@ final class BackupService {
         $zip->addFile( $metadata_path, 'metadata.json' );
         $zip->addFile( $checksums_path, 'checksums.json' );
         $zip->addFile( $database_file, 'database/' . basename( $database_file ) );
-        $this->addDirectoryToZip( $zip, $this->metisPath( 'config' ), 'config', [ 'index.php' ] );
+        $this->addDirectoryToZip( $zip, $this->configPath(), 'config', [ 'index.php' ] );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/media' ), 'storage/media' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/runtime' ), 'storage/runtime', [ 'backups' ] );
         $zip->close();
@@ -1137,6 +1137,19 @@ final class BackupService {
 
     private function metisPath( string $suffix = '' ): string {
         return rtrim( \METIS_PATH, '/\\' ) . ( $suffix !== '' ? '/' . ltrim( $suffix, '/\\' ) : '' );
+    }
+
+    private function configPath(): string {
+        if ( \defined( 'METIS_CONFIG_PATH' ) ) {
+            return rtrim( (string) \METIS_CONFIG_PATH, '/\\' );
+        }
+
+        $system_config = $this->metisPath( 'system/config' );
+        if ( \is_dir( $system_config ) ) {
+            return $system_config;
+        }
+
+        return $this->metisPath( 'config' );
     }
 
     private function encode( mixed $value ): string {
