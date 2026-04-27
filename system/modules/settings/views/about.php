@@ -182,17 +182,26 @@ usort( $module_details, static function ( array $a, array $b ): int {
             <?php if ( ! empty( $release_status['remote_error'] ) ) : ?>
                 <p class="metis-help" style="color:#b91c1c;"><?php echo metis_escape_html( (string) $release_status['remote_error'] ); ?></p>
             <?php else : ?>
-                <p class="metis-help">Release checks trust semantic Git tags and cache the results locally.</p>
+                <p class="metis-help">Release checks trust the configured release manifest first, then verified semantic Git tags when available.</p>
             <?php endif; ?>
         </div>
         <div class="metis-field">
             <label>Release Source</label>
             <div class="metis-shortcode-wrap">
                 <code class="metis-shortcode">
-                    <?php echo metis_escape_html( (string) ( $release_repository['remote'] ?? '' ) !== '' ? (string) $release_repository['remote'] : 'local tags + configured remote' ); ?>
+                    <?php
+                    $release_source_label = match ( (string) ( $release_status['remote_status'] ?? '' ) ) {
+                        'manifest' => 'release manifest + configured GitHub source',
+                        'api' => 'GitHub API release metadata',
+                        'live' => 'remote semantic Git tags',
+                        'cached', 'cache_only' => 'cached trusted release metadata',
+                        default => (string) ( $release_repository['remote'] ?? '' ) !== '' ? (string) $release_repository['remote'] : 'configured release source',
+                    };
+                    echo metis_escape_html( $release_source_label );
+                    ?>
                 </code>
             </div>
-            <p class="metis-help">Release checks use semantic Git tags discovered from the local repository and the configured remote source.</p>
+            <p class="metis-help">Release checks prefer `meta/releases.json` so production can trust official releases without relying only on local Git state.</p>
         </div>
     </div>
 </div>

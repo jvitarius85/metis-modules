@@ -10,8 +10,10 @@ normal install.
 - Apache with rewrite support, or Nginx with equivalent rewrite/protection rules
 - Writable `storage/` and `system/config/`
 - PHP extensions commonly required by Metis: `mysqli`, `json`, `mbstring`,
-  `openssl`, `pdo`
-- `ZipArchive` recommended for updates and backups
+  `openssl`, `pdo`, `curl`, `zip`
+- PHP process functions enabled: `proc_open`, `proc_close`,
+  `proc_get_status`, and `proc_terminate`
+- `ZipArchive` required for updates and backups
 - `libsodium` or OpenSSL recommended for encrypted secrets and future encrypted
   backup support
 - Outbound HTTPS recommended for release checks and GitHub metadata

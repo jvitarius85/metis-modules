@@ -195,8 +195,12 @@ final class ReleaseManager {
 
         $this->ensureRuntime();
 
+        $cached_payload = $this->readReleaseCache();
         $releases_payload = $this->refreshTrustedReleases( true, 'apply' );
         $release = $this->findReleaseByTag( $tag, $releases_payload['releases'] ?? [] );
+        if ( $release === null ) {
+            $release = $this->findReleaseByTag( $tag, $cached_payload['releases'] ?? [] );
+        }
         if ( $release === null ) {
             $this->progress( 'failed', 'Requested release is not trusted.', 100 );
             return [

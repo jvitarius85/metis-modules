@@ -391,13 +391,25 @@ function metis_standalone_install_precheck_rows(): array {
         'Running PHP ' . PHP_VERSION . '. Metis requires PHP 8.1 or newer.'
     );
 
-    foreach ( [ 'mysqli', 'json', 'mbstring', 'openssl', 'pdo' ] as $extension ) {
+    foreach ( [ 'mysqli', 'json', 'mbstring', 'openssl', 'pdo', 'curl', 'zip' ] as $extension ) {
         $loaded = extension_loaded( $extension );
         $add(
             'ext_' . $extension,
             strtoupper( $extension ) . ' Extension',
             $loaded ? 'pass' : 'fail',
             $loaded ? 'Available.' : 'Required PHP extension is not loaded.'
+        );
+    }
+
+    foreach ( [ 'proc_open', 'proc_close', 'proc_get_status', 'proc_terminate' ] as $function ) {
+        $available = function_exists( $function );
+        $add(
+            'fn_' . $function,
+            $function . ' Function',
+            $available ? 'pass' : 'fail',
+            $available
+                ? 'Available.'
+                : 'Required for Metis release operations, recovery, integrity checks, and advanced diagnostics.'
         );
     }
 

@@ -79,6 +79,9 @@ Baseline requirements:
 - MariaDB or MySQL with InnoDB
 - Apache with rewrite support, or Nginx with equivalent server rules
 - Writable `storage/` and `system/config/`
+- PHP process functions enabled: `proc_open`, `proc_close`,
+  `proc_get_status`, and `proc_terminate`
+- PHP `curl` and `zip` extensions
 - 2 GB RAM minimum, 4 GB preferred
 - 2 CPU cores minimum
 - 60 GB storage minimum, 100 GB preferred

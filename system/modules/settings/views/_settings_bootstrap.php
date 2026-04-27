@@ -1395,6 +1395,30 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $execution_status === 'pass' ? '' : 'Increase execution time budget for admin operations or ensure heavy jobs run asynchronously.'
         );
 
+        foreach ( [ 'curl', 'zip' ] as $required_extension ) {
+            $extension_loaded = extension_loaded( $required_extension );
+            $add_check(
+                'php_extension_' . $required_extension,
+                'PHP Extension: ' . strtoupper( $required_extension ),
+                'security',
+                $extension_loaded ? 'pass' : 'fail',
+                $extension_loaded ? 'Available.' : 'Required PHP extension is not loaded.',
+                $extension_loaded ? '' : 'Enable this PHP extension before running release, backup, and remote metadata operations.'
+            );
+        }
+
+        foreach ( [ 'proc_open', 'proc_close', 'proc_get_status', 'proc_terminate' ] as $required_function ) {
+            $function_available = function_exists( $required_function );
+            $add_check(
+                'php_function_' . $required_function,
+                'PHP Function: ' . $required_function,
+                'security',
+                $function_available ? 'pass' : 'fail',
+                $function_available ? 'Available.' : 'Required PHP process function is disabled.',
+                $function_available ? '' : 'Enable required PHP process functions for full release, recovery, integrity, and diagnostics support.'
+            );
+        }
+
         $disk_target = defined( 'METIS_ROOT' ) ? (string) METIS_ROOT : ( defined( 'METIS_PATH' ) ? (string) METIS_PATH : dirname( __DIR__, 3 ) );
         $disk_free = @disk_free_space( $disk_target );
         $disk_total = @disk_total_space( $disk_target );
