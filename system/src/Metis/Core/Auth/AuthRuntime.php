@@ -1509,6 +1509,10 @@ function metis_auth_login_customization(): array {
 
 function metis_auth_render_shell( string $title, string $body, int $status = 200 ): never {
     $custom = metis_auth_login_customization();
+    $css_path = ( defined( 'METIS_PATH' ) ? rtrim( (string) METIS_PATH, '/\\' ) : dirname( __DIR__, 4 ) ) . '/system/assets/css/auth-shell.css';
+    $js_path = ( defined( 'METIS_PATH' ) ? rtrim( (string) METIS_PATH, '/\\' ) : dirname( __DIR__, 4 ) ) . '/system/assets/js/auth-passkey-client.js';
+    $inline_css = is_readable( $css_path ) ? (string) file_get_contents( $css_path ) : '';
+    $inline_js = is_readable( $js_path ) ? (string) file_get_contents( $js_path ) : '';
     $background_style = 'background:' . metis_escape_attr( (string) $custom['background_color'] ) . ';';
     if ( ! empty( $custom['background_image'] ) ) {
         $background_style = 'background:' . metis_escape_attr( (string) $custom['background_color'] ) . ' url(' . metis_escape_url( (string) $custom['background_image'] ) . ') center/cover no-repeat;';
@@ -1522,12 +1526,18 @@ function metis_auth_render_shell( string $title, string $body, int $status = 200
     header( 'Content-Type: text/html; charset=UTF-8' );
     echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . metis_escape_html( $title ) . '</title>';
-    echo '<link rel="stylesheet" href="' . metis_escape_url( metis_site_url( '/assets/css/auth-shell.css' ) ) . '">';
-    echo '<script src="' . metis_escape_url( metis_site_url( '/assets/js/auth-passkey-client.js' ) ) . '" defer></script>';
+    if ( $inline_css !== '' ) {
+        echo '<style>' . $inline_css . '</style>';
+    } else {
+        echo '<link rel="stylesheet" href="' . metis_escape_url( metis_site_url( '/assets/css/auth-shell.css' ) ) . '">';
+    }
+    if ( $inline_js === '' ) {
+        echo '<script src="' . metis_escape_url( metis_site_url( '/assets/js/auth-passkey-client.js' ) ) . '" defer></script>';
+    }
     echo '</head><body class="metis-auth-shell" style="' . $background_style . '"><div class="wrap">';
     echo '<div class="auth-brand">';
     if ( $logo !== '' ) {
-        echo '<img src="' . metis_escape_url( $logo ) . '" alt="' . metis_escape_attr( $brand ) . '">';
+        echo '<img src="' . metis_escape_url( $logo ) . '" alt="' . metis_escape_attr( $brand ) . '" style="max-height:64px;max-width:220px;width:auto;height:auto;">';
     }
     if ( $brand !== '' ) {
         echo '<div class="auth-brand-name">' . metis_escape_html( $brand ) . '</div>';
@@ -1539,6 +1549,9 @@ function metis_auth_render_shell( string $title, string $body, int $status = 200
     echo $body;
     if ( $footer !== '' ) {
         echo '<div class="auth-footer">' . metis_escape_html( $footer ) . '</div>';
+    }
+    if ( $inline_js !== '' ) {
+        echo '<script>' . $inline_js . '</script>';
     }
     echo '</div></body></html>';
     exit;
@@ -1924,7 +1937,7 @@ function metis_auth_handle_request( Metis_Http_Request $request ): bool {
         $body .= '<div class="auth-actions">';
         $body .= '<button type="submit" id="metis-auth-resolve-button">Continue</button>';
         $body .= '<span class="auth-or">OR</span>';
-        $body .= '<button type="button" id="metis-google-sso-button" class="metis-btn-secondary">Sign in with Google</button>';
+        $body .= '<button type="submit" id="metis-google-sso-button" class="metis-btn-secondary" form="metis-google-sso-form">Sign in with Google</button>';
         $body .= '</div></form>';
         $body .= '<form method="post" id="metis-google-sso-form" hidden><input type="hidden" name="mode" value="google_workspace_start">' . \Metis\Core\Application::service( 'csrf' )->hiddenFields( metis_auth_form_nonce_action( 'google_workspace_start' ) ) . '</form>';
         $body .= '<p id="metis-auth-status" class="muted" aria-live="polite"></p>';

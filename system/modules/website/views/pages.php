@@ -9,6 +9,11 @@ use Metis\Modules\Website\Services\PostService;
 
 require_once __DIR__ . '/_editor_bootstrap.php';
 
+$can_create = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'website.create' );
+$can_edit = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'website.edit' );
+$can_delete = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'website.delete' );
+$can_publish = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'website.publish' );
+
 $per_page = 100;
 $current_page = isset( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
 $total_pages_count = PageService::countAll();
@@ -106,6 +111,10 @@ foreach ( $pages as $page ) {
 }
 
 if ( $is_editor_route ) {
+    if ( ! $can_create && ! $can_edit ) {
+        metis_runtime_die( 'Unauthorized.', 'Error', [ 'response' => 403 ] );
+    }
+
     $context = 'website';
     $editor_target_id = 0;
     if ( $editor_new === 'post' || strtoupper( substr( $editor_key, 0, 3 ) ) === 'WBP' ) {
@@ -144,6 +153,7 @@ if ( $is_editor_route ) {
         <p class="metis-subtitle"><?php echo metis_escape_html( $total_pages_count ); ?> page<?php echo $total_pages_count !== 1 ? 's' : ''; ?> in website content.</p>
     </div>
     <div class="metis-page-header-right">
+        <?php if ( $can_publish ) : ?>
         <label for="metis-homepage-selector" class="metis-homepage-label">Homepage</label>
         <select id="metis-homepage-selector" class="metis-input metis-input-sm metis-homepage-selector">
             <option value="">Select published page…</option>
@@ -154,10 +164,13 @@ if ( $is_editor_route ) {
             <?php endforeach; ?>
         </select>
         <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-set-homepage-btn">Set Homepage</button>
+        <?php endif; ?>
+        <?php if ( $can_create ) : ?>
         <button class="metis-btn metis-btn-primary" id="metis-create-page-btn">
             <svg class="metis-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Page
         </button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -167,7 +180,9 @@ if ( $is_editor_route ) {
             <div class="metis-empty-state-icon">&#128196;</div>
             <h2>No pages yet</h2>
             <p>Create your first page to get started.</p>
-            <button class="metis-btn metis-btn-primary" id="metis-create-page-btn-empty">New Page</button>
+            <?php if ( $can_create ) : ?>
+                <button class="metis-btn metis-btn-primary" id="metis-create-page-btn-empty">New Page</button>
+            <?php endif; ?>
         </div>
     <?php else : ?>
         <table class="metis-premium-table metis-pages-table">
@@ -178,7 +193,9 @@ if ( $is_editor_route ) {
                     <th class="metis-premium-cell" scope="col">Status</th>
                     <th class="metis-premium-cell" scope="col">Code</th>
                     <th class="metis-premium-cell" scope="col">Updated</th>
-                    <th class="metis-premium-cell metis-col-right" scope="col">Actions</th>
+                    <?php if ( $can_edit || $can_publish || $can_delete ) : ?>
+                        <th class="metis-premium-cell metis-col-right" scope="col">Actions</th>
+                    <?php endif; ?>
                 </tr>
             </thead>
             <tbody>
@@ -196,11 +213,15 @@ if ( $is_editor_route ) {
                         <td class="metis-premium-cell"><span class="metis-status metis-status-<?php echo metis_escape_attr( $page->status ); ?>"><?php echo metis_escape_html( ucfirst( $page->status ) ); ?></span></td>
                         <td class="metis-premium-cell"><code class="metis-inline-code"><?php echo metis_escape_html( $page->page_code ?? '—' ); ?></code></td>
                         <td class="metis-premium-cell metis-table-updated"><?php echo metis_escape_html( $page->updated_at ? date( 'M j, Y', strtotime( $page->updated_at ) ) : '—' ); ?></td>
+                        <?php if ( $can_edit || $can_publish || $can_delete ) : ?>
                         <td class="metis-premium-cell metis-col-right">
                             <div class="metis-table-actions">
+                                <?php if ( $can_edit ) : ?>
                                 <button class="metis-action-btn metis-edit-page" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $page->page_code ?? '' ) ); ?>" title="Edit in editor">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 </button>
+                                <?php endif; ?>
+                                <?php if ( $can_publish ) : ?>
                                 <?php if ( $page->status === 'draft' ) : ?>
                                 <button class="metis-action-btn metis-action-btn-primary metis-publish-page" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" title="Publish">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -210,16 +231,20 @@ if ( $is_editor_route ) {
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                 </button>
                                 <?php endif; ?>
+                                <?php endif; ?>
                                 <?php if ( $page->status === 'published' ) : ?>
                                 <a href="<?php echo metis_escape_attr( ( $homepage_page_id !== null && (int) $homepage_page_id === (int) $page->id ) ? '/' : '/' . ltrim( (string) $page->slug, '/' ) ); ?>" class="metis-action-btn" title="View live" target="_blank" rel="noopener">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                 </a>
                                 <?php endif; ?>
+                                <?php if ( $can_delete ) : ?>
                                 <button class="metis-action-btn metis-action-btn-danger metis-delete-page" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" title="Delete">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                                 </button>
+                                <?php endif; ?>
                             </div>
                         </td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

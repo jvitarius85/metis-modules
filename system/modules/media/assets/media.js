@@ -2,6 +2,8 @@
     'use strict';
     var viewMode = 'grid';
     var facetState = { folders: [], categories: [] };
+    var canEdit = false;
+    var canDelete = false;
 
     function ensureToastWrap() {
         var id = 'metis-toast-wrap';
@@ -87,6 +89,17 @@
             taxonomy += '</div>';
         }
 
+        var actionButtons = [
+            '      <button type="button" class="metis-action-btn metis-media-preview" data-url="' + url + '" data-name="' + name + '" data-mime="' + mime + '">Preview</button>',
+            '      <button type="button" class="metis-action-btn metis-media-copy" data-url="' + url + '">Copy URL</button>'
+        ];
+        if (canEdit) {
+            actionButtons.push('      <button type="button" class="metis-action-btn metis-media-move" data-token="' + token + '" data-folder="' + folder + '" data-category="' + category + '">Organize</button>');
+        }
+        if (canDelete) {
+            actionButtons.push('      <button type="button" class="metis-action-btn metis-action-btn-danger metis-media-delete" data-token="' + token + '">Delete</button>');
+        }
+
         return [
             '<article class="metis-media-card">',
             '  <div class="metis-media-thumb-wrap">' + thumb + '</div>',
@@ -96,10 +109,7 @@
             '    <div class="metis-media-meta-row"><span>' + size + '</span><span>' + createdAt + '</span></div>',
             taxonomy,
             '    <div class="metis-media-actions">',
-            '      <button type="button" class="metis-action-btn metis-media-preview" data-url="' + url + '" data-name="' + name + '" data-mime="' + mime + '">Preview</button>',
-            '      <button type="button" class="metis-action-btn metis-media-copy" data-url="' + url + '">Copy URL</button>',
-            '      <button type="button" class="metis-action-btn metis-media-move" data-token="' + token + '" data-folder="' + folder + '" data-category="' + category + '">Organize</button>',
-            '      <button type="button" class="metis-action-btn metis-action-btn-danger metis-media-delete" data-token="' + token + '">Delete</button>',
+            actionButtons.join(''),
             '    </div>',
             '  </div>',
             '</article>'
@@ -240,6 +250,10 @@
     }
 
     function uploadFiles(files) {
+        if (!canEdit) {
+            toast('You do not have permission to upload media.', 'error');
+            return;
+        }
         if (!files || !files.length) {
             return;
         }
@@ -362,6 +376,7 @@
         });
 
         $('#metis-media-upload-btn').on('click', function () {
+            if (!canEdit) return;
             $('#metis-media-upload-input').trigger('click');
         });
 
@@ -390,6 +405,7 @@
 
         $('#metis-media-dropzone').on('click', function (e) {
             e.preventDefault();
+            if (!canEdit) return;
             $('#metis-media-upload-input').trigger('click');
         });
 
@@ -427,6 +443,7 @@
         });
 
         $(document).on('click', '.metis-media-delete', function () {
+            if (!canDelete) return;
             var token = String($(this).data('token') || '');
             if (!token) {
                 return;
@@ -436,6 +453,7 @@
         });
 
         $(document).on('click', '.metis-media-move', function () {
+            if (!canEdit) return;
             var token = String($(this).data('token') || '');
             var currentFolder = String($(this).data('folder') || '');
             var currentCategory = String($(this).data('category') || '');
@@ -476,6 +494,7 @@
         });
 
         $('#metis-media-new-folder-btn').on('click', function () {
+            if (!canEdit) return;
             var value = $('#metis-media-upload-folder').val() || $('#metis-media-folder-filter').val() || '';
             var normalized = upsertFacet('folder', value);
             if (!normalized) {
@@ -488,6 +507,7 @@
         });
 
         $('#metis-media-new-category-btn').on('click', function () {
+            if (!canEdit) return;
             var value = $('#metis-media-upload-category').val() || $('#metis-media-category-filter').val() || '';
             var normalized = upsertFacet('category', value);
             if (!normalized) {
@@ -514,6 +534,7 @@
         });
 
         $('#metis-media-organize-save').on('click', function () {
+            if (!canEdit) return;
             var token = String($('#metis-media-organize-token').val() || '');
             var folder = upsertFacet('folder', $('#metis-media-organize-folder').val());
             var category = upsertFacet('category', $('#metis-media-organize-category').val());
@@ -549,6 +570,7 @@
         });
 
         $('#metis-media-delete-confirm').on('click', function () {
+            if (!canDelete) return;
             var token = String($('#metis-media-delete-token').val() || '');
             var cfg = ajaxBase();
             if (!token) {
@@ -584,6 +606,10 @@
         if (!document.getElementById('metis-media-grid')) {
             return;
         }
+
+        var wrap = document.querySelector('.metis-table-wrap');
+        canEdit = !!(wrap && wrap.getAttribute('data-can-edit') === '1');
+        canDelete = !!(wrap && wrap.getAttribute('data-can-delete') === '1');
 
         bindEvents();
         loadFacets();

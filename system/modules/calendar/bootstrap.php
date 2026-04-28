@@ -8,6 +8,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 \Metis\Modules\Calendar\CalendarModule::boot();
 
 function metis_calendar_can_view(): bool { return \Metis\Modules\Calendar\CalendarModule::canView(); }
+function metis_calendar_can( string $action ): bool { return \Metis\Modules\Calendar\Access::can( $action ); }
 function metis_calendar_can_manage(): bool { return \Metis\Modules\Calendar\CalendarModule::canManage(); }
 function metis_calendar_workspace_base_settings(): array { return \Metis\Modules\Calendar\CalendarModule::workspaceBaseSettings(); }
 function metis_calendar_setting_rows(): array { return \Metis\Modules\Calendar\CalendarModule::settingRows(); }

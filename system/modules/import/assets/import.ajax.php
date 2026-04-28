@@ -61,7 +61,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
     metis_ajax_register_controller( 'metis_import_confirm', [
         'module' => 'import',
-        'permission' => 'edit',
+        'permission' => 'execute',
         'nonce_action' => metis_ajax_nonce_action( 'metis_import_confirm' ),
     ] );
 }

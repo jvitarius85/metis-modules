@@ -42,7 +42,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_people_offboard_person' => 'edit',
         'metis_people_get_positions' => 'view',
         'metis_people_save_position' => 'edit',
-        'metis_people_delete_position' => 'edit',
+        'metis_people_delete_position' => 'delete',
         'metis_people_add_document' => 'edit',
         'metis_people_grant_emergency_access' => 'edit',
         'metis_people_delete_document' => 'delete',
@@ -1065,13 +1065,18 @@ function metis_people_workspace_execute_job(array $job, array $cfg, bool $dry_ru
             }
             return ['ok' => true, 'message' => 'Updated Workspace user ' . $primary_email];
         }
-        $user_body['password'] = metis_people_workspace_random_password(20);
+        $temporary_password = metis_people_workspace_random_password(20);
+        $user_body['password'] = $temporary_password;
         $user_body['changePasswordAtNextLogin'] = true;
         $create = metis_people_workspace_google_request('POST', 'users', $user_body, $cfg);
         if (empty($create['ok'])) return ['ok' => false, 'error' => 'Failed to create workspace user.'];
         $google_id = (string) ($create['body']['id'] ?? '');
         $db->update($users_table, ['workspace_user_id' => $google_id !== '' ? $google_id : null, 'sync_status' => 'synced'], ['id' => $entity_id], ['%s', '%s'], ['%d']);
-        return ['ok' => true, 'message' => 'Created Workspace user ' . $primary_email];
+        return [
+            'ok' => true,
+            'message' => 'Created Workspace user ' . $primary_email,
+            'temporary_password' => $temporary_password,
+        ];
     }
 
     if ($job_type === 'workspace_group_upsert') {

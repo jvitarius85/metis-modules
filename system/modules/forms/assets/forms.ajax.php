@@ -89,6 +89,18 @@ function metis_forms_ajax_require_delete(): void {
     }
 }
 
+function metis_forms_ajax_require_publish(): void {
+    if ( ! function_exists( 'metis_forms_can_publish' ) || ! metis_forms_can_publish() ) {
+        metis_runtime_send_json_error( 'Unauthorized', 403 );
+    }
+}
+
+function metis_forms_ajax_require_export(): void {
+    if ( ! function_exists( 'metis_forms_can_export' ) || ! metis_forms_can_export() ) {
+        metis_runtime_send_json_error( 'Unauthorized', 403 );
+    }
+}
+
 function metis_forms_ajax_send_result( array $result, string $fallback = 'Forms request failed.' ): void {
     if ( empty( $result['ok'] ) ) {
         $status = (int) ( $result['status'] ?? 422 );
@@ -108,11 +120,11 @@ function metis_forms_register_ajax_controllers(): void {
         'metis_forms_list' => [ 'permission' => 'view' ],
         'metis_forms_get' => [ 'permission' => 'view' ],
         'metis_forms_save' => [ 'permission' => 'edit' ],
-        'metis_forms_publish' => [ 'permission' => 'edit' ],
+        'metis_forms_publish' => [ 'permission' => 'publish' ],
         'metis_forms_duplicate' => [ 'permission' => 'edit' ],
         'metis_forms_delete' => [ 'permission' => 'delete' ],
         'metis_forms_entries' => [ 'permission' => 'view' ],
-        'metis_forms_export' => [ 'permission' => 'view' ],
+        'metis_forms_export' => [ 'permission' => 'export' ],
         'metis_forms_dynamic_options' => [ 'permission' => 'view' ],
     ];
 
@@ -175,7 +187,7 @@ metis_ajax_register_handler( 'metis_forms_save', static function (): void {
 
 metis_ajax_register_handler( 'metis_forms_publish', static function (): void {
     metis_forms_ajax_verify_nonce( [ 'metis_forms_publish', 'metis_forms', 'metis_core' ] );
-    metis_forms_ajax_require_manage();
+    metis_forms_ajax_require_publish();
 
     $form = metis_forms_ajax_post_json_array( 'form' );
     $form_id = max( 0, (int) ( $form['id'] ?? metis_forms_ajax_post_value( 'form_id', 0 ) ) );
@@ -230,7 +242,7 @@ metis_ajax_register_handler( 'metis_forms_entries', static function (): void {
 
 metis_ajax_register_handler( 'metis_forms_export', static function (): void {
     metis_forms_ajax_verify_nonce( [ 'metis_forms_export', 'metis_forms', 'metis_core' ] );
-    metis_forms_ajax_require_view();
+    metis_forms_ajax_require_export();
 
     $form_id = max( 0, (int) metis_forms_ajax_post_value( 'form_id', 0 ) );
     if ( $form_id < 1 ) {

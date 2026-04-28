@@ -86,6 +86,28 @@
                 "donor_admin",
                 "newsletter_admin"
             ]
+        },
+        "publish": {
+            "key": "forms.publish",
+            "action": "publish",
+            "name": "Forms Publish",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "export": {
+            "key": "forms.export",
+            "action": "export",
+            "name": "Forms Export",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
         }
     },
     "views": {

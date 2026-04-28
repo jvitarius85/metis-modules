@@ -11,10 +11,13 @@ $stats = $state['stats'] ?? [];
 $tickets = $state['tickets'] ?? [];
 $assignees = $state['assignees'] ?? [];
 $can_manage = metis_grandys_stash_can_manage();
+$can_create = function_exists( 'metis_grandys_stash_can_create' ) && metis_grandys_stash_can_create();
+$can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_grandys_stash_can_settings();
 ?>
 
 <div class="metis-stash-app"
      data-can-manage="<?php echo metis_escape_attr( $can_manage ? '1' : '0' ); ?>"
+     data-can-create="<?php echo metis_escape_attr( $can_create ? '1' : '0' ); ?>"
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_label( "Grandy's Stash" ) ); ?></h1>
@@ -32,7 +35,7 @@ $can_manage = metis_grandys_stash_can_manage();
     </div>
 
     <?php metis_render_sidebar_layout([
-        'sidebar' => static function () use ( $can_manage ) { ?>
+        'sidebar' => static function () use ( $can_create, $can_settings ) { ?>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Search</div>
                 <input id="metis-stash-search" class="metis-input" type="text" placeholder="Name, code, or email">
@@ -45,16 +48,20 @@ $can_manage = metis_grandys_stash_can_manage();
                 <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost metis-stash-sidebar-filter" data-filter="recent">Recently Updated</button>
                 <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost metis-stash-sidebar-filter" data-filter="all">All Tickets</button>
             </div>
-            <?php if ( $can_manage ) : ?>
+            <?php if ( $can_create ) : ?>
             <div class="metis-list-sidebar-actions">
                 <button type="button" class="metis-btn metis-btn-xs" id="metis-stash-new-ticket-open">+ New Ticket</button>
             </div>
             <?php endif; ?>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Navigation</div>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-btn metis-btn-xs">Inbox</a>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Reports</a>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Settings</a>
+                <nav class="metis-list-sidebar-nav" aria-label="Grandy's Stash navigation">
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-list-sidebar-nav-item is-active">Inbox</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-list-sidebar-nav-item">Reports</a>
+                    <?php if ( $can_settings ) : ?>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-list-sidebar-nav-item">Settings</a>
+                    <?php endif; ?>
+                </nav>
             </div>
         <?php },
         'content' => static function () use ( $tickets, $can_manage, $assignees ) { ?>
@@ -85,9 +92,11 @@ $can_manage = metis_grandys_stash_can_manage();
             $date = ! empty( $t['submitted_at'] ) ? date( 'M j, Y', strtotime( (string) $t['submitted_at'] ) ) : '';
             $group_code = ! empty( $t['group_code'] ) ? (string) $t['group_code'] : '';
             $search_blob = strtolower( implode( ' ', [ $code, $name, $type_label, $status, $assigned, $group_code, (string)($t['submit_email'] ?? ''), (string)($t['items_summary'] ?? '') ] ) );
+            $ticket_url = metis_grandys_stash_view_url( (string) ( $t['code'] ?? '' ) );
         ?>
         <tr class="metis-premium-row metis-stash-row"
              data-id="<?php echo metis_escape_attr( (string) $t['id'] ); ?>"
+             data-ticket-url="<?php echo metis_escape_attr( $ticket_url ); ?>"
              data-status="<?php echo metis_escape_attr( $status ); ?>"
              data-type="<?php echo metis_escape_attr( (string) $t['type'] ); ?>"
              data-assigned="<?php echo metis_escape_attr( (string) ($t['assigned_to'] ?? '') ); ?>"
@@ -100,7 +109,7 @@ $can_manage = metis_grandys_stash_can_manage();
             <td class="metis-premium-cell"><?php echo $assigned; ?></td>
             <td class="metis-premium-cell"><?php echo $item_count; ?></td>
             <td class="metis-premium-cell"><?php echo metis_escape_html( $date ); ?></td>
-            <?php if ( $can_manage ) : ?><td class="metis-premium-cell"><a class="metis-btn-xs" href="<?php echo metis_escape_url( metis_grandys_stash_view_url( (string) ( $t['code'] ?? '' ) ) ); ?>" data-ticket-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url( (string) ( $t['code'] ?? '' ) ) ); ?>">Review</a></td><?php endif; ?>
+            <?php if ( $can_manage ) : ?><td class="metis-premium-cell"><a class="metis-btn-xs" href="<?php echo metis_escape_url( $ticket_url ); ?>" data-ticket-url="<?php echo metis_escape_attr( $ticket_url ); ?>">Review</a></td><?php endif; ?>
         </tr>
     <?php endforeach; ?>
     </tbody>
@@ -109,7 +118,7 @@ $can_manage = metis_grandys_stash_can_manage();
         <?php },
     ]); ?>
     <!-- New ticket modal -->
-    <?php if ( $can_manage ) : ?>
+    <?php if ( $can_create ) : ?>
     <div class="metis-stash-modal" id="metis-stash-new-ticket-modal" aria-hidden="true">
         <div class="metis-stash-modal-dialog">
             <div class="metis-stash-modal-head">

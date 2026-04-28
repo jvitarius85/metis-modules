@@ -208,7 +208,8 @@
     });
 
     if (googleButton && googleForm) {
-        googleButton.addEventListener("click", function () {
+        googleButton.addEventListener("click", function (event) {
+            event.preventDefault();
             googleButton.disabled = true;
             googleForm.submit();
         });

@@ -432,7 +432,7 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
                     $index[ $topic_id ] = [
                         'title' => $module_label . ' ' . ucwords( str_replace( '_', ' ', $view ) ),
                         'description' => $description !== '' ? $description : 'Help for the ' . $module_label . ' ' . $view . ' view.',
-                        'learn_more' => '/docs/modules/' . metis_help_plain_key( (string) $slug ) . '.md',
+                        'learn_more' => '/system/docs/modules/' . metis_help_plain_key( (string) $slug ) . '.md',
                         'keywords' => [ $module_label, $slug, $view ],
                         'steps' => [
                             'Use the navigation menu to open the module.',
@@ -516,8 +516,15 @@ if ( ! class_exists( 'Metis_Help_Service' ) ) {
                     continue;
                 }
 
-                $relative = str_replace( dirname( __DIR__, 2 ), '', $file );
-                $relative = '/' . ltrim( str_replace( DIRECTORY_SEPARATOR, '/', $relative ), '/' );
+                $root = defined( 'METIS_PATH' ) ? rtrim( (string) METIS_PATH, '/\\' ) : dirname( __DIR__, 4 );
+                $normalized_file = str_replace( DIRECTORY_SEPARATOR, '/', $file );
+                $normalized_root = str_replace( DIRECTORY_SEPARATOR, '/', $root );
+                if ( str_starts_with( $normalized_file, $normalized_root . '/' ) ) {
+                    $relative = substr( $normalized_file, strlen( $normalized_root ) );
+                } else {
+                    $relative = str_replace( DIRECTORY_SEPARATOR, '/', basename( $file ) );
+                }
+                $relative = '/' . ltrim( $relative, '/' );
                 $lines = preg_split( '/\R/', $content ) ?: [];
                 $title = basename( $file );
                 foreach ( $lines as $line ) {

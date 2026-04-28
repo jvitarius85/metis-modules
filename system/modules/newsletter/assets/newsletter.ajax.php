@@ -398,7 +398,7 @@ function metis_newsletter_register_ajax_controllers(): void {
         'metis_newsletter_queue_campaign' => 'edit',
         'metis_newsletter_test_send_campaign' => 'edit',
         'metis_newsletter_archive_campaign' => 'edit',
-        'metis_newsletter_delete_campaign' => 'edit',
+        'metis_newsletter_delete_campaign' => 'delete',
         'metis_newsletter_campaign_status' => 'view',
         'metis_newsletter_search_contacts' => 'view',
         'metis_newsletter_run_queue' => 'edit',

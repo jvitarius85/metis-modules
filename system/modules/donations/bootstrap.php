@@ -11,6 +11,22 @@ function metis_donations_base_url(): string {
     return \Metis\Modules\Donations\DonationsModule::baseUrl();
 }
 
+function metis_donations_can( string $action ): bool {
+    return function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'donations.' . $action );
+}
+
+function metis_donations_can_manage(): bool {
+    return metis_donations_can( 'edit' );
+}
+
+function metis_donations_can_delete(): bool {
+    return metis_donations_can( 'delete' );
+}
+
+function metis_donations_can_export(): bool {
+    return metis_donations_can( 'export' );
+}
+
 function metis_platform_label( string $code ): string {
     return \Metis\Modules\Donations\DonationsModule::platformLabel( $code );
 }

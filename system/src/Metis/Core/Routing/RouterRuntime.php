@@ -39,6 +39,20 @@ function metis_build_http_router(): Metis_Http_Router {
             );
 
             $router->register(
+                'assets.core',
+                [ 'GET', 'HEAD' ],
+                static function ( Metis_Http_Request $request ): ?array {
+                    return metis_core_asset_match_request( $request );
+                },
+                static function ( Metis_Http_Request $request ): mixed {
+                    if ( ! function_exists( 'metis_router_handle_core_asset_request' ) ) {
+                        return null;
+                    }
+                    return metis_router_handle_core_asset_request( $request );
+                }
+            );
+
+            $router->register(
                 'assets.module',
                 [ 'GET', 'HEAD' ],
                 static function ( Metis_Http_Request $request ): ?array {
@@ -693,6 +707,28 @@ function metis_runtime_asset_match_request( Metis_Http_Request $request ): ?arra
     ];
 }
 
+function metis_core_asset_match_request( Metis_Http_Request $request ): ?array {
+    $path = '/' . ltrim( $request->path(), '/' );
+    if ( ! str_starts_with( $path, '/assets/' ) ) {
+        return null;
+    }
+
+    foreach ( [ '/assets/modules/', '/assets/runtime/', '/assets/error-pages/' ] as $reserved ) {
+        if ( str_starts_with( $path, $reserved ) ) {
+            return null;
+        }
+    }
+
+    $asset = ltrim( substr( $path, strlen( '/assets/' ) ), '/' );
+    if ( $asset === '' || str_contains( $asset, '..' ) || str_contains( $asset, '\\' ) ) {
+        return null;
+    }
+
+    return [
+        'core_asset_path' => $asset,
+    ];
+}
+
 function metis_module_asset_match_request( Metis_Http_Request $request ): ?array {
     $path = '/' . ltrim( $request->path(), '/' );
     $base = rtrim( metis_module_asset_base_path(), '/' );
@@ -748,8 +784,58 @@ function metis_module_asset_content_type( string $path ): string {
         'woff' => 'font/woff',
         'woff2' => 'font/woff2',
         'ttf'  => 'font/ttf',
+        'ico'  => 'image/x-icon',
+        'csv'  => 'text/csv; charset=UTF-8',
         default => 'application/octet-stream',
     };
+}
+
+function metis_router_handle_core_asset_request( Metis_Http_Request $request ): Metis_Http_Response {
+    $asset = ltrim( (string) $request->attribute( 'core_asset_path', '' ), '/' );
+    $extension = strtolower( pathinfo( $asset, PATHINFO_EXTENSION ) );
+    $allowed = [
+        'css',
+        'js',
+        'svg',
+        'png',
+        'jpg',
+        'jpeg',
+        'gif',
+        'webp',
+        'woff',
+        'woff2',
+        'ttf',
+        'ico',
+        'csv',
+    ];
+
+    if ( $asset === '' || str_contains( $asset, '..' ) || ! in_array( $extension, $allowed, true ) ) {
+        return Metis_Http_Response::html( 'Asset not found.', 404 );
+    }
+
+    $assets_root = realpath( METIS_ROOT . '/system/assets' );
+    if ( ! is_string( $assets_root ) ) {
+        return Metis_Http_Response::html( 'Asset root unavailable.', 500 );
+    }
+
+    $real = realpath( $assets_root . DIRECTORY_SEPARATOR . $asset );
+    if ( ! is_string( $real ) || ! str_starts_with( $real, $assets_root . DIRECTORY_SEPARATOR ) || ! is_file( $real ) ) {
+        return Metis_Http_Response::html( 'Asset not found.', 404 );
+    }
+
+    $body = file_get_contents( $real );
+    if ( $body === false ) {
+        return Metis_Http_Response::html( 'Asset unreadable.', 500 );
+    }
+
+    return new Metis_Http_Response(
+        200,
+        [
+            'Content-Type'  => metis_module_asset_content_type( $real ),
+            'Cache-Control' => 'public, max-age=300',
+        ],
+        $request->method() === 'HEAD' ? '' : $body
+    );
 }
 
 function metis_router_handle_module_asset_request( Metis_Http_Request $request ): Metis_Http_Response {
@@ -2386,6 +2472,12 @@ metis_on('template_redirect', function () {
     }
 
     if ( metis_runtime_asset_match_request( $request ) ) {
+        $response = metis_http_router()->dispatch( $request );
+        metis_router_emit_response( $response );
+        exit;
+    }
+
+    if ( metis_core_asset_match_request( $request ) ) {
         $response = metis_http_router()->dispatch( $request );
         metis_router_emit_response( $response );
         exit;

@@ -32,6 +32,7 @@ $boot = [
     'options' => \Metis\Modules\Forms\Repository::adminOptions(),
     'can_manage' => metis_forms_can_manage(),
     'can_delete' => metis_forms_can_delete(),
+    'can_publish' => metis_forms_can_publish(),
     'urls' => [
         'home' => metis_forms_base_url(),
         'detail' => ! empty( $form['id'] ) ? metis_forms_detail_url( (int) $form['id'] ) : '',
@@ -51,6 +52,7 @@ if ( ! empty( $form['id'] ) ) {
         data-metis-forms-builder="1"
         data-can-manage="<?php echo metis_escape_attr( metis_forms_can_manage() ? '1' : '0' ); ?>"
         data-can-delete="<?php echo metis_escape_attr( metis_forms_can_delete() ? '1' : '0' ); ?>"
+        data-can-publish="<?php echo metis_escape_attr( metis_forms_can_publish() ? '1' : '0' ); ?>"
     ></div>
     <script id="metis-forms-admin-data" type="application/json"><?php echo metis_json_encode( $boot ); ?></script>
 </div>

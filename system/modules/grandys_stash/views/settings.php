@@ -8,11 +8,17 @@ if ( ! metis_grandys_stash_can_view() ) {
 
 $state = \Metis\Modules\GrandyStash\GrandyStashRepository::dashboardData();
 $email_prefs = \Metis\Modules\GrandyStash\GrandyStashRepository::getEmailPrefs();
-$can_manage = metis_grandys_stash_can_manage();
+$can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_grandys_stash_can_settings();
+
+if ( ! $can_settings ) {
+    echo '<div class="metis-alert metis-alert-error">You do not have permission to manage Grandy&apos;s Stash settings.</div>';
+    return;
+}
 ?>
 
 <div class="metis-stash-app"
-     data-can-manage="<?php echo metis_escape_attr( $can_manage ? '1' : '0' ); ?>">
+     data-can-manage="1"
+     data-can-settings="1">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( "Grandy's Stash Settings" ) ); ?></h1>
     <p class="metis-subtitle">Routing defaults and daily summary email subscriptions.</p>
@@ -22,12 +28,14 @@ $can_manage = metis_grandys_stash_can_manage();
         'sidebar' => static function () { ?>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Navigation</div>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Inbox</a>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Reports</a>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-btn metis-btn-xs">Settings</a>
+                <nav class="metis-list-sidebar-nav" aria-label="Grandy's Stash navigation">
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-list-sidebar-nav-item">Inbox</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-list-sidebar-nav-item">Reports</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-list-sidebar-nav-item is-active">Settings</a>
+                </nav>
             </div>
         <?php },
-        'content' => static function () use ( $state, $email_prefs, $can_manage ) {
+        'content' => static function () use ( $state, $email_prefs ) {
             $assignees = $state['assignees'] ?? [];
             $routing   = $state['routing_defaults'] ?? [];
         ?>
@@ -60,11 +68,9 @@ $can_manage = metis_grandys_stash_can_manage();
                     </select>
                 </label>
             </div>
-            <?php if ( $can_manage ) : ?>
             <div class="metis-stash-form-actions">
                 <button type="submit" class="metis-btn">Save Routing</button>
             </div>
-            <?php endif; ?>
         </form>
     </section>
 
@@ -89,15 +95,11 @@ $can_manage = metis_grandys_stash_can_manage();
             <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $pref['display_name'] ?? '' ) ); ?></td>
             <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $pref['user_email'] ?? '' ) ); ?></td>
             <td class="metis-premium-cell">
-                <?php if ( $can_manage ) : ?>
                 <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
                     <input type="checkbox" class="metis-stash-email-toggle" data-user-id="<?php echo metis_escape_attr( (string) $uid ); ?>"
                             <?php echo $checked ? 'checked' : ''; ?>>
                         <span><?php echo $checked ? 'Yes' : 'No'; ?></span>
                     </label>
-                <?php else : ?>
-                <?php echo $checked ? 'Yes' : 'No'; ?>
-                <?php endif; ?>
             </td>
         </tr>
         <?php endforeach; ?>

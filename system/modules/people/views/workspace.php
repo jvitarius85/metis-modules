@@ -81,11 +81,17 @@ $group_members = $db->fetchAll(
      ORDER BY gm.group_id ASC, wu.display_name ASC",
 ) ?: [];
 $members_by_group = [];
+$groups_by_user = [];
 foreach ($group_members as $gm) {
     $gid = (int) ($gm['group_id'] ?? 0);
+    $uid = (int) ($gm['workspace_user_id'] ?? 0);
     if ($gid < 1) continue;
     if (!isset($members_by_group[$gid])) $members_by_group[$gid] = [];
     $members_by_group[$gid][] = $gm;
+    if ($uid > 0) {
+        if (!isset($groups_by_user[$uid])) $groups_by_user[$uid] = [];
+        $groups_by_user[$uid][] = $gid;
+    }
 }
 
 $security_actions = $db->fetchAll(
@@ -246,6 +252,11 @@ $format_status = static function (?string $status) use ($status_labels): string 
     if ($key === '') return 'Unknown';
     return $status_labels[$key] ?? ucwords(str_replace(['_', '-'], ' ', $key));
 };
+$workspace_action_icon = static function (string $icon, string $label): string {
+    $src = metis_home_url('assets/Images/icons/' . rawurlencode($icon) . '.svg');
+
+    return '<img src="' . metis_escape_url($src) . '" alt="" aria-hidden="true"><span class="metis-sr-only">' . metis_escape_html($label) . '</span>';
+};
 $format_entity = static function (?string $entity_type, $entity_id) use ($sync_workspace_user_names, $sync_workspace_group_names, $sync_person_names): string {
     $type = strtolower(trim((string) $entity_type));
     $id = (int) $entity_id;
@@ -345,7 +356,7 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                 <th class="metis-premium-cell" scope="col">Roles</th>
                 <th class="metis-premium-cell" scope="col">Status</th>
                 <th class="metis-premium-cell" scope="col">Linked Person</th>
-                <th class="metis-premium-cell" scope="col">Actions</th>
+                <th class="metis-premium-cell metis-workspace-actions-head" scope="col" aria-label="Actions"></th>
             </tr>
         </thead>
         <tbody id="metis-workspace-user-rows">
@@ -363,6 +374,7 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                 $role_keys = (array) ($roles_by_user[$uid] ?? []);
                 $role_labels = [];
                 foreach ($role_keys as $rk) $role_labels[] = (string) ($workspace_roles[$rk] ?? $rk);
+                $group_ids = array_values(array_unique(array_map('intval', (array) ($groups_by_user[$uid] ?? []))));
                 $linked_pid = (string) ($u['linked_pid'] ?? '');
                 $linked_name = (string) ($u['linked_name'] ?? '');
                 $person_url = $linked_pid !== '' ? metis_people_person_url($linked_pid) : '';
@@ -423,19 +435,24 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                                 type="button"
                                 class="metis-btn-xs metis-workspace-actions-open"
                                 data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>"
-                            >Manage</button>
+                                aria-label="Manage workspace user"
+                            >&#8942;</button>
                         <?php else : ?>
                             <span class="metis-muted">—</span>
                         <?php endif; ?>
                         <?php if ($can_manage) : ?>
                             <div class="metis-workspace-actions-menu" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" aria-hidden="true">
                             <?php if ($linked_pid === '') : ?>
-                                <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-flag-btn" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-flag="is_hidden" data-value="<?php echo metis_escape_attr($is_hidden ? '0' : '1'); ?>"><?php echo metis_escape_html($is_hidden ? 'Unhide' : 'Hide'); ?></button>
-                                <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-flag-btn" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-flag="is_protected" data-value="<?php echo metis_escape_attr($is_protected ? '0' : '1'); ?>"><?php echo metis_escape_html($is_protected ? 'Unprotect' : 'Protect'); ?></button>
+                                <?php $hidden_action_label = $is_hidden ? 'Unhide' : 'Hide'; ?>
+                                <?php $protected_action_label = $is_protected ? 'Unprotect' : 'Protect'; ?>
+                                <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-flag-btn" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-flag="is_hidden" data-value="<?php echo metis_escape_attr($is_hidden ? '0' : '1'); ?>" title="<?php echo metis_escape_attr($hidden_action_label); ?>" aria-label="<?php echo metis_escape_attr($hidden_action_label); ?>"><?php echo $workspace_action_icon('user-settings', $hidden_action_label); ?></button>
+                                <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-flag-btn" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-flag="is_protected" data-value="<?php echo metis_escape_attr($is_protected ? '0' : '1'); ?>" title="<?php echo metis_escape_attr($protected_action_label); ?>" aria-label="<?php echo metis_escape_attr($protected_action_label); ?>"><?php echo $workspace_action_icon('shield', $protected_action_label); ?></button>
                             <?php endif; ?>
                             <button
                                 type="button"
                                 class="metis-btn-xs metis-btn-secondary metis-workspace-edit-user-open"
+                                title="Edit Account"
+                                aria-label="Edit Account"
                                 data-id="<?php echo metis_escape_attr((string) $uid); ?>"
                                 data-primary-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>"
                                 data-linked-pid="<?php echo metis_escape_attr($linked_pid); ?>"
@@ -448,20 +465,24 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                                 data-suspended="<?php echo metis_escape_attr($is_suspended ? '1' : '0'); ?>"
                                 data-protected="<?php echo metis_escape_attr($is_protected ? '1' : '0'); ?>"
                                 data-role-keys="<?php echo metis_escape_attr(metis_json_encode($role_keys)); ?>"
-                            >Edit Account</button>
+                                data-group-ids="<?php echo metis_escape_attr(metis_json_encode($group_ids)); ?>"
+                            ><?php echo $workspace_action_icon('edit', 'Edit Account'); ?></button>
                             <?php if ($linked_pid !== '') : ?>
                                 <button
                                     type="button"
                                     class="metis-btn-xs metis-btn-secondary metis-workspace-create-drive-folder-btn"
+                                    title="Create Drive Folder"
+                                    aria-label="Create Drive Folder"
                                     data-person-pid="<?php echo metis_escape_attr($linked_pid); ?>"
-                                >Create Drive Folder</button>
+                                ><?php echo $workspace_action_icon('folder-add', 'Create Drive Folder'); ?></button>
                             <?php endif; ?>
-                            <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-security-open" data-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" data-action-type="reset_password">Reset Password</button>
-                            <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-security-open" data-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" data-action-type="revoke_sessions">Revoke Sessions</button>
-                            <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-security-open" data-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" data-action-type="<?php echo metis_escape_attr($is_suspended ? 'unsuspend_account' : 'suspend_account'); ?>"><?php echo metis_escape_html($is_suspended ? 'Unsuspend' : 'Suspend'); ?></button>
+                            <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-security-open" data-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" data-action-type="reset_password" title="Reset Password" aria-label="Reset Password"><?php echo $workspace_action_icon('passkey', 'Reset Password'); ?></button>
+                            <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-security-open" data-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" data-action-type="revoke_sessions" title="Revoke Sessions" aria-label="Revoke Sessions"><?php echo $workspace_action_icon('shield-cross', 'Revoke Sessions'); ?></button>
+                            <?php $suspend_action_label = $is_suspended ? 'Unsuspend' : 'Suspend'; ?>
+                            <button type="button" class="metis-btn-xs metis-btn-secondary metis-workspace-security-open" data-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" data-action-type="<?php echo metis_escape_attr($is_suspended ? 'unsuspend_account' : 'suspend_account'); ?>" title="<?php echo metis_escape_attr($suspend_action_label); ?>" aria-label="<?php echo metis_escape_attr($suspend_action_label); ?>"><?php echo $workspace_action_icon('padlock', $suspend_action_label); ?></button>
                             <?php if ($linked_pid === '') : ?>
-                                <button type="button" class="metis-btn-xs metis-workspace-create-person-btn" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>">Create Metis User</button>
-                                <button type="button" class="metis-btn-xs metis-btn-danger metis-workspace-delete-user" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>"<?php echo $is_protected ? ' hidden' : ''; ?>>Delete Account</button>
+                                <button type="button" class="metis-btn-xs metis-workspace-create-person-btn" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" title="Create Metis User" aria-label="Create Metis User"><?php echo $workspace_action_icon('user-follow', 'Create Metis User'); ?></button>
+                                <button type="button" class="metis-btn-xs metis-btn-danger metis-workspace-delete-user" data-workspace-user-id="<?php echo metis_escape_attr((string) $uid); ?>" data-user-email="<?php echo metis_escape_attr((string) ($u['primary_email'] ?? '')); ?>" title="Delete Account" aria-label="Delete Account"<?php echo $is_protected ? ' hidden' : ''; ?>><?php echo $workspace_action_icon('trash-can', 'Delete Account'); ?></button>
                             <?php endif; ?>
                             </div>
                         <?php endif; ?>
@@ -675,6 +696,28 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                         <?php foreach ($workspace_roles as $role_key => $role_label) : if ($role_key === '') continue; ?>
                             <label class="metis-people-check"><input type="checkbox" class="metis-workspace-role-toggle" value="<?php echo metis_escape_attr((string) $role_key); ?>"> <?php echo metis_escape_html((string) $role_label); ?></label>
                         <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="metis-field metis-field-full">
+                    <label>Workspace Groups</label>
+                    <div class="metis-people-check-grid metis-workspace-user-group-check-grid">
+                        <?php if (empty($workspace_groups)) : ?>
+                            <div class="metis-muted">No workspace groups are available yet.</div>
+                        <?php else : ?>
+                            <?php foreach ($workspace_groups as $group_row) :
+                                $group_id = (int) ($group_row['id'] ?? 0);
+                                if ($group_id < 1) continue;
+                                $group_label = trim((string) ($group_row['group_name'] ?? ''));
+                                $group_email = strtolower(trim((string) ($group_row['group_email'] ?? '')));
+                                if ($group_label === '') $group_label = $group_email;
+                            ?>
+                                <label class="metis-people-check">
+                                    <input type="checkbox" class="metis-workspace-user-group-toggle" value="<?php echo metis_escape_attr((string) $group_id); ?>">
+                                    <?php echo metis_escape_html($group_label); ?>
+                                    <?php if ($group_email !== '') : ?><span class="metis-muted"><?php echo metis_escape_html($group_email); ?></span><?php endif; ?>
+                                </label>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="metis-form-actions">

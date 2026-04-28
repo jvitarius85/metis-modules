@@ -43,6 +43,83 @@
                 "donor_admin",
                 "newsletter_admin"
             ]
+        },
+        "create": {
+            "key": "grandys_stash.create",
+            "action": "create",
+            "name": "Grandy's Stash Create Tickets",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "assign": {
+            "key": "grandys_stash.assign",
+            "action": "assign",
+            "name": "Grandy's Stash Assign Tickets",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "comment": {
+            "key": "grandys_stash.comment",
+            "action": "comment",
+            "name": "Grandy's Stash Internal Notes",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "reply": {
+            "key": "grandys_stash.reply",
+            "action": "reply",
+            "name": "Grandy's Stash Send Replies",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "inventory": {
+            "key": "grandys_stash.inventory",
+            "action": "inventory",
+            "name": "Grandy's Stash Inventory",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "settings": {
+            "key": "grandys_stash.settings",
+            "action": "settings",
+            "name": "Grandy's Stash Settings",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "export": {
+            "key": "grandys_stash.export",
+            "action": "export",
+            "name": "Grandy's Stash Export",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
         }
     },
     "views": {

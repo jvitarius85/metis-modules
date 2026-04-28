@@ -269,6 +269,12 @@ final class ConversationalParser {
             $fallback = $this->legacy->parse( $fragment );
             $command = is_array( $fallback['command'] ?? null ) ? $fallback['command'] : [];
             if ( $command !== [] ) {
+                $fallbackIntent = strtolower( trim( (string) ( $fallback['action'] ?? 'unknown' ) ) );
+                if ( $fallbackIntent === 'lookup_profile' && ! $this->isProfileLookupFragment( $fragment ) ) {
+                    $command = [];
+                }
+            }
+            if ( $command !== [] ) {
                 $candidates[] = [
                     'intent' => (string) ( $fallback['action'] ?? 'unknown' ),
                     'fragment' => $fragment,
@@ -332,6 +338,12 @@ final class ConversationalParser {
     private function scoreCommand( string $fragment, array $command, array $entities, array $context ): float {
         $score = 0.0;
         $commandKey = strtolower( trim( (string) ( $command['key'] ?? '' ) ) );
+        if ( $commandKey === 'lookup_profile' && ! $this->isProfileLookupFragment( $fragment ) ) {
+            return 0.0;
+        }
+        if ( $commandKey === 'get_entity_attribute' && ! $this->isAttributeLookupFragment( $fragment ) ) {
+            return 0.0;
+        }
         $patterns = array_values( array_filter( array_map( 'strval', (array) ( $command['phrases'] ?? [] ) ) ) );
 
         foreach ( $patterns as $pattern ) {
@@ -367,6 +379,20 @@ final class ConversationalParser {
         }
 
         return $score;
+    }
+
+    private function isProfileLookupFragment( string $fragment ): bool {
+        return (bool) preg_match(
+            '/\b(who is|look up|lookup|find person|find contact|find donor|find user|profile for|person record|contact record|donor record)\b/',
+            $fragment
+        );
+    }
+
+    private function isAttributeLookupFragment( string $fragment ): bool {
+        return (bool) preg_match(
+            '/\b(what is|email for|phone for|address for|email address|phone number|mailing address)\b/',
+            $fragment
+        );
     }
 
     /**

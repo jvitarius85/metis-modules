@@ -34,6 +34,13 @@ $assert = static function ( bool $condition, string $message ) use ( &$failures 
     }
 };
 
+$library = \Metis\Core\Application::service( 'hermes_library' );
+$snapshot = $library->runtimeSnapshot();
+$assert( count( (array) ( $snapshot['context_packs'] ?? [] ) ) >= 10, 'Hermes should load deployed context packs from system/config/hermes.' );
+$assert( count( (array) ( $snapshot['playbooks'] ?? [] ) ) >= 5, 'Hermes should load deployed playbooks from system/config/hermes.' );
+$assert( count( (array) ( $snapshot['missions'] ?? [] ) ) >= 3, 'Hermes should load deployed missions from system/config/hermes.' );
+$assert( method_exists( $library, 'cacheKey' ) && str_starts_with( (string) $library->cacheKey(), 'hermes.definition_library.' ), 'Hermes definition cache key should be path/signature aware.' );
+
 $store = new \Metis\Core\HelpSearchStore();
 $store->ensureSeeded();
 
@@ -105,6 +112,11 @@ $assert( (string) ( $uploadFile['guidance_links'][0]['walkthrough_id'] ?? '' ) =
 $saveSettings = $resolver->resolve( 'how do I save settings?', 0, '/admin/settings/identity/', 'settings', [] );
 $assert( (string) ( $saveSettings['action'] ?? '' ) === 'save_settings', 'Instructional settings question should resolve to save_settings.' );
 $assert( (string) ( $saveSettings['guidance_links'][0]['walkthrough_id'] ?? '' ) === 'settings_save_settings', 'Instructional settings question should offer the settings save walkthrough.' );
+
+$fallback = \Metis\Core\Application::service( 'hermes_gateway' )->converse( 'explain donation reconciliation workflow', 'TESTHELPFALLBACK', [ 'current_module' => 'donations' ] );
+$assert( (string) ( $fallback['status'] ?? '' ) === 'success', 'Unmapped conversational questions should fall back to Hermes knowledge instead of returning an operation mapping error.' );
+$assert( (string) ( $fallback['response_type'] ?? '' ) === 'KnowledgeResponse', 'Knowledge fallback should identify itself as a knowledge response.' );
+$assert( ! empty( $fallback['result']['context_packs'] ) || ! empty( $fallback['result']['playbooks'] ), 'Knowledge fallback should include grounded context packs or playbooks.' );
 
 $search = $store->search( "newsletter test email won't send", '', 5, 1, false );
 $topTitle = strtolower( (string) ( $search['results'][0]['title'] ?? '' ) );

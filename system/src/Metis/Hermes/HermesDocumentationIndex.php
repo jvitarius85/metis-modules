@@ -26,13 +26,16 @@ final class HermesDocumentationIndex {
                 implode( ' ', array_map( 'strval', (array) ( $document['keywords'] ?? [] ) ) ),
             ] ) ) );
 
-            if ( ! str_contains( $haystack, $needle ) ) {
+            $score = $this->scoreText( $needle, $haystack );
+            if ( $score <= 0 ) {
                 continue;
             }
 
+            $document['_score'] = $score;
             $matches[] = $document;
         }
 
+        usort( $matches, static fn ( array $a, array $b ): int => (int) ( $b['_score'] ?? 0 ) <=> (int) ( $a['_score'] ?? 0 ) );
         return array_slice( $matches, 0, max( 1, min( 20, $limit ) ) );
     }
 
@@ -67,5 +70,38 @@ final class HermesDocumentationIndex {
 
         $this->cached = $documents;
         return $this->cached;
+    }
+
+    private function scoreText( string $needle, string $haystack ): int {
+        if ( $needle !== '' && str_contains( $haystack, $needle ) ) {
+            return 100;
+        }
+
+        $tokens = $this->tokens( $needle );
+        if ( $tokens === [] ) {
+            return 0;
+        }
+
+        $score = 0;
+        foreach ( $tokens as $token ) {
+            if ( str_contains( $haystack, $token ) ) {
+                $score += strlen( $token ) >= 6 ? 8 : 4;
+            }
+        }
+
+        return $score;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function tokens( string $value ): array {
+        $parts = preg_split( '/[^a-z0-9]+/', strtolower( $value ) ) ?: [];
+        $stop = array_fill_keys( [ 'the', 'and', 'for', 'with', 'that', 'this', 'how', 'can', 'cant', 'cannot', 'could', 'would', 'please', 'what', 'where', 'when', 'why', 'into', 'from', 'have', 'does', 'doesn', 'dont' ], true );
+
+        return array_values( array_unique( array_filter(
+            $parts,
+            static fn ( string $part ): bool => strlen( $part ) >= 3 && ! isset( $stop[ $part ] )
+        ) ) );
     }
 }

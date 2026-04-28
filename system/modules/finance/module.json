@@ -37,6 +37,10 @@
         ],
         "delete": [
             "finance"
+        ],
+        "export": [
+            "administrator",
+            "finance"
         ]
     },
     "views": {

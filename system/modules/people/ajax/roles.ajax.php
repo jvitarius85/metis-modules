@@ -14,7 +14,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
     metis_ajax_register_controller( 'metis_people_bulk_stripe_role_action', [
         'module' => 'people',
-        'permission' => 'edit',
+        'permission' => 'workspace_manage',
         'nonce_action' => metis_ajax_nonce_action( 'metis_people_bulk_stripe_role_action' ),
     ] );
     metis_ajax_register_controller( 'metis_people_bulk_profile_action', [

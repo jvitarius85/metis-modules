@@ -17,7 +17,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     foreach ( $actions as $action ) {
         metis_ajax_register_controller( $action, [
             'module' => 'people',
-            'permission' => 'edit',
+            'permission' => 'workspace_manage',
             'nonce_action' => metis_ajax_nonce_action( $action ),
         ] );
     }

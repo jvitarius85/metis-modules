@@ -8,6 +8,8 @@ $transactions_table = Metis_Tables::get( 'transactions' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url = metis_donations_base_url();
+$can_manage = function_exists( 'metis_donations_can_manage' ) && metis_donations_can_manage();
+$can_export = function_exists( 'metis_donations_can_export' ) && metis_donations_can_export();
 $offline_lookup_nonce = function_exists( 'metis_runtime_create_nonce' ) && function_exists( 'metis_ajax_nonce_action' )
     ? (string) metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_donations_lookup_donors' ) )
     : '';
@@ -36,6 +38,10 @@ if (
     && isset( $_POST['metis_action'] )
     && $_POST['metis_action'] === 'record_offline_donation'
 ) {
+    if ( ! $can_manage ) {
+        metis_runtime_die( 'Unauthorized.', 'Error', [ 'response' => 403 ] );
+    }
+
     if ( ! isset( $_POST['metis_offline_donation_nonce'] ) || ! metis_runtime_verify_nonce( (string) $_POST['metis_offline_donation_nonce'], 'metis_record_offline_donation' ) ) {
         metis_runtime_die( 'Invalid nonce.', 'Error', [ 'response' => 403 ] );
     }
@@ -76,6 +82,10 @@ if (
     && isset( $_POST['metis_action'] )
     && $_POST['metis_action'] === 'create_batch'
 ) {
+    if ( ! $can_manage ) {
+        metis_runtime_die( 'Unauthorized.', 'Error', [ 'response' => 403 ] );
+    }
+
     if ( ! isset( $_POST['metis_batch_nonce'] ) || ! metis_runtime_verify_nonce( (string) $_POST['metis_batch_nonce'], 'metis_create_batch' ) ) {
         metis_runtime_die( 'Invalid nonce.', 'Error', [ 'response' => 403 ] );
     }
@@ -134,7 +144,9 @@ $transactions = array_map( static function ( array $row ) {
 
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Transactions' ) ); ?></h1>
 <p class="metis-subtitle">Manage individual donations and create deposit batches.</p>
+<?php if ( $can_manage ) : ?>
 <p><button type="button" class="metis-btn" id="metis-open-offline-donation-modal">Record Offline Donation</button></p>
+<?php endif; ?>
 
 <?php if ( $offline_notice ) : ?>
     <div class="metis-alert metis-alert-success"><?php echo metis_escape_html( $offline_notice ); ?></div>
@@ -149,6 +161,7 @@ $transactions = array_map( static function ( array $row ) {
     <div class="metis-alert metis-alert-error"><?php echo metis_escape_html( $batch_error ); ?></div>
 <?php endif; ?>
 
+<?php if ( $can_manage ) : ?>
 <div class="metis-modal-backdrop metis-offline-donation-modal" id="metis-offline-donation-modal" aria-hidden="<?php echo $offline_error ? 'false' : 'true'; ?>"<?php echo $offline_error ? ' data-auto-open="1"' : ''; ?>>
     <div class="metis-modal metis-offline-donation-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="metis-offline-donation-title">
         <div class="metis-modal-header">
@@ -233,6 +246,7 @@ $transactions = array_map( static function ( array $row ) {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="metis-list-layout metis-tx-list-layout">
 
@@ -280,9 +294,11 @@ $transactions = array_map( static function ( array $row ) {
             <button type="button" data-range="reset" class="metis-pill-btn metis-pill-reset">Reset</button>
         </div>
     </div>
+    <?php if ( $can_export ) : ?>
     <div class="metis-list-sidebar-actions">
         <button type="button" id="metis-export-csv" class="metis-btn metis-btn-xs metis-btn-ghost">Export CSV</button>
     </div>
+    <?php endif; ?>
 </aside>
 
 <!-- Main content -->
@@ -334,7 +350,7 @@ $transactions = array_map( static function ( array $row ) {
                      data-amount="<?php echo metis_escape_attr( $amount ); ?>">
 
                     <td class="metis-premium-cell metis-tx-col metis-tx-col-select">
-                        <?php if ( empty( $t->deposit_batch_id ) ) : ?>
+                        <?php if ( $can_manage && empty( $t->deposit_batch_id ) ) : ?>
                             <input type="checkbox" class="metis-tx-checkbox" name="tx[]" value="<?php echo metis_escape_attr( $t->tid ); ?>">
                         <?php else : ?>
                             <span class="metis-tx-locked metis-muted">—</span>
@@ -376,6 +392,7 @@ $transactions = array_map( static function ( array $row ) {
         </tbody>
     </table>
 
+    <?php if ( $can_manage ) : ?>
     <div class="metis-batch-footer">
         <div class="metis-batch-summary">
             <span id="metis-batch-count">0</span> selected ·
@@ -385,6 +402,7 @@ $transactions = array_map( static function ( array $row ) {
             Create Deposit Batch
         </button>
     </div>
+    <?php endif; ?>
 
 </form>
 </div><!-- /metis-list-content -->

@@ -2,6 +2,8 @@
 if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
+$can_edit = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'media.edit' );
+$can_delete = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'media.delete' );
 ?>
 <div class="metis-page-header">
     <div class="metis-page-header-left">
@@ -9,16 +11,20 @@ if ( ! defined( 'METIS_ROOT' ) ) {
         <span class="metis-media-header-copy">Manage files used by Website, Newsletter, Popups, and Forms.</span>
     </div>
     <div class="metis-page-header-right">
+        <?php if ( $can_edit ) : ?>
         <button class="metis-btn metis-btn-primary" id="metis-media-upload-btn" type="button">Upload Files</button>
         <input type="file" id="metis-media-upload-input" multiple style="display:none">
+        <?php endif; ?>
     </div>
 </div>
 
-<div class="metis-table-wrap">
+<div class="metis-table-wrap" data-can-edit="<?php echo $can_edit ? '1' : '0'; ?>" data-can-delete="<?php echo $can_delete ? '1' : '0'; ?>">
+    <?php if ( $can_edit ) : ?>
     <button type="button" id="metis-media-dropzone" class="metis-media-dropzone" aria-label="Upload files">
         <strong>Drop files here to upload</strong>
         <span>or click to choose files</span>
     </button>
+    <?php endif; ?>
     <div class="metis-media-toolbar">
         <label class="screen-reader-text" for="metis-media-search">Search media by filename</label>
         <input type="text" id="metis-media-search" class="metis-input" placeholder="Search by filename...">
@@ -50,6 +56,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
         </div>
         <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-refresh-btn" type="button">Refresh</button>
     </div>
+    <?php if ( $can_edit ) : ?>
     <div class="metis-media-toolbar">
         <label class="screen-reader-text" for="metis-media-upload-folder">Default upload folder</label>
         <input type="text" id="metis-media-upload-folder" class="metis-input" list="metis-media-folder-options" placeholder="Upload folder (optional)">
@@ -58,6 +65,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
         <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-new-folder-btn" type="button">New Folder</button>
         <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-new-category-btn" type="button">New Category</button>
     </div>
+    <?php endif; ?>
     <datalist id="metis-media-folder-options"></datalist>
     <datalist id="metis-media-category-options"></datalist>
     <div class="metis-media-organizer" aria-label="Media organization">
@@ -95,6 +103,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     </div>
 </div>
 
+<?php if ( $can_edit ) : ?>
 <div id="metis-media-organize-modal" class="metis-media-preview-modal" aria-hidden="true">
     <div class="metis-media-preview-modal-inner" role="dialog" aria-modal="true" aria-labelledby="metis-media-organize-title">
         <div class="metis-media-preview-modal-head">
@@ -117,7 +126,9 @@ if ( ! defined( 'METIS_ROOT' ) ) {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if ( $can_delete ) : ?>
 <div id="metis-media-confirm-modal" class="metis-media-preview-modal" aria-hidden="true">
     <div class="metis-media-preview-modal-inner" role="dialog" aria-modal="true" aria-labelledby="metis-media-confirm-title">
         <div class="metis-media-preview-modal-head">
@@ -134,3 +145,4 @@ if ( ! defined( 'METIS_ROOT' ) ) {
         </div>
     </div>
 </div>
+<?php endif; ?>

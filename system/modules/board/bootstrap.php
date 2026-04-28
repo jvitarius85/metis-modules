@@ -8,6 +8,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 \Metis\Modules\Board\BoardModule::boot();
 
 function metis_board_can_view(): bool { return \Metis\Modules\Board\BoardModule::canView(); }
+function metis_board_can( string $action ): bool { return \Metis\Modules\Board\Access::can( $action ); }
 function metis_board_can_manage(): bool { return \Metis\Modules\Board\BoardModule::canManage(); }
 function metis_board_base_url(): string { return \Metis\Modules\Board\BoardModule::baseUrl(); }
 function metis_board_meeting_url(string $meeting_code): string { return \Metis\Modules\Board\BoardModule::meetingUrl( $meeting_code ); }

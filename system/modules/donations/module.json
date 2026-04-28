@@ -99,6 +99,12 @@
         ],
         "edit": [
             "donor_admin"
+        ],
+        "delete": [
+            "donor_admin"
+        ],
+        "export": [
+            "donor_admin"
         ]
     },
     "help_topics": [

@@ -2,6 +2,7 @@
 if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
+$can_execute = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'import.execute' );
 ?>
 <div class="metis-module-header">
     <div class="metis-header-content"><h1>Import</h1></div>
@@ -22,6 +23,9 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 
     <!-- Step 1: Upload -->
     <div id="metis-import-step-1">
+        <?php if ( ! $can_execute ) : ?>
+            <div class="metis-alert metis-alert-info">You can view this module, but you do not have permission to run imports.</div>
+        <?php else : ?>
         <div style="border:2px dashed var(--metis-border,#e2e6ea);border-radius:8px;padding:40px;text-align:center;background:var(--metis-surface,#fff);cursor:pointer;" id="metis-import-drop-zone" tabindex="0" role="button" aria-controls="metis-import-file-input" aria-describedby="metis-import-drop-help">
             <div style="font-size:48px;margin-bottom:16px;opacity:.4;">&#8681;</div>
             <div style="font-size:16px;font-weight:600;margin-bottom:8px;color:var(--metis-text,#1a1f2b);">Upload WXR Export</div>
@@ -38,6 +42,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
             <div style="margin-bottom:8px;">Parsing file…</div>
             <div style="height:4px;background:var(--metis-border,#e2e6ea);border-radius:2px;overflow:hidden;"><div style="height:100%;width:60%;background:var(--metis-primary,#0d6efd);animation:metisProgress 1.2s ease-in-out infinite alternate;border-radius:2px;"></div></div>
         </div>
+        <?php endif; ?>
     </div>
 
     <!-- Step 2: Preview -->
@@ -45,7 +50,9 @@ if ( ! defined( 'METIS_ROOT' ) ) {
         <div id="metis-import-preview-content"></div>
         <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;">
             <button class="metis-btn metis-btn-ghost" id="metis-import-back-btn" type="button">← Back</button>
-            <button class="metis-btn metis-btn-primary" id="metis-import-confirm-btn" type="button">Import Selected</button>
+            <?php if ( $can_execute ) : ?>
+                <button class="metis-btn metis-btn-primary" id="metis-import-confirm-btn" type="button">Import Selected</button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -81,6 +88,7 @@ window.metisImportAjax.nonce = window.metisImportAjax.nonce
 window.metisImportAjax.action_nonces = window.metisImportAjax.action_nonces
     || (window.metisAjax && window.metisAjax.action_nonces)
     || {};
+window.metisImportAjax.can_execute = <?php echo $can_execute ? 'true' : 'false'; ?>;
 
 if (typeof window.metisImportHandleFileInput !== 'function') {
     (function() {

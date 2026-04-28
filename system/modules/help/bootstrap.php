@@ -5,6 +5,6 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
-// Help routes and admin actions load the store on demand.
-// Keeping the module bootstrap side-effect free avoids repeated global
-// seeding/schema checks during unrelated requests.
+require_once dirname( __DIR__, 2 ) . '/src/Metis/Modules/Help/HelpModule.php';
+
+\Metis\Modules\Help\HelpModule::boot();

@@ -19,9 +19,11 @@ final class HermesDefinitionLibrary {
             return $this->library;
         }
 
-        $this->library = CacheService::remember( 'hermes.definition_library', 1800, function (): array {
-            $manifest = $this->readJsonFile( $this->absolutePath( 'config/hermes/library.json' ) );
+        $manifestPath = $this->absolutePath( 'config/hermes/library.json' );
+        $manifest = $this->readJsonFile( $manifestPath );
+        $cacheKey = $this->cacheKeyForManifest( $manifest, $manifestPath );
 
+        $this->library = CacheService::remember( $cacheKey, 1800, function () use ( $manifest ): array {
             return [
                 'schema_version' => (int) ( $manifest['schema_version'] ?? 1 ),
                 'manifest' => $manifest,
@@ -34,8 +36,15 @@ final class HermesDefinitionLibrary {
                 ],
             ];
         } );
+        $this->assertLoadedLibrary( $this->library );
 
         return $this->library;
+    }
+
+    public function cacheKey(): string {
+        $manifestPath = $this->absolutePath( 'config/hermes/library.json' );
+        $manifest = $this->readJsonFile( $manifestPath );
+        return $this->cacheKeyForManifest( $manifest, $manifestPath );
     }
 
     public function contextPacks(): array {
@@ -121,7 +130,9 @@ final class HermesDefinitionLibrary {
         $relativePath = ltrim( $relativePath, '/' );
 
         foreach ( $this->candidatePaths( $relativePath ) as $candidate ) {
-            $absolute = $this->basePath . ltrim( $candidate, '/' );
+            $absolute = str_starts_with( $candidate, '/' )
+                ? $candidate
+                : $this->basePath . ltrim( $candidate, '/' );
             if ( is_file( $absolute ) ) {
                 return $absolute;
             }
@@ -145,14 +156,46 @@ final class HermesDefinitionLibrary {
         if ( str_starts_with( $relativePath, 'config/hermes/' ) ) {
             $suffix = substr( $relativePath, strlen( 'config/hermes/' ) );
 
-            return [
+            $candidates = [
                 'system/config/hermes/' . $suffix,
                 'config/hermes/' . $suffix,
                 'storage/config/hermes/' . $suffix,
             ];
+            if ( \defined( 'METIS_CONFIG_PATH' ) ) {
+                array_unshift( $candidates, rtrim( (string) \METIS_CONFIG_PATH, '/\\' ) . '/hermes/' . $suffix );
+            }
+            if ( \defined( 'METIS_SYSTEM_PATH' ) ) {
+                $candidates[] = rtrim( (string) \METIS_SYSTEM_PATH, '/\\' ) . '/config/hermes/' . $suffix;
+            }
+
+            return array_values( array_unique( $candidates ) );
         }
 
         return [ $relativePath ];
+    }
+
+    private function cacheKeyForManifest( array $manifest, string $manifestPath ): string {
+        $paths = [ $manifestPath ];
+        foreach ( [ 'context_packs', 'playbooks', 'missions' ] as $group ) {
+            foreach ( (array) ( $manifest[ $group ] ?? [] ) as $relativePath ) {
+                $paths[] = $this->absolutePath( (string) $relativePath );
+            }
+        }
+
+        $signatureParts = [ realpath( $this->basePath ) ?: $this->basePath ];
+        foreach ( array_values( array_unique( $paths ) ) as $path ) {
+            $signatureParts[] = $path . ':' . ( is_file( $path ) ? (string) filemtime( $path ) : 'missing' );
+        }
+
+        return 'hermes.definition_library.' . substr( sha1( implode( '|', $signatureParts ) ), 0, 16 );
+    }
+
+    private function assertLoadedLibrary( array $library ): void {
+        foreach ( [ 'context_packs', 'playbooks', 'missions' ] as $group ) {
+            if ( empty( $library[ $group ] ) || ! is_array( $library[ $group ] ) ) {
+                throw new \RuntimeException( sprintf( 'Hermes definition library loaded without %s. Check system/config/hermes paths and deployment contents.', $group ) );
+            }
+        }
     }
 
     private function readJsonFile( string $path ): array {

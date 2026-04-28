@@ -23,6 +23,7 @@ $boot = [
     'mode' => 'entries',
     'form_id' => $form_id,
     'form_name' => (string) ( $form['name'] ?? '' ),
+    'can_export' => metis_forms_can_export(),
 ];
 ?>
 <div class="metis-forms-page" data-metis-forms-entries="1">
@@ -32,9 +33,11 @@ $boot = [
             <h1 class="metis-page-title"><?php echo metis_escape_html( (string) ( $form['name'] ?? '' ) ); ?> Entries</h1>
             <p class="metis-subtitle">Review submissions, export the current list, and keep light-weight entry management in one place.</p>
         </div>
+        <?php if ( metis_forms_can_export() ) : ?>
         <div class="metis-forms-hero__actions">
             <button type="button" class="metis-btn" data-forms-export>Export CSV</button>
         </div>
+        <?php endif; ?>
     </header>
 
     <section class="metis-forms-kpi-grid" aria-label="Entries summary">

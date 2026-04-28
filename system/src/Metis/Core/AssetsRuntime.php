@@ -439,14 +439,14 @@ metis_on('metis_assets_enqueue', function () {
                 true
             );
 
-            // Localize module AJAX vars — use nonce_action from JSON config if defined,
-            // otherwise fall back to the core nonce already set by the core enqueue above.
+            // Localize module AJAX vars so module scripts can post through the routed AJAX endpoint.
             $nonce_action = (string) ( $cfg['assets']['nonce_action'] ?? '' );
             $ajax_object  = (string) ( $cfg["assets"]["ajax_object"] ?? $cfg["ajax_object"] ?? "metisAjax" );
-            if ( $nonce_action !== '' ) {
+            $has_module_ajax = ! empty( $cfg['assets']['ajax'] );
+            if ( $ajax_object !== '' && ( $nonce_action !== '' || $has_module_ajax ) ) {
                 $payload = [
                     'ajax_url' => metis_ajax_endpoint_url(),
-                    'nonce'    => metis_runtime_create_nonce( $nonce_action ),
+                    'nonce'    => metis_runtime_create_nonce( $nonce_action !== '' ? $nonce_action : 'metis_core' ),
                     'action_nonces' => metis_ajax_action_nonces(),
                 ];
 

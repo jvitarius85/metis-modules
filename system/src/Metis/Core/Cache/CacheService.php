@@ -167,7 +167,10 @@ class CacheService {
             $library = Application::service('hermes_library');
             if (is_object($library) && method_exists($library, 'library')) {
                 try {
-                    self::set('hermes.definition_library', (array) $library->library(), 1800);
+                    $cacheKey = method_exists($library, 'cacheKey')
+                        ? (string) $library->cacheKey()
+                        : 'hermes.definition_library';
+                    self::set($cacheKey, (array) $library->library(), 1800);
                     $summary['hermes'] = true;
                 } catch (\Throwable $exception) {
                     $summary['hermes'] = false;

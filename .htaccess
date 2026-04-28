@@ -17,12 +17,14 @@ RewriteRule ^system/ajax/?$ system/ajax.php [L,QSA,NC]
 RewriteRule ^system/cron/?$ system/cron.php [L,QSA,NC]
 RewriteRule ^system/webhook/([A-Za-z0-9_-]+)/?$ system/webhooks.php?provider=$1 [L,QSA,NC]
 
-# Module and runtime assets are protected by the front controller so module
-# asset policy, content type, and cache headers remain consistent.
-RewriteRule ^assets/(?:modules|runtime)(?:/|$) index.php [L,QSA,NC]
+# Error page templates must stay directly executable because they are used
+# before the normal application boot can be trusted.
+RewriteRule ^assets/error-pages/(.+)$ system/assets/error-pages/$1 [L,QSA,NC]
 
-# Static public assets are stored under /system to keep the root compact.
-RewriteRule ^assets/(.+)$ system/assets/$1 [L,QSA,NC]
+# Assets are protected by the front controller so asset policy, content type,
+# and cache headers remain consistent across Apache, nginx, and managed hosts.
+RewriteRule ^assets/(?:modules|runtime)(?:/|$) index.php [L,QSA,NC]
+RewriteRule ^assets/(.+)$ index.php [L,QSA,NC]
 
 # Portal-scoped AJAX endpoint must resolve before the front controller fallback.
 RewriteRule ^metis/api/ajax/?$ index.php?metis_api_ajax=1 [L,QSA,NC]

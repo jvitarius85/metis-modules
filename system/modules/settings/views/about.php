@@ -8,6 +8,14 @@ extract( $ctx, EXTR_SKIP );
 $release_current = is_array( $release_status['current'] ?? null ) ? $release_status['current'] : [];
 $release_latest = is_array( $release_status['latest'] ?? null ) ? $release_status['latest'] : [];
 $release_repository = is_array( $release_status['repository'] ?? null ) ? $release_status['repository'] : [];
+$release_installed_version = (string) ( $release_current['version'] ?? $release_status['installed_version'] ?? ( $system_version['metis_version'] ?? 'unknown' ) );
+$release_installed_label = trim( (string) ( $release_current['tag'] ?? $release_status['installed_tag'] ?? '' ) );
+if ( $release_installed_label === '' && $release_installed_version !== '' && $release_installed_version !== 'unknown' ) {
+    $release_installed_label = 'v' . ltrim( $release_installed_version, 'vV' );
+}
+if ( $release_installed_label === '' ) {
+    $release_installed_label = 'unknown';
+}
 $release_can_apply_latest = $is_system_admin
     && ! empty( $release_status['update_available'] )
     && ! empty( $release_latest['tag'] );
@@ -151,8 +159,8 @@ usort( $module_details, static function ( array $a, array $b ): int {
         <div class="metis-field">
             <div class="metis-shortcode-wrap" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
                 <div>
-                    <div><strong>Installed</strong>: <code><?php echo metis_escape_html( (string) ( $release_current['tag'] ?? $release_status['installed_tag'] ?? $release_status['installed_version'] ?? 'unknown' ) ); ?></code></div>
-                    <div class="metis-help">Version <?php echo metis_escape_html( (string) ( $release_current['version'] ?? $release_status['installed_version'] ?? ( $system_version['metis_version'] ?? 'unknown' ) ) ); ?></div>
+                    <div><strong>Installed</strong>: <code><?php echo metis_escape_html( $release_installed_label ); ?></code></div>
+                    <div class="metis-help">Version <?php echo metis_escape_html( $release_installed_version ); ?></div>
                 </div>
                 <div>
                     <div><strong>Latest Trusted</strong>: <code><?php echo metis_escape_html( (string) ( $release_latest['tag'] ?? 'none' ) ); ?></code></div>

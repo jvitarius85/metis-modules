@@ -45,7 +45,7 @@ final class HermesRepository {
         $db = $this->db();
 
         $table        = \Metis_Tables::get( 'hermes_sessions' );
-        $session_code = $session_code !== '' ? $session_code : $this->generateCode( 'HMS' );
+        $session_code = $session_code !== '' ? $this->normalizeSessionCode( $session_code ) : $this->generateCode( 'HMS' );
         $db->insert(
             $table,
             [
@@ -58,7 +58,25 @@ final class HermesRepository {
             [ '%s', '%d', '%s', '%s', '%s' ]
         );
 
-        return $this->findSessionByCode( $session_code ) ?? [];
+        $session = $this->findSessionByCode( $session_code );
+        if ( $session !== null ) {
+            return $session;
+        }
+
+        $fallback_code = $this->generateCode( 'HMS' );
+        $db->insert(
+            $table,
+            [
+                'session_code' => $fallback_code,
+                'user_id'      => $user_id > 0 ? $user_id : null,
+                'title'        => $title,
+                'status'       => 'open',
+                'last_intent'  => null,
+            ],
+            [ '%s', '%d', '%s', '%s', '%s' ]
+        );
+
+        return $this->findSessionByCode( $fallback_code ) ?? [];
     }
 
     public function findSessionByCode( string $session_code ): ?array {
@@ -548,6 +566,15 @@ final class HermesRepository {
 
     private function generateCode( string $prefix ): string {
         return $prefix . strtoupper( substr( bin2hex( random_bytes( 10 ) ), 0, 20 ) );
+    }
+
+    private function normalizeSessionCode( string $session_code ): string {
+        $normalized = strtoupper( preg_replace( '/[^A-Z0-9_-]/i', '', trim( $session_code ) ) ?? '' );
+        if ( $normalized === '' ) {
+            return $this->generateCode( 'HMS' );
+        }
+
+        return substr( $normalized, 0, 32 );
     }
 
     private function encodeJson( array $payload ): string {

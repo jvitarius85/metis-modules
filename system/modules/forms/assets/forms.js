@@ -866,9 +866,11 @@
   }
 
   function initEntries(root, boot) {
+    const canExport = !!boot.can_export;
     root.addEventListener('click', async (event) => {
       const trigger = event.target.closest('[data-forms-export]');
       if (!trigger) return;
+      if (!canExport) return;
       try {
         const payload = await adminRequest('metis_forms_export', {
           form_id: String(boot.form_id || 0)
@@ -1145,6 +1147,7 @@
   function renderBuilderShell(state, boot, options) {
     const canManage = !!boot.can_manage;
     const canDelete = !!boot.can_delete;
+    const canPublish = !!boot.can_publish;
     const title = escapeHtml(state.form.name || 'Untitled form');
     const currentField = getSelectedNode(state.form.schema, state.selection);
 
@@ -1157,7 +1160,7 @@
           </div>
           <div class="metis-forms-admin__actions">
             ${state.form.id ? `<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-duplicate-form ${!canManage ? 'disabled' : ''}>Duplicate</button>` : ''}
-            <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-publish-form ${!canManage ? 'disabled' : ''}>Publish</button>
+            ${canPublish ? '<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-publish-form>Publish</button>' : ''}
             <button type="button" class="metis-btn metis-btn-xs" data-save-form ${!canManage ? 'disabled' : ''}>Save</button>
             ${state.form.id && canDelete ? `<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-delete-form>Delete</button>` : ''}
           </div>

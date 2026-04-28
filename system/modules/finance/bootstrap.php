@@ -9,6 +9,8 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 
 function metis_finance_can_view(): bool { return \Metis\Modules\Finance\FinanceModule::canView(); }
 function metis_finance_can_manage(): bool { return \Metis\Modules\Finance\FinanceModule::canManage(); }
+function metis_finance_can( string $action ): bool { return \Metis\Modules\Finance\Access::can( $action ); }
+function metis_finance_can_export(): bool { return \Metis\Modules\Finance\Access::canExport(); }
 function metis_finance_base_url(): string { return \Metis\Modules\Finance\FinanceModule::baseUrl(); }
 function metis_finance_ensure_schema(): void { \Metis\Modules\Finance\FinanceModule::ensureSchema(); }
 function metis_finance_current_mode(): string { return \Metis\Modules\Finance\FinanceModule::currentMode(); }

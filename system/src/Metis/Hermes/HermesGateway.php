@@ -116,6 +116,10 @@ final class HermesGateway {
         try {
             $processed = $this->operations->process( $query, $runtimeContext );
             $response = (array) ( $processed['response'] ?? [] );
+            if ( $this->shouldUseKnowledgeFallback( $processed, $response ) ) {
+                $processed = $this->knowledgeFallback( $query, $session, $processed, $runtimeContext );
+                $response = (array) ( $processed['response'] ?? [] );
+            }
             $actions = [];
             if ( (string) ( $response['status'] ?? '' ) === 'awaiting_approval' && is_array( $processed['command'] ?? null ) ) {
                 $payload = [
@@ -217,6 +221,62 @@ final class HermesGateway {
                 'actions' => [],
             ];
         }
+    }
+
+    private function shouldUseKnowledgeFallback( array $processed, array $response ): bool {
+        $status = (string) ( $response['status'] ?? '' );
+        $hasCommand = is_array( $processed['command'] ?? null ) && (array) $processed['command'] !== [];
+        $intent = (string) ( $processed['intent']['action'] ?? '' );
+        $message = strtolower( (string) ( $response['message'] ?? '' ) );
+
+        return ! $hasCommand
+            && in_array( $status, [ 'error', 'clarification_required' ], true )
+            && in_array( $intent, [ '', 'unknown' ], true )
+            && (
+                str_contains( $message, 'could not be mapped' )
+                || str_contains( $message, 'could not map' )
+                || str_contains( $message, 'registered hermes operation' )
+            );
+    }
+
+    private function knowledgeFallback( string $query, array $session, array $processed, array $runtimeContext ): array {
+        $reasoning = $this->reasoner->reason( $query, $session );
+        $answer = trim( (string) ( $reasoning['answer'] ?? '' ) );
+        if ( $answer === '' ) {
+            $answer = 'I found related Metis context, but I need a little more detail to give a precise answer.';
+        }
+
+        $knowledge = (array) ( $reasoning['knowledge'] ?? [] );
+        $context = (array) ( $reasoning['context'] ?? [] );
+        $response = [
+            'status' => 'success',
+            'message' => $answer,
+            'response_type' => 'KnowledgeResponse',
+            'result' => [
+                'summary' => $answer,
+                'context_packs' => array_values( (array) ( $context['context_packs'] ?? [] ) ),
+                'related_articles' => array_values( (array) ( $knowledge['help_topics'] ?? [] ) ),
+                'documentation' => array_values( (array) ( $knowledge['docs'] ?? [] ) ),
+                'walkthroughs' => array_values( (array) ( $knowledge['walkthroughs'] ?? [] ) ),
+                'playbooks' => array_values( (array) ( $reasoning['playbooks'] ?? [] ) ),
+                'missions' => array_values( (array) ( $reasoning['missions'] ?? [] ) ),
+                'runtime_context' => $runtimeContext,
+            ],
+        ];
+
+        return array_merge( $processed, [
+            'intent' => [
+                'action' => (string) ( $reasoning['intent'] ?? 'conversation' ),
+                'confidence' => 0.62,
+                'payload' => [ 'query' => $query ],
+            ],
+            'command' => null,
+            'context_packs' => array_values( (array) ( $context['context_packs'] ?? [] ) ),
+            'action_plan' => [],
+            'permission' => [ 'status' => 'not_applicable', 'required_permission' => '', 'reason' => '' ],
+            'response' => $response,
+            'reasoner' => $reasoning,
+        ] );
     }
 
     public function diagnostics( string $query, string $session_code = '' ): array {

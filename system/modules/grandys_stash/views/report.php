@@ -41,9 +41,11 @@ $summary = $report['summary'] ?? [];
             </div>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Navigation</div>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Inbox</a>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-btn metis-btn-xs">Reports</a>
-                <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Settings</a>
+                <nav class="metis-list-sidebar-nav" aria-label="Grandy's Stash navigation">
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-list-sidebar-nav-item">Inbox</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-list-sidebar-nav-item is-active">Reports</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-list-sidebar-nav-item">Settings</a>
+                </nav>
             </div>
         <?php },
         'content' => static function () use ( $report ) { ?>

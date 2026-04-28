@@ -5,7 +5,12 @@ require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
 require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
 
 function metis_board_ajax_verify(bool $manage = true): void {
-    unset($manage);
+    $allowed = $manage
+        ? ( function_exists( 'metis_board_can_manage' ) && metis_board_can_manage() )
+        : ( function_exists( 'metis_board_can' ) && metis_board_can( 'view' ) );
+    if ( ! $allowed ) {
+        metis_runtime_send_json_error( 'Unauthorized', 403 );
+    }
     metis_board_ensure_schema();
 }
 
@@ -381,7 +386,7 @@ function metis_board_register_ajax_controllers(): void {
         'metis_board_drive_set_meeting_folder' => 'edit',
         'metis_board_drive_link_document' => 'edit',
         'metis_board_drive_unlink_document' => 'edit',
-        'metis_board_drive_delete_file' => 'edit',
+        'metis_board_drive_delete_file' => 'delete',
         'metis_board_get_meeting_documents' => 'view',
         'metis_board_get_workspace_links_summary' => 'view',
         'metis_board_list_calendar_events' => 'view',

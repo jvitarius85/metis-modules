@@ -22,7 +22,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     foreach ( $actions as $action ) {
         metis_ajax_register_controller( $action, [
             'module' => 'people',
-            'permission' => 'edit',
+            'permission' => 'workspace_manage',
             'nonce_action' => metis_ajax_nonce_action( $action ),
         ] );
     }
@@ -379,11 +379,98 @@ if (!function_exists('metis_people_workspace_autocreate_drive_folder')) {
     }
 }
 
+if (!function_exists('metis_people_workspace_send_welcome_email')) {
+    function metis_people_workspace_send_welcome_email(string $workspace_email, string $recovery_email, string $display_name, string $temporary_password): array {
+        $workspace_email = strtolower(trim($workspace_email));
+        $recovery_email = strtolower(trim($recovery_email));
+        $temporary_password = (string) $temporary_password;
+        if (!metis_email_is_valid($workspace_email)) {
+            return ['ok' => false, 'error' => 'Workspace email is invalid.'];
+        }
+        if (!metis_email_is_valid($recovery_email)) {
+            return ['ok' => false, 'error' => 'Recovery email is required for welcome delivery.'];
+        }
+        if ($temporary_password === '') {
+            return ['ok' => false, 'error' => 'Temporary password was not available for welcome delivery.'];
+        }
+        if (!class_exists('\Metis\Core\Services\EmailService')) {
+            $email_service_path = dirname(__DIR__, 3) . '/src/Metis/Core/Services/EmailService.php';
+            if (is_readable($email_service_path)) {
+                require_once $email_service_path;
+            }
+        }
+        if (!class_exists('\Metis\Core\Services\EmailService')) {
+            return ['ok' => false, 'error' => 'Metis email service is not available.'];
+        }
+
+        $organization = 'Metis';
+        $accent_color = '#4657d9';
+        if (class_exists('Core_Settings_Service')) {
+            $configured = trim((string) Core_Settings_Service::get('login_organization_name', ''));
+            if ($configured !== '') {
+                $organization = $configured;
+            }
+            $theme_colors = Core_Settings_Service::get('theme_colors', []);
+            if (is_array($theme_colors)) {
+                $candidate = metis_hex_color_clean((string) ($theme_colors['primary'] ?? $theme_colors['accent'] ?? ''));
+                if ($candidate !== '') {
+                    $accent_color = $candidate;
+                }
+            }
+        }
+        $login_url = function_exists('metis_auth_google_callback_url')
+            ? metis_auth_google_callback_url()
+            : (function_exists('metis_auth_login_url') ? metis_auth_login_url() : metis_home_url('/login'));
+        $logo_url = function_exists('metis_portal_logo_url') ? trim((string) metis_portal_logo_url()) : '';
+        if ($logo_url !== '' && str_starts_with($logo_url, '/')) {
+            $logo_url = metis_home_url($logo_url);
+        }
+        $recipient_name = trim($display_name) !== '' ? trim($display_name) : $workspace_email;
+        $subject = 'Your ' . $organization . ' Workspace account is ready';
+        $logo_html = $logo_url !== ''
+            ? '<tr><td style="padding:0 0 22px;"><img src="' . metis_escape_url($logo_url) . '" alt="' . metis_escape_attr($organization) . '" style="display:block;max-width:220px;max-height:82px;width:auto;height:auto;border:0;"></td></tr>'
+            : '';
+        $html = '<div style="margin:0;padding:0;background:#f6f8fc;font-family:Arial,Helvetica,sans-serif;color:#172033;">'
+            . '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f6f8fc;margin:0;padding:0;">'
+            . '<tr><td align="center" style="padding:32px 16px;">'
+            . '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:640px;background:#ffffff;border:1px solid #d9e0ee;border-radius:14px;overflow:hidden;">'
+            . '<tr><td style="padding:34px 36px 30px;">'
+            . '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">'
+            . $logo_html
+            . '<tr><td style="padding:0 0 8px;color:' . metis_escape_attr($accent_color) . ';font-size:13px;line-height:18px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Workspace account ready</td></tr>'
+            . '<tr><td style="padding:0 0 14px;font-size:28px;line-height:34px;font-weight:800;color:#172033;">Welcome, ' . metis_escape_html($recipient_name) . '</td></tr>'
+            . '<tr><td style="padding:0 0 22px;font-size:16px;line-height:24px;color:#4f5f78;">Your Workspace account has been created. Start with Google sign-in so Google can guide you through changing your temporary password.</td></tr>'
+            . '<tr><td style="padding:18px 20px;background:#f8faff;border:1px solid #dfe6f5;border-radius:12px;">'
+            . '<div style="font-size:12px;line-height:16px;font-weight:700;color:#697791;text-transform:uppercase;letter-spacing:.8px;">Workspace email</div>'
+            . '<div style="padding:4px 0 16px;font-size:17px;line-height:24px;font-weight:700;color:#172033;">' . metis_escape_html($workspace_email) . '</div>'
+            . '<div style="font-size:12px;line-height:16px;font-weight:700;color:#697791;text-transform:uppercase;letter-spacing:.8px;">Temporary password</div>'
+            . '<div style="padding:6px 10px;margin-top:5px;display:inline-block;background:#ffffff;border:1px solid #d9e0ee;border-radius:8px;font-family:Consolas,Menlo,monospace;font-size:16px;line-height:22px;font-weight:700;color:#172033;">' . metis_escape_html($temporary_password) . '</div>'
+            . '</td></tr>'
+            . '<tr><td style="padding:24px 0 8px;"><a href="' . metis_escape_url($login_url) . '" style="display:inline-block;background:' . metis_escape_attr($accent_color) . ';color:#ffffff;text-decoration:none;font-size:16px;line-height:20px;font-weight:700;padding:13px 20px;border-radius:10px;">Sign in with Google</a></td></tr>'
+            . '<tr><td style="padding:10px 0 0;font-size:14px;line-height:21px;color:#697791;">If the button does not open, go to your Metis login page and choose <strong>Sign in with Google</strong>.</td></tr>'
+            . '<tr><td style="padding:20px 0 0;font-size:13px;line-height:20px;color:#8a96aa;">If you were not expecting this account, contact your system administrator.</td></tr>'
+            . '</table>'
+            . '</td></tr>'
+            . '</table>'
+            . '</td></tr>'
+            . '</table>'
+            . '</div>';
+
+        return \Metis\Core\Services\EmailService::sendHtml($recovery_email, $subject, $html, [
+            'module' => 'people',
+            'internal_reference' => 'workspace_welcome',
+            'from_name' => $organization,
+        ]);
+    }
+}
+
 metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     metis_people_workspace_ajax_verify();
     $db = metis_db();
     $users_table = Metis_Tables::get('people_workspace_users');
     $user_roles_table = Metis_Tables::get('people_workspace_user_roles');
+    $groups_table = Metis_Tables::get('people_workspace_groups');
+    $group_members_table = Metis_Tables::get('people_workspace_group_members');
     $people_table = Metis_Tables::get('people');
 
     $workspace_user_id = isset($_POST['workspace_user_id']) ? (int) metis_runtime_unslash($_POST['workspace_user_id']) : 0;
@@ -413,6 +500,17 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         }
     }
     $role_keys = array_values(array_unique($role_keys));
+    $group_ids = [];
+    if (isset($_POST['group_ids'])) {
+        $decoded_groups = json_decode((string) metis_runtime_unslash($_POST['group_ids']), true);
+        if (is_array($decoded_groups)) {
+            foreach ($decoded_groups as $gid) {
+                $group_id = (int) $gid;
+                if ($group_id > 0) $group_ids[] = $group_id;
+            }
+        }
+    }
+    $group_ids = array_values(array_unique($group_ids));
 
     if (!metis_email_is_valid($primary_email)) {
         metis_runtime_send_json_error('Valid primary email is required.', 400);
@@ -442,6 +540,52 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         [ $primary_email, $workspace_user_id ]
     );
     if ($email_conflict > 0) {
+        if ($workspace_user_id < 1) {
+            $existing_user = $db->fetchOne(
+                "SELECT id, primary_email, first_name, last_name, display_name, org_unit_path, recovery_email, is_suspended, is_protected, metadata_json, person_id
+                 FROM {$users_table}
+                 WHERE id = %d
+                 LIMIT 1",
+                [ $email_conflict ]
+            );
+            if ($existing_user) {
+                $existing_metadata = json_decode((string) ($existing_user['metadata_json'] ?? ''), true);
+                if (!is_array($existing_metadata)) $existing_metadata = [];
+                $existing_group_rows = $db->fetchAll(
+                    "SELECT group_id
+                     FROM {$group_members_table}
+                     WHERE workspace_user_id = %d",
+                    [ $email_conflict ]
+                ) ?: [];
+                $existing_group_ids = [];
+                foreach ($existing_group_rows as $existing_group_row) {
+                    $existing_group_id = (int) ($existing_group_row['group_id'] ?? 0);
+                    if ($existing_group_id > 0) $existing_group_ids[] = $existing_group_id;
+                }
+                metis_runtime_send_json_success([
+                    'workspace_user_id' => $email_conflict,
+                    'sync_warning' => 'That Workspace email already exists in Metis. The existing account was returned instead of creating a duplicate.',
+                    'user' => [
+                        'id' => $email_conflict,
+                        'primary_email' => (string) ($existing_user['primary_email'] ?? $primary_email),
+                        'display_name' => (string) ($existing_user['display_name'] ?? ''),
+                        'first_name' => (string) ($existing_user['first_name'] ?? ''),
+                        'last_name' => (string) ($existing_user['last_name'] ?? ''),
+                        'org_unit_path' => (string) ($existing_user['org_unit_path'] ?? '/'),
+                        'recovery_email' => (string) ($existing_user['recovery_email'] ?? ''),
+                        'secondary_email' => (string) ($existing_metadata['secondary_email'] ?? ''),
+                        'linked_pid' => '',
+                        'linked_name' => '',
+                        'person_url' => '',
+                        'is_suspended' => !empty($existing_user['is_suspended']) ? 1 : 0,
+                        'is_protected' => !empty($existing_user['is_protected']) ? 1 : 0,
+                        'is_hidden' => !empty($existing_metadata['ui_hidden']) ? 1 : 0,
+                        'role_keys' => metis_people_workspace_role_keys_for_user($email_conflict),
+                        'group_ids' => $existing_group_ids,
+                    ],
+                ]);
+            }
+        }
         metis_runtime_send_json_error('Primary email already exists in workspace users.', 400);
     }
     if ($person_id !== null && $person_id > 0) {
@@ -451,6 +595,30 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         );
         if ($person_email_conflict > 0) {
             metis_runtime_send_json_error('Email is already used by a different Metis profile.', 400);
+        }
+    }
+
+    $valid_group_ids = [];
+    $group_email_by_id = [];
+    if (!empty($group_ids)) {
+        $placeholders = implode(',', array_fill(0, count($group_ids), '%d'));
+        $group_rows = $db->fetchAll(
+            "SELECT id, group_email
+             FROM {$groups_table}
+             WHERE id IN ({$placeholders})",
+            $group_ids
+        ) ?: [];
+        foreach ($group_rows as $group_row) {
+            $gid = (int) ($group_row['id'] ?? 0);
+            if ($gid < 1) continue;
+            $valid_group_ids[$gid] = true;
+            $group_email = strtolower(trim((string) ($group_row['group_email'] ?? '')));
+            if (metis_email_is_valid($group_email)) $group_email_by_id[$gid] = $group_email;
+        }
+        foreach ($group_ids as $gid) {
+            if (empty($valid_group_ids[$gid])) {
+                metis_runtime_send_json_error('One of the selected Workspace groups was not found.', 400);
+            }
         }
     }
 
@@ -492,6 +660,9 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     }
     $payload['metadata_json'] = metis_json_encode($existing_metadata);
     $is_new_user = $workspace_user_id < 1;
+    if ($is_new_user && $recovery_email === '') {
+        metis_runtime_send_json_error('A secondary/recovery email is required so Metis can send the first sign-in instructions.', 400);
+    }
     if ($workspace_user_id > 0) {
         $ok = $db->update($users_table, $payload, ['id' => $workspace_user_id], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s'], ['%d']);
         if ($ok === false) {
@@ -513,6 +684,45 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         ], ['%d', '%s']);
     }
 
+    $existing_group_rows = $db->fetchAll(
+        "SELECT gm.group_id, wg.group_email
+         FROM {$group_members_table} gm
+         INNER JOIN {$groups_table} wg ON wg.id = gm.group_id
+         WHERE gm.workspace_user_id = %d",
+        [ $workspace_user_id ]
+    ) ?: [];
+    $existing_group_ids = [];
+    $existing_group_email_by_id = [];
+    foreach ($existing_group_rows as $group_row) {
+        $gid = (int) ($group_row['group_id'] ?? 0);
+        if ($gid < 1) continue;
+        $existing_group_ids[] = $gid;
+        $group_email = strtolower(trim((string) ($group_row['group_email'] ?? '')));
+        if (metis_email_is_valid($group_email)) $existing_group_email_by_id[$gid] = $group_email;
+    }
+    $affected_group_ids = array_values(array_unique(array_merge($existing_group_ids, $group_ids)));
+    $db->delete($group_members_table, ['workspace_user_id' => $workspace_user_id], ['%d']);
+    foreach ($group_ids as $gid) {
+        $db->insert($group_members_table, [
+            'group_id' => $gid,
+            'workspace_user_id' => $workspace_user_id,
+            'member_role' => 'member',
+        ], ['%d', '%d', '%s']);
+    }
+    foreach ($affected_group_ids as $gid) {
+        $member_count = (int) $db->scalar(
+            "SELECT COUNT(*) FROM {$group_members_table} WHERE group_id = %d",
+            [ (int) $gid ]
+        );
+        $db->update(
+            $groups_table,
+            ['direct_members_count' => $member_count, 'sync_status' => 'queued'],
+            ['id' => (int) $gid],
+            ['%d', '%s'],
+            ['%d']
+        );
+    }
+
     $sync_payload = [
         'primary_email' => $primary_email,
         'roles' => $role_keys,
@@ -522,23 +732,44 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     ];
     $job_type = $is_new_user ? 'workspace_user_create' : 'workspace_user_upsert';
     $job_id = 0;
+    $sync_warning = '';
     if (function_exists('metis_people_workspace_sync_settings') && function_exists('metis_people_workspace_execute_job')) {
         $cfg = metis_people_workspace_sync_settings();
         if (empty($cfg['ok'])) {
-            $db->update($users_table, ['sync_status' => 'failed'], ['id' => $workspace_user_id], ['%s'], ['%d']);
-            metis_runtime_send_json_error('Workspace settings are not configured. Save was applied locally only.', 400);
-        }
-        $sync_result = metis_people_workspace_execute_job([
-            'job_type' => $job_type,
-            'entity_type' => 'workspace_user',
-            'entity_id' => $workspace_user_id,
-            'payload_json' => metis_json_encode($sync_payload),
-        ], $cfg, false);
-        if (empty($sync_result['ok'])) {
-            $db->update($users_table, ['sync_status' => 'failed'], ['id' => $workspace_user_id], ['%s'], ['%d']);
-            $sync_error = trim((string) ($sync_result['error'] ?? ''));
-            if ($sync_error === '') $sync_error = 'Failed to push Workspace update.';
-            metis_runtime_send_json_error($sync_error, 400);
+            $db->update($users_table, ['sync_status' => 'pending'], ['id' => $workspace_user_id], ['%s'], ['%d']);
+            $sync_warning = 'Workspace settings are not configured. Save was applied locally only.';
+        } else {
+            $sync_result = metis_people_workspace_execute_job([
+                'job_type' => $job_type,
+                'entity_type' => 'workspace_user',
+                'entity_id' => $workspace_user_id,
+                'payload_json' => metis_json_encode($sync_payload),
+            ], $cfg, false);
+            if (empty($sync_result['ok'])) {
+                $db->update($users_table, ['sync_status' => 'failed'], ['id' => $workspace_user_id], ['%s'], ['%d']);
+                $sync_warning = trim((string) ($sync_result['error'] ?? ''));
+                if ($sync_warning === '') $sync_warning = 'Workspace user saved locally, but Workspace sync failed.';
+            } elseif ($is_new_user && !empty($sync_result['temporary_password'])) {
+                $welcome = metis_people_workspace_send_welcome_email($primary_email, $recovery_email, $display_name, (string) $sync_result['temporary_password']);
+                $sync_result['temporary_password'] = '';
+                if (empty($welcome['ok'])) {
+                    $sync_warning = trim((string) ($welcome['error'] ?? ''));
+                    if ($sync_warning === '') $sync_warning = 'Workspace user was created, but the welcome email could not be sent.';
+                }
+            }
+            if (!empty($sync_result['ok']) && metis_email_is_valid($primary_email) && !empty($affected_group_ids)) {
+                foreach ($affected_group_ids as $gid) {
+                    $group_email = (string) ($group_email_by_id[$gid] ?? $existing_group_email_by_id[$gid] ?? '');
+                    if (!metis_email_is_valid($group_email)) continue;
+                    $include = in_array((int) $gid, $group_ids, true);
+                    if (function_exists('metis_people_workspace_set_group_membership')) {
+                        $membership = metis_people_workspace_set_group_membership($group_email, $primary_email, $include, $cfg);
+                        if (empty($membership['ok']) && $sync_warning === '') {
+                            $sync_warning = trim((string) ($membership['error'] ?? 'Workspace group membership sync failed.'));
+                        }
+                    }
+                }
+            }
         }
     } else {
         $actor = metis_people_get_current_person_id();
@@ -607,6 +838,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         'workspace_user_id' => $workspace_user_id,
         'job_id' => $job_id,
         'drive_folder' => $drive_folder,
+        'sync_warning' => $sync_warning,
         'user' => [
             'id' => $workspace_user_id,
             'primary_email' => $primary_email,
@@ -623,6 +855,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
             'is_protected' => $is_protected,
             'is_hidden' => $is_hidden,
             'role_keys' => $role_keys,
+            'group_ids' => $group_ids,
         ],
     ]);
 });

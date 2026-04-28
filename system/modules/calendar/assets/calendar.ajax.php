@@ -2,7 +2,12 @@
 if (!defined('METIS_ROOT')) exit;
 
 function metis_calendar_ajax_verify(bool $manage = false): void {
-    unset($manage);
+    $allowed = $manage
+        ? ( function_exists( 'metis_calendar_can_manage' ) && metis_calendar_can_manage() )
+        : ( function_exists( 'metis_calendar_can' ) && metis_calendar_can( 'view' ) );
+    if ( ! $allowed ) {
+        metis_runtime_send_json_error( 'Unauthorized', 403 );
+    }
     metis_calendar_ensure_schema();
 }
 
@@ -89,7 +94,7 @@ function metis_calendar_register_ajax_controllers(): void {
         'metis_calendar_list_events' => 'view',
         'metis_calendar_sync_worker' => 'view',
         'metis_calendar_save_event' => 'edit',
-        'metis_calendar_delete_event' => 'edit',
+        'metis_calendar_delete_event' => 'delete',
     ];
 
     foreach ($actions as $action => $permission) {
@@ -282,7 +287,10 @@ metis_ajax_register_handler( 'metis_calendar_save_event', function () {
 });
 
 metis_ajax_register_handler( 'metis_calendar_delete_event', function () {
-    metis_calendar_ajax_verify(true);
+    if ( ! function_exists( 'metis_calendar_can' ) || ! metis_calendar_can( 'delete' ) ) {
+        metis_runtime_send_json_error( 'Unauthorized', 403 );
+    }
+    metis_calendar_ensure_schema();
     metis_calendar_ensure_schema();
     $calendar_id = metis_text_clean(metis_runtime_unslash($_POST['calendar_id'] ?? ''));
     $selected = $calendar_id !== '' ? metis_calendar_settings_by_ids([$calendar_id]) : [];

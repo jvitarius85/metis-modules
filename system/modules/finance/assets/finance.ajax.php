@@ -160,7 +160,7 @@ function metis_finance_register_ajax_controllers(): void {
         'metis_finance_v2_recon_item_toggle' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_review' ],
         'metis_finance_v2_recon_finalize' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_review' ],
         'metis_finance_v2_recon_reopen' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_review' ],
-        'metis_finance_v2_recon_delete' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_review' ],
+        'metis_finance_v2_recon_delete' => [ 'permission' => 'delete', 'nonce_action' => 'metis_finance_v2_recon_review' ],
         'metis_finance_v2_recon_mapping_list' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_recon_mapping' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_mapping' ],
         'metis_finance_v2_recon_review' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_review' ],
@@ -181,7 +181,7 @@ function metis_finance_register_ajax_controllers(): void {
 
         'metis_finance_v2_reports_snapshot' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_report_render' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance_v2_report_render' ],
-        'metis_finance_v2_report_pdf' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance_v2_report_pdf' ],
+        'metis_finance_v2_report_pdf' => [ 'permission' => 'export', 'nonce_action' => 'metis_finance_v2_report_pdf' ],
 
         'metis_finance_v2_stripe_overview' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_stripe_event' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_event' ],

@@ -56,6 +56,8 @@ $bank_line_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) me
 $stripe_match_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_stripe_match' ) : $finance_nonce;
 $recon_list_url = $section_url( 'reconciliation' );
 $recon_steps_url = $section_url( 'reconciliation_steps' );
+$can_manage = metis_finance_can_manage();
+$can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can_export();
 ?>
 <div
     class="metis-finance-v2-app"
@@ -140,12 +142,16 @@ $recon_steps_url = $section_url( 'reconciliation_steps' );
                 <div class="metis-list-sidebar-actions metis-finance-v2-workflow-sidebar">
                     <div class="metis-list-sidebar-label">Workflow</div>
                     <nav class="metis-list-sidebar-nav" aria-label="Finance workflow">
+                        <?php if ( $can_manage ) : ?>
                         <button type="button" class="metis-list-sidebar-nav-item" data-open-gl-modal="1">New GL Entry</button>
                         <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url( $section_url( 'reconciliation' ) ); ?>">Run Reconciliation</a>
                         <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url( $section_url( 'budget' ) ); ?>">Manage Budget</a>
                         <button type="button" class="metis-list-sidebar-nav-item" data-open-invoice-modal="1">Create Invoice</button>
+                        <?php endif; ?>
                         <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url( $section_url( 'reports' ) ); ?>">Render Report</a>
+                        <?php if ( $can_manage ) : ?>
                         <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url( $section_url( 'stripe_clearing' ) ); ?>">Stripe Exceptions</a>
+                        <?php endif; ?>
                     </nav>
                 </div>
             </div>
@@ -726,7 +732,7 @@ $recon_steps_url = $section_url( 'reconciliation_steps' );
                 </div>
                 <div class="metis-settings-actions" style="padding:0;">
                     <button type="button" class="metis-btn metis-btn-ghost" data-finance-report-render="1">Render</button>
-                    <button type="submit" class="metis-btn" data-finance-report-pdf="1">Download PDF</button>
+                    <?php if ( $can_export ) : ?><button type="submit" class="metis-btn" data-finance-report-pdf="1">Download PDF</button><?php endif; ?>
                 </div>
             </form>
 

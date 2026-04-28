@@ -2,6 +2,8 @@
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 $base_url = rtrim( metis_donations_base_url(), '/' );
+$can_manage = function_exists( 'metis_donations_can_manage' ) && metis_donations_can_manage();
+$can_export = function_exists( 'metis_donations_can_export' ) && metis_donations_can_export();
 ?>
 
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Donation Reports' ) ); ?></h1>
@@ -146,15 +148,19 @@ $base_url = rtrim( metis_donations_base_url(), '/' );
 
     <!-- EXPORT + SAVE -->
     <div class="metis-report-actions" id="metis-report-actions" style="display:none;">
+        <?php if ( $can_export ) : ?>
         <div class="metis-report-export">
             <button id="report_export_csv" class="metis-btn metis-btn-xs">Export CSV</button>
             <button id="report_export_png" class="metis-btn metis-btn-xs">Export PNG</button>
             <button id="report_export_pdf" class="metis-btn metis-btn-xs">Export PDF</button>
         </div>
+        <?php endif; ?>
+        <?php if ( $can_manage ) : ?>
         <div class="metis-report-save-row">
             <input type="text" id="metis-report-save-name" class="metis-input" placeholder="Report name…" style="width:200px;">
             <button id="metis-report-save-btn" class="metis-btn metis-btn-xs">Save Report</button>
         </div>
+        <?php endif; ?>
     </div>
 
     <!-- CHART -->
@@ -203,4 +209,6 @@ $base_url_js = metis_escape_js( $base_url );
 ?>
 <script>
 window.MWReportsBaseUrl = '<?php echo $base_url_js; ?>';
+window.MWReportsCanExport = <?php echo $can_export ? 'true' : 'false'; ?>;
+window.MWReportsCanManage = <?php echo $can_manage ? 'true' : 'false'; ?>;
 </script>

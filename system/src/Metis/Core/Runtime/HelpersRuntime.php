@@ -183,6 +183,13 @@ function metis_runtime_print_script( string $handle, bool $footer ): void {
     foreach ( (array) ( $asset['deps'] ?? [] ) as $dep ) {
         metis_runtime_print_script( (string) $dep, $footer );
     }
+    foreach ( (array) ( $GLOBALS['metis_assets']['inline_scripts_before'][ $handle ] ?? [] ) as $index => $script ) {
+        $script = trim( (string) $script );
+        if ( $script === '' ) {
+            continue;
+        }
+        echo '<script id="' . metis_escape_attr( $handle . '-inline-before-' . (int) $index . '-js' ) . '">' . $script . '</script>' . "\n";
+    }
     $src = (string) ( $asset['src'] ?? '' );
     $ver = (string) ( $asset['ver'] ?? '' );
     if ( $src !== '' ) {
@@ -190,6 +197,13 @@ function metis_runtime_print_script( string $handle, bool $footer ): void {
             $src .= ( str_contains( $src, '?' ) ? '&' : '?' ) . 'ver=' . rawurlencode( $ver );
         }
         echo '<script src="' . metis_escape_attr( $src ) . '" defer></script>' . "\n";
+    }
+    foreach ( (array) ( $GLOBALS['metis_assets']['inline_scripts_after'][ $handle ] ?? [] ) as $index => $script ) {
+        $script = trim( (string) $script );
+        if ( $script === '' ) {
+            continue;
+        }
+        echo '<script id="' . metis_escape_attr( $handle . '-inline-after-' . (int) $index . '-js' ) . '">' . $script . '</script>' . "\n";
     }
     $GLOBALS['metis_assets']['scripts_printed'][ $handle ] = true;
 }

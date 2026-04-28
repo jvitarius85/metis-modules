@@ -76,16 +76,56 @@
 
 /* Sidebar filter buttons stack vertically */
 .metis-list-sidebar-section .metis-stash-sidebar-filter {
-    display: block;
+    display: flex;
+    align-items: center;
     width: 100%;
+    min-height: 34px;
+    height: auto;
+    padding: 7px 10px;
+    justify-content: flex-start;
     text-align: left;
+    font-size: 13px;
+    line-height: 1.2;
     margin-bottom: 4px;
+    border-radius: var(--metis-radius);
 }
 
 .metis-list-sidebar-section .metis-stash-sidebar-filter.is-active {
     background: var(--metis-primary, #485bc7);
     color: #fff;
     border-color: var(--metis-primary, #485bc7);
+}
+
+.metis-stash-app .metis-list-sidebar-actions .metis-btn,
+.metis-stash-app .metis-list-sidebar-section .metis-btn {
+    min-height: 34px;
+    height: auto;
+    padding: 7px 10px;
+    justify-content: flex-start;
+    font-size: 13px;
+    line-height: 1.2;
+    border-radius: var(--metis-radius);
+}
+
+.metis-stash-app .metis-list-sidebar-nav-item {
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.metis-stash-row[data-ticket-url] {
+    cursor: pointer;
+}
+
+.metis-stash-row[data-ticket-url]:hover {
+    background: #f7f9ff;
+}
+
+.metis-stash-row[data-ticket-url]:focus-within {
+    background: #f7f9ff;
+}
+
+.metis-stash-ticket-shell {
+    margin-top: 10px;
 }
 
 /* Reuse People stat strip */

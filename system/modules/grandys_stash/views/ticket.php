@@ -20,11 +20,20 @@ if ( ! is_array( $ticket ) ) {
 
 $ticket_id = (int) ( $ticket['id'] ?? 0 );
 $submit_name = trim( (string) ( $ticket['submit_name'] ?? '' ) );
+$can_assign = function_exists( 'metis_grandys_stash_can_assign' ) && metis_grandys_stash_can_assign();
+$can_comment = function_exists( 'metis_grandys_stash_can_comment' ) && metis_grandys_stash_can_comment();
+$can_reply = function_exists( 'metis_grandys_stash_can_reply' ) && metis_grandys_stash_can_reply();
+$can_inventory = function_exists( 'metis_grandys_stash_can_inventory' ) && metis_grandys_stash_can_inventory();
+$can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_grandys_stash_can_settings();
 metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_name !== '' ? ' - ' . $submit_name : '' ) );
 ?>
 
 <div class="metis-stash-app metis-stash-ticket-page"
      data-can-manage="<?php echo metis_escape_attr( $can_manage ? '1' : '0' ); ?>"
+     data-can-assign="<?php echo metis_escape_attr( $can_assign ? '1' : '0' ); ?>"
+     data-can-comment="<?php echo metis_escape_attr( $can_comment ? '1' : '0' ); ?>"
+     data-can-reply="<?php echo metis_escape_attr( $can_reply ? '1' : '0' ); ?>"
+     data-can-inventory="<?php echo metis_escape_attr( $can_inventory ? '1' : '0' ); ?>"
      data-ticket-page="1"
      data-ticket-id="<?php echo metis_escape_attr( (string) $ticket_id ); ?>"
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
@@ -39,6 +48,21 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
 
     <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
 
+    <?php metis_render_sidebar_layout([
+        'class' => 'metis-stash-layout metis-stash-ticket-shell',
+        'sidebar' => static function () use ( $can_settings ) { ?>
+            <div class="metis-list-sidebar-section">
+                <div class="metis-list-sidebar-label">Navigation</div>
+                <nav class="metis-list-sidebar-nav" aria-label="Grandy's Stash navigation">
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-list-sidebar-nav-item is-active">Inbox</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-list-sidebar-nav-item">Reports</a>
+                    <?php if ( $can_settings ) : ?>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-list-sidebar-nav-item">Settings</a>
+                    <?php endif; ?>
+                </nav>
+            </div>
+        <?php },
+        'content' => static function () use ( $can_assign, $can_comment, $can_reply, $ticket_id, $assignees ) { ?>
     <section class="metis-stash-ticket-layout">
         <div class="metis-stash-ticket-main">
             <div id="metis-stash-ticket-header"></div>
@@ -49,7 +73,7 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
             <div class="metis-stash-ticket-section">
                 <h3>Conversation</h3>
                 <div id="metis-stash-ticket-conversation"></div>
-                <?php if ( $can_manage ) : ?>
+                <?php if ( $can_reply ) : ?>
                 <div class="metis-stash-reply-form">
                     <label><span>Reply subject</span><input class="metis-input" type="text" id="metis-stash-reply-subject" placeholder="[GST-000123] Grandy's Stash Update"></label>
                     <label><span>Reply message</span><textarea class="metis-input" id="metis-stash-reply-input" placeholder="Type your email reply..." rows="5"></textarea></label>
@@ -62,7 +86,7 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
             <div class="metis-stash-ticket-section">
                 <h3>Notes</h3>
                 <div id="metis-stash-ticket-notes"></div>
-                <?php if ( $can_manage ) : ?>
+                <?php if ( $can_comment ) : ?>
                 <div class="metis-stash-note-form">
                     <textarea class="metis-input" id="metis-stash-note-input" placeholder="Add a note..." rows="2"></textarea>
                     <button type="button" class="metis-btn metis-btn-xs" id="metis-stash-note-submit">Add note</button>
@@ -80,7 +104,7 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
                 <h3>Person Group</h3>
                 <div id="metis-stash-ticket-group"></div>
             </div>
-            <?php if ( $can_manage ) : ?>
+            <?php if ( $can_assign ) : ?>
             <div class="metis-stash-ticket-actions metis-stash-ticket-sidecard">
                 <h3>Ticket Actions</h3>
                 <form id="metis-stash-ticket-form" class="metis-stash-form" autocomplete="off">
@@ -124,6 +148,8 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
             <?php endif; ?>
         </aside>
     </section>
+        <?php },
+    ]); ?>
 
     <script id="metis-stash-boot" type="application/json"><?php echo metis_json_encode( $state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?></script>
 </div>

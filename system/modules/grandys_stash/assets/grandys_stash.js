@@ -9,6 +9,11 @@
   let searchQuery = '';
   let currentTicketId = 0;
   const canManage = root.dataset.canManage === '1';
+  const canCreate = root.dataset.canCreate === '1';
+  const canAssign = root.dataset.canAssign === '1';
+  const canComment = root.dataset.canComment === '1';
+  const canReply = root.dataset.canReply === '1';
+  const canInventory = root.dataset.canInventory === '1';
   const currentUserId = parseInt(ajax.user_id || '0', 10);
   const isTicketPage = root.dataset.ticketPage === '1';
   const viewBaseUrl = String(root.dataset.viewBaseUrl || '');
@@ -50,6 +55,7 @@
     if (close) { closeModal(qs('#' + close.dataset.closeModal)); return; }
 
     if (e.target.closest('#metis-stash-new-ticket-open')) {
+      if (!canCreate) return;
       if (ui.newTicketForm) ui.newTicketForm.reset();
       openModal(ui.newTicketModal);
       return;
@@ -68,7 +74,7 @@
       return;
     }
 
-    const reviewBtn = e.target.closest('[data-ticket-url], [data-ticket-id]');
+    const reviewBtn = e.target.closest('a[data-ticket-url], button[data-ticket-url], [data-ticket-id]:not(.metis-stash-row)');
     if (reviewBtn) {
       const ticketUrl = String(reviewBtn.dataset.ticketUrl || '');
       if (ticketUrl) {
@@ -79,8 +85,17 @@
       return;
     }
 
+    const ticketRow = e.target.closest('.metis-stash-row[data-ticket-url]');
+    if (ticketRow && !e.target.closest('a, button, input, select, textarea, label')) {
+      const ticketUrl = String(ticketRow.dataset.ticketUrl || '');
+      if (ticketUrl) {
+        window.location.href = ticketUrl;
+      }
+      return;
+    }
+
     const itemAction = e.target.closest('[data-item-action]');
-    if (itemAction && canManage) {
+    if (itemAction && canInventory) {
       await updateItemStatus(parseInt(itemAction.dataset.itemId, 10), itemAction.dataset.itemAction);
       return;
     }
@@ -93,7 +108,7 @@
 
   ui.ticketForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
-    if (!canManage) return;
+    if (!canAssign) return;
     try {
       await request('metis_grandys_stash_save_ticket', { payload: JSON.stringify(formToObject(ui.ticketForm)) });
       if (isTicketPage && currentTicketId > 0) {
@@ -106,7 +121,7 @@
   });
 
   ui.noteSubmit?.addEventListener('click', async function () {
-    if (!canManage || !ui.noteInput) return;
+    if (!canComment || !ui.noteInput) return;
     const content = ui.noteInput.value.trim();
     if (!content || currentTicketId < 1) return;
     try {
@@ -118,7 +133,7 @@
   });
 
   ui.replySubmit?.addEventListener('click', async function () {
-    if (!canManage || !ui.replyInput) return;
+    if (!canReply || !ui.replyInput) return;
     const content = ui.replyInput.value.trim();
     const subject = ui.replySubject?.value?.trim() || '';
     if (!content || currentTicketId < 1) return;
@@ -142,7 +157,7 @@
 
   ui.newTicketForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
-    if (!canManage) return;
+    if (!canCreate) return;
     try {
       await request('metis_grandys_stash_create_ticket', { payload: JSON.stringify(formToObject(ui.newTicketForm)) });
       closeModal(ui.newTicketModal);
@@ -216,9 +231,9 @@
   function renderTicketItems(items) {
     if (!ui.ticketItems) return;
     if (!items.length) { ui.ticketItems.innerHTML = '<div class="metis-muted">No line items.</div>'; return; }
-    ui.ticketItems.innerHTML = '<table class="metis-premium-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Item</th><th class="metis-premium-cell" scope="col">Category</th><th class="metis-premium-cell" scope="col">Qty</th><th class="metis-premium-cell" scope="col">Status</th>' + (canManage ? '<th class="metis-premium-cell" scope="col">Actions</th>' : '') + '</tr></thead><tbody>' +
+    ui.ticketItems.innerHTML = '<table class="metis-premium-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Item</th><th class="metis-premium-cell" scope="col">Category</th><th class="metis-premium-cell" scope="col">Qty</th><th class="metis-premium-cell" scope="col">Status</th>' + (canInventory ? '<th class="metis-premium-cell" scope="col">Actions</th>' : '') + '</tr></thead><tbody>' +
       items.map(function (item) {
-        const actions = canManage ? '<td class="metis-premium-cell"><div class="metis-stash-item-actions">' +
+        const actions = canInventory ? '<td class="metis-premium-cell"><div class="metis-stash-item-actions">' +
           (item.status !== 'available' ? '<button class="metis-btn-xs metis-btn-ghost" data-item-id="' + item.id + '" data-item-action="available">Available</button>' : '') +
           (item.status !== 'fulfilled' ? '<button class="metis-btn-xs metis-btn-ghost" data-item-id="' + item.id + '" data-item-action="fulfilled">Fulfilled</button>' : '') +
           (item.status !== 'unavailable' ? '<button class="metis-btn-xs metis-btn-ghost" data-item-id="' + item.id + '" data-item-action="unavailable">Unavailable</button>' : '') +
@@ -304,7 +319,7 @@
       (others.length ? '<div style="margin-top:8px;"><strong class="metis-muted" style="font-size:12px;">Other tickets</strong>' +
         others.map(t => '<div class="metis-muted" style="margin-top:4px;">' + esc(t.code) + ' · ' + labelize(t.type) + ' · ' + t.status + ' · ' + shortDate(t.submitted_at) + '</div>').join('') +
       '</div>' : '') +
-      (canManage ? '<div style="margin-top:8px;"><button class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-unlink-group">Unlink from group</button></div>' : '');
+      (canAssign ? '<div style="margin-top:8px;"><button class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-unlink-group">Unlink from group</button></div>' : '');
 
     qs('#metis-stash-unlink-group')?.addEventListener('click', async function () {
       try {
@@ -375,7 +390,8 @@
       const groupCode = t.group_code ? esc(t.group_code) : '';
       const search = [code, name, typeLabel, status, assigned, groupCode, t.submit_email || '', t.items_summary || ''].join(' ').toLowerCase();
 
-      return '<tr class="metis-premium-row metis-stash-row" data-id="' + t.id + '" data-status="' + status + '" data-type="' + t.type + '" data-assigned="' + (t.assigned_to || '') + '" data-search="' + esc(search) + '">' +
+      const ticketUrl = buildTicketUrl(t.code || '');
+      return '<tr class="metis-premium-row metis-stash-row" data-id="' + t.id + '" data-ticket-url="' + esc(ticketUrl) + '" data-status="' + status + '" data-type="' + t.type + '" data-assigned="' + (t.assigned_to || '') + '" data-search="' + esc(search) + '">' +
         '<td class="metis-premium-cell"><strong>' + code + '</strong>' + (groupCode ? '<div class="metis-muted">' + groupCode + '</div>' : '') + '</td>' +
         '<td class="metis-premium-cell">' + name + '</td>' +
         '<td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-' + t.type + '">' + typeLabel + '</span></td>' +
@@ -384,7 +400,7 @@
         '<td class="metis-premium-cell">' + assigned + '</td>' +
         '<td class="metis-premium-cell">' + items + '</td>' +
         '<td class="metis-premium-cell">' + date + '</td>' +
-        (canManage ? '<td class="metis-premium-cell"><a class="metis-btn-xs" href="' + esc(buildTicketUrl(t.code || '')) + '" data-ticket-url="' + esc(buildTicketUrl(t.code || '')) + '">Review</a></td>' : '') +
+        (canManage ? '<td class="metis-premium-cell"><a class="metis-btn-xs" href="' + esc(ticketUrl) + '" data-ticket-url="' + esc(ticketUrl) + '">Review</a></td>' : '') +
       '</tr>';
     }).join('');
     filterRows();

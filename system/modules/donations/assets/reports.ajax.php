@@ -24,7 +24,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
     metis_ajax_register_controller( 'metis_donations_report_pdf', [
         'module' => 'donations',
-        'permission' => 'view',
+        'permission' => 'export',
         'nonce_action' => metis_ajax_nonce_action( 'metis_donations_report_pdf' ),
     ] );
     metis_ajax_register_controller( 'metis_donations_report_save', [

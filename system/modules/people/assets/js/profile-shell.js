@@ -1,6 +1,6 @@
 function initMetisPeopleProfileShell(context) {
     const scope = context && context.root ? context.root : document;
-    const hasPeopleUi = scope.querySelector('.metis-people-detail, .metis-people-role-detail, .metis-people-activity-log, .metis-people-profile-card');
+    const hasPeopleUi = scope.querySelector('.metis-people-detail, .metis-people-role-detail, .metis-people-activity-log, .metis-people-profile-card, .metis-people-workspace');
     if (!hasPeopleUi) return;
     if (scope !== document && scope.getAttribute('data-metis-people-shell-initialized') === '1') return;
     if (scope !== document) scope.setAttribute('data-metis-people-shell-initialized', '1');

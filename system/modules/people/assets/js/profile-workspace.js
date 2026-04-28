@@ -11,7 +11,8 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
         const target = String(url || '').trim();
         if (!target) return false;
         if (window.Metis && Metis.navigation && typeof Metis.navigation.go === 'function') {
-            return Metis.navigation.go(target);
+            const handled = Metis.navigation.go(target);
+            if (handled) return true;
         }
         window.location.assign(target);
         return true;
@@ -147,6 +148,26 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                 });
         }
         workspaceRoot.addEventListener('click', function (event) {
+            const actionOpen = event.target.closest('.metis-workspace-actions-open');
+            if (actionOpen) {
+                event.preventDefault();
+                event.stopPropagation();
+                const row = actionOpen.closest('.metis-workspace-user-row');
+                if (!row || !userRowsWrap) return;
+                const menu = row.querySelector('.metis-workspace-actions-menu');
+                if (!menu) return;
+                const wasOpen = row.classList.contains('is-menu-open');
+                Array.from(userRowsWrap.querySelectorAll('.metis-workspace-user-row.is-menu-open')).forEach(function (r) {
+                    r.classList.remove('is-menu-open');
+                    const openMenu = r.querySelector('.metis-workspace-actions-menu');
+                    if (openMenu) openMenu.setAttribute('aria-hidden', 'true');
+                });
+                if (!wasOpen) {
+                    row.classList.add('is-menu-open');
+                    menu.setAttribute('aria-hidden', 'false');
+                }
+                return;
+            }
             const pageLink = event.target.closest('.metis-workspace-page-link[data-sync-page][data-security-page]');
             if (!pageLink) return;
             event.preventDefault();
@@ -155,7 +176,7 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                 pageLink.getAttribute('data-sync-page'),
                 pageLink.getAttribute('data-security-page')
             );
-        });
+        }, true);
         const canManage = workspaceRoot.dataset.canManage === '1';
         const userSearch = document.getElementById('metis-workspace-user-search');
         const userRowsWrap = document.getElementById('metis-workspace-user-rows');
@@ -354,6 +375,7 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
             const userSuspended = document.getElementById('metis-workspace-user-suspended');
             const userProtected = document.getElementById('metis-workspace-user-protected');
             const roleToggles = Array.from(document.querySelectorAll('.metis-workspace-role-toggle'));
+            const userGroupToggles = Array.from(document.querySelectorAll('.metis-workspace-user-group-toggle'));
             const createMetisUserButtons = Array.from(document.querySelectorAll('.metis-workspace-create-person-btn'));
             const roleLabelByKey = {};
             roleToggles.forEach(function (cb) {
@@ -453,6 +475,7 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                     editBtn.dataset.suspended = isSuspended ? '1' : '0';
                     editBtn.dataset.protected = isProtected ? '1' : '0';
                     editBtn.dataset.roleKeys = JSON.stringify(roleKeys);
+                    editBtn.dataset.groupIds = JSON.stringify(Array.isArray(user.group_ids) ? user.group_ids : []);
                 }
 
                 const hiddenBtn = row.querySelector('.metis-workspace-flag-btn[data-flag="is_hidden"]');
@@ -497,6 +520,7 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                 if (userSuspended) userSuspended.checked = false;
                 if (userProtected) userProtected.checked = false;
                 roleToggles.forEach(function (cb) { cb.checked = false; });
+                userGroupToggles.forEach(function (cb) { cb.checked = false; });
             }
 
             if (userOpen && userModal) {
@@ -526,6 +550,10 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                     let roles = [];
                     try { roles = JSON.parse(String(btn.dataset.roleKeys || '[]')); } catch (e) { roles = []; }
                     roleToggles.forEach(function (cb) { cb.checked = roles.indexOf(cb.value) >= 0; });
+                    let groupIds = [];
+                    try { groupIds = JSON.parse(String(btn.dataset.groupIds || '[]')); } catch (e) { groupIds = []; }
+                    groupIds = groupIds.map(function (id) { return String(id); });
+                    userGroupToggles.forEach(function (cb) { cb.checked = groupIds.indexOf(String(cb.value || '')) >= 0; });
                     openModal(userModal);
                 });
             });
@@ -534,6 +562,7 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                 userForm.addEventListener('submit', function (event) {
                     event.preventDefault();
                     const roleKeys = roleToggles.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+                    const groupIds = userGroupToggles.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
                     post('metis_people_workspace_save_user', {
                         workspace_user_id: userIdEl ? userIdEl.value : '0',
                         primary_email: userPrimaryEmail ? userPrimaryEmail.value : '',
@@ -547,13 +576,16 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         is_hidden: userHidden && userHidden.checked ? '1' : '0',
                         is_suspended: userSuspended && userSuspended.checked ? '1' : '0',
                         is_protected: userProtected && userProtected.checked ? '1' : '0',
-                        role_keys: JSON.stringify(roleKeys)
+                        role_keys: JSON.stringify(roleKeys),
+                        group_ids: JSON.stringify(groupIds)
                     }).then(function (data) {
                         if (data && data.user && Number(data.user.id || 0) > 0) {
                             updateWorkspaceRowFromUser(data.user);
                         }
                         const driveFolder = (data && data.drive_folder && typeof data.drive_folder === 'object') ? data.drive_folder : null;
-                        if (driveFolder && driveFolder.ok) {
+                        if (data && data.sync_warning) {
+                            showAlert(String(data.sync_warning), 'warning');
+                        } else if (driveFolder && driveFolder.ok) {
                             showAlert(driveFolder.created ? 'Workspace user saved. Drive folder created.' : 'Workspace user saved. Drive folder linked.', 'success');
                         } else {
                             showAlert('Workspace user saved.', 'success');

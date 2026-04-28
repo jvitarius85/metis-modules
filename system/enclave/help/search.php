@@ -6,12 +6,7 @@ require_once __DIR__ . '/_bootstrap.php';
 header( 'Content-Type: application/json; charset=utf-8' );
 
 if ( strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) !== 'POST' ) {
-    http_response_code( 405 );
-    echo $encode( [
-        'success' => false,
-        'message' => 'Method not allowed.',
-    ] );
-    exit;
+    metis_help_enclave_fail( 405, 'Method not allowed.' );
 }
 
 $enclave = metis_security_enclave();

@@ -205,7 +205,7 @@ html[data-metis-contrast="true"] [tabindex]:focus-visible {
     align-items: center;
     z-index: var(--metis-sidebar-z);
     border-right: 1px solid var(--metis-sidebar-border);
-    overflow: visible;
+    overflow: hidden;
 }
 
 .metis-sidebar-top {

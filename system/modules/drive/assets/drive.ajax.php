@@ -2,7 +2,12 @@
 if (!defined('METIS_ROOT')) exit;
 
 function metis_drive_ajax_verify(bool $manage = false): void {
-    unset($manage);
+    $allowed = $manage
+        ? ( function_exists( 'metis_drive_can_manage' ) && metis_drive_can_manage() )
+        : ( function_exists( 'metis_drive_can' ) && metis_drive_can( 'view' ) );
+    if ( ! $allowed ) {
+        metis_runtime_send_json_error( 'Unauthorized', 403 );
+    }
 }
 
 function metis_drive_ajax_cfg_from_request(): array {
