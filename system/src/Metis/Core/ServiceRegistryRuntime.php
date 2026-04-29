@@ -554,6 +554,13 @@ function metis_register_core_services(): void {
         );
     }
 
+    if ( ! $registry->has( 'hermes_cms_admin' ) ) {
+        $registry->singleton(
+            'hermes_cms_admin',
+            static fn (): \Metis\Services\HermesCmsAdminService => new \Metis\Services\HermesCmsAdminService()
+        );
+    }
+
     if ( ! $registry->has( 'hermes_system_ops' ) ) {
         $registry->singleton(
             'hermes_system_ops',

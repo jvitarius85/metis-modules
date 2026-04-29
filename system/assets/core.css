@@ -105,6 +105,8 @@ html[data-metis-contrast="true"] {
 
 html[data-metis-large-text="true"] {
     --metis-text-size: 20px;
+    zoom: 175%;
+    overflow: auto;
 }
 
 html[data-metis-readable-font="true"] body.metis-portal,
