@@ -2,7 +2,7 @@ window.MetisPeopleProfileModules = window.MetisPeopleProfileModules || {};
 
 window.MetisPeopleProfileModules.initWorkspace = function (context) {
     const normalize = context.normalize;
-    const showAlert = context.showAlert;
+    const rawShowAlert = context.showAlert;
     const post = context.post;
     const openModal = context.openModal;
     const closeModal = context.closeModal;
@@ -17,9 +17,23 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
         window.location.assign(target);
         return true;
     };
+    const recentWorkspaceAlerts = new Map();
+    const showAlert = function (message, type) {
+        const body = String(message || '').trim();
+        if (!body || typeof rawShowAlert !== 'function') return;
+        const tone = String(type || 'info').trim() || 'info';
+        const key = tone + ':' + body;
+        const now = Date.now();
+        const last = Number(recentWorkspaceAlerts.get(key) || 0);
+        if (last && now - last < 1500) return;
+        recentWorkspaceAlerts.set(key, now);
+        rawShowAlert(body, tone);
+    };
     // Workspace management.
     const workspaceRoot = document.querySelector('.metis-people-workspace');
     if (workspaceRoot) {
+        if (workspaceRoot.dataset.metisWorkspaceBound === '1') return;
+        workspaceRoot.dataset.metisWorkspaceBound = '1';
         const workspaceLogGrid = workspaceRoot.querySelector('.metis-workspace-log-grid');
         function renderWorkspaceSyncRows(rows) {
             const wrap = document.getElementById('metis-workspace-sync-log-rows');
@@ -374,6 +388,8 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
             const userHidden = document.getElementById('metis-workspace-user-hidden');
             const userSuspended = document.getElementById('metis-workspace-user-suspended');
             const userProtected = document.getElementById('metis-workspace-user-protected');
+            const userCreateMetis = document.getElementById('metis-workspace-user-create-metis');
+            const userCreateDriveFolder = document.getElementById('metis-workspace-user-create-drive-folder');
             const roleToggles = Array.from(document.querySelectorAll('.metis-workspace-role-toggle'));
             const userGroupToggles = Array.from(document.querySelectorAll('.metis-workspace-user-group-toggle'));
             const createMetisUserButtons = Array.from(document.querySelectorAll('.metis-workspace-create-person-btn'));
@@ -519,6 +535,8 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                 if (userHidden) userHidden.checked = false;
                 if (userSuspended) userSuspended.checked = false;
                 if (userProtected) userProtected.checked = false;
+                if (userCreateMetis) userCreateMetis.checked = true;
+                if (userCreateDriveFolder) userCreateDriveFolder.checked = true;
                 roleToggles.forEach(function (cb) { cb.checked = false; });
                 userGroupToggles.forEach(function (cb) { cb.checked = false; });
             }
@@ -547,6 +565,8 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                     if (userHidden) userHidden.checked = String(btn.dataset.hidden || '0') === '1';
                     if (userSuspended) userSuspended.checked = String(btn.dataset.suspended || '0') === '1';
                     if (userProtected) userProtected.checked = String(btn.dataset.protected || '0') === '1';
+                    if (userCreateMetis) userCreateMetis.checked = false;
+                    if (userCreateDriveFolder) userCreateDriveFolder.checked = false;
                     let roles = [];
                     try { roles = JSON.parse(String(btn.dataset.roleKeys || '[]')); } catch (e) { roles = []; }
                     roleToggles.forEach(function (cb) { cb.checked = roles.indexOf(cb.value) >= 0; });
@@ -561,6 +581,10 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
             if (userForm) {
                 userForm.addEventListener('submit', function (event) {
                     event.preventDefault();
+                    if (userForm.dataset.busy === '1') return;
+                    userForm.dataset.busy = '1';
+                    const submitButton = userForm.querySelector('button[type="submit"]');
+                    if (submitButton) submitButton.disabled = true;
                     const roleKeys = roleToggles.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
                     const groupIds = userGroupToggles.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
                     post('metis_people_workspace_save_user', {
@@ -576,6 +600,8 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         is_hidden: userHidden && userHidden.checked ? '1' : '0',
                         is_suspended: userSuspended && userSuspended.checked ? '1' : '0',
                         is_protected: userProtected && userProtected.checked ? '1' : '0',
+                        create_metis_user: userCreateMetis && userCreateMetis.checked ? '1' : '0',
+                        create_drive_folder: userCreateDriveFolder && userCreateDriveFolder.checked ? '1' : '0',
                         role_keys: JSON.stringify(roleKeys),
                         group_ids: JSON.stringify(groupIds)
                     }).then(function (data) {
@@ -583,16 +609,21 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                             updateWorkspaceRowFromUser(data.user);
                         }
                         const driveFolder = (data && data.drive_folder && typeof data.drive_folder === 'object') ? data.drive_folder : null;
-                        if (data && data.sync_warning) {
-                            showAlert(String(data.sync_warning), 'warning');
-                        } else if (driveFolder && driveFolder.ok) {
-                            showAlert(driveFolder.created ? 'Workspace user saved. Drive folder created.' : 'Workspace user saved. Drive folder linked.', 'success');
-                        } else {
-                            showAlert('Workspace user saved.', 'success');
+                        const metisUser = (data && data.metis_user && typeof data.metis_user === 'object') ? data.metis_user : null;
+                        const messages = ['Workspace user saved.'];
+                        if (metisUser && metisUser.ok) {
+                            messages.push(metisUser.created ? 'Metis user created.' : 'Metis user linked.');
                         }
+                        if (driveFolder && driveFolder.ok) {
+                            messages.push(driveFolder.created ? 'Drive folder created.' : 'Drive folder linked.');
+                        }
+                        showAlert((data && data.sync_warning) ? String(data.sync_warning) : messages.join(' '), (data && data.sync_warning) ? 'warning' : 'success');
                         closeModal(userModal);
                     }).catch(function (err) {
                         showAlert(err.message || 'Failed to save workspace user.', 'error');
+                    }).finally(function () {
+                        userForm.dataset.busy = '0';
+                        if (submitButton) submitButton.disabled = false;
                     });
                 });
             }
@@ -768,6 +799,8 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         tone: 'danger'
                     }).then(function (confirmed) {
                         if (!confirmed) return;
+                        if (deleteBtn.dataset.busy === '1') return;
+                        deleteBtn.dataset.busy = '1';
                         deleteBtn.disabled = true;
                         post('metis_people_workspace_delete_user', {
                             workspace_user_id: workspaceUserId
@@ -780,6 +813,7 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         }).catch(function (err) {
                             showAlert(err.message || 'Failed to delete workspace account.', 'error');
                         }).finally(function () {
+                            deleteBtn.dataset.busy = '0';
                             deleteBtn.disabled = false;
                         });
                     });
@@ -1234,6 +1268,10 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
             if (groupForm) {
                 groupForm.addEventListener('submit', function (event) {
                     event.preventDefault();
+                    if (groupForm.dataset.busy === '1') return;
+                    groupForm.dataset.busy = '1';
+                    const submitButton = groupForm.querySelector('button[type="submit"]');
+                    if (submitButton) submitButton.disabled = true;
                     const selectedMembers = [];
                     const checkboxes = Array.from((groupForm || document).querySelectorAll('.metis-workspace-members-include'));
                     checkboxes.forEach(function (cb) {
@@ -1305,6 +1343,9 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         closeModal(groupModal);
                     }).catch(function (err) {
                         showAlert(err.message || 'Failed to save group.', 'error');
+                    }).finally(function () {
+                        groupForm.dataset.busy = '0';
+                        if (submitButton) submitButton.disabled = false;
                     });
                 });
             }
@@ -1353,6 +1394,9 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         tone: 'danger'
                     }).then(function (confirmed) {
                         if (!confirmed) return;
+                        if (groupDeleteBtn.dataset.busy === '1') return;
+                        groupDeleteBtn.dataset.busy = '1';
+                        groupDeleteBtn.disabled = true;
                         post('metis_people_workspace_delete_group', { group_id: String(gid) })
                             .then(function () {
                                 showAlert('Workspace group deleted.', 'success');
@@ -1360,6 +1404,10 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                             })
                             .catch(function (err) {
                                 showAlert(err.message || 'Failed to delete group.', 'error');
+                            })
+                            .finally(function () {
+                                groupDeleteBtn.dataset.busy = '0';
+                                groupDeleteBtn.disabled = false;
                             });
                     });
                 });

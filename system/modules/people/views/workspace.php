@@ -690,6 +690,8 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                 <div class="metis-field metis-field-half"><label><input type="checkbox" id="metis-workspace-user-hidden"> Hidden (service/internal account)</label></div>
                 <div class="metis-field metis-field-half"><label><input type="checkbox" id="metis-workspace-user-suspended"> Suspended</label></div>
                 <div class="metis-field metis-field-half"><label><input type="checkbox" id="metis-workspace-user-protected"> Protected (non-removable)</label></div>
+                <div class="metis-field metis-field-half"><label><input type="checkbox" id="metis-workspace-user-create-metis" checked> Create linked Metis user</label></div>
+                <div class="metis-field metis-field-half"><label><input type="checkbox" id="metis-workspace-user-create-drive-folder" checked> Create user Drive folder</label></div>
                 <div class="metis-field metis-field-full">
                     <label>Workspace Admin Roles</label>
                     <div class="metis-people-check-grid metis-workspace-role-check-grid">

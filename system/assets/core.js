@@ -735,6 +735,10 @@ Metis.navigation = (function() {
         }
     }
 
+    function shouldReportInvalidNavigation(result) {
+        return !result || result.reason !== 'empty_navigation_target';
+    }
+
     function normalizePathname(pathname) {
         var value = String(pathname || '/').replace(/\/+/g, '/');
         if (value === '') {
@@ -828,7 +832,9 @@ Metis.navigation = (function() {
     function go(url, options) {
         var result = validate(url, options);
         if (!result.ok) {
-            toastInvalid(result.message);
+            if (shouldReportInvalidNavigation(result)) {
+                toastInvalid(result.message);
+            }
             return false;
         }
         window.location.assign(result.href);
@@ -838,7 +844,9 @@ Metis.navigation = (function() {
     function replace(url, options) {
         var result = validate(url, options);
         if (!result.ok) {
-            toastInvalid(result.message);
+            if (shouldReportInvalidNavigation(result)) {
+                toastInvalid(result.message);
+            }
             return false;
         }
         window.location.replace(result.href);
@@ -874,7 +882,9 @@ Metis.navigation = (function() {
             var result = validate(href, { allowExternal: allowExternalForAnchor(anchor) });
             if (!result.ok) {
                 event.preventDefault();
-                toastInvalid(result.message);
+                if (shouldReportInvalidNavigation(result)) {
+                    toastInvalid(result.message);
+                }
             }
         }, true);
     }

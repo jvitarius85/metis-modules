@@ -488,6 +488,8 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     $is_suspended = !empty($_POST['is_suspended']) ? 1 : 0;
     $is_protected = !empty($_POST['is_protected']) ? 1 : 0;
     $is_hidden = !empty($_POST['is_hidden']) ? 1 : 0;
+    $create_metis_user = !empty($_POST['create_metis_user']);
+    $create_drive_folder = !empty($_POST['create_drive_folder']);
 
     $role_keys = [];
     if (isset($_POST['role_keys'])) {
@@ -526,6 +528,9 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         $display_name = trim($first_name . ' ' . $last_name);
     }
     if ($display_name === '') $display_name = $primary_email;
+    if ($create_drive_folder && !$create_metis_user && $linked_pid === '') {
+        metis_runtime_send_json_error('Create a linked Metis user before creating a Drive folder.', 400);
+    }
 
     $person_id = null;
     if ($linked_pid !== '') {
@@ -829,14 +834,114 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         }
     }
 
+    $metis_user = null;
+    if ($create_metis_user && ($person_id === null || $person_id < 1)) {
+        $existing_person = $db->fetchOne(
+            "SELECT id, pid, display_name, first_name, last_name, is_workspace_user, workspace_email
+             FROM {$people_table}
+             WHERE workspace_email = %s OR email = %s
+             ORDER BY id ASC
+             LIMIT 1",
+            [ $primary_email, $primary_email ]
+        );
+        $person_id = (int) ($existing_person['id'] ?? 0);
+        $created_metis_user = false;
+        if ($person_id > 0) {
+            $update_payload = [
+                'auth_provider' => 'workspace',
+                'is_workspace_user' => 1,
+                'workspace_email' => $primary_email,
+            ];
+            $update_format = ['%s', '%d', '%s'];
+            if (trim((string) ($existing_person['display_name'] ?? '')) === '' && $display_name !== '') {
+                $update_payload['display_name'] = $display_name;
+                $update_format[] = '%s';
+            }
+            if (trim((string) ($existing_person['first_name'] ?? '')) === '' && $first_name !== '') {
+                $update_payload['first_name'] = $first_name;
+                $update_format[] = '%s';
+            }
+            if (trim((string) ($existing_person['last_name'] ?? '')) === '' && $last_name !== '') {
+                $update_payload['last_name'] = $last_name;
+                $update_format[] = '%s';
+            }
+            $updated = $db->update($people_table, $update_payload, ['id' => $person_id], $update_format, ['%d']);
+            if ($updated === false) {
+                metis_runtime_send_json_error('Workspace user saved, but Metis user linking failed.', 500);
+            }
+        } else {
+            $person_payload = [
+                'auth_provider' => 'workspace',
+                'email' => $primary_email,
+                'first_name' => $first_name !== '' ? $first_name : null,
+                'last_name' => $last_name !== '' ? $last_name : null,
+                'display_name' => $display_name,
+                'is_workspace_user' => 1,
+                'workspace_email' => $primary_email,
+            ];
+            $person_format = ['%s', '%s', '%s', '%s', '%s', '%d', '%s'];
+            if (function_exists('metis_entity_id_service')) {
+                $person_payload = metis_entity_id_service()->assignForInsert('person', $person_payload);
+                $person_format[] = '%s';
+            } else {
+                $person_payload['pid'] = metis_generate_code('PE', $people_table, 'pid');
+                $person_format[] = '%s';
+            }
+            $ok = $db->insert($people_table, $person_payload, $person_format);
+            if (!$ok) {
+                metis_runtime_send_json_error('Workspace user saved, but Metis user creation failed.', 500);
+            }
+            $person_id = (int) $db->lastInsertId();
+            $created_metis_user = true;
+            if ($person_id > 0 && function_exists('metis_entity_id_service')) {
+                metis_entity_id_service()->register('person', $person_id, (string) ($person_payload['person_uid'] ?? $person_payload['pid'] ?? ''));
+            }
+        }
+        if ($person_id > 0) {
+            $linked_pid_out = (string) $db->scalar("SELECT pid FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
+            $person_url_out = ($linked_pid_out !== '' && function_exists('metis_people_person_url')) ? (string) metis_people_person_url($linked_pid_out) : '';
+            $link_ok = $db->update(
+                $users_table,
+                ['person_id' => $person_id, 'sync_status' => 'synced'],
+                ['id' => $workspace_user_id],
+                ['%d', '%s'],
+                ['%d']
+            );
+            if ($link_ok === false) {
+                metis_runtime_send_json_error('Metis user was created but linking failed.', 500);
+            }
+            metis_people_log_activity($person_id, 'workspace_user_linked_to_person', 'Linked workspace user to Metis person', [
+                'workspace_user_id' => $workspace_user_id,
+                'primary_email' => $primary_email,
+                'pid' => $linked_pid_out,
+            ]);
+            $metis_user = [
+                'ok' => true,
+                'created' => $created_metis_user,
+                'person_id' => $person_id,
+                'pid' => $linked_pid_out,
+                'person_url' => $person_url_out,
+            ];
+        }
+    } elseif ($create_metis_user && $person_id !== null && $person_id > 0) {
+        $metis_user = [
+            'ok' => true,
+            'created' => false,
+            'person_id' => $person_id,
+            'pid' => $linked_pid_out,
+            'person_url' => $person_url_out,
+        ];
+    }
+
     $drive_folder = null;
-    if ($person_id !== null && $person_id > 0) {
+    if ($create_drive_folder && $person_id !== null && $person_id > 0) {
         $drive_folder = metis_people_workspace_autocreate_drive_folder((int) $person_id);
     }
 
     metis_runtime_send_json_success([
         'workspace_user_id' => $workspace_user_id,
         'job_id' => $job_id,
+        'metis_user' => $metis_user,
         'drive_folder' => $drive_folder,
         'sync_warning' => $sync_warning,
         'user' => [

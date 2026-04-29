@@ -237,8 +237,8 @@ html[data-metis-contrast="true"] [tabindex]:focus-visible {
     align-items: center;
     width: 100%;
     padding: 12px 0 6px;
-    overflow-x: visible;
-    overflow-y: auto;
+    overflow-x: hidden;
+    overflow-y: hidden;
     gap: 2px;
 }
 
