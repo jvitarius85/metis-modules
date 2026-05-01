@@ -3,6 +3,11 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_cms_require_view_permission( 'editor' ) ) {
+    return;
+}
+
 use Metis\Modules\Cms\Services\PageService;
 use Metis\Modules\Cms\Services\PostService;
 
@@ -46,7 +51,8 @@ if ( ! headers_sent() && function_exists( 'metis_safe_redirect' ) ) {
     }
 }
 
-$context = ( $editor_post_id > 0 || $editor_new === 'post' || strtoupper( substr( $editor_key, 0, 4 ) ) === 'CMSP' ) ? 'post' : 'cms';
+$context = ( $editor_post_id > 0 || $editor_new === 'post' || strtoupper( substr( $editor_key, 0, 4 ) ) === 'CMSP' ) ? 'cms_post' : 'cms_page';
+$editor_kind = '';
 
 $is_editor_route = (
     $editor_page_id > 0
@@ -65,14 +71,14 @@ if ( ! $is_editor_route ) {
 }
 
 $editor_target_id = 0;
-if ( $context === 'post' ) {
+if ( $context === 'cms_post' ) {
     if ( $editor_post_id > 0 ) {
         $editor_target_id = $editor_post_id;
     } elseif ( $editor_key !== '' && class_exists( PostService::class ) ) {
         $post = PostService::getByCode( $editor_key );
         $editor_target_id = $post !== null ? (int) ( $post->id ?? 0 ) : 0;
     }
-} elseif ( $context === 'cms' ) {
+} elseif ( $context === 'cms_page' ) {
     if ( $editor_page_id > 0 ) {
         $editor_target_id = $editor_page_id;
     } elseif ( $editor_key !== '' && class_exists( PageService::class ) ) {

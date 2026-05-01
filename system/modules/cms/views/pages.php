@@ -3,6 +3,11 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_cms_require_view_permission( 'pages' ) ) {
+    return;
+}
+
 use Metis\Modules\Cms\Services\PageService;
 use Metis\Modules\Cms\Services\HomepageService;
 use Metis\Modules\Cms\Services\PostService;
@@ -115,15 +120,15 @@ if ( $is_editor_route ) {
         metis_runtime_die( 'Unauthorized.', 'Error', [ 'response' => 403 ] );
     }
 
-    $context = 'cms';
+    $context = 'cms_page';
     $editor_target_id = 0;
     if ( $editor_new === 'post' || strtoupper( substr( $editor_key, 0, 4 ) ) === 'CMSP' ) {
-        $context = 'post';
+        $context = 'cms_post';
     }
     if ( $editor_page_id > 0 ) {
         $editor_target_id = $editor_page_id;
     } elseif ( $editor_key !== '' ) {
-        if ( $context === 'post' ) {
+        if ( $context === 'cms_post' ) {
             $post = PostService::getByCode( $editor_key );
             $editor_target_id = $post !== null ? (int) ( $post->id ?? 0 ) : 0;
         } else {
@@ -202,9 +207,20 @@ if ( $is_editor_route ) {
                 <?php foreach ( $ordered_page_entries as $entry ) : ?>
                     <?php $page = $entry['page']; ?>
                     <?php $depth = max( 0, min( 12, (int) ( $entry['depth'] ?? 0 ) ) ); ?>
+                    <?php
+                    $page_public_path = '';
+                    if ( (string) ( $page->status ?? '' ) === 'published' ) {
+                        $page_public_path = method_exists( PageService::class, 'publishedPathForPage' )
+                            ? (string) PageService::publishedPathForPage( $page )
+                            : ( ( $homepage_page_id !== null && (int) $homepage_page_id === (int) $page->id ) ? '/' : '/' . ltrim( (string) $page->slug, '/' ) );
+                    }
+                    $page_public_url = $page_public_path !== '' && function_exists( 'metis_home_url' )
+                        ? (string) metis_home_url( $page_public_path )
+                        : $page_public_path;
+                    ?>
                     <tr class="metis-premium-row">
                         <td class="metis-premium-cell">
-                            <strong class="metis-edit-page metis-page-title metis-page-depth-<?php echo metis_escape_attr( (string) $depth ); ?>" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $page->page_code ?? '' ) ); ?>"><?php echo metis_escape_html( $page->title ); ?></strong>
+                            <strong class="<?php echo $can_edit ? 'metis-edit-page ' : ''; ?>metis-page-title metis-page-depth-<?php echo metis_escape_attr( (string) $depth ); ?>" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $page->page_code ?? '' ) ); ?>"><?php echo metis_escape_html( $page->title ); ?></strong>
                             <?php if ( $homepage_page_id !== null && (int) $page->id === (int) $homepage_page_id ) : ?>
                                 <span class="metis-status metis-status-published metis-homepage-badge">Homepage</span>
                             <?php endif; ?>
@@ -232,8 +248,8 @@ if ( $is_editor_route ) {
                                 </button>
                                 <?php endif; ?>
                                 <?php endif; ?>
-                                <?php if ( $page->status === 'published' ) : ?>
-                                <a href="<?php echo metis_escape_attr( ( $homepage_page_id !== null && (int) $homepage_page_id === (int) $page->id ) ? '/' : '/' . ltrim( (string) $page->slug, '/' ) ); ?>" class="metis-action-btn" title="View live" target="_blank" rel="noopener">
+                                <?php if ( $page_public_url !== '' ) : ?>
+                                <a href="<?php echo metis_escape_attr( $page_public_url ); ?>" class="metis-action-btn" title="View live" target="_blank" rel="noopener">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                 </a>
                                 <?php endif; ?>

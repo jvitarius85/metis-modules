@@ -49,6 +49,107 @@
     text-transform: uppercase;
 }
 
+.metis-cms-readiness-panel {
+    gap: 16px;
+}
+
+.metis-cms-readiness-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.metis-cms-readiness-score {
+    min-width: 116px;
+    border: 1px solid var(--metis-border, #dbe1ee);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--metis-row-even-bg, #f8f9fd);
+    text-align: center;
+}
+
+.metis-cms-readiness-score strong {
+    display: block;
+    color: var(--metis-text, #1f2633);
+    font-size: 26px;
+    line-height: 1;
+}
+
+.metis-cms-readiness-score span {
+    display: block;
+    margin-top: 5px;
+    color: var(--metis-text-muted, #667085);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.metis-cms-readiness-score--ready {
+    border-color: #9be7bd;
+    background: #edfff5;
+}
+
+.metis-cms-readiness-score--attention {
+    border-color: #ccd6ff;
+    background: #f3f5ff;
+}
+
+.metis-cms-readiness-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 10px;
+}
+
+.metis-cms-readiness-item {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 66px;
+    border: 1px solid var(--metis-border, #dbe1ee);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--metis-row-even-bg, #f8f9fd);
+}
+
+.metis-cms-readiness-item div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.metis-cms-readiness-item strong {
+    color: var(--metis-text, #1f2633);
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.metis-cms-readiness-item span {
+    color: var(--metis-text-muted, #667085);
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.metis-cms-readiness-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #8a94a6;
+}
+
+.metis-cms-readiness-item--ready .metis-cms-readiness-dot {
+    background: #159457;
+}
+
+.metis-cms-readiness-item--attention .metis-cms-readiness-dot {
+    background: var(--metis-primary, #4057c8);
+}
+
+.metis-cms-readiness-item--blocked .metis-cms-readiness-dot {
+    background: #b42318;
+}
+
 .metis-cms-panel {
     display: flex;
     flex-direction: column;
@@ -152,6 +253,15 @@
 @media (max-width: 900px) {
     .metis-cms-panel-primary {
         grid-column: auto;
+    }
+
+    .metis-cms-readiness-summary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .metis-cms-readiness-score {
+        text-align: left;
     }
 }
 

@@ -622,6 +622,21 @@ function metis_current_view_label( string $fallback = '' ): string {
     return $fallback !== '' ? $fallback : ucwords( str_replace( '_', ' ', $view ) );
 }
 
+function metis_sidebar_module_view_allowed( array $config, string $view_slug ): bool {
+    $view_slug = metis_key_clean( $view_slug );
+    if ( $view_slug === '' ) {
+        return false;
+    }
+
+    $view_permissions = is_array( $config['view_permissions'] ?? null ) ? (array) $config['view_permissions'] : [];
+    $permission = trim( (string) ( $view_permissions[ $view_slug ] ?? '' ) );
+    if ( $permission === '' ) {
+        return true;
+    }
+
+    return function_exists( 'metis_security_user_can' ) && metis_security_user_can( $permission );
+}
+
 function metis_sidebar_nav( array $modules, string $active_domain ): string {
     if ( class_exists( 'Profiler', false ) ) {
         Profiler::mark( 'ROUTER_BUILD_NAV' );
@@ -688,6 +703,9 @@ function metis_sidebar_nav( array $modules, string $active_domain ): string {
                     $view_slug = metis_key_clean( (string) $view_slug );
                     $view_label = trim( (string) $view_label );
                     if ( $view_slug === '' || $view_label === '' ) {
+                        continue;
+                    }
+                    if ( ! metis_sidebar_module_view_allowed( $config, $view_slug ) ) {
                         continue;
                     }
 
@@ -789,6 +807,9 @@ function metis_sidebar_nav( array $modules, string $active_domain ): string {
                         $view_slug = metis_key_clean( (string) $view_slug );
                         $view_label = trim( (string) $view_label );
                         if ( $view_slug === '' || $view_label === '' ) {
+                            continue;
+                        }
+                        if ( ! metis_sidebar_module_view_allowed( $childConfig, $view_slug ) ) {
                             continue;
                         }
                         $view_route = function_exists( 'metis_portal_url' ) ? metis_portal_url( $childModule, $view_slug ) : '';

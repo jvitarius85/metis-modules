@@ -479,9 +479,9 @@
         state.entity = initialEntity;
         state.entityLoaded = true;
         state.id = parseInt(s(initialEntity.id || state.id || '0'), 10) || state.id;
-        if (state.context === 'post') {
+        if (isPostContext()) {
             state.key = s(initialEntity.post_code || state.key);
-        } else if (state.context === 'website') {
+        } else if (isPageContext()) {
             state.key = s(initialEntity.page_code || state.key);
         }
     }
@@ -506,19 +506,23 @@
         state.actionNonces = {};
     }
 
-    function isPageContext() { return state.context === 'website'; }
-    function isPostContext() { return state.context === 'post'; }
+    function isCmsContext() { return state.context === 'cms' || state.context === 'cms_page' || state.context === 'cms_post'; }
+    function isPageContext() { return state.context === 'website' || state.context === 'cms' || state.context === 'cms_page'; }
+    function isPostContext() { return state.context === 'post' || state.context === 'cms_post'; }
     function isTemplateContext() { return state.context === 'template'; }
     function isNewsletterContext() { return state.context.indexOf('newsletter') === 0; }
     function isNewEntityRoute() { return !state.key && (!state.id || state.id < 1); }
+    function contentModuleSlug() { return isCmsContext() ? 'cms' : 'website'; }
+    function contentAction(suffix) { return 'metis_' + contentModuleSlug() + '_' + suffix; }
+    function contentLabel() { return isCmsContext() ? 'CMS' : 'Website'; }
     function inferRefFromPath() {
         var pathname = s(window.location.pathname || '');
         if (!pathname) return { key: '', id: 0 };
         var match = null;
         if (isPostContext()) {
-            match = pathname.match(/\/website\/posts\/editor\/([A-Za-z0-9_-]+)\/?$/i);
+            match = pathname.match(/\/(?:website|cms)\/posts\/editor\/([A-Za-z0-9_-]+)\/?$/i);
         } else if (isPageContext()) {
-            match = pathname.match(/\/website\/pages\/editor\/([A-Za-z0-9_-]+)\/?$/i);
+            match = pathname.match(/\/(?:website|cms)\/pages\/editor\/([A-Za-z0-9_-]+)\/?$/i);
         }
         if (!match || !match[1]) return { key: '', id: 0 };
         var ref = s(match[1]).trim();
@@ -535,7 +539,7 @@
     }
 
     function appBasePath() {
-        var website = window.metisWebsiteAjax || {};
+        var website = editorModuleAjaxConfig();
         var core = window.metisAjax || {};
         var metisAjax = window.Metis && window.Metis.ajax ? window.Metis.ajax : null;
         var ajax = s((metisAjax && metisAjax.url) || website.ajax_url || core.ajax_url || '');
@@ -553,7 +557,7 @@
     }
 
     function resolveAjaxUrl() {
-        var website = window.metisWebsiteAjax || {};
+        var website = editorModuleAjaxConfig();
         var core = window.metisAjax || {};
         var metisAjax = window.Metis && window.Metis.ajax ? window.Metis.ajax : null;
         var ajax = s((metisAjax && metisAjax.url) || website.ajax_url || core.ajax_url || '');
@@ -578,11 +582,16 @@
 
     function defaultCsrfAction() {
         if (isNewsletterContext()) return 'metis_newsletter';
-        return 'metis_website';
+        return isCmsContext() ? 'metis_cms' : 'metis_website';
+    }
+
+    function editorModuleAjaxConfig() {
+        if (isCmsContext()) return window.metisCmsAjax || window.metisWebsiteAjax || {};
+        return window.metisWebsiteAjax || {};
     }
 
     function ajaxConfig(action) {
-        var website = window.metisWebsiteAjax || {};
+        var website = editorModuleAjaxConfig();
         var core = window.metisAjax || {};
         var metisAjax = window.Metis && window.Metis.ajax ? window.Metis.ajax : null;
         var nonces = {};
@@ -721,12 +730,18 @@
             if (p.indexOf('/template/') !== -1 || state.kind === 'template' || state.context === 'newsletter_template') return 'newsletter_template';
             return 'newsletter';
         }
+        if (p.indexOf('/cms/posts/editor/') !== -1 || state.context === 'cms_post') {
+            return 'cms_post';
+        }
         if (
             p.indexOf('/website/posts/editor/') !== -1 ||
             p.indexOf('/editor/post/') !== -1 ||
             state.context === 'post'
         ) {
             return 'post';
+        }
+        if (p.indexOf('/cms/pages/editor/') !== -1 || state.context === 'cms' || state.context === 'cms_page') {
+            return 'cms_page';
         }
         if (
             p.indexOf('/website/pages/editor/') !== -1 ||
@@ -3000,7 +3015,7 @@
             var layoutRaw = layoutJsonFromState();
             var layoutObj = j(layoutRaw, {});
             request('metis_editor_render_preview', {
-                context: isPostContext() ? 'post' : 'website',
+                context: isPostContext() ? 'post' : (isCmsContext() ? 'cms' : 'website'),
                 layout: layoutObj,
                 page_title: s(titleEl && titleEl.value || ''),
                 featured_image_id: parseInt(s(featuredImageEl && featuredImageEl.value || '0'), 10) || 0,
@@ -3058,7 +3073,7 @@
                 payload.schedule_at = publishedAt;
             }
             if (isPageContext()) {
-                action = (state.id > 0 || state.key) ? 'metis_website_page_save' : 'metis_website_page_create';
+                action = (state.id > 0 || state.key) ? contentAction('page_save') : contentAction('page_create');
                 if (state.id > 0) payload.id = state.id;
                 if (state.key) payload.key = state.key;
                 payload.layout_json = layoutJsonFromState();
@@ -3067,7 +3082,7 @@
                 var home = document.getElementById('metis-v2-homepage');
                 payload.set_as_homepage = home && home.checked ? 1 : 0;
             } else {
-                action = (state.id > 0 || state.key) ? 'metis_website_post_save' : 'metis_website_post_create';
+                action = (state.id > 0 || state.key) ? contentAction('post_save') : contentAction('post_create');
                 if (state.id > 0) payload.id = state.id;
                 if (state.key) payload.key = state.key;
                 payload.content_json = layoutJsonFromState();
@@ -3114,7 +3129,7 @@
                         '</div>' +
                     '</div>' +
                     '<div class="metis-se-topbar">' +
-                        '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(isPostContext() ? (appBasePath() + '/admin/website/posts/') : (appBasePath() + '/admin/website/pages/')) + '">&larr; ' + esc(isPostContext() ? 'Back to Posts' : 'Back to Pages') + '</a></div>' +
+                        '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(isPostContext() ? (appBasePath() + '/admin/' + contentModuleSlug() + '/posts/') : (appBasePath() + '/admin/' + contentModuleSlug() + '/pages/')) + '">&larr; ' + esc(isPostContext() ? 'Back to Posts' : 'Back to Pages') + '</a></div>' +
                         '<div class="metis-se-top-center"><div id="metis-se-top-title" class="metis-se-top-title">' + esc(title) + '</div></div>' +
                         '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button id="metis-v2-prev" type="button" class="metis-se-nav-btn">Previous Step</button><button id="metis-v2-next" type="button" class="metis-se-nav-btn">Next Step</button></div>' +
                     '</div>' +
@@ -3125,7 +3140,7 @@
                                 '<div class="metis-se-field-row"><label for="metis-v2-title">Title</label><input id="metis-v2-title" class="metis-se-input" type="text" placeholder="Title"></div>' +
                                 '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled</option></select></div>' +
                                 '<div class="metis-se-field-row"><label for="metis-v2-slug">URL Path</label><input id="metis-v2-slug" class="metis-se-input" type="text" placeholder="' + (isPostContext() ? 'post-slug-title' : 'page-slug') + '">' + (isPostContext() ? '<div class="metis-se-field-help">Public path uses the primary category, optional child category, and original publish year automatically.</div><div id="metis-v2-post-path-preview" class="metis-se-meta-value metis-se-path-preview">Select a primary category to generate the public path.</div>' : '') + '</div>' +
-                                '<div class="metis-se-field-row"><label>Website Template</label><div id="metis-v2-template-display" class="metis-se-meta-value">Loading active template…</div></div>' +
+                                '<div class="metis-se-field-row"><label>' + esc(contentLabel()) + ' Template</label><div id="metis-v2-template-display" class="metis-se-meta-value">Loading active template…</div></div>' +
                                 (isPageContext() ? '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' : '') +
                                 (isPostContext() ? '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' : '') +
                                 (isPostContext() ? '<div class="metis-se-field-row"><label>Categories</label><div id="metis-v2-category-chip-host">' + categoryChipField('metis-v2-category-ids', [], 'No categories available.') + '</div></div>' : '') +
@@ -3206,7 +3221,7 @@
                 currentPageType()
             );
             if (templateDisplayEl) {
-                templateDisplayEl.textContent = s(state.options && state.options.activeTemplate && state.options.activeTemplate.label || '') || 'Website default';
+                templateDisplayEl.textContent = s(state.options && state.options.activeTemplate && state.options.activeTemplate.label || '') || contentLabel() + ' default';
             }
             if (parentEl) parentEl.value = s(data.parent_page_id || data.parent_id || '');
             setSelectedCategoryIds('metis-v2-category-ids', data.post_category_ids || data.category_ids || (data.post_category_id ? [data.post_category_id] : []));
@@ -3253,7 +3268,7 @@
             }
             state.selectedTemplateKey = normalizeSelectedTemplateKey(state.selectedTemplateKey, currentPageType());
             if (templateDisplayEl) {
-                templateDisplayEl.textContent = s(state.options.activeTemplate && state.options.activeTemplate.label || '') || 'Website default';
+                templateDisplayEl.textContent = s(state.options.activeTemplate && state.options.activeTemplate.label || '') || contentLabel() + ' default';
             }
             applyInputsFromEntity(state.entity || {});
             if (isPostContext()) renderFeaturedImageField();
@@ -3271,7 +3286,7 @@
                 state.entityLoaded = true;
                 pEntity = Promise.resolve({});
             } else {
-                var action = isPostContext() ? 'metis_website_post_get' : 'metis_website_page_get';
+                var action = isPostContext() ? contentAction('post_get') : contentAction('page_get');
                 var payload = {};
                 if (/^\d+$/.test(state.key)) payload.id = parseInt(state.key, 10);
                 else if (state.key) payload.key = state.key;
@@ -3295,7 +3310,7 @@
                     layoutModel.page_type
                 );
                 state.activeSection = 0;
-                return request('metis_website_editor_properties_options', {
+                return request(contentAction('editor_properties_options'), {
                     context: isPostContext() ? 'post' : 'page',
                     id: state.id || 0,
                     key: state.key || ''

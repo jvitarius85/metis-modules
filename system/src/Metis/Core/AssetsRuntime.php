@@ -363,6 +363,8 @@ metis_on('metis_assets_enqueue', function () {
     if ( $view === 'editor' ) {
         $simple_style_handle = 'metis-editor-simple';
         $simple_script_handle = 'metis-editor-simple';
+        $editor_nonce_action = $domain === 'cms' ? 'metis_cms' : 'metis_website';
+        $editor_ajax_object = $domain === 'cms' ? 'metisCmsAjax' : 'metisWebsiteAjax';
 
         metis_runtime_enqueue_style(
             $simple_style_handle,
@@ -379,9 +381,9 @@ metis_on('metis_assets_enqueue', function () {
             true
         );
 
-        metis_runtime_localize_script( $simple_script_handle, 'metisWebsiteAjax', [
+        metis_runtime_localize_script( $simple_script_handle, $editor_ajax_object, [
             'ajax_url' => metis_ajax_endpoint_url(),
-            'nonce' => metis_runtime_create_nonce( 'metis_website' ),
+            'nonce' => metis_runtime_create_nonce( $editor_nonce_action ),
             'action_nonces' => metis_ajax_action_nonces(),
             'media_library_url' => function_exists( 'metis_portal_url' ) ? metis_portal_url( 'media', 'library' ) : '',
         ] );
@@ -450,7 +452,7 @@ metis_on('metis_assets_enqueue', function () {
                     'action_nonces' => metis_ajax_action_nonces(),
                 ];
 
-                if ( $slug === 'website' && function_exists( 'metis_portal_url' ) ) {
+                if ( ( $slug === 'website' || $slug === 'cms' ) && function_exists( 'metis_portal_url' ) ) {
                     $payload['media_library_url'] = metis_portal_url( 'media', 'library' );
                 }
 

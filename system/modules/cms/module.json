@@ -59,6 +59,20 @@
             "import": "Import"
         }
     },
+    "view_permissions": {
+        "dashboard": "cms.view",
+        "pages": "cms.view",
+        "posts": "cms.view",
+        "categories": "cms.view",
+        "media": "cms.manage_media",
+        "banners": "cms.manage_banners",
+        "menus": "cms.manage_menus",
+        "popups": "cms.manage_popups",
+        "redirects": "cms.manage_redirects",
+        "templates": "cms.manage_templates",
+        "theme": "cms.manage_theme",
+        "import": "cms.import"
+    },
     "permissions": {
         "view": {
             "key": "cms.view",
@@ -146,6 +160,33 @@
             "key": "cms.manage_media",
             "action": "manage_media",
             "name": "CMS Manage Media",
+            "roles": [
+                "administrator",
+                "cms_manager"
+            ]
+        },
+        "manage_banners": {
+            "key": "cms.manage_banners",
+            "action": "manage_banners",
+            "name": "CMS Manage Banners",
+            "roles": [
+                "administrator",
+                "cms_manager"
+            ]
+        },
+        "manage_popups": {
+            "key": "cms.manage_popups",
+            "action": "manage_popups",
+            "name": "CMS Manage Popups",
+            "roles": [
+                "administrator",
+                "cms_manager"
+            ]
+        },
+        "manage_theme": {
+            "key": "cms.manage_theme",
+            "action": "manage_theme",
+            "name": "CMS Manage Theme",
             "roles": [
                 "administrator",
                 "cms_manager"

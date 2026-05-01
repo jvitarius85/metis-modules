@@ -374,10 +374,13 @@ final class Metis_Security_Enclave {
             $nonce_keys[] = trim( $nonce_key );
         }
 
-        // Compatibility: some fallback editor payloads provide module/core nonce
-        // values in addition to action-scoped nonce fields.
+        // Module editors may submit module/core nonce values alongside
+        // action-scoped nonce fields.
         if ( str_starts_with( $operation, 'ajax.website.metis_website_' ) ) {
             $nonce_keys[] = 'metis_website';
+            $nonce_keys[] = 'metis_core';
+        } elseif ( str_starts_with( $operation, 'ajax.cms.metis_cms_' ) ) {
+            $nonce_keys[] = 'metis_cms';
             $nonce_keys[] = 'metis_core';
         } elseif ( str_starts_with( $operation, 'ajax.newsletter.metis_newsletter_' ) ) {
             $nonce_keys[] = 'metis_newsletter';

@@ -3,6 +3,11 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_cms_require_view_permission( 'redirects' ) ) {
+    return;
+}
+
 use Metis\Modules\Cms\Services\RedirectService;
 
 $redirects = RedirectService::all();

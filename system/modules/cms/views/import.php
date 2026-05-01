@@ -3,6 +3,11 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_cms_require_view_permission( 'import' ) ) {
+    return;
+}
+
 // The Import module handles the full import workflow at /metis/import/
 // This view provides a quick-launch panel that redirects there.
 $import_url = metis_portal_url( 'import', 'dashboard' );

@@ -52,11 +52,11 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_cms_menu_save' => 'manage_menus',
         'metis_cms_menu_delete' => 'manage_menus',
         'metis_cms_banners_list' => 'view',
-        'metis_cms_banner_save' => 'edit',
-        'metis_cms_banner_delete' => 'delete',
+        'metis_cms_banner_save' => 'manage_banners',
+        'metis_cms_banner_delete' => 'manage_banners',
         'metis_cms_popups_list' => 'view',
-        'metis_cms_popup_save' => 'edit',
-        'metis_cms_popup_delete' => 'delete',
+        'metis_cms_popup_save' => 'manage_popups',
+        'metis_cms_popup_delete' => 'manage_popups',
         'metis_cms_redirects_list' => 'view',
         'metis_cms_redirect_save' => 'manage_redirects',
         'metis_cms_redirect_delete' => 'manage_redirects',
@@ -65,8 +65,8 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_cms_template_save' => 'manage_templates',
         'metis_cms_template_delete' => 'manage_templates',
         'metis_cms_theme_get' => 'view',
-        'metis_cms_theme_save' => 'manage_templates',
-        'metis_cms_layout_profile_save' => 'manage_templates',
+        'metis_cms_theme_save' => 'manage_theme',
+        'metis_cms_layout_profile_save' => 'manage_theme',
         'metis_cms_editor_properties_options' => 'view',
         'metis_cms_editor_media_upload' => 'manage_media',
         'metis_cms_blocks_list' => 'view',
@@ -1154,6 +1154,13 @@ function metis_cms_ajax_parse_schedule_at( string $raw ): ?string {
 }
 
 function metis_cms_ajax_entity_type_for_context( string $context ): string {
+    $raw_context = metis_key_clean( $context );
+    if ( in_array( $raw_context, [ 'post', 'cms_post' ], true ) ) {
+        return 'post';
+    }
+    if ( in_array( $raw_context, [ 'cms', 'cms_page', 'website', 'page' ], true ) ) {
+        return 'page';
+    }
     $normalized = EditorContextPolicy::normalizeContext( $context );
     if ( $normalized === 'post' ) {
         return 'post';
@@ -1299,7 +1306,13 @@ metis_ajax_register_handler( 'metis_editor_render_preview', function (): void {
 
     $requested_context = isset( $_POST['context'] ) ? metis_key_clean( (string) $_POST['context'] ) : 'cms';
     $requested_render_mode = isset( $_POST['render_mode'] ) ? metis_key_clean( (string) $_POST['render_mode'] ) : '';
-    $context = EditorContextPolicy::normalizeContext( $requested_context );
+    if ( in_array( $requested_context, [ 'cms', 'cms_page', 'website', 'page' ], true ) ) {
+        $context = 'cms';
+    } elseif ( in_array( $requested_context, [ 'post', 'cms_post' ], true ) ) {
+        $context = 'post';
+    } else {
+        $context = EditorContextPolicy::normalizeContext( $requested_context );
+    }
     $render_mode = EditorContextPolicy::normalizeRenderMode( $requested_render_mode, $context );
     $preview_device = isset( $_POST['preview_device'] ) ? metis_key_clean( (string) $_POST['preview_device'] ) : 'desktop';
     if ( ! in_array( $preview_device, [ 'desktop', 'tablet', 'mobile' ], true ) ) {
@@ -1675,7 +1688,7 @@ metis_ajax_register_handler( 'metis_cms_editor_properties_options', function ():
 
 metis_ajax_register_handler( 'metis_cms_editor_media_upload', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_media' );
 
     if ( ! isset( $_FILES['file'] ) || ! is_array( $_FILES['file'] ) ) {
         metis_runtime_send_json_error( 'Image file is required.', 400 );
@@ -2770,7 +2783,7 @@ metis_ajax_register_handler( 'metis_cms_menus_list', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_menu_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_menus' );
 
     $id   = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     $name = isset( $_POST['name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['name'] ) ) : '';
@@ -2805,7 +2818,7 @@ metis_ajax_register_handler( 'metis_cms_menu_save', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_menu_delete', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.delete' );
+    metis_cms_ajax_require_permission( 'cms.manage_menus' );
 
     $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     if ( $id < 1 ) {
@@ -2833,7 +2846,7 @@ metis_ajax_register_handler( 'metis_cms_banners_list', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_banner_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_banners' );
 
     $id   = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     $name = isset( $_POST['name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['name'] ) ) : '';
@@ -2869,7 +2882,7 @@ metis_ajax_register_handler( 'metis_cms_banner_save', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_banner_delete', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.delete' );
+    metis_cms_ajax_require_permission( 'cms.manage_banners' );
 
     $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     if ( $id < 1 ) {
@@ -2897,7 +2910,7 @@ metis_ajax_register_handler( 'metis_cms_popups_list', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_popup_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_popups' );
 
     $id   = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     $name = isset( $_POST['name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['name'] ) ) : '';
@@ -2933,7 +2946,7 @@ metis_ajax_register_handler( 'metis_cms_popup_save', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_popup_delete', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.delete' );
+    metis_cms_ajax_require_permission( 'cms.manage_popups' );
 
     $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     if ( $id < 1 ) {
@@ -2961,7 +2974,7 @@ metis_ajax_register_handler( 'metis_cms_redirects_list', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_redirect_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_redirects' );
 
     $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     $source_path = metis_cms_ajax_post_string( 'source_path', false );
@@ -2995,7 +3008,7 @@ metis_ajax_register_handler( 'metis_cms_redirect_save', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_redirect_delete', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.delete' );
+    metis_cms_ajax_require_permission( 'cms.manage_redirects' );
 
     $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
     if ( $id < 1 ) {
@@ -3053,7 +3066,7 @@ metis_ajax_register_handler( 'metis_cms_template_get', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_template_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_templates' );
 
     $template_key = isset( $_POST['template_key'] ) ? metis_key_clean( (string) $_POST['template_key'] ) : '';
     if ( $template_key === '' ) {
@@ -3078,7 +3091,7 @@ metis_ajax_register_handler( 'metis_cms_template_save', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_template_delete', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.delete' );
+    metis_cms_ajax_require_permission( 'cms.manage_templates' );
     metis_runtime_send_json_error( 'File-based templates cannot be deleted from admin.', 422 );
 } );
 
@@ -3096,7 +3109,7 @@ metis_ajax_register_handler( 'metis_cms_theme_get', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_theme_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_theme' );
 
     $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
 
@@ -3135,7 +3148,7 @@ metis_ajax_register_handler( 'metis_cms_theme_save', function (): void {
 
 metis_ajax_register_handler( 'metis_cms_layout_profile_save', function (): void {
     metis_cms_ajax_verify_nonce();
-    metis_cms_ajax_require_permission( 'cms.edit' );
+    metis_cms_ajax_require_permission( 'cms.manage_theme' );
 
     $requested_profile = isset( $_POST['site_layout_profile'] )
         ? metis_key_clean( (string) metis_runtime_unslash( $_POST['site_layout_profile'] ) )

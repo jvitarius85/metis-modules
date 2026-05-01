@@ -2,6 +2,11 @@
 if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
+
+require_once __DIR__ . '/_access.php';
+if ( ! metis_cms_require_view_permission( 'templates' ) ) {
+    return;
+}
 ?>
 <div id="metis-webparts-view" class="metis-config-view">
     <div class="metis-page-header">
