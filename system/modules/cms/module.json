@@ -46,6 +46,7 @@
         "type": "dropdown",
         "items": {
             "dashboard": "CMS Home",
+            "launch": "Launch",
             "pages": "Pages",
             "posts": "Posts",
             "categories": "Categories",
@@ -61,6 +62,7 @@
     },
     "view_permissions": {
         "dashboard": "cms.view",
+        "launch": "cms.launch",
         "pages": "cms.view",
         "posts": "cms.view",
         "categories": "cms.view",
@@ -116,6 +118,15 @@
             "key": "cms.publish",
             "action": "publish",
             "name": "CMS Publish",
+            "roles": [
+                "administrator",
+                "cms_manager"
+            ]
+        },
+        "launch": {
+            "key": "cms.launch",
+            "action": "launch",
+            "name": "CMS Launch",
             "roles": [
                 "administrator",
                 "cms_manager"
@@ -195,6 +206,7 @@
     },
     "views": {
         "dashboard": "dashboard.php",
+        "launch": "launch.php",
         "editor": "editor.php",
         "pages": "pages.php",
         "posts": "posts.php",

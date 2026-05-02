@@ -9,6 +9,7 @@ if ( ! function_exists( 'metis_cms_view_permission_map' ) ) {
     function metis_cms_view_permission_map(): array {
         return [
             'dashboard' => 'cms.view',
+            'launch' => 'cms.launch',
             'pages' => 'cms.view',
             'posts' => 'cms.view',
             'categories' => 'cms.view',

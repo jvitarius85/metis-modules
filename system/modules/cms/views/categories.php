@@ -44,6 +44,14 @@ if ( function_exists( 'metis_json_encode' ) ) {
     $encoded = json_encode( $parent_option_payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
     $parent_options_json = is_string( $encoded ) ? $encoded : '[]';
 }
+$active_categories = 0;
+$assigned_posts = 0;
+foreach ( $categories as $category ) {
+    if ( (string) ( $category['status'] ?? 'active' ) === 'active' ) {
+        ++$active_categories;
+    }
+    $assigned_posts += (int) ( $category['post_count'] ?? 0 );
+}
 ?>
 <div
     id="metis-post-categories-view"
@@ -57,10 +65,28 @@ if ( function_exists( 'metis_json_encode' ) ) {
     </div>
     <div class="metis-page-header-right">
         <button type="button" class="metis-btn metis-btn-primary" id="metis-create-post-category-btn">
-            <svg style="width:14px;height:14px;margin-right:6px;vertical-align:-2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg class="metis-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Category
         </button>
     </div>
+</div>
+
+<div class="metis-cms-status-grid metis-cms-management-stats">
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">Categories</span>
+        <strong><?php echo metis_escape_html( (string) count( $categories ) ); ?></strong>
+        <span>Available for post organization.</span>
+    </section>
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">Active</span>
+        <strong><?php echo metis_escape_html( (string) $active_categories ); ?></strong>
+        <span>Selectable in the post editor.</span>
+    </section>
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">Assigned Posts</span>
+        <strong><?php echo metis_escape_html( (string) $assigned_posts ); ?></strong>
+        <span>Total category assignments.</span>
+    </section>
 </div>
 
 <div class="metis-table-wrap metis-post-categories-wrap">
@@ -72,28 +98,28 @@ if ( function_exists( 'metis_json_encode' ) ) {
             <button type="button" class="metis-btn metis-btn-primary" id="metis-create-post-category-btn-empty">New Category</button>
         </div>
     <?php else : ?>
-        <table class="metis-post-categories-table" role="table">
+        <table class="metis-premium-table metis-post-categories-table" role="table">
             <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Parent</th>
-                    <th>Slug</th>
-                    <th>Status</th>
-                    <th>Posts</th>
-                    <th class="metis-col-right">Actions</th>
+                <tr class="metis-premium-row metis-premium-header">
+                    <th class="metis-premium-cell" scope="col">Name</th>
+                    <th class="metis-premium-cell" scope="col">Parent</th>
+                    <th class="metis-premium-cell" scope="col">Slug</th>
+                    <th class="metis-premium-cell" scope="col">Status</th>
+                    <th class="metis-premium-cell" scope="col">Posts</th>
+                    <th class="metis-premium-cell metis-col-right" scope="col">Actions</th>
                 </tr>
             </thead>
             <tbody>
             <?php foreach ( $categories as $category ) : ?>
-                <tr>
-                    <td>
+                <tr class="metis-premium-row">
+                    <td class="metis-premium-cell">
                         <strong><?php echo metis_escape_html( (string) ( $category['indented_name'] ?? $category['name'] ?? '' ) ); ?></strong>
                     </td>
-                    <td><?php echo metis_escape_html( (string) ( $category['parent_name'] ?? '—' ) ?: '—' ); ?></td>
-                    <td><code><?php echo metis_escape_html( (string) ( $category['slug'] ?? '' ) ); ?></code></td>
-                    <td><span class="metis-status metis-status-<?php echo ( (string) ( $category['status'] ?? 'active' ) ) === 'active' ? 'published' : 'draft'; ?>"><?php echo metis_escape_html( ucfirst( (string) ( $category['status'] ?? 'active' ) ) ); ?></span></td>
-                    <td><?php echo metis_escape_html( (string) ( (int) ( $category['post_count'] ?? 0 ) ) ); ?></td>
-                    <td class="metis-col-right">
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $category['parent_name'] ?? '—' ) ?: '—' ); ?></td>
+                    <td class="metis-premium-cell"><code><?php echo metis_escape_html( (string) ( $category['slug'] ?? '' ) ); ?></code></td>
+                    <td class="metis-premium-cell"><span class="metis-status metis-status-<?php echo ( (string) ( $category['status'] ?? 'active' ) ) === 'active' ? 'published' : 'draft'; ?>"><?php echo metis_escape_html( ucfirst( (string) ( $category['status'] ?? 'active' ) ) ); ?></span></td>
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( (int) ( $category['post_count'] ?? 0 ) ) ); ?></td>
+                    <td class="metis-premium-cell metis-col-right">
                         <div class="metis-table-actions">
                             <button
                                 type="button"
@@ -135,21 +161,21 @@ if ( function_exists( 'metis_json_encode' ) ) {
     aria-label="Post Category Editor"
     data-category-options="<?php echo metis_escape_attr( $parent_options_json ?: '[]' ); ?>"
 >
-    <div class="metis-modal" style="max-width:640px;width:95%;">
+    <div class="metis-modal metis-cms-modal-narrow">
         <div class="metis-modal-header">
             <h2 class="metis-modal-title" id="metis-post-category-modal-title">New Category</h2>
             <button type="button" class="metis-modal-close" id="metis-post-category-modal-close" aria-label="Close">&times;</button>
         </div>
-        <div class="metis-modal-body" style="padding:20px;">
-            <div class="metis-field" style="margin-bottom:14px;">
-                <label class="metis-label">Name <span style="color:#dc3545;">*</span></label>
+        <div class="metis-modal-body metis-cms-modal-body">
+            <div class="metis-field metis-cms-field-stack">
+                <label class="metis-label">Name <span class="metis-required-marker">*</span></label>
                 <input type="text" id="metis-post-category-name" class="metis-input" placeholder="e.g. News">
             </div>
-            <div class="metis-field" style="margin-bottom:14px;">
+            <div class="metis-field metis-cms-field-stack">
                 <label class="metis-label">Slug</label>
                 <input type="text" id="metis-post-category-slug" class="metis-input" placeholder="news">
             </div>
-            <div class="metis-field" style="margin-bottom:14px;">
+            <div class="metis-field metis-cms-field-stack">
                 <label class="metis-label">Parent Category</label>
                 <select id="metis-post-category-parent-id" class="metis-input">
                     <option value="0">None</option>
@@ -159,14 +185,14 @@ if ( function_exists( 'metis_json_encode' ) ) {
                 </select>
             </div>
             <div class="metis-cms-form-grid">
-                <div class="metis-field" style="margin:0;">
+                <div class="metis-field metis-cms-field-flush">
                     <label class="metis-label">Status</label>
                     <select id="metis-post-category-status" class="metis-input">
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
                 </div>
-                <div class="metis-field" style="margin:0;">
+                <div class="metis-field metis-cms-field-flush">
                     <label class="metis-label">Sort Order</label>
                     <input type="number" id="metis-post-category-sort-order" class="metis-input" min="0" step="1" value="0">
                 </div>

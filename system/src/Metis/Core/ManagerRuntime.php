@@ -67,7 +67,7 @@ function metis_render_manager() {
 
     // Label for the parent list link — use the menu label if the parent view
     // is in the menu, otherwise fall back to a generic "List".
-    $parent_label = isset( $menu_items[ $parent_view ] )
+    $parent_label = is_string( $parent_view ) && $parent_view !== '' && isset( $menu_items[ $parent_view ] )
         ? $menu_items[ $parent_view ]
         : 'List';
     $parent_url = $parent_view ? metis_portal_url( $domain, $parent_view ) : $domain_url;

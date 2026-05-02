@@ -29,6 +29,9 @@ $posts = PostService::getAll(
         'offset' => ( $current_page - 1 ) * $per_page,
     ]
 );
+$published_posts = PostService::countAll( [ 'status' => 'published' ] );
+$draft_posts = max( 0, $total_posts - $published_posts );
+$category_count = count( PostCategoryService::all( true ) );
 $date_format = class_exists( 'Core_Settings_Service' ) ? trim( (string) \Core_Settings_Service::get( 'date_format', 'M j, Y' ) ) : 'M j, Y';
 if ( $date_format === '' ) {
     $date_format = 'M j, Y';
@@ -74,8 +77,8 @@ if ( $is_editor_route ) {
     return;
 }
 ?>
-<div id="metis-editor-inline-root" style="<?php echo $is_editor_route ? '' : 'display:none;'; ?>"></div>
-<div id="metis-posts-list-shell" style="<?php echo $is_editor_route ? 'display:none;' : ''; ?>">
+<div id="metis-editor-inline-root" class="<?php echo $is_editor_route ? '' : 'metis-u-hidden'; ?>"></div>
+<div id="metis-posts-list-shell" class="<?php echo $is_editor_route ? 'metis-u-hidden' : ''; ?>">
 <div class="metis-page-header">
     <div class="metis-page-header-left">
         <h1 class="metis-page-title">Posts</h1>
@@ -84,11 +87,34 @@ if ( $is_editor_route ) {
     <div class="metis-page-header-right">
         <?php if ( $can_create ) : ?>
         <button class="metis-btn metis-btn-primary" id="metis-create-post-btn">
-            <svg style="width:14px;height:14px;margin-right:6px;vertical-align:-2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg class="metis-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Post
         </button>
         <?php endif; ?>
     </div>
+</div>
+
+<div class="metis-cms-status-grid metis-cms-management-stats">
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">All Posts</span>
+        <strong><?php echo metis_escape_html( (string) $total_posts ); ?></strong>
+        <span>Content entries in CMS publishing.</span>
+    </section>
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">Published</span>
+        <strong><?php echo metis_escape_html( (string) $published_posts ); ?></strong>
+        <span>Visible when public routes are enabled.</span>
+    </section>
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">Drafts</span>
+        <strong><?php echo metis_escape_html( (string) $draft_posts ); ?></strong>
+        <span>Still being prepared or reviewed.</span>
+    </section>
+    <section class="metis-cms-status-card">
+        <span class="metis-cms-status-label">Categories</span>
+        <strong><?php echo metis_escape_html( (string) $category_count ); ?></strong>
+        <span>Used to organize published posts.</span>
+    </section>
 </div>
 
 <div class="metis-table-wrap">
@@ -102,14 +128,15 @@ if ( $is_editor_route ) {
             <?php endif; ?>
         </div>
     <?php else : ?>
-        <table class="metis-table metis-posts-table-compact">
+        <table class="metis-premium-table metis-posts-table">
             <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Published</th>
+                <tr class="metis-premium-row metis-premium-header">
+                    <th class="metis-premium-cell" scope="col">Title</th>
+                    <th class="metis-premium-cell" scope="col">Status</th>
+                    <th class="metis-premium-cell" scope="col">Published</th>
+                    <th class="metis-premium-cell" scope="col">Categories</th>
                     <?php if ( $can_edit || $can_publish || $can_delete ) : ?>
-                        <th class="metis-col-right">Actions</th>
+                        <th class="metis-premium-cell metis-col-right" scope="col">Actions</th>
                     <?php endif; ?>
                 </tr>
             </thead>
@@ -144,30 +171,32 @@ if ( $is_editor_route ) {
                         }
                     }
                     ?>
-                    <tr>
-                        <td class="metis-posts-table-compact__title-cell">
+                    <tr class="metis-premium-row">
+                        <td class="metis-premium-cell metis-posts-table__title-cell">
                             <?php if ( $can_edit ) : ?>
                                 <button type="button" class="metis-link-button metis-edit-post" data-id="<?php echo metis_escape_attr( (string) $post->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $post->post_code ?? '' ) ); ?>"><?php echo metis_escape_html( $post->title ); ?></button>
                             <?php else : ?>
                                 <strong><?php echo metis_escape_html( $post->title ); ?></strong>
                             <?php endif; ?>
-                            <div class="metis-posts-table-compact__slug"><?php echo metis_escape_html( $slug_path ); ?></div>
-                            <div class="metis-posts-table-compact__category-list metis-posts-table-compact__category-list--under-title">
+                            <div class="metis-posts-table__slug"><?php echo metis_escape_html( $slug_path ); ?></div>
+                        </td>
+                        <td class="metis-premium-cell"><span class="metis-status metis-status-<?php echo metis_escape_attr( $post->status ); ?>"><?php echo metis_escape_html( ucfirst( $post->status ) ); ?></span></td>
+                        <td class="metis-premium-cell metis-posts-table__published">
+                            <?php echo metis_escape_html( $published_label ); ?>
+                        </td>
+                        <td class="metis-premium-cell">
+                            <div class="metis-posts-table__category-list">
                                 <?php if ( $category_labels !== [] ) : ?>
                                     <?php foreach ( $category_labels as $category_label ) : ?>
-                                        <span class="metis-posts-table-compact__category-chip"><?php echo metis_escape_html( $category_label ); ?></span>
+                                        <span class="metis-posts-table__category-chip"><?php echo metis_escape_html( $category_label ); ?></span>
                                     <?php endforeach; ?>
                                 <?php else : ?>
-                                    <span class="metis-posts-table-compact__category-chip">Uncategorized</span>
+                                    <span class="metis-posts-table__category-chip">Uncategorized</span>
                                 <?php endif; ?>
                             </div>
                         </td>
-                        <td><span class="metis-status metis-status-<?php echo metis_escape_attr( $post->status ); ?>"><?php echo metis_escape_html( ucfirst( $post->status ) ); ?></span></td>
-                        <td class="metis-posts-table-compact__published">
-                            <?php echo metis_escape_html( $published_label ); ?>
-                        </td>
                         <?php if ( $can_edit || $can_publish || $can_delete ) : ?>
-                        <td class="metis-col-right">
+                        <td class="metis-premium-cell metis-col-right">
                             <div class="metis-table-actions">
                                 <?php if ( $can_edit ) : ?>
                                 <button class="metis-action-btn metis-edit-post" data-id="<?php echo metis_escape_attr( (string) $post->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $post->post_code ?? '' ) ); ?>" title="Edit in editor">
@@ -210,7 +239,7 @@ if ( $is_editor_route ) {
         };
         ?>
         <?php if ( $page_count > 1 ) : ?>
-            <div class="metis-pagination" style="margin-top:16px;">
+            <div class="metis-pagination metis-pagination-spaced">
                 <?php if ( $current_page > 1 ) : ?>
                     <a class="metis-btn-xs" href="<?php echo metis_escape_url( $post_link( $current_page - 1 ) ); ?>">Prev</a>
                 <?php else : ?>

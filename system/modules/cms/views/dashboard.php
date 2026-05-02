@@ -23,6 +23,7 @@ $draft_posts  = max( 0, $total_posts - $pub_posts );
 $recent_posts = PostService::getAll( [ 'limit' => 4, 'offset' => 0 ] );
 
 $pages_url     = metis_portal_url( 'cms', 'pages' );
+$launch_url    = metis_portal_url( 'cms', 'launch' );
 $posts_url     = metis_portal_url( 'cms', 'posts' );
 $media_url     = metis_portal_url( 'cms', 'media' );
 $banners_url   = metis_portal_url( 'cms', 'banners' );
@@ -34,6 +35,7 @@ $theme_url     = metis_portal_url( 'cms', 'theme' );
 $import_url    = metis_portal_url( 'cms', 'import' );
 
 $can_create           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.create' ) : false;
+$can_launch           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.launch' ) : false;
 $can_edit             = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.edit' ) : false;
 $can_manage_media     = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_media' ) : false;
 $can_manage_banners   = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_banners' ) : false;
@@ -45,8 +47,11 @@ $can_manage_theme     = function_exists( 'metis_security_user_can' ) ? metis_sec
 $can_import           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.import' ) : false;
 $readiness            = CmsReadinessService::summary();
 $public_routes_enabled = ! empty( $readiness['public_routes_enabled'] );
-$readiness_action_allowed = static function ( array $item ) use ( $can_manage_menus, $can_manage_templates, $can_manage_theme ): bool {
+$readiness_action_allowed = static function ( array $item ) use ( $can_launch, $can_manage_menus, $can_manage_templates, $can_manage_theme ): bool {
     $label = (string) ( $item['action_label'] ?? '' );
+    if ( $label === 'Launch' ) {
+        return $can_launch;
+    }
     if ( $label === 'Menus' ) {
         return $can_manage_menus;
     }
@@ -90,6 +95,9 @@ $readiness_action_allowed = static function ( array $item ) use ( $can_manage_me
             <span class="metis-cms-status-label">Public Routes</span>
             <strong><?php echo $public_routes_enabled ? 'On' : 'Off'; ?></strong>
             <span><?php echo $public_routes_enabled ? 'CMS public routing is enabled.' : 'CMS public routing is disabled until launch readiness is confirmed.'; ?></span>
+            <?php if ( $can_launch ) : ?>
+                <a class="metis-btn-xs" href="<?php echo metis_escape_url( $launch_url ); ?>">Launch Center</a>
+            <?php endif; ?>
         </section>
     </div>
 
@@ -103,6 +111,9 @@ $readiness_action_allowed = static function ( array $item ) use ( $can_manage_me
                 <strong><?php echo metis_escape_html( (string) ( $readiness['score'] ?? 0 ) ); ?>/<?php echo metis_escape_html( (string) ( $readiness['total'] ?? 0 ) ); ?></strong>
                 <span>checks ready</span>
             </div>
+            <?php if ( $can_launch ) : ?>
+                <a class="metis-btn metis-btn-secondary metis-btn-sm" href="<?php echo metis_escape_url( $launch_url ); ?>">Manage Launch</a>
+            <?php endif; ?>
         </div>
         <div class="metis-cms-readiness-list">
             <?php foreach ( (array) ( $readiness['items'] ?? [] ) as $item ) : ?>

@@ -16,6 +16,7 @@ use Metis\Modules\Cms\Services\PostCategoryService;
 use Metis\Modules\Cms\Services\LayoutProfileService;
 use Metis\Modules\Cms\Services\HomepageService;
 use Metis\Modules\Cms\Services\TemplateService;
+use Metis\Modules\Cms\Services\CmsLaunchService;
 use Metis\Modules\Cms\Services\RevisionTimelineService;
 use Metis\Modules\Cms\Services\EditorContextPolicy;
 use Metis\Modules\Cms\Services\EditorLayoutService;
@@ -66,6 +67,9 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_cms_template_delete' => 'manage_templates',
         'metis_cms_theme_get' => 'view',
         'metis_cms_theme_save' => 'manage_theme',
+        'metis_cms_launch_status' => 'view',
+        'metis_cms_launch_enable' => 'launch',
+        'metis_cms_launch_disable' => 'launch',
         'metis_cms_layout_profile_save' => 'manage_theme',
         'metis_cms_editor_properties_options' => 'view',
         'metis_cms_editor_media_upload' => 'manage_media',
@@ -3144,6 +3148,57 @@ metis_ajax_register_handler( 'metis_cms_theme_save', function (): void {
             'theme' => ThemeService::getActiveNormalized(),
         ]
     );
+} );
+
+// ---------------------------------------------------------------------------
+// Launch controls
+// ---------------------------------------------------------------------------
+
+metis_ajax_register_handler( 'metis_cms_launch_status', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.view' );
+
+    metis_runtime_send_json_success( [
+        'message' => 'Launch readiness refreshed.',
+        'status' => CmsLaunchService::status(),
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_cms_launch_enable', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.launch' );
+
+    $force = ! empty( $_POST['force'] );
+    $result = CmsLaunchService::enable( $force );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error( [
+            'message' => (string) ( $result['message'] ?? 'Unable to enable public CMS routes.' ),
+            'status' => $result['status'] ?? CmsLaunchService::status(),
+        ], 422 );
+    }
+
+    metis_runtime_send_json_success( [
+        'message' => (string) ( $result['message'] ?? 'Public CMS routes enabled.' ),
+        'status' => $result['status'] ?? CmsLaunchService::status(),
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_cms_launch_disable', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.launch' );
+
+    $result = CmsLaunchService::disable();
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error( [
+            'message' => (string) ( $result['message'] ?? 'Unable to disable public CMS routes.' ),
+            'status' => $result['status'] ?? CmsLaunchService::status(),
+        ], 500 );
+    }
+
+    metis_runtime_send_json_success( [
+        'message' => (string) ( $result['message'] ?? 'Public CMS routes disabled.' ),
+        'status' => $result['status'] ?? CmsLaunchService::status(),
+    ] );
 } );
 
 metis_ajax_register_handler( 'metis_cms_layout_profile_save', function (): void {

@@ -227,6 +227,7 @@ var MetisCMS = {
             this._bindPostActions();
             this._bindCategoryActions();
             this._bindTemplateActions();
+            this._bindLaunchActions();
             this._bindingsApplied = true;
         }
         this._maybeLaunchQuickAction();
@@ -426,10 +427,10 @@ var MetisCMS = {
     _postCategoriesMarkup: function(post) {
         var categories = post && Array.isArray(post.categories) ? post.categories : [];
         if (!categories.length) {
-            return '<span class="metis-posts-table-compact__category-chip">Uncategorized</span>';
+            return '<span class="metis-posts-table__category-chip">Uncategorized</span>';
         }
         return categories.map(function(category) {
-            return '<span class="metis-posts-table-compact__category-chip">' + MetisCMS._escHtml(String(category && category.name ? category.name : '')) + '</span>';
+            return '<span class="metis-posts-table__category-chip">' + MetisCMS._escHtml(String(category && category.name ? category.name : '')) + '</span>';
         }).join('');
     },
 
@@ -466,12 +467,14 @@ var MetisCMS = {
         var slugPath = '/' + String(post.slug || '').replace(/^\/+/, '');
         $row.children('td').eq(0).html(
             '<button type="button" class="metis-link-button metis-edit-post" data-id="' + this._escHtml(String(post.id)) + '" data-code="' + safeCode + '">' + safeTitle + '</button>'
-            + '<div class="metis-posts-table-compact__slug">' + this._escHtml(slugPath) + '</div>'
-            + '<div class="metis-posts-table-compact__category-list metis-posts-table-compact__category-list--under-title">' + this._postCategoriesMarkup(post) + '</div>'
+            + '<div class="metis-posts-table__slug">' + this._escHtml(slugPath) + '</div>'
         );
         $row.children('td').eq(1).html('<span class="metis-status metis-status-' + this._escHtml(String(post.status || 'draft')) + '">' + this._escHtml(this._titleCase(String(post.status || 'draft'))) + '</span>');
         $row.children('td').eq(2).text(this._formatShortDate(post.publish_date || post.published_date || ''));
-        $row.children('td').eq(3).html(this._postActionsMarkup(post));
+        $row.children('td').eq(3).html('<div class="metis-posts-table__category-list">' + this._postCategoriesMarkup(post) + '</div>');
+        if ($row.children('td').length > 4) {
+            $row.children('td').eq(4).html(this._postActionsMarkup(post));
+        }
         this._updateListSubtitle('#metis-posts-list-shell', this._postRows().length, 'post', 'posts', 'in CMS content.');
     },
 
@@ -553,6 +556,125 @@ var MetisCMS = {
         $(document).off('click.metisCMSDashboardPost').on('click.metisCMSDashboardPost', '#metis-dashboard-new-post-btn, #metis-dashboard-quick-new-post-btn', function() {
             MetisCMS.openPostEditor(null);
         });
+    },
+
+    _bindLaunchActions: function() {
+        $(document).off('click.metisCMSLaunchRefresh').on('click.metisCMSLaunchRefresh', '#metis-cms-launch-refresh-btn', function(e) {
+            e.preventDefault();
+            MetisCMS._launchRequest('metis_cms_launch_status', {}, 'Launch readiness refreshed.');
+        });
+
+        $(document).off('click.metisCMSLaunchEnable').on('click.metisCMSLaunchEnable', '#metis-cms-launch-enable-btn', function(e) {
+            e.preventDefault();
+            var force = String($(this).attr('data-force') || '0') === '1';
+            var message = force
+                ? 'Some launch checks still need attention. Enable public CMS routes anyway?'
+                : 'Enable public CMS routes for visitors?';
+            MetisCMS._confirm(message, function() {
+                MetisCMS._launchRequest('metis_cms_launch_enable', { force: force ? '1' : '0' }, 'Public CMS routes enabled.');
+            }, {
+                title: 'Enable CMS Routes',
+                confirmLabel: 'Enable'
+            });
+        });
+
+        $(document).off('click.metisCMSLaunchDisable').on('click.metisCMSLaunchDisable', '#metis-cms-launch-disable-btn', function(e) {
+            e.preventDefault();
+            MetisCMS._confirm('Disable public CMS routes? Content will remain saved and editable.', function() {
+                MetisCMS._launchRequest('metis_cms_launch_disable', {}, 'Public CMS routes disabled.');
+            }, {
+                title: 'Disable CMS Routes',
+                confirmLabel: 'Disable'
+            });
+        });
+    },
+
+    _launchRequest: function(action, payload, fallbackMessage) {
+        var data = Object.assign({}, payload || {}, {
+            action: action,
+            nonce: this._nonceFor(action)
+        });
+        $.ajax({
+            url: metisCmsAjax.ajax_url,
+            type: 'POST',
+            data: data,
+            success: function(r) {
+                if (r && r.success && r.data) {
+                    if (r.data.status) {
+                        MetisCMS._renderLaunchStatus(r.data.status);
+                    }
+                    metis_toast(r.data.message || fallbackMessage || 'CMS launch status updated.', 'success');
+                    return;
+                }
+                metis_toast((r && r.data && r.data.message) ? r.data.message : 'Launch request failed.', 'error');
+                if (r && r.data && r.data.status) {
+                    MetisCMS._renderLaunchStatus(r.data.status);
+                }
+            },
+            error: function(xhr) {
+                var message = 'Request failed.';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.data) {
+                    if (xhr.responseJSON.data.message) {
+                        message = String(xhr.responseJSON.data.message);
+                    } else if (typeof xhr.responseJSON.data === 'string') {
+                        message = xhr.responseJSON.data;
+                    }
+                    if (xhr.responseJSON.data.status) {
+                        MetisCMS._renderLaunchStatus(xhr.responseJSON.data.status);
+                    }
+                }
+                metis_toast(message, 'error');
+            }
+        });
+    },
+
+    _renderLaunchStatus: function(status) {
+        if (!status || !document.getElementById('metis-cms-launch-shell')) {
+            return;
+        }
+        var launched = !!status.launched;
+        var canLaunch = !!status.can_launch;
+        var stateLabel = launched ? 'Live' : (canLaunch ? 'Ready' : 'Setup Needed');
+        var stateCopy = launched ? 'Visitor-facing CMS routes are enabled.' : 'CMS routes stay private until launch is enabled.';
+        var score = String(status.score || 0) + '/' + String(status.total || 0);
+        var items = (status.readiness && Array.isArray(status.readiness.items)) ? status.readiness.items : [];
+
+        $('#metis-cms-launch-state-label').text(stateLabel);
+        $('#metis-cms-launch-state-copy').text(stateCopy);
+        $('#metis-cms-launch-score').text(score);
+        $('#metis-cms-launch-enable-btn')
+            .toggleClass('metis-is-hidden', launched)
+            .attr('data-force', canLaunch ? '0' : '1');
+        $('#metis-cms-launch-disable-btn').toggleClass('metis-is-hidden', !launched);
+
+        var stateClass = launched ? 'live' : (canLaunch ? 'ready' : 'setup');
+        $('.metis-cms-launch-state')
+            .removeClass('metis-cms-launch-state--live metis-cms-launch-state--ready metis-cms-launch-state--setup')
+            .addClass('metis-cms-launch-state--' + stateClass);
+
+        var html = items.map(function(item) {
+            var itemStatus = String(item && item.status ? item.status : 'attention');
+            if (['ready', 'attention', 'blocked'].indexOf(itemStatus) === -1) {
+                itemStatus = 'attention';
+            }
+            var actionUrl = String(item && item.action_url ? item.action_url : '');
+            var actionLabel = String(item && item.action_label ? item.action_label : 'Open');
+            var action = actionUrl !== '' && itemStatus !== 'ready'
+                ? '<a class="metis-btn-xs" href="' + MetisCMS._escHtml(actionUrl) + '">' + MetisCMS._escHtml(actionLabel) + '</a>'
+                : '';
+            return [
+                '<article class="metis-cms-readiness-item metis-cms-readiness-item--' + MetisCMS._escHtml(itemStatus) + '">',
+                '<span class="metis-cms-readiness-dot" aria-hidden="true"></span>',
+                '<div>',
+                '<strong>' + MetisCMS._escHtml(String(item && item.label ? item.label : '')) + '</strong>',
+                '<span>' + MetisCMS._escHtml(String(item && item.detail ? item.detail : '')) + '</span>',
+                '</div>',
+                action,
+                '</article>'
+            ].join('');
+        }).join('');
+
+        $('#metis-cms-launch-list').html(html);
     },
 
     // -------------------------------------------------------------------------
@@ -878,13 +1000,13 @@ var MetisCMS = {
             var parentName = String(category.parent_name || '—') || '—';
             var sortOrder = parseInt(String(category.sort_order || '0'), 10) || 0;
             var postCount = parseInt(String(category.post_count || '0'), 10) || 0;
-            return '<tr>'
-                + '<td><strong>' + MetisCMS._escHtml(indentedName) + '</strong></td>'
-                + '<td>' + MetisCMS._escHtml(parentName) + '</td>'
-                + '<td><code>' + MetisCMS._escHtml(slug) + '</code></td>'
-                + '<td><span class="metis-status metis-status-' + (status === 'active' ? 'published' : 'draft') + '">' + MetisCMS._escHtml(MetisCMS._titleCase(status)) + '</span></td>'
-                + '<td>' + MetisCMS._escHtml(String(postCount)) + '</td>'
-                + '<td class="metis-col-right"><div class="metis-table-actions">'
+            return '<tr class="metis-premium-row">'
+                + '<td class="metis-premium-cell"><strong>' + MetisCMS._escHtml(indentedName) + '</strong></td>'
+                + '<td class="metis-premium-cell">' + MetisCMS._escHtml(parentName) + '</td>'
+                + '<td class="metis-premium-cell"><code>' + MetisCMS._escHtml(slug) + '</code></td>'
+                + '<td class="metis-premium-cell"><span class="metis-status metis-status-' + (status === 'active' ? 'published' : 'draft') + '">' + MetisCMS._escHtml(MetisCMS._titleCase(status)) + '</span></td>'
+                + '<td class="metis-premium-cell">' + MetisCMS._escHtml(String(postCount)) + '</td>'
+                + '<td class="metis-premium-cell metis-col-right"><div class="metis-table-actions">'
                 + '<button type="button" class="metis-action-btn metis-edit-post-category" data-id="' + MetisCMS._escHtml(String(id)) + '" data-name="' + MetisCMS._escHtml(name) + '" data-slug="' + MetisCMS._escHtml(slug) + '" data-status="' + MetisCMS._escHtml(status) + '" data-sort-order="' + MetisCMS._escHtml(String(sortOrder)) + '" data-parent-id="' + MetisCMS._escHtml(String(parentId)) + '" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
                 + '<button type="button" class="metis-action-btn metis-action-btn-danger metis-delete-post-category" data-id="' + MetisCMS._escHtml(String(id)) + '" data-post-count="' + MetisCMS._escHtml(String(postCount)) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>'
                 + '</div></td>'
@@ -892,7 +1014,7 @@ var MetisCMS = {
         }).join('');
 
         wrap.append(
-            '<table class="metis-post-categories-table" role="table"><thead><tr><th>Name</th><th>Parent</th><th>Slug</th><th>Status</th><th>Posts</th><th class="metis-col-right">Actions</th></tr></thead><tbody>' + rows + '</tbody></table>'
+            '<table class="metis-premium-table metis-post-categories-table" role="table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Name</th><th class="metis-premium-cell" scope="col">Parent</th><th class="metis-premium-cell" scope="col">Slug</th><th class="metis-premium-cell" scope="col">Status</th><th class="metis-premium-cell" scope="col">Posts</th><th class="metis-premium-cell metis-col-right" scope="col">Actions</th></tr></thead><tbody>' + rows + '</tbody></table>'
         );
     },
 

@@ -28,8 +28,8 @@ final class CmsReadinessService {
                 'detail' => $public_routes_enabled
                     ? 'Visitor-facing CMS routes are enabled.'
                     : 'Enable public CMS routes when launch content is ready.',
-                'action_label' => 'Theme',
-                'action_url' => self::portalUrl( 'theme' ),
+                'action_label' => 'Launch',
+                'action_url' => self::portalUrl( 'launch' ),
             ],
             [
                 'label' => 'Homepage',
@@ -101,7 +101,7 @@ final class CmsReadinessService {
         ];
     }
 
-    private static function publicRoutesEnabled(): bool {
+    public static function publicRoutesEnabled(): bool {
         if ( function_exists( 'metis_get_option' ) ) {
             return (bool) \metis_get_option( 'metis_cms_public_routes_enabled', false );
         }
