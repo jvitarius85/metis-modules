@@ -20,6 +20,7 @@ if ( ! function_exists( 'metis_cms_view_permission_map' ) ) {
             'popups' => 'cms.manage_popups',
             'redirects' => 'cms.manage_redirects',
             'templates' => 'cms.manage_templates',
+            'webparts' => 'cms.manage_webparts',
             'theme' => 'cms.manage_theme',
             'import' => 'cms.import',
         ];

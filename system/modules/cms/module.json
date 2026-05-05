@@ -56,6 +56,7 @@
             "popups": "Popups",
             "redirects": "Redirects",
             "templates": "Templates",
+            "webparts": "Web Parts",
             "theme": "Theme",
             "import": "Import"
         }
@@ -63,6 +64,7 @@
     "view_permissions": {
         "dashboard": "cms.view",
         "launch": "cms.launch",
+        "editor": "cms.edit",
         "pages": "cms.view",
         "posts": "cms.view",
         "categories": "cms.view",
@@ -72,6 +74,7 @@
         "popups": "cms.manage_popups",
         "redirects": "cms.manage_redirects",
         "templates": "cms.manage_templates",
+        "webparts": "cms.manage_webparts",
         "theme": "cms.manage_theme",
         "import": "cms.import"
     },
@@ -202,6 +205,15 @@
                 "administrator",
                 "cms_manager"
             ]
+        },
+        "manage_webparts": {
+            "key": "cms.manage_webparts",
+            "action": "manage_webparts",
+            "name": "CMS Manage Web Parts",
+            "roles": [
+                "administrator",
+                "cms_manager"
+            ]
         }
     },
     "views": {
@@ -217,6 +229,7 @@
         "popups": "popups.php",
         "redirects": "redirects.php",
         "templates": "templates.php",
+        "webparts": "webparts.php",
         "theme": "theme.php",
         "import": "import.php"
     },

@@ -57,11 +57,34 @@ final class WebPartService {
         if ( $id < 1 ) {
             return null;
         }
-        $row = self::db()->fetchOne(
-            "SELECT * FROM " . \Metis_Tables::get( 'cms_web_parts' ) . " WHERE id = %d LIMIT 1",
-            [ $id ]
-        );
+        try {
+            $row = self::db()->fetchOne(
+                "SELECT * FROM " . \Metis_Tables::get( 'cms_web_parts' ) . " WHERE id = %d LIMIT 1",
+                [ $id ]
+            );
+        } catch ( \Throwable $e ) {
+            return null;
+        }
         return is_array( $row ) ? WebPart::fromRow( $row ) : null;
+    }
+
+    public static function countAll( array $filters = [] ): int {
+        $db = self::db();
+        $table = \Metis_Tables::get( 'cms_web_parts' );
+        $where = [];
+        $params = [];
+
+        if ( ! empty( $filters['status'] ) ) {
+            $where[] = 'status = %s';
+            $params[] = self::normalizeStatus( (string) $filters['status'] );
+        }
+
+        $where_clause = $where !== [] ? ' WHERE ' . implode( ' AND ', $where ) : '';
+        try {
+            return (int) $db->scalar( "SELECT COUNT(*) FROM {$table}{$where_clause}", $params );
+        } catch ( \Throwable $e ) {
+            return 0;
+        }
     }
 
     public static function create( array $data ): int|false {
@@ -70,7 +93,20 @@ final class WebPartService {
         $payload['updated_by'] = $data['updated_by'] ?? self::getCurrentUserId();
 
         $result = self::db()->insert( \Metis_Tables::get( 'cms_web_parts' ), $payload );
-        return $result ? (int) self::db()->lastInsertId() : false;
+        if ( ! $result ) {
+            return false;
+        }
+
+        $new_id = (int) self::db()->lastInsertId();
+        if ( $new_id > 0 && function_exists( 'metis_entity_id_service' ) ) {
+            try {
+                \metis_entity_id_service()->register( 'cms_web_part', $new_id, (string) ( $payload['part_code'] ?? '' ) );
+            } catch ( \Throwable $e ) {
+                // Entity registration is helpful for audit trails, but should not fail the save.
+            }
+        }
+
+        return $new_id;
     }
 
     public static function update( int $id, array $data ): bool {

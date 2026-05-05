@@ -1065,6 +1065,13 @@
     padding: 10px 14px;
 }
 
+.metis-webparts-table .metis-premium-cell span {
+    display: block;
+    margin-top: 3px;
+    color: var(--metis-text-muted, #667085);
+    font-size: 12px;
+}
+
 .metis-table {
     width: 100%;
     border-collapse: collapse;
@@ -1500,6 +1507,11 @@
     border-radius: 8px;
     padding: 10px;
     background: #fff;
+}
+
+.metis-webpart-content-input {
+    min-height: 150px;
+    resize: vertical;
 }
 
 .metis-form-actions {

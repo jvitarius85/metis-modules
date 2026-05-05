@@ -8,13 +8,15 @@ if ( ! metis_cms_require_view_permission( 'import' ) ) {
     return;
 }
 
-$import_url = metis_portal_url( 'import', 'dashboard' );
+$import_ready = \Metis\Modules\Cms\Services\ImportService::readiness();
+$import_url = (string) ( $import_ready['url'] ?? metis_portal_url( 'import', 'dashboard' ) );
 $media_url = metis_portal_url( 'cms', 'media' );
 $templates_url = metis_portal_url( 'cms', 'templates' );
 $pages_url = metis_portal_url( 'cms', 'pages' );
 $posts_url = metis_portal_url( 'cms', 'posts' );
 $can_manage_media = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'cms.manage_media' );
 $can_manage_templates = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'cms.manage_templates' );
+$import_available = ! empty( $import_ready['available'] );
 ?>
 <div class="metis-cms-home metis-cms-import-hub">
     <div class="metis-page-header">
@@ -24,15 +26,17 @@ $can_manage_templates = function_exists( 'metis_security_user_can' ) && metis_se
             <p class="metis-subtitle">Bring content into the CMS through review-first import workflows.</p>
         </div>
         <div class="metis-page-header-right">
-            <a href="<?php echo metis_escape_url( $import_url ); ?>" class="metis-btn metis-btn-primary metis-btn-sm">Open Import Tool</a>
+            <?php if ( $import_available ) : ?>
+                <a href="<?php echo metis_escape_url( $import_url ); ?>" class="metis-btn metis-btn-primary metis-btn-sm">Open Import Tool</a>
+            <?php endif; ?>
         </div>
     </div>
 
     <div class="metis-cms-status-grid">
         <section class="metis-cms-status-card">
             <span class="metis-cms-status-label">Flow</span>
-            <strong>Preview</strong>
-            <span>Imports should be reviewed before any publishing changes are applied.</span>
+            <strong><?php echo $import_available ? 'Preview' : 'Manual'; ?></strong>
+            <span><?php echo metis_escape_html( (string) ( $import_ready['message'] ?? '' ) ); ?></span>
         </section>
         <section class="metis-cms-status-card">
             <span class="metis-cms-status-label">Content</span>
@@ -52,26 +56,13 @@ $can_manage_templates = function_exists( 'metis_security_user_can' ) && metis_se
             <p>Keep the process predictable for admins and safe for public pages.</p>
         </div>
         <div class="metis-cms-workflow-steps" aria-label="Recommended import workflow">
-            <article>
-                <strong>1</strong>
-                <span>Upload source content</span>
-                <small>Use the Import module to bring in the source file or supported feed.</small>
-            </article>
-            <article>
-                <strong>2</strong>
-                <span>Map content</span>
-                <small>Confirm pages, posts, slugs, categories, and media references before import.</small>
-            </article>
-            <article>
-                <strong>3</strong>
-                <span>Review drafts</span>
-                <small>Imported content should land as reviewable drafts unless explicitly published.</small>
-            </article>
-            <article>
-                <strong>4</strong>
-                <span>Publish intentionally</span>
-                <small>Use CMS publishing controls after layout, navigation, and redirects are verified.</small>
-            </article>
+            <?php foreach ( (array) ( $import_ready['steps'] ?? [] ) as $index => $step ) : ?>
+                <article>
+                    <strong><?php echo metis_escape_html( (string) ( $index + 1 ) ); ?></strong>
+                    <span><?php echo metis_escape_html( (string) ( $step['label'] ?? '' ) ); ?></span>
+                    <small><?php echo metis_escape_html( (string) ( $step['detail'] ?? '' ) ); ?></small>
+                </article>
+            <?php endforeach; ?>
         </div>
     </section>
 
@@ -110,10 +101,9 @@ $can_manage_templates = function_exists( 'metis_security_user_can' ) && metis_se
                 <p>These checks keep imported content from disrupting the live site.</p>
             </div>
             <ul class="metis-cms-check-list">
-                <li>Do not overwrite published pages without review.</li>
-                <li>Preserve existing URLs unless redirects are planned.</li>
-                <li>Validate media paths before enabling public routes.</li>
-                <li>Use drafts for uncertain or incomplete content.</li>
+                <?php foreach ( \Metis\Modules\Cms\Services\ImportService::guardrails() as $guardrail ) : ?>
+                    <li><?php echo metis_escape_html( $guardrail ); ?></li>
+                <?php endforeach; ?>
             </ul>
         </section>
     </div>

@@ -1,5 +1,12 @@
 <?php
 declare(strict_types=1);
 
-// Module contract entrypoint placeholder.
-// Runtime boot/registration is handled by src/Metis services.
+use Metis\Modules\Cms\CmsModule;
+
+if ( ! defined( 'METIS_ROOT' ) ) {
+    exit;
+}
+
+if ( class_exists( CmsModule::class ) ) {
+    CmsModule::boot();
+}

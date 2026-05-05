@@ -31,6 +31,7 @@ $menus_url     = metis_portal_url( 'cms', 'menus' );
 $popups_url    = metis_portal_url( 'cms', 'popups' );
 $redirects_url = metis_portal_url( 'cms', 'redirects' );
 $templates_url = metis_portal_url( 'cms', 'templates' );
+$webparts_url  = metis_portal_url( 'cms', 'webparts' );
 $theme_url     = metis_portal_url( 'cms', 'theme' );
 $import_url    = metis_portal_url( 'cms', 'import' );
 
@@ -43,11 +44,12 @@ $can_manage_menus     = function_exists( 'metis_security_user_can' ) ? metis_sec
 $can_manage_popups    = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_popups' ) : false;
 $can_manage_redirects = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_redirects' ) : false;
 $can_manage_templates = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_templates' ) : false;
+$can_manage_webparts  = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_webparts' ) : false;
 $can_manage_theme     = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.manage_theme' ) : false;
 $can_import           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'cms.import' ) : false;
 $readiness            = CmsReadinessService::summary();
 $public_routes_enabled = ! empty( $readiness['public_routes_enabled'] );
-$readiness_action_allowed = static function ( array $item ) use ( $can_launch, $can_manage_menus, $can_manage_templates, $can_manage_theme ): bool {
+$readiness_action_allowed = static function ( array $item ) use ( $can_launch, $can_manage_menus, $can_manage_templates, $can_manage_webparts, $can_manage_redirects, $can_manage_theme ): bool {
     $label = (string) ( $item['action_label'] ?? '' );
     if ( $label === 'Launch' ) {
         return $can_launch;
@@ -57,6 +59,12 @@ $readiness_action_allowed = static function ( array $item ) use ( $can_launch, $
     }
     if ( $label === 'Templates' ) {
         return $can_manage_templates;
+    }
+    if ( $label === 'Web Parts' ) {
+        return $can_manage_webparts;
+    }
+    if ( $label === 'Redirects' ) {
+        return $can_manage_redirects;
     }
     if ( $label === 'Theme' ) {
         return $can_manage_theme;
@@ -187,6 +195,9 @@ $readiness_action_allowed = static function ( array $item ) use ( $can_launch, $
                 <?php endif; ?>
                 <?php if ( $can_manage_templates ) : ?>
                     <a href="<?php echo metis_escape_url( $templates_url ); ?>">Templates</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_webparts ) : ?>
+                    <a href="<?php echo metis_escape_url( $webparts_url ); ?>">Web Parts</a>
                 <?php endif; ?>
                 <?php if ( $can_manage_theme ) : ?>
                     <a href="<?php echo metis_escape_url( $theme_url ); ?>">Theme</a>

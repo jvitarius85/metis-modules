@@ -31,7 +31,7 @@ $pages_url = metis_portal_url( 'cms', 'pages' );
         </div>
         <div class="metis-page-header-right metis-cms-launch-controls">
             <button type="button" id="metis-cms-launch-refresh-btn" class="metis-btn metis-btn-secondary metis-btn-sm">Refresh Readiness</button>
-            <button type="button" id="metis-cms-launch-enable-btn" class="metis-btn metis-btn-primary metis-btn-sm<?php echo $launched ? ' metis-is-hidden' : ''; ?>" data-force="<?php echo $can_launch ? '0' : '1'; ?>">Enable Public Routes</button>
+            <button type="button" id="metis-cms-launch-enable-btn" class="metis-btn metis-btn-primary metis-btn-sm<?php echo $launched ? ' metis-is-hidden' : ''; ?>" data-force="0">Enable Public Routes</button>
             <button type="button" id="metis-cms-launch-disable-btn" class="metis-btn metis-btn-secondary metis-btn-sm<?php echo $launched ? '' : ' metis-is-hidden'; ?>">Disable Public Routes</button>
         </div>
     </div>

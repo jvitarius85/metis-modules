@@ -644,7 +644,7 @@ var MetisCMS = {
         $('#metis-cms-launch-score').text(score);
         $('#metis-cms-launch-enable-btn')
             .toggleClass('metis-is-hidden', launched)
-            .attr('data-force', canLaunch ? '0' : '1');
+            .attr('data-force', '0');
         $('#metis-cms-launch-disable-btn').toggleClass('metis-is-hidden', !launched);
 
         var stateClass = launched ? 'live' : (canLaunch ? 'ready' : 'setup');

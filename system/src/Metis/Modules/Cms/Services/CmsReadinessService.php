@@ -20,6 +20,15 @@ final class CmsReadinessService {
         $active_template_ready = $active_template !== '' && TemplateService::templateMeta( $active_template ) !== [];
         $primary_menu = MenuService::getByLocation( 'primary' );
         $primary_menu_ready = is_array( $primary_menu ) && MenuService::getItems( $primary_menu ) !== [];
+        $published_webparts = WebPartService::countAll( [ 'status' => 'published' ] );
+        $active_redirects = 0;
+        try {
+            $active_redirects = method_exists( RedirectService::class, 'all' )
+                ? count( array_filter( RedirectService::all(), static fn ( array $row ): bool => ! empty( $row['is_active'] ) ) )
+                : 0;
+        } catch ( \Throwable $e ) {
+            $active_redirects = 0;
+        }
 
         $items = [
             [
@@ -75,6 +84,24 @@ final class CmsReadinessService {
                     : 'Create or assign a primary menu before launch.',
                 'action_label' => 'Menus',
                 'action_url' => self::portalUrl( 'menus' ),
+            ],
+            [
+                'label' => 'Web parts',
+                'status' => $published_webparts > 0 ? 'ready' : 'attention',
+                'detail' => $published_webparts > 0
+                    ? (string) $published_webparts . ' published web part' . ( $published_webparts === 1 ? '' : 's' ) . ' available.'
+                    : 'Web parts are optional reusable regions for campaigns, forms, and announcements.',
+                'action_label' => 'Web Parts',
+                'action_url' => self::portalUrl( 'webparts' ),
+            ],
+            [
+                'label' => 'Redirects',
+                'status' => $active_redirects > 0 ? 'ready' : 'attention',
+                'detail' => $active_redirects > 0
+                    ? (string) $active_redirects . ' active redirect' . ( $active_redirects === 1 ? '' : 's' ) . ' configured.'
+                    : 'Redirects are optional, but useful when replacing an existing site.',
+                'action_label' => 'Redirects',
+                'action_url' => self::portalUrl( 'redirects' ),
             ],
         ];
 

@@ -16,6 +16,7 @@ use Metis\Modules\Cms\Services\PostCategoryService;
 use Metis\Modules\Cms\Services\LayoutProfileService;
 use Metis\Modules\Cms\Services\HomepageService;
 use Metis\Modules\Cms\Services\TemplateService;
+use Metis\Modules\Cms\Services\WebPartService;
 use Metis\Modules\Cms\Services\CmsLaunchService;
 use Metis\Modules\Cms\Services\RevisionTimelineService;
 use Metis\Modules\Cms\Services\EditorContextPolicy;
@@ -65,6 +66,10 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_cms_template_get' => 'view',
         'metis_cms_template_save' => 'manage_templates',
         'metis_cms_template_delete' => 'manage_templates',
+        'metis_cms_webparts_list' => 'manage_webparts',
+        'metis_cms_webpart_get' => 'manage_webparts',
+        'metis_cms_webpart_save' => 'manage_webparts',
+        'metis_cms_webpart_delete' => 'manage_webparts',
         'metis_cms_theme_get' => 'view',
         'metis_cms_theme_save' => 'manage_theme',
         'metis_cms_launch_status' => 'view',
@@ -3025,6 +3030,145 @@ metis_ajax_register_handler( 'metis_cms_redirect_delete', function (): void {
     }
 
     metis_runtime_send_json_success( [ 'message' => 'Redirect deleted.', 'redirects' => RedirectService::all() ] );
+} );
+
+// ---------------------------------------------------------------------------
+// Web Parts
+// ---------------------------------------------------------------------------
+
+function metis_cms_ajax_webpart_array( $part ): array {
+    return is_object( $part ) && method_exists( $part, 'toArray' ) ? $part->toArray() : [];
+}
+
+function metis_cms_ajax_webpart_rows(): array {
+    return array_values( array_map(
+        static fn ( $part ): array => metis_cms_ajax_webpart_array( $part ),
+        WebPartService::getAll()
+    ) );
+}
+
+function metis_cms_ajax_webpart_content_json( string $raw, string $status ): string {
+    $decoded = metis_cms_ajax_decode_json_array( $raw );
+    if ( $decoded === [] ) {
+        $decoded = [ 'version' => 1, 'blocks' => [] ];
+    }
+
+    $blocks = [];
+    if ( isset( $decoded['blocks'] ) && is_array( $decoded['blocks'] ) ) {
+        $blocks = array_values( array_filter( $decoded['blocks'], 'is_array' ) );
+    } elseif ( isset( $decoded[0] ) && is_array( $decoded[0] ) ) {
+        $blocks = array_values( array_filter( $decoded, 'is_array' ) );
+        $decoded = [ 'version' => 1, 'blocks' => $blocks ];
+    }
+
+    if ( $blocks !== [] ) {
+        metis_cms_ajax_assert_blocks_valid( $blocks, 'web_part', 'standard' );
+        metis_cms_ajax_assert_accessibility_valid( $blocks );
+    } elseif ( $status === 'published' ) {
+        metis_runtime_send_json_error( 'Published web parts need at least one content block.', 422 );
+    }
+
+    $json = function_exists( 'metis_json_encode' )
+        ? metis_json_encode( $decoded )
+        : json_encode( $decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+    return is_string( $json ) && $json !== '' ? $json : '{"version":1,"blocks":[]}';
+}
+
+metis_ajax_register_handler( 'metis_cms_webparts_list', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.manage_webparts' );
+
+    metis_runtime_send_json_success( [ 'webparts' => metis_cms_ajax_webpart_rows() ] );
+} );
+
+metis_ajax_register_handler( 'metis_cms_webpart_get', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.manage_webparts' );
+
+    $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+    if ( $id < 1 ) {
+        metis_runtime_send_json_error( 'Invalid web part ID.', 400 );
+    }
+
+    $part = WebPartService::getById( $id );
+    if ( $part === null ) {
+        metis_runtime_send_json_error( 'Web part not found.', 404 );
+    }
+
+    metis_runtime_send_json_success( [ 'webpart' => metis_cms_ajax_webpart_array( $part ) ] );
+} );
+
+metis_ajax_register_handler( 'metis_cms_webpart_save', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.manage_webparts' );
+
+    $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+    $name = isset( $_POST['name'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['name'] ) ) : '';
+    if ( trim( $name ) === '' ) {
+        metis_runtime_send_json_error( 'Web part name is required.', 422 );
+    }
+
+    $status = isset( $_POST['status'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['status'] ) ) : 'draft';
+    $status = in_array( $status, [ 'draft', 'published' ], true ) ? $status : 'draft';
+    $content_json = metis_cms_ajax_webpart_content_json(
+        metis_cms_ajax_post_string( 'content_json', false ) ?? '{"version":1,"blocks":[]}',
+        $status
+    );
+
+    $visibility_json = metis_cms_ajax_post_string( 'visibility_json', false ) ?? '{}';
+    $visibility = metis_cms_ajax_decode_json_array( $visibility_json );
+    $visibility_json = function_exists( 'metis_json_encode' )
+        ? metis_json_encode( $visibility )
+        : json_encode( $visibility, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+    $data = [
+        'name' => $name,
+        'part_type' => isset( $_POST['part_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['part_type'] ) ) : 'custom',
+        'render_mode' => 'blocks',
+        'status' => $status,
+        'content_json' => $content_json,
+        'config_json' => metis_cms_ajax_post_string( 'config_json', false ) ?? '{}',
+        'visibility_json' => is_string( $visibility_json ) && $visibility_json !== '' ? $visibility_json : '{}',
+        'target_scope' => isset( $_POST['target_scope'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['target_scope'] ) ) : 'site',
+        'target_ref' => isset( $_POST['target_ref'] ) ? (string) metis_runtime_unslash( $_POST['target_ref'] ) : '',
+        'region' => isset( $_POST['region'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['region'] ) ) : 'main',
+        'slot' => isset( $_POST['slot'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['slot'] ) ) : 'append',
+        'sort_order' => isset( $_POST['sort_order'] ) ? (int) $_POST['sort_order'] : 0,
+    ];
+
+    if ( $id > 0 ) {
+        $ok = WebPartService::update( $id, $data );
+    } else {
+        $ok = (bool) WebPartService::create( $data );
+    }
+
+    if ( ! $ok ) {
+        metis_runtime_send_json_error( 'Web part could not be saved.', 500 );
+    }
+
+    metis_runtime_send_json_success( [
+        'message' => 'Web part saved.',
+        'webparts' => metis_cms_ajax_webpart_rows(),
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_cms_webpart_delete', function (): void {
+    metis_cms_ajax_verify_nonce();
+    metis_cms_ajax_require_permission( 'cms.manage_webparts' );
+
+    $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+    if ( $id < 1 ) {
+        metis_runtime_send_json_error( 'Invalid web part ID.', 400 );
+    }
+
+    if ( ! WebPartService::delete( $id ) ) {
+        metis_runtime_send_json_error( 'Web part could not be deleted.', 500 );
+    }
+
+    metis_runtime_send_json_success( [
+        'message' => 'Web part deleted.',
+        'webparts' => metis_cms_ajax_webpart_rows(),
+    ] );
 } );
 
 // ---------------------------------------------------------------------------
