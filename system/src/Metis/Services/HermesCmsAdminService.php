@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Services;
 
-use Metis\Modules\Cms\SchemaManager;
-use Metis\Modules\Cms\Services\PostService;
+use Metis\Modules\Website\SchemaManager;
+use Metis\Modules\Website\Services\PostService;
 
 final class HermesCmsAdminService {
     public function createPost( mixed $request = null ): array {
@@ -28,7 +28,7 @@ final class HermesCmsAdminService {
         ] );
 
         if ( $post === null ) {
-            throw new \RuntimeException( 'Failed to create cms post.' );
+            throw new \RuntimeException( 'Failed to create website post.' );
         }
 
         return [
@@ -84,8 +84,8 @@ final class HermesCmsAdminService {
             return null;
         }
 
-        if ( preg_match( '/^CMSP[A-Z0-9]+$/i', $subject ) ) {
-            $table = \Metis_Tables::get( 'cms_posts' );
+        if ( preg_match( '/^WBP[A-Z0-9]+$/i', $subject ) ) {
+            $table = \Metis_Tables::get( 'website_posts' );
             $row = \metis_db()->fetchOne(
                 "SELECT id
                  FROM {$table}
@@ -103,7 +103,7 @@ final class HermesCmsAdminService {
             return $bySlug;
         }
 
-        $table = \Metis_Tables::get( 'cms_posts' );
+        $table = \Metis_Tables::get( 'website_posts' );
         $row = \metis_db()->fetchOne(
             "SELECT id
              FROM {$table}

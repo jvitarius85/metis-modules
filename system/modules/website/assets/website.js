@@ -227,6 +227,7 @@ var MetisWebsite = {
             this._bindPostActions();
             this._bindCategoryActions();
             this._bindTemplateActions();
+            this._bindLaunchActions();
             this._bindingsApplied = true;
         }
         this._maybeLaunchQuickAction();
@@ -403,7 +404,7 @@ var MetisWebsite = {
         $row.children('.metis-premium-cell').eq(5).html(this._pageActionsMarkup(page));
         this._syncHomepageSelectorOption(page);
         this._applyHomepagePageId(page.is_homepage ? page.id : $('#metis-homepage-selector').val());
-        this._updateListSubtitle('#metis-pages-list-shell', this._pageRows().length, 'page', 'pages', 'in website content.');
+        this._updateListSubtitle('#metis-pages-list-shell', this._pageRows().length, 'page', 'pages', 'in Website content.');
     },
 
     _removePageRow: function(id) {
@@ -412,7 +413,7 @@ var MetisWebsite = {
         if (String($('#metis-homepage-selector').val() || '') === String(id || '')) {
             $('#metis-homepage-selector').val('');
         }
-        this._updateListSubtitle('#metis-pages-list-shell', this._pageRows().length, 'page', 'pages', 'in website content.');
+        this._updateListSubtitle('#metis-pages-list-shell', this._pageRows().length, 'page', 'pages', 'in Website content.');
     },
 
     _postRows: function() {
@@ -426,10 +427,10 @@ var MetisWebsite = {
     _postCategoriesMarkup: function(post) {
         var categories = post && Array.isArray(post.categories) ? post.categories : [];
         if (!categories.length) {
-            return '<span class="metis-posts-table-compact__category-chip">Uncategorized</span>';
+            return '<span class="metis-posts-table__category-chip">Uncategorized</span>';
         }
         return categories.map(function(category) {
-            return '<span class="metis-posts-table-compact__category-chip">' + MetisWebsite._escHtml(String(category && category.name ? category.name : '')) + '</span>';
+            return '<span class="metis-posts-table__category-chip">' + MetisWebsite._escHtml(String(category && category.name ? category.name : '')) + '</span>';
         }).join('');
     },
 
@@ -466,18 +467,20 @@ var MetisWebsite = {
         var slugPath = '/' + String(post.slug || '').replace(/^\/+/, '');
         $row.children('td').eq(0).html(
             '<button type="button" class="metis-link-button metis-edit-post" data-id="' + this._escHtml(String(post.id)) + '" data-code="' + safeCode + '">' + safeTitle + '</button>'
-            + '<div class="metis-posts-table-compact__slug">' + this._escHtml(slugPath) + '</div>'
-            + '<div class="metis-posts-table-compact__category-list metis-posts-table-compact__category-list--under-title">' + this._postCategoriesMarkup(post) + '</div>'
+            + '<div class="metis-posts-table__slug">' + this._escHtml(slugPath) + '</div>'
         );
         $row.children('td').eq(1).html('<span class="metis-status metis-status-' + this._escHtml(String(post.status || 'draft')) + '">' + this._escHtml(this._titleCase(String(post.status || 'draft'))) + '</span>');
         $row.children('td').eq(2).text(this._formatShortDate(post.publish_date || post.published_date || ''));
-        $row.children('td').eq(3).html(this._postActionsMarkup(post));
-        this._updateListSubtitle('#metis-posts-list-shell', this._postRows().length, 'post', 'posts', 'in website content.');
+        $row.children('td').eq(3).html('<div class="metis-posts-table__category-list">' + this._postCategoriesMarkup(post) + '</div>');
+        if ($row.children('td').length > 4) {
+            $row.children('td').eq(4).html(this._postActionsMarkup(post));
+        }
+        this._updateListSubtitle('#metis-posts-list-shell', this._postRows().length, 'post', 'posts', 'in Website content.');
     },
 
     _removePostRow: function(id) {
         this._postRowForId(id).remove();
-        this._updateListSubtitle('#metis-posts-list-shell', this._postRows().length, 'post', 'posts', 'in website content.');
+        this._updateListSubtitle('#metis-posts-list-shell', this._postRows().length, 'post', 'posts', 'in Website content.');
     },
 
     _publicSiteBaseUrl: function() {
@@ -555,6 +558,125 @@ var MetisWebsite = {
         });
     },
 
+    _bindLaunchActions: function() {
+        $(document).off('click.metisWebsiteLaunchRefresh').on('click.metisWebsiteLaunchRefresh', '#metis-website-launch-refresh-btn', function(e) {
+            e.preventDefault();
+            MetisWebsite._launchRequest('metis_website_launch_status', {}, 'Launch readiness refreshed.');
+        });
+
+        $(document).off('click.metisWebsiteLaunchEnable').on('click.metisWebsiteLaunchEnable', '#metis-website-launch-enable-btn', function(e) {
+            e.preventDefault();
+            var force = String($(this).attr('data-force') || '0') === '1';
+            var message = force
+                ? 'Some launch checks still need attention. Enable public Website routes anyway?'
+                : 'Enable public Website routes for visitors?';
+            MetisWebsite._confirm(message, function() {
+                MetisWebsite._launchRequest('metis_website_launch_enable', { force: force ? '1' : '0' }, 'Public Website routes enabled.');
+            }, {
+                title: 'Enable Website Routes',
+                confirmLabel: 'Enable'
+            });
+        });
+
+        $(document).off('click.metisWebsiteLaunchDisable').on('click.metisWebsiteLaunchDisable', '#metis-website-launch-disable-btn', function(e) {
+            e.preventDefault();
+            MetisWebsite._confirm('Disable public Website routes? Content will remain saved and editable.', function() {
+                MetisWebsite._launchRequest('metis_website_launch_disable', {}, 'Public Website routes disabled.');
+            }, {
+                title: 'Disable Website Routes',
+                confirmLabel: 'Disable'
+            });
+        });
+    },
+
+    _launchRequest: function(action, payload, fallbackMessage) {
+        var data = Object.assign({}, payload || {}, {
+            action: action,
+            nonce: this._nonceFor(action)
+        });
+        $.ajax({
+            url: metisWebsiteAjax.ajax_url,
+            type: 'POST',
+            data: data,
+            success: function(r) {
+                if (r && r.success && r.data) {
+                    if (r.data.status) {
+                        MetisWebsite._renderLaunchStatus(r.data.status);
+                    }
+                    metis_toast(r.data.message || fallbackMessage || 'Website launch status updated.', 'success');
+                    return;
+                }
+                metis_toast((r && r.data && r.data.message) ? r.data.message : 'Launch request failed.', 'error');
+                if (r && r.data && r.data.status) {
+                    MetisWebsite._renderLaunchStatus(r.data.status);
+                }
+            },
+            error: function(xhr) {
+                var message = 'Request failed.';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.data) {
+                    if (xhr.responseJSON.data.message) {
+                        message = String(xhr.responseJSON.data.message);
+                    } else if (typeof xhr.responseJSON.data === 'string') {
+                        message = xhr.responseJSON.data;
+                    }
+                    if (xhr.responseJSON.data.status) {
+                        MetisWebsite._renderLaunchStatus(xhr.responseJSON.data.status);
+                    }
+                }
+                metis_toast(message, 'error');
+            }
+        });
+    },
+
+    _renderLaunchStatus: function(status) {
+        if (!status || !document.getElementById('metis-website-launch-shell')) {
+            return;
+        }
+        var launched = !!status.launched;
+        var canLaunch = !!status.can_launch;
+        var stateLabel = launched ? 'Live' : (canLaunch ? 'Ready' : 'Setup Needed');
+        var stateCopy = launched ? 'Visitor-facing Website routes are enabled.' : 'Website routes stay private until launch is enabled.';
+        var score = String(status.score || 0) + '/' + String(status.total || 0);
+        var items = (status.readiness && Array.isArray(status.readiness.items)) ? status.readiness.items : [];
+
+        $('#metis-website-launch-state-label').text(stateLabel);
+        $('#metis-website-launch-state-copy').text(stateCopy);
+        $('#metis-website-launch-score').text(score);
+        $('#metis-website-launch-enable-btn')
+            .toggleClass('metis-is-hidden', launched)
+            .attr('data-force', '0');
+        $('#metis-website-launch-disable-btn').toggleClass('metis-is-hidden', !launched);
+
+        var stateClass = launched ? 'live' : (canLaunch ? 'ready' : 'setup');
+        $('.metis-website-launch-state')
+            .removeClass('metis-website-launch-state--live metis-website-launch-state--ready metis-website-launch-state--setup')
+            .addClass('metis-website-launch-state--' + stateClass);
+
+        var html = items.map(function(item) {
+            var itemStatus = String(item && item.status ? item.status : 'attention');
+            if (['ready', 'attention', 'blocked'].indexOf(itemStatus) === -1) {
+                itemStatus = 'attention';
+            }
+            var actionUrl = String(item && item.action_url ? item.action_url : '');
+            var actionLabel = String(item && item.action_label ? item.action_label : 'Open');
+            var action = actionUrl !== '' && itemStatus !== 'ready'
+                ? '<a class="metis-btn-xs" href="' + MetisWebsite._escHtml(actionUrl) + '">' + MetisWebsite._escHtml(actionLabel) + '</a>'
+                : '';
+            return [
+                '<article class="metis-website-readiness-item metis-website-readiness-item--' + MetisWebsite._escHtml(itemStatus) + '">',
+                '<span class="metis-website-readiness-dot" aria-hidden="true"></span>',
+                '<div>',
+                '<strong>' + MetisWebsite._escHtml(String(item && item.label ? item.label : '')) + '</strong>',
+                '<span>' + MetisWebsite._escHtml(String(item && item.detail ? item.detail : '')) + '</span>',
+                '</div>',
+                action,
+                '</article>'
+            ].join('');
+        }).join('');
+
+        $('#metis-website-launch-list').html(html);
+    },
+
     // -------------------------------------------------------------------------
     // Pages
     // -------------------------------------------------------------------------
@@ -580,7 +702,7 @@ var MetisWebsite = {
             e.stopPropagation();
         });
 
-        $(document).off('click.metisWebsitePublishPage').on('click.metisWebsitePublishPage', '.metis-publish-page', function() {
+        $(document).off('click.metisWBPublishPage').on('click.metisWBPublishPage', '.metis-publish-page', function() {
             var id = parseInt($(this).data('id'), 10);
             MetisWebsite._publishPage(id);
         });
@@ -710,7 +832,7 @@ var MetisWebsite = {
             }
         });
 
-        $(document).off('click.metisWebsitePublishPost').on('click.metisWebsitePublishPost', '.metis-publish-post', function() {
+        $(document).off('click.metisWBPublishPost').on('click.metisWBPublishPost', '.metis-publish-post', function() {
             var id = parseInt($(this).data('id'), 10);
             MetisWebsite._publishPost(id);
         });
@@ -878,13 +1000,13 @@ var MetisWebsite = {
             var parentName = String(category.parent_name || '—') || '—';
             var sortOrder = parseInt(String(category.sort_order || '0'), 10) || 0;
             var postCount = parseInt(String(category.post_count || '0'), 10) || 0;
-            return '<tr>'
-                + '<td><strong>' + MetisWebsite._escHtml(indentedName) + '</strong></td>'
-                + '<td>' + MetisWebsite._escHtml(parentName) + '</td>'
-                + '<td><code>' + MetisWebsite._escHtml(slug) + '</code></td>'
-                + '<td><span class="metis-status metis-status-' + (status === 'active' ? 'published' : 'draft') + '">' + MetisWebsite._escHtml(MetisWebsite._titleCase(status)) + '</span></td>'
-                + '<td>' + MetisWebsite._escHtml(String(postCount)) + '</td>'
-                + '<td class="metis-col-right"><div class="metis-table-actions">'
+            return '<tr class="metis-premium-row">'
+                + '<td class="metis-premium-cell"><strong>' + MetisWebsite._escHtml(indentedName) + '</strong></td>'
+                + '<td class="metis-premium-cell">' + MetisWebsite._escHtml(parentName) + '</td>'
+                + '<td class="metis-premium-cell"><code>' + MetisWebsite._escHtml(slug) + '</code></td>'
+                + '<td class="metis-premium-cell"><span class="metis-status metis-status-' + (status === 'active' ? 'published' : 'draft') + '">' + MetisWebsite._escHtml(MetisWebsite._titleCase(status)) + '</span></td>'
+                + '<td class="metis-premium-cell">' + MetisWebsite._escHtml(String(postCount)) + '</td>'
+                + '<td class="metis-premium-cell metis-col-right"><div class="metis-table-actions">'
                 + '<button type="button" class="metis-action-btn metis-edit-post-category" data-id="' + MetisWebsite._escHtml(String(id)) + '" data-name="' + MetisWebsite._escHtml(name) + '" data-slug="' + MetisWebsite._escHtml(slug) + '" data-status="' + MetisWebsite._escHtml(status) + '" data-sort-order="' + MetisWebsite._escHtml(String(sortOrder)) + '" data-parent-id="' + MetisWebsite._escHtml(String(parentId)) + '" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
                 + '<button type="button" class="metis-action-btn metis-action-btn-danger metis-delete-post-category" data-id="' + MetisWebsite._escHtml(String(id)) + '" data-post-count="' + MetisWebsite._escHtml(String(postCount)) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>'
                 + '</div></td>'
@@ -892,7 +1014,7 @@ var MetisWebsite = {
         }).join('');
 
         wrap.append(
-            '<table class="metis-post-categories-table" role="table"><thead><tr><th>Name</th><th>Parent</th><th>Slug</th><th>Status</th><th>Posts</th><th class="metis-col-right">Actions</th></tr></thead><tbody>' + rows + '</tbody></table>'
+            '<table class="metis-premium-table metis-post-categories-table" role="table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Name</th><th class="metis-premium-cell" scope="col">Parent</th><th class="metis-premium-cell" scope="col">Slug</th><th class="metis-premium-cell" scope="col">Status</th><th class="metis-premium-cell" scope="col">Posts</th><th class="metis-premium-cell metis-col-right" scope="col">Actions</th></tr></thead><tbody>' + rows + '</tbody></table>'
         );
     },
 
@@ -1040,18 +1162,18 @@ var MetisWebsite = {
             if (key === '') return;
             self._saveSiteLayoutProfile(key, name);
         });
-        $(document).off('click.metisWebsitePreviewOpen').on('click.metisWebsitePreviewOpen', '#metis-layout-preview-open', function() {
+        $(document).off('click.metisWBPreviewOpen').on('click.metisWBPreviewOpen', '#metis-layout-preview-open', function() {
             self._openLayoutPreviewModal();
         });
-        $(document).off('change.metisWebsitePreviewSelect').on('change.metisWebsitePreviewSelect', '#metis-layout-preview-select', function() {
+        $(document).off('change.metisWBPreviewSelect').on('change.metisWBPreviewSelect', '#metis-layout-preview-select', function() {
             var key = String($(this).val() || '').trim();
             self._renderLayoutPreviewCanvas(key);
         });
-        $(document).off('change.metisWebsitePreviewSource').on('change.metisWebsitePreviewSource', '#metis-layout-preview-source', function() {
+        $(document).off('change.metisWBPreviewSource').on('change.metisWBPreviewSource', '#metis-layout-preview-source', function() {
             var key = String($('#metis-layout-preview-select').val() || '').trim();
             self._renderLayoutPreviewCanvas(key);
         });
-        $(document).off('click.metisWebsitePreviewClose').on('click.metisWebsitePreviewClose', '#metis-layout-preview-modal [data-action=\"close\"]', function() {
+        $(document).off('click.metisWBPreviewClose').on('click.metisWBPreviewClose', '#metis-layout-preview-modal [data-action=\"close\"]', function() {
             $('#metis-layout-preview-modal').attr('hidden', 'hidden');
         });
     },

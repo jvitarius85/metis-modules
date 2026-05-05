@@ -17,4 +17,13 @@ final class EditorManager {
             'block_registry' => BlockRegistry::all(),
         ];
     }
+
+    /**
+     * Compatibility alias for the CMS track while Website becomes the primary editor.
+     *
+     * @return array<string,mixed>
+     */
+    public static function cmsConfig(): array {
+        return self::websiteConfig();
+    }
 }

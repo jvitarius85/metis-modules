@@ -17,7 +17,7 @@ use Metis\Modules\Website\Services\TemplateService;
  */
 final class WebsiteRenderer {
     /** @var array<int,string> */
-    private const STRUCTURED_SECTION_TYPES = [ 'text', 'columns', 'feature_grid', 'cta', 'events', 'spacer', 'posts_list', 'transcript' ];
+    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'spacer', 'posts_list', 'html', 'transcript' ];
 
     /**
      * Structured page/post preview that matches the production rendering pipeline.
@@ -880,7 +880,7 @@ final class WebsiteRenderer {
         $context = is_array( $input['context'] ?? null ) ? $input['context'] : [];
         $template_preview_mode = ! empty( $context['template_preview_mode'] );
         $theme = ThemeService::getActiveNormalized();
-        $site_layout_profile_key = LayoutProfileService::sanitizeWebsiteProfile(
+        $site_layout_profile_key = LayoutProfileService::sanitizeWBProfile(
             (string) ( $theme['global_settings']['site_layout_profile'] ?? '' )
         );
         $menu_style = self::sanitizeMenuStyle( (string) ( $theme['global_settings']['menu_style'] ?? 'h_clean' ) );
@@ -888,7 +888,7 @@ final class WebsiteRenderer {
         if ( $preview_profile_key !== '' ) {
             $site_layout_profile_key = $preview_profile_key;
         }
-        $site_layout_profile = LayoutProfileService::resolveWebsiteProfile( $site_layout_profile_key );
+        $site_layout_profile = LayoutProfileService::resolveWBProfile( $site_layout_profile_key );
         $token_values = self::tokenValuesForRender( $input, $context, $page_data );
         $title = self::resolveTokenString( $title, $token_values );
         $description = self::resolveTokenString( $description, $token_values );
@@ -1022,11 +1022,11 @@ final class WebsiteRenderer {
         $resolved_page_data = array_merge( $page_data, $layout_page_data );
         $content = self::prependPostFeaturedImage( (string) $content, $context, $resolved_page_data );
         $site_layout_profile = is_array( $data['site_layout_profile'] ?? null ) ? $data['site_layout_profile'] : [];
-        $site_layout_profile_key = metis_key_clean( (string) ( $data['site_layout_profile_key'] ?? ( $site_layout_profile['key'] ?? LayoutProfileService::defaultWebsiteProfileKey() ) ) );
+        $site_layout_profile_key = metis_key_clean( (string) ( $data['site_layout_profile_key'] ?? ( $site_layout_profile['key'] ?? LayoutProfileService::defaultWBProfileKey() ) ) );
         $template_preview_mode = ! empty( $data['template_preview_mode'] );
         $menu_dataset = is_array( $data['menu_dataset'] ?? null ) ? $data['menu_dataset'] : [];
         if ( $site_layout_profile_key === '' ) {
-            $site_layout_profile_key = LayoutProfileService::defaultWebsiteProfileKey();
+            $site_layout_profile_key = LayoutProfileService::defaultWBProfileKey();
         }
         $menu_style = self::sanitizeMenuStyle( (string) ( $data['menu_style'] ?? 'h_clean' ) );
         $menu_config = is_array( $data['menu_config'] ?? null ) ? $data['menu_config'] : [];
@@ -2133,10 +2133,10 @@ final class WebsiteRenderer {
      */
     public static function renderThemeMenuPreviewHtml(): string {
         $theme = ThemeService::getActiveNormalized();
-        $profile_key = LayoutProfileService::sanitizeWebsiteProfile(
-            (string) ( $theme['global_settings']['site_layout_profile'] ?? LayoutProfileService::defaultWebsiteProfileKey() )
+        $profile_key = LayoutProfileService::sanitizeWBProfile(
+            (string) ( $theme['global_settings']['site_layout_profile'] ?? LayoutProfileService::defaultWBProfileKey() )
         );
-        $profile = LayoutProfileService::resolveWebsiteProfile( $profile_key );
+        $profile = LayoutProfileService::resolveWBProfile( $profile_key );
         $primary_locations = is_array( $profile['primary_menu_locations'] ?? null )
             ? $profile['primary_menu_locations']
             : [ 'primary', 'header' ];
@@ -2514,7 +2514,7 @@ final class WebsiteRenderer {
         if ( $raw === '' ) {
             return '';
         }
-        return LayoutProfileService::sanitizeWebsiteProfile( $raw );
+        return LayoutProfileService::sanitizeWBProfile( $raw );
     }
 
     private static function emitPreviewNoCacheHeaders(): void {

@@ -470,7 +470,10 @@
         slugManuallyEdited: false,
         loadingProperties: false,
         contentTouched: false,
-        sectionsTouched: false
+        sectionsTouched: false,
+        canEdit: s(boot.getAttribute('data-editor-can-edit') || '1') !== '0',
+        canPublish: s(boot.getAttribute('data-editor-can-publish') || '1') !== '0',
+        canCreate: s(boot.getAttribute('data-editor-can-create') || '1') !== '0'
     };
 
     var initialEntity = j(s(boot.getAttribute('data-editor-initial-entity') || ''), null);
@@ -507,8 +510,9 @@
     }
 
     function isCmsContext() { return state.context === 'cms' || state.context === 'cms_page' || state.context === 'cms_post'; }
-    function isPageContext() { return state.context === 'website' || state.context === 'cms' || state.context === 'cms_page'; }
-    function isPostContext() { return state.context === 'post' || state.context === 'cms_post'; }
+    function isPageContext() { return state.context === 'website' || state.context === 'website_page' || state.context === 'cms' || state.context === 'cms_page'; }
+    function isPostContext() { return state.context === 'post' || state.context === 'website_post' || state.context === 'cms_post'; }
+    function isManagedContentContext() { return isPageContext() || isPostContext(); }
     function isTemplateContext() { return state.context === 'template'; }
     function isNewsletterContext() { return state.context.indexOf('newsletter') === 0; }
     function isNewEntityRoute() { return !state.key && (!state.id || state.id < 1); }
@@ -734,6 +738,7 @@
             return 'cms_post';
         }
         if (
+            state.context === 'website_post' ||
             p.indexOf('/website/posts/editor/') !== -1 ||
             p.indexOf('/editor/post/') !== -1 ||
             state.context === 'post'
@@ -744,6 +749,7 @@
             return 'cms_page';
         }
         if (
+            state.context === 'website_page' ||
             p.indexOf('/website/pages/editor/') !== -1 ||
             p.indexOf('/editor/page/') !== -1 ||
             state.context === 'website'
@@ -2052,8 +2058,8 @@
     }
 
     function bootStructuredEditorV2() {
-        var PAGE_SECTION_TYPES = ['text', 'columns', 'feature_grid', 'cta', 'events', 'spacer', 'posts_list'];
-        var POST_SECTION_TYPES = ['text', 'transcript'];
+        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'spacer', 'posts_list'];
+        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript'];
         var HERO_STYLES = ['split', 'centered', 'overlay'];
 
         state.sections = [];
@@ -2067,6 +2073,10 @@
             primary_cta_link: '',
             media_url: ''
         };
+        state.revisions = [];
+        state.reusableBlocks = [];
+        state.recoveryAvailable = false;
+        state.recoveryKey = '';
 
         function formatLastEditValue(value) {
             var raw = s(value).trim();
@@ -2269,10 +2279,32 @@
 
         function sectionTypeLabel(type) {
             if (type === 'feature_grid') return 'Feature Grid';
+            if (type === 'card_grid') return 'Card Grid';
             if (type === 'posts_list') return 'Posts List';
             if (type === 'transcript') return 'Transcript';
+            if (type === 'html') return 'Embed / HTML';
             if (type === 'cta') return 'CTA';
             return s(type || 'text').replace('_', ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); });
+        }
+
+        function sectionDescription(type) {
+            var map = {
+                heading: 'Page heading or section title',
+                text: 'Rich text content',
+                image: 'Single responsive image',
+                button: 'Link button',
+                columns: 'Two to four text columns',
+                hero: 'Lead panel with media and CTA',
+                feature_grid: 'Icon feature cards',
+                card_grid: 'Simple card grid',
+                html: 'Sanitized embed or HTML',
+                cta: 'Call-to-action panel',
+                events: 'Events listing',
+                spacer: 'Vertical spacing',
+                posts_list: 'Post listing',
+                transcript: 'Speaker transcript'
+            };
+            return map[s(type || '')] || 'Content block';
         }
 
         function availableSectionTypes() {
@@ -2328,8 +2360,14 @@
                 content: {}
             };
             if (t === 'transcript') base.content = { source: '', rows: [] };
+            else if (t === 'heading') base.content = { text: 'Heading', level: 'h2' };
+            else if (t === 'image') base.content = { src: '', alt: '', caption: '' };
+            else if (t === 'button') base.content = { label: 'Learn more', url: '#', align: 'left' };
+            else if (t === 'hero') base.content = { title: 'Hero Title', subtitle: '', cta_label: 'Learn More', cta_url: '#', image_src: '' };
+            else if (t === 'html') base.content = { html: '<div></div>' };
             else if (t === 'columns') base.content = { columns: [{ width: '50%', body: '<p></p>' }, { width: '50%', body: '<p></p>' }] };
             else if (t === 'feature_grid') base.content = { columns: 3, items: [{ icon: '', title: 'Feature', text: '', cta: { label: '', url: '#' } }] };
+            else if (t === 'card_grid') base.content = { columns: 3, items: [{ icon: '', title: 'Card', text: '', cta: { label: '', url: '#' } }] };
             else if (t === 'cta') base.content = { layout: 'single', items: [{ title: 'Call to Action', text: '', button: { label: 'Learn More', url: '#' } }] };
             else if (t === 'events') base.content = { source: 'calendar', limit: 5 };
             else if (t === 'spacer') base.content = { height: 'medium' };
@@ -2426,11 +2464,33 @@
             var src = section && typeof section === 'object' ? section : {};
             var out = defaultSectionByType(s(src.type || 'text'));
             out.id = s(src.id || ('section_' + idx)) || ('section_' + idx);
+            out.order = parseInt(s(src.order || idx), 10) || idx;
+            out.metadata = src.metadata && typeof src.metadata === 'object' ? src.metadata : {};
             out.header = s(src.header || '').trim() || null;
             out.subtext = s(src.subtext || '').trim() || null;
             var content = src.content && typeof src.content === 'object' ? src.content : {};
-            if (out.type === 'text') {
+            if (out.type === 'heading') {
+                var lvl = s(content.level || 'h2').toLowerCase();
+                out.content.level = ['h1', 'h2', 'h3', 'h4'].indexOf(lvl) === -1 ? 'h2' : lvl;
+                out.content.text = s(content.text || src.header || 'Heading');
+            } else if (out.type === 'text') {
                 out.content.body = s(content.body || '<p></p>') || '<p></p>';
+            } else if (out.type === 'image') {
+                out.content.src = s(content.src || '');
+                out.content.alt = s(content.alt || '');
+                out.content.caption = s(content.caption || '');
+            } else if (out.type === 'button') {
+                out.content.label = s(content.label || 'Learn more');
+                out.content.url = s(content.url || '#') || '#';
+                out.content.align = ['left', 'center', 'right'].indexOf(s(content.align || 'left')) === -1 ? 'left' : s(content.align || 'left');
+            } else if (out.type === 'hero') {
+                out.content.title = s(content.title || 'Hero Title');
+                out.content.subtitle = s(content.subtitle || '');
+                out.content.cta_label = s(content.cta_label || 'Learn More');
+                out.content.cta_url = s(content.cta_url || '#') || '#';
+                out.content.image_src = s(content.image_src || '');
+            } else if (out.type === 'html') {
+                out.content.html = s(content.html || '');
             } else if (out.type === 'transcript') {
                 out.content.rows = normalizeTranscriptRows(content.rows);
                 out.content.source = sanitizeTranscriptSource(content.source || '');
@@ -2445,7 +2505,7 @@
                     cols.push({ width: widths[count - 1], body: s(row.body || '<p></p>') || '<p></p>' });
                 }
                 out.content.columns = cols;
-            } else if (out.type === 'feature_grid') {
+            } else if (out.type === 'feature_grid' || out.type === 'card_grid') {
                 var fgCols = parseInt(s(content.columns || '3'), 10) || 3;
                 if (fgCols < 2) fgCols = 2;
                 if (fgCols > 4) fgCols = 4;
@@ -2460,7 +2520,7 @@
                         cta: { label: s(cta.label || ''), url: s(cta.url || '#') || '#' }
                     };
                 }).filter(function (_row, i) { return i < 16; });
-                if (!out.content.items.length) out.content.items = [{ icon: '', title: 'Feature', text: '', cta: { label: '', url: '#' } }];
+                if (!out.content.items.length) out.content.items = [{ icon: '', title: out.type === 'card_grid' ? 'Card' : 'Feature', text: '', cta: { label: '', url: '#' } }];
             } else if (out.type === 'cta') {
                 var layout = s(content.layout || 'single');
                 if (layout !== 'split') layout = 'single';
@@ -2644,6 +2704,11 @@
         function layoutJsonFromState() {
             var pageType = currentPageType();
             var sections = normalizeSections(state.sections, isPostContext());
+            sections.forEach(function (section, index) {
+                section.order = index;
+                section.metadata = section.metadata && typeof section.metadata === 'object' ? section.metadata : {};
+                section.metadata.updated_at = (new Date()).toISOString();
+            });
             var hero = normalizeHeroState(state.hero, pageType === 'homepage' && isPageContext());
             var templateKey = selectedTemplateKey(pageType);
             state.sections = sections;
@@ -2653,6 +2718,7 @@
                 editor_meta: {
                     builder: 'structured_v1',
                     saved_at: (new Date()).toISOString(),
+                    block_count: sections.length,
                     structured_builder: {
                         version: 1,
                         page_type: pageType,
@@ -2671,13 +2737,17 @@
             if (!list) return;
             var html = '';
             state.sections.forEach(function (sec, i) {
-                html += '<div class="metis-se-section-item" data-index="' + i + '">' +
+                html += '<div class="metis-se-section-item metis-content-block-card' + (i === state.activeSection ? ' is-selected' : '') + '" data-index="' + i + '">' +
                     '<div class="metis-se-section-row">' +
-                        '<div class="metis-se-meta-value">' + esc((i + 1) + '. ' + sectionTypeLabel(sec.type) + ' - ' + sectionSummary(sec)) + '</div>' +
-                        '<div>' +
+                        '<button type="button" class="metis-content-block-main" data-v2-list-act="edit">' +
+                            '<span class="metis-content-block-index">' + esc(String(i + 1)) + '</span>' +
+                            '<span><strong>' + esc(sectionSummary(sec)) + '</strong><small>' + esc(sectionTypeLabel(sec.type)) + ' · ' + esc(sectionDescription(sec.type)) + '</small></span>' +
+                        '</button>' +
+                        '<div class="metis-content-block-actions">' +
                             '<button type="button" class="metis-se-nav-btn" data-v2-list-act="edit">Edit</button> ' +
                             '<button type="button" class="metis-se-nav-btn" data-v2-list-act="up">&uarr;</button> ' +
                             '<button type="button" class="metis-se-nav-btn" data-v2-list-act="down">&darr;</button> ' +
+                            '<button type="button" class="metis-se-nav-btn" data-v2-list-act="duplicate">Duplicate</button> ' +
                             '<button type="button" class="metis-se-nav-btn" data-v2-list-act="delete">Delete</button>' +
                         '</div>' +
                     '</div>' +
@@ -2696,8 +2766,27 @@
             if (!host) return;
             var sec = activeSection();
             var html = '';
-            if (sec.type === 'text') {
+            if (sec.type === 'heading') {
+                html += '<div class="metis-se-field-row"><label>Heading Level</label><select id="metis-v2-heading-level" class="metis-se-select"><option value="h1"' + (sec.content.level === 'h1' ? ' selected' : '') + '>H1</option><option value="h2"' + (sec.content.level === 'h2' ? ' selected' : '') + '>H2</option><option value="h3"' + (sec.content.level === 'h3' ? ' selected' : '') + '>H3</option><option value="h4"' + (sec.content.level === 'h4' ? ' selected' : '') + '>H4</option></select></div>';
+                html += '<div class="metis-se-field-row"><label>Text</label><input id="metis-v2-heading-text" class="metis-se-input" value="' + esc(s(sec.content.text || '')) + '"></div>';
+            } else if (sec.type === 'text') {
                 html += '<div class="metis-se-editor-pane">' + richToolbarV2('metis-v2-rich-text') + '<div id="metis-v2-rich-text" class="metis-se-rich-editor" contenteditable="true" data-v2-rich="text_body">' + s(sec.content.body || '<p></p>') + '</div></div>';
+            } else if (sec.type === 'image') {
+                html += '<div class="metis-se-field-row"><label>Image URL</label><input id="metis-v2-image-src" class="metis-se-input" value="' + esc(s(sec.content.src || '')) + '" placeholder="https://"></div>';
+                html += '<div class="metis-se-field-row"><label>Alt Text</label><input id="metis-v2-image-alt" class="metis-se-input" value="' + esc(s(sec.content.alt || '')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Caption</label><input id="metis-v2-image-caption" class="metis-se-input" value="' + esc(s(sec.content.caption || '')) + '"></div>';
+            } else if (sec.type === 'button') {
+                html += '<div class="metis-se-field-row"><label>Label</label><input id="metis-v2-button-label" class="metis-se-input" value="' + esc(s(sec.content.label || '')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>URL</label><input id="metis-v2-button-url" class="metis-se-input" value="' + esc(s(sec.content.url || '#')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Alignment</label><select id="metis-v2-button-align" class="metis-se-select"><option value="left"' + (sec.content.align === 'left' ? ' selected' : '') + '>Left</option><option value="center"' + (sec.content.align === 'center' ? ' selected' : '') + '>Center</option><option value="right"' + (sec.content.align === 'right' ? ' selected' : '') + '>Right</option></select></div>';
+            } else if (sec.type === 'hero') {
+                html += '<div class="metis-se-field-row"><label>Title</label><input id="metis-v2-block-hero-title" class="metis-se-input" value="' + esc(s(sec.content.title || '')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Subtitle</label><textarea id="metis-v2-block-hero-subtitle" class="metis-se-textarea" rows="3">' + esc(s(sec.content.subtitle || '')) + '</textarea></div>';
+                html += '<div class="metis-se-field-row"><label>CTA Label</label><input id="metis-v2-block-hero-cta-label" class="metis-se-input" value="' + esc(s(sec.content.cta_label || '')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>CTA URL</label><input id="metis-v2-block-hero-cta-url" class="metis-se-input" value="' + esc(s(sec.content.cta_url || '#')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Image URL</label><input id="metis-v2-block-hero-image" class="metis-se-input" value="' + esc(s(sec.content.image_src || '')) + '"></div>';
+            } else if (sec.type === 'html') {
+                html += '<div class="metis-se-field-row"><label>HTML</label><textarea id="metis-v2-html-code" class="metis-se-textarea metis-content-code-field" rows="14" spellcheck="false">' + esc(s(sec.content.html || '')) + '</textarea><div class="metis-se-field-help">Saved HTML is sanitized server-side before rendering.</div></div>';
             } else if (sec.type === 'transcript') {
                 var transcriptRows = Array.isArray(sec.content.rows) ? sec.content.rows.length : 0;
                 html += '<div class="metis-se-field-row"><label>Paste Transcript</label><textarea id="metis-v2-transcript-source" class="metis-se-textarea" rows="18" placeholder="MEG: Welcome everyone.\nELAINE: Thank you for having me.\n(Music fades)\nMEG: Let&#39;s get started.">' + esc(s(sec.content.source || '')) + '</textarea><div class="metis-se-field-help">Use one speaker per line in the format <code>SPEAKER: message</code>. Standalone lines in parentheses render as centered system messages.</div><div class="metis-se-meta-value">Parsed entries: ' + esc(String(transcriptRows)) + '</div></div>';
@@ -2714,7 +2803,7 @@
                 columns.forEach(function (col, i) {
                     html += sectionCardItemPrefix('Column', i) + richToolbarV2('metis-v2-rich-col-' + i) + '<div id="metis-v2-rich-col-' + i + '" class="metis-se-rich-editor" contenteditable="true" data-v2-rich="col_body" data-col-idx="' + i + '">' + s(col.body || '<p></p>') + '</div></div></div></div>';
                 });
-            } else if (sec.type === 'feature_grid') {
+            } else if (sec.type === 'feature_grid' || sec.type === 'card_grid') {
                 var items = Array.isArray(sec.content.items) ? sec.content.items : [];
                 var fgCols = parseInt(s(sec.content.columns || '3'), 10) || 3;
                 html += '<div class="metis-se-field-row"><label>Columns</label><select id="metis-v2-feature-cols" class="metis-se-select">' +
@@ -2816,10 +2905,138 @@
         }
 
         function setDirtyAutosave() {
+            if (!state.canEdit && !(state.id < 1 && state.canCreate)) return;
             state.dirty = true;
+            saveRecoveryDraft();
             setStatus('Unsaved changes', 'saving');
             if (state.autosaveTimer) window.clearTimeout(state.autosaveTimer);
             state.autosaveTimer = window.setTimeout(function () { saveEntity(true); }, 1400);
+        }
+
+        function recoveryKey() {
+            if (state.recoveryKey) return state.recoveryKey;
+            state.recoveryKey = 'metis.' + contentModuleSlug() + '.editor.recovery.' + (isPostContext() ? 'post' : 'page') + '.' + (state.key || state.id || 'new');
+            return state.recoveryKey;
+        }
+
+        function saveRecoveryDraft() {
+            if (!isManagedContentContext() || !window.localStorage) return;
+            var titleEl = document.getElementById('metis-v2-title');
+            var slugEl = document.getElementById('metis-v2-slug');
+            try {
+                window.localStorage.setItem(recoveryKey(), JSON.stringify({
+                    saved_at: Date.now(),
+                    title: s(titleEl && titleEl.value || ''),
+                    slug: s(slugEl && slugEl.value || ''),
+                    layout_json: layoutJsonFromState()
+                }));
+            } catch (_err) {}
+        }
+
+        function clearRecoveryDraft() {
+            if (!isManagedContentContext() || !window.localStorage) return;
+            try { window.localStorage.removeItem(recoveryKey()); } catch (_err) {}
+            state.recoveryAvailable = false;
+        }
+
+        function checkRecoveryDraft() {
+            if (!isManagedContentContext() || !window.localStorage) return;
+            var raw = '';
+            try { raw = window.localStorage.getItem(recoveryKey()) || ''; } catch (_err) { raw = ''; }
+            var draft = raw ? j(raw, null) : null;
+            if (!draft || !draft.layout_json) return;
+            var savedAt = parseInt(s(draft.saved_at || '0'), 10) || 0;
+            if (savedAt < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+                clearRecoveryDraft();
+                return;
+            }
+            state.recoveryAvailable = true;
+            renderRecoveryBanner(draft);
+        }
+
+        function renderRecoveryBanner(draft) {
+            var host = document.getElementById('metis-v2-recovery');
+            if (!host) return;
+            var label = draft && draft.saved_at ? (new Date(draft.saved_at)).toLocaleString() : 'recently';
+            host.innerHTML = '<div class="metis-content-recovery"><span>Recovered local draft from ' + esc(label) + '.</span><button type="button" class="metis-se-nav-btn" id="metis-v2-recover-draft">Restore</button><button type="button" class="metis-se-nav-btn" id="metis-v2-discard-recovery">Discard</button></div>';
+        }
+
+        function restoreRecoveryDraft() {
+            if (!window.localStorage) return;
+            var draft = j(window.localStorage.getItem(recoveryKey()) || '', null);
+            if (!draft || !draft.layout_json) return;
+            var layoutModel = layoutModelFromLayout(draft.layout_json, isPostContext());
+            state.sections = normalizeSections(layoutModel.sections, isPostContext());
+            state.hero = normalizeHeroState(layoutModel.hero, layoutModel.page_type === 'homepage' && isPageContext());
+            var titleEl = document.getElementById('metis-v2-title');
+            var slugEl = document.getElementById('metis-v2-slug');
+            if (titleEl && draft.title) titleEl.value = s(draft.title);
+            if (slugEl && draft.slug) slugEl.value = s(draft.slug);
+            state.activeSection = 0;
+            renderSectionList();
+            syncStepUi();
+            setStatus('Recovered local draft', 'saving');
+        }
+
+        function loadRevisionList() {
+            if (!isManagedContentContext() || !(state.id > 0 || state.key)) return Promise.resolve();
+            return request(contentAction('editor_revisions_list'), {
+                context: isPostContext() ? 'post' : 'page',
+                id: state.id || 0,
+                key: state.key || '',
+                limit: 12
+            }).then(function (resp) {
+                state.revisions = Array.isArray(resp.revisions) ? resp.revisions : [];
+                renderRevisionList();
+            }).catch(function () {});
+        }
+
+        function renderRevisionList() {
+            var host = document.getElementById('metis-v2-revisions');
+            if (!host) return;
+            if (!state.revisions || !state.revisions.length) {
+                host.innerHTML = '<div class="metis-se-meta-value">No revisions yet.</div>';
+                return;
+            }
+            host.innerHTML = state.revisions.map(function (row) {
+                return '<div class="metis-content-revision-row"><span>' + esc(s(row.note || 'Revision')) + '<small>' + esc(s(row.created_at || '')) + '</small></span><button type="button" class="metis-se-nav-btn" data-restore-revision="' + esc(s(row.id || '0')) + '">Restore</button></div>';
+            }).join('');
+        }
+
+        function loadReusableBlocks() {
+            if (!isManagedContentContext()) return Promise.resolve();
+            return request(contentAction('reusable_blocks_list'), {
+                context: isPostContext() ? 'post' : (isCmsContext() ? 'cms' : 'website')
+            }).then(function (resp) {
+                state.reusableBlocks = Array.isArray(resp.items) ? resp.items : [];
+                renderReusableBlocks();
+            }).catch(function () {});
+        }
+
+        function renderReusableBlocks() {
+            var host = document.getElementById('metis-v2-reusable-blocks');
+            if (!host) return;
+            if (!state.reusableBlocks || !state.reusableBlocks.length) {
+                host.innerHTML = '<div class="metis-se-meta-value">No reusable blocks saved.</div>';
+                return;
+            }
+            host.innerHTML = state.reusableBlocks.slice(0, 12).map(function (row) {
+                return '<button type="button" class="metis-content-library-item" data-insert-reusable="' + esc(s(row.block_code || '')) + '"><strong>' + esc(s(row.name || 'Reusable block')) + '</strong><small>' + esc(sectionTypeLabel(s(row.type || 'text'))) + '</small></button>';
+            }).join('');
+        }
+
+        function sectionToReusableBlock(section) {
+            var sec = section && typeof section === 'object' ? section : defaultSectionByType('text');
+            var type = s(sec.type || 'text');
+            var data = {};
+            if (type === 'heading') data = { content: s(sec.content && sec.content.text || 'Heading'), level: s(sec.content && sec.content.level || 'h2') };
+            else if (type === 'text') data = { content: s(sec.content && sec.content.body || '<p></p>'), tag: 'div' };
+            else if (type === 'image') data = { src: s(sec.content && sec.content.src || ''), alt: s(sec.content && sec.content.alt || '') };
+            else if (type === 'button') data = { label: s(sec.content && sec.content.label || 'Learn more'), url: s(sec.content && sec.content.url || '#') };
+            else if (type === 'hero') data = Object.assign({}, sec.content || {});
+            else if (type === 'html') data = { content: s(sec.content && sec.content.html || ''), tag: 'div' };
+            else data = Object.assign({}, sec.content || {});
+            return { type: type === 'card_grid' ? 'grid' : type, data: data, style: {} };
         }
 
         function renderFeaturedImageField() {
@@ -3041,6 +3258,10 @@
         }
 
         function saveEntity(autosave) {
+            if (!state.canEdit && !(state.id < 1 && state.canCreate)) {
+                setStatus('You do not have permission to save this item.', 'error');
+                return;
+            }
             if (state.saving) return;
             var titleEl = document.getElementById('metis-v2-title');
             var slugEl = document.getElementById('metis-v2-slug');
@@ -3068,6 +3289,9 @@
             };
             var publishedAt = s(publishedEl && publishedEl.value || '').trim();
             if (publishedAt) publishedAt = publishedAt.replace('T', ' ') + ':00';
+            if ((payload.status === 'published' || payload.status === 'scheduled') && !state.canPublish) {
+                payload.status = 'draft';
+            }
             if (payload.status === 'scheduled' && publishedAt) {
                 payload.published_date = publishedAt;
                 payload.schedule_at = publishedAt;
@@ -3108,6 +3332,8 @@
                 applyInputsFromEntity(entity);
                 setStatus('Saved at ' + (new Date()).toLocaleTimeString(), 'ok');
                 state.dirty = false;
+                clearRecoveryDraft();
+                loadRevisionList();
             }).catch(function (err) {
                 setStatus('Save failed: ' + s(err && err.message || 'Request failed.'), 'error');
             }).finally(function () {
@@ -3131,14 +3357,14 @@
                     '<div class="metis-se-topbar">' +
                         '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(isPostContext() ? (appBasePath() + '/admin/' + contentModuleSlug() + '/posts/') : (appBasePath() + '/admin/' + contentModuleSlug() + '/pages/')) + '">&larr; ' + esc(isPostContext() ? 'Back to Posts' : 'Back to Pages') + '</a></div>' +
                         '<div class="metis-se-top-center"><div id="metis-se-top-title" class="metis-se-top-title">' + esc(title) + '</div></div>' +
-                        '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button id="metis-v2-prev" type="button" class="metis-se-nav-btn">Previous Step</button><button id="metis-v2-next" type="button" class="metis-se-nav-btn">Next Step</button></div>' +
+                        '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button id="metis-v2-prev" type="button" class="metis-se-nav-btn">Previous Step</button>' + (state.canEdit || state.canCreate ? '<button id="metis-v2-next" type="button" class="metis-se-nav-btn">Next Step</button>' : '') + '</div>' +
                     '</div>' +
                     '<div class="metis-se-stage-wrap">' +
                         '<section class="metis-se-stage" data-v2-step="1">' +
                             '<h2 class="metis-se-stage-title">Properties</h2>' +
                             '<div class="metis-se-card"><div class="metis-se-field-grid">' +
                                 '<div class="metis-se-field-row"><label for="metis-v2-title">Title</label><input id="metis-v2-title" class="metis-se-input" type="text" placeholder="Title"></div>' +
-                                '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled</option></select></div>' +
+                                '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option>' + (state.canPublish ? '<option value="published">Published</option><option value="scheduled">Scheduled</option>' : '') + '</select></div>' +
                                 '<div class="metis-se-field-row"><label for="metis-v2-slug">URL Path</label><input id="metis-v2-slug" class="metis-se-input" type="text" placeholder="' + (isPostContext() ? 'post-slug-title' : 'page-slug') + '">' + (isPostContext() ? '<div class="metis-se-field-help">Public path uses the primary category, optional child category, and original publish year automatically.</div><div id="metis-v2-post-path-preview" class="metis-se-meta-value metis-se-path-preview">Select a primary category to generate the public path.</div>' : '') + '</div>' +
                                 '<div class="metis-se-field-row"><label>' + esc(contentLabel()) + ' Template</label><div id="metis-v2-template-display" class="metis-se-meta-value">Loading active template…</div></div>' +
                                 (isPageContext() ? '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' : '') +
@@ -3152,12 +3378,17 @@
                                 '<div class="metis-se-field-row"><label for="metis-v2-published-date">Published Date</label><input id="metis-v2-published-date" class="metis-se-input" type="datetime-local"></div>' +
                                 (isPageContext() ? '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-homepage"><input id="metis-v2-homepage" type="checkbox"> Set as homepage</label></div>' : '') +
                             '</div></div>' +
-                            '<div class="metis-se-step-divider"></div><div class="metis-se-sections-panel metis-se-sections-panel-full"><div class="metis-se-sections-head">Sections</div><p class="metis-se-sections-copy">' + (isPostContext() ? 'Build the post with intro text, transcript, and outro sections.' : 'Add, reorder (up/down), or delete sections.') + '</p><div class="metis-se-field-row"><label for="metis-v2-new-section-type">Add Section</label><div><select id="metis-v2-new-section-type" class="metis-se-select">' + availableSectionTypes().map(function (type) { return '<option value="' + esc(type) + '">' + esc(sectionTypeLabel(type)) + '</option>'; }).join('') + '</select> <button type="button" id="metis-v2-add-section" class="metis-se-nav-btn">Add</button></div></div><div id="metis-v2-section-list" class="metis-se-section-list"></div></div>' +
+                            '<div id="metis-v2-recovery"></div>' +
+                            '<div class="metis-se-step-divider"></div><div class="metis-se-sections-panel metis-se-sections-panel-full metis-content-canvas-shell"><div class="metis-se-sections-head">Canvas</div><div class="metis-content-editor-grid">' +
+                                '<aside class="metis-content-library"><div class="metis-content-panel-title">Block Library</div><div class="metis-content-library-list">' + (state.canEdit || state.canCreate ? availableSectionTypes().map(function (type) { return '<button type="button" class="metis-content-library-item" data-add-block-type="' + esc(type) + '"><strong>' + esc(sectionTypeLabel(type)) + '</strong><small>' + esc(sectionDescription(type)) + '</small></button>'; }).join('') : '<div class="metis-se-meta-value">View only.</div>') + '</div><div class="metis-content-panel-title">Reusable</div><div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div></aside>' +
+                                '<main class="metis-content-canvas"><div id="metis-v2-section-list" class="metis-se-section-list metis-content-block-list"></div></main>' +
+                                '<aside class="metis-content-side-panel"><div class="metis-content-panel-title">Revisions</div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
+                            '</div></div>' +
                         '</section>' +
                         (isPageContext() ? '<section class="metis-se-stage" data-v2-step="2" hidden><h2 class="metis-se-stage-title">Homepage Hero</h2><div id="metis-v2-hero-editor" class="metis-se-builder-stack"></div></section>' : '') +
                         '<section class="metis-se-stage" data-v2-step="' + sectionStep + '" hidden>' +
                             '<h2 class="metis-se-stage-title">' + (isPostContext() ? 'Content Sections' : 'Section Editor') + '</h2>' +
-                            '<div class="metis-se-builder-grid"><aside class="metis-se-builder-left"><div class="metis-se-section-switch"><button id="metis-v2-section-prev" type="button" class="metis-se-nav-btn">&larr;</button><span id="metis-v2-section-label" class="metis-se-active-section-label"></span><button id="metis-v2-section-next" type="button" class="metis-se-nav-btn">&rarr;</button></div><div id="metis-v2-section-settings"></div></aside><div class="metis-se-builder-right metis-se-builder-right--full"><div id="metis-v2-section-content"></div></div></div>' +
+                            '<div class="metis-se-builder-grid metis-content-settings-layout"><aside class="metis-se-builder-left"><div class="metis-se-section-switch"><button id="metis-v2-section-prev" type="button" class="metis-se-nav-btn">&larr;</button><span id="metis-v2-section-label" class="metis-se-active-section-label"></span><button id="metis-v2-section-next" type="button" class="metis-se-nav-btn">&rarr;</button></div><div id="metis-v2-section-settings"></div>' + (state.canEdit ? '<button type="button" id="metis-v2-save-reusable" class="metis-se-nav-btn">Save as Reusable</button>' : '') + '</aside><div class="metis-se-builder-right metis-se-builder-right--full"><div id="metis-v2-section-content"></div></div></div>' +
                         '</section>' +
                         '<section class="metis-se-stage" data-v2-step="' + previewStep + '" hidden><h2 class="metis-se-stage-title">Preview</h2><div id="metis-v2-preview" class="metis-se-preview"></div></section>' +
                     '</div>' +
@@ -3319,12 +3550,18 @@
                     applyInputsFromEntity(entity || {});
                     renderSectionList();
                     syncStepUi();
+                    checkRecoveryDraft();
+                    loadRevisionList();
+                    loadReusableBlocks();
                     setStatus('Loaded', 'ok');
                     setEditorLoading(false);
                 }).catch(function () {
                     applyInputsFromEntity(entity || {});
                     renderSectionList();
                     syncStepUi();
+                    checkRecoveryDraft();
+                    loadRevisionList();
+                    loadReusableBlocks();
                     setEditorLoading(false);
                 });
             }).catch(function (err) {
@@ -3343,6 +3580,94 @@
                 syncStepUi();
             });
             root.addEventListener('click', function (e) {
+                var addBlockType = e.target.closest('[data-add-block-type]');
+                if (addBlockType) {
+                    state.sections.push(defaultSectionByType(s(addBlockType.getAttribute('data-add-block-type') || 'text')));
+                    state.activeSection = state.sections.length - 1;
+                    renderSectionList();
+                    syncStepUi();
+                    setDirtyAutosave();
+                    return;
+                }
+                var recoverDraft = e.target.closest('#metis-v2-recover-draft');
+                if (recoverDraft) {
+                    restoreRecoveryDraft();
+                    return;
+                }
+                var discardRecovery = e.target.closest('#metis-v2-discard-recovery');
+                if (discardRecovery) {
+                    clearRecoveryDraft();
+                    var recoveryHost = document.getElementById('metis-v2-recovery');
+                    if (recoveryHost) recoveryHost.innerHTML = '';
+                    return;
+                }
+                var restoreRevision = e.target.closest('[data-restore-revision]');
+                if (restoreRevision) {
+                    var revisionId = parseInt(s(restoreRevision.getAttribute('data-restore-revision') || '0'), 10) || 0;
+                    if (revisionId > 0) {
+                        request(contentAction('editor_revision_restore'), {
+                            context: isPostContext() ? 'post' : 'page',
+                            id: state.id || 0,
+                            key: state.key || '',
+                            revision_id: revisionId
+                        }).then(function (resp) {
+                            var entity = isPageContext() ? (resp.page || {}) : (resp.post || {});
+                            state.entity = entity;
+                            var raw = isPostContext() ? s(entity.draft_content_json || entity.content_json || '') : s(entity.draft_layout_json || entity.layout_json || '');
+                            var layoutModel = layoutModelFromLayout(raw, isPostContext());
+                            state.sections = normalizeSections(layoutModel.sections, isPostContext());
+                            applyInputsFromEntity(entity);
+                            renderSectionList();
+                            syncStepUi();
+                            setStatus('Revision restored', 'ok');
+                        }).catch(function (err) {
+                            setStatus('Restore failed: ' + s(err && err.message || 'Request failed.'), 'error');
+                        });
+                    }
+                    return;
+                }
+                var insertReusable = e.target.closest('[data-insert-reusable]');
+                if (insertReusable) {
+                    var code = s(insertReusable.getAttribute('data-insert-reusable') || '');
+                    if (code) {
+                        request(contentAction('reusable_block_get'), { block_code: code }).then(function (resp) {
+                            var item = resp.item || {};
+                            var block = item.block && typeof item.block === 'object' ? item.block : {};
+                            var sec = defaultSectionByType(s(block.type || 'text'));
+                            if (block.data && typeof block.data === 'object') {
+                                if (sec.type === 'heading') sec.content = { text: s(block.data.content || block.data.text || 'Heading'), level: s(block.data.level || 'h2') };
+                                else if (sec.type === 'text' || sec.type === 'html') sec.content = sec.type === 'html' ? { html: s(block.data.content || block.data.html || '') } : { body: s(block.data.content || block.data.body || '<p></p>') };
+                                else sec.content = Object.assign({}, sec.content, block.data);
+                            }
+                            state.sections.push(sec);
+                            state.activeSection = state.sections.length - 1;
+                            renderSectionList();
+                            syncStepUi();
+                            setDirtyAutosave();
+                        }).catch(function (err) {
+                            setStatus('Reusable block failed: ' + s(err && err.message || 'Request failed.'), 'error');
+                        });
+                    }
+                    return;
+                }
+                var saveReusable = e.target.closest('#metis-v2-save-reusable');
+                if (saveReusable) {
+                    var reusableSection = activeSection();
+                    var name = sectionSummary(reusableSection);
+                    var block = sectionToReusableBlock(reusableSection);
+                    request(contentAction('reusable_block_save'), {
+                        context: isPostContext() ? 'post' : (isCmsContext() ? 'cms' : 'website'),
+                        name: name,
+                        category: 'custom',
+                        block_json: JSON.stringify(block)
+                    }).then(function () {
+                        setStatus('Reusable block saved', 'ok');
+                        loadReusableBlocks();
+                    }).catch(function (err) {
+                        setStatus('Reusable save failed: ' + s(err && err.message || 'Request failed.'), 'error');
+                    });
+                    return;
+                }
                 var addSectionBtn = e.target.closest('#metis-v2-add-section');
                 if (addSectionBtn) {
                     var typeSel = document.getElementById('metis-v2-new-section-type');
@@ -3379,6 +3704,7 @@
                     if (act === 'edit') { state.activeSection = idx; state.step = sectionEditorStepNumber(); syncStepUi(); return; }
                     if (act === 'up' && idx > 0) { var a = state.sections[idx - 1]; state.sections[idx - 1] = state.sections[idx]; state.sections[idx] = a; if (state.activeSection === idx) state.activeSection = idx - 1; }
                     if (act === 'down' && idx < state.sections.length - 1) { var b = state.sections[idx + 1]; state.sections[idx + 1] = state.sections[idx]; state.sections[idx] = b; if (state.activeSection === idx) state.activeSection = idx + 1; }
+                    if (act === 'duplicate') { var copy = JSON.parse(JSON.stringify(state.sections[idx])); copy.id = uid(); copy.metadata = { created_at: (new Date()).toISOString() }; state.sections.splice(idx + 1, 0, copy); state.activeSection = idx + 1; }
                     if (act === 'delete') { state.sections.splice(idx, 1); if (!state.sections.length) state.sections = [defaultSectionByType('text')]; if (state.activeSection >= state.sections.length) state.activeSection = state.sections.length - 1; }
                     renderSectionList();
                     syncStepUi();
@@ -3565,7 +3891,7 @@
                     var slugEl = document.getElementById('metis-v2-slug');
                     if (slugEl && !state.slugManuallyEdited) slugEl.value = slugifyValue(s(target.value || ''));
                     renderPostPathPreview();
-                    state.dirty = true;
+                    setDirtyAutosave();
                     return;
                 }
                 if (target.id === 'metis-v2-featured-image-caption') {
@@ -3575,12 +3901,12 @@
                 if (target.id === 'metis-v2-slug') {
                     state.slugManuallyEdited = true;
                     renderPostPathPreview();
-                    state.dirty = true;
+                    setDirtyAutosave();
                     return;
                 }
                 if (target.id === 'metis-v2-published-date') {
                     renderPostPathPreview();
-                    state.dirty = true;
+                    setDirtyAutosave();
                     return;
                 }
                 if (target.id === 'metis-v2-hero-headline') { state.hero.headline = s(target.value || '').trim(); setDirtyAutosave(); return; }
@@ -3590,6 +3916,18 @@
                 if (target.id === 'metis-v2-hero-media-url') { state.hero.media_url = s(target.value || '').trim(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-header') { sec.header = s(target.value || '').trim() || null; renderSectionList(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-subtext') { sec.subtext = s(target.value || '').trim() || null; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-heading-text') { sec.content.text = s(target.value || ''); renderSectionList(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-image-src') { sec.content.src = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-image-alt') { sec.content.alt = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-image-caption') { sec.content.caption = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-button-label') { sec.content.label = s(target.value || ''); renderSectionList(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-button-url') { sec.content.url = s(target.value || '#') || '#'; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-block-hero-title') { sec.content.title = s(target.value || ''); renderSectionList(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-block-hero-subtitle') { sec.content.subtitle = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-block-hero-cta-label') { sec.content.cta_label = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-block-hero-cta-url') { sec.content.cta_url = s(target.value || '#') || '#'; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-block-hero-image') { sec.content.image_src = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-html-code') { sec.content.html = s(target.value || ''); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-rich-text') { sec.content.body = target.innerHTML; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-transcript-source') {
                     sec.content.source = sanitizeTranscriptSource(target.value || '');
@@ -3685,13 +4023,15 @@
                     if (isPageContext() && state.step === 2) {
                         renderHeroEditor();
                     }
-                    state.dirty = true;
+                    setDirtyAutosave();
                     return;
                 }
-                if (target.id === 'metis-v2-status') { syncPublishedDateField(); renderPostPathPreview(); state.dirty = true; return; }
-                if (target.id === 'metis-v2-parent-id' || target.id === 'metis-v2-featured-image-id' || target.id === 'metis-v2-published-date' || target.id === 'metis-v2-excerpt') { state.dirty = true; return; }
+                if (target.id === 'metis-v2-status') { syncPublishedDateField(); renderPostPathPreview(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-parent-id' || target.id === 'metis-v2-featured-image-id' || target.id === 'metis-v2-published-date' || target.id === 'metis-v2-excerpt') { setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-enabled') { state.hero.enabled = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-style') { state.hero.style = HERO_STYLES.indexOf(s(target.value || 'split')) !== -1 ? s(target.value || 'split') : 'split'; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-heading-level') { sec.content.level = ['h1', 'h2', 'h3', 'h4'].indexOf(s(target.value || 'h2')) === -1 ? 'h2' : s(target.value || 'h2'); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-button-align') { sec.content.align = ['left', 'center', 'right'].indexOf(s(target.value || 'left')) === -1 ? 'left' : s(target.value || 'left'); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-type') { sec.type = availableSectionTypes().indexOf(s(target.value || 'text')) === -1 ? 'text' : s(target.value); sec.content = defaultSectionByType(sec.type).content; renderSectionList(); renderStep2Editor(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-source') {
                     sec.content.source = s(target.value || 'this_page') === 'specific_page' ? 'specific_page' : 'this_page';

@@ -595,8 +595,8 @@ final class ThemeService {
         if ( $title_format === '' ) {
             $title_format = '{page} | {site}';
         }
-        $site_layout_profile = LayoutProfileService::sanitizeWebsiteProfile(
-            (string) ( $global_settings['site_layout_profile'] ?? LayoutProfileService::defaultWebsiteProfileKey() )
+        $site_layout_profile = LayoutProfileService::sanitizeWBProfile(
+            (string) ( $global_settings['site_layout_profile'] ?? LayoutProfileService::defaultWBProfileKey() )
         );
         $newsletter_layout_profile = LayoutProfileService::sanitizeNewsletterProfile(
             (string) ( $global_settings['newsletter_layout_profile'] ?? LayoutProfileService::defaultNewsletterProfileKey() )

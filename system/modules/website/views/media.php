@@ -2,12 +2,17 @@
 if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
+
+require_once __DIR__ . '/_access.php';
+if ( ! metis_website_require_view_permission( 'media' ) ) {
+    return;
+}
 ?>
 <?php $media_library_url = function_exists( 'metis_portal_url' ) ? metis_portal_url( 'media', 'library' ) : ( function_exists( 'metis_admin_url' ) ? metis_admin_url( 'media/library' ) : '/media/library/' ); ?>
 <div class="metis-page-header">
     <div class="metis-page-header-left">
         <h1 class="metis-page-title">Media</h1>
-        <p class="metis-subtitle">Centralized media management for website content.</p>
+        <p class="metis-subtitle">Centralized media management for Website content.</p>
     </div>
     <div class="metis-page-header-right">
         <a class="metis-btn metis-btn-primary" href="<?php echo metis_escape_url( $media_library_url ); ?>">Open Media Library</a>

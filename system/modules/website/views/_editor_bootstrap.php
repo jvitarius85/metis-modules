@@ -14,6 +14,12 @@ if ( ! function_exists( 'metis_website_editor_required_nonce_actions' ) ) {
             'metis_website_post_save',
             'metis_website_editor_properties_options',
             'metis_website_editor_media_upload',
+            'metis_website_editor_lock',
+            'metis_website_editor_revisions_list',
+            'metis_website_editor_revision_restore',
+            'metis_website_reusable_blocks_list',
+            'metis_website_reusable_block_get',
+            'metis_website_reusable_block_save',
         ];
 
         if ( $include_preview ) {
@@ -108,6 +114,9 @@ if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
             'editor_theme_css' => '#metis-simple-editor-root{' . implode( '', $theme_css_lines ) . '}',
             'simple_editor_css' => $simple_editor_css,
             'simple_editor_js' => $simple_editor_js,
+            'can_edit' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.edit' ) : false,
+            'can_publish' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.publish' ) : false,
+            'can_create' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.create' ) : false,
         ];
     }
 }
@@ -130,6 +139,9 @@ if ( ! function_exists( 'metis_website_render_editor_bootstrap' ) ) {
             data-editor-kind="<?php echo metis_escape_attr( (string) ( $args['editor_kind'] ?? '' ) ); ?>"
             data-editor-page-id="<?php echo metis_escape_attr( (string) ( $args['editor_page_id'] ?? 0 ) ); ?>"
             data-editor-post-id="<?php echo metis_escape_attr( (string) ( $args['editor_post_id'] ?? 0 ) ); ?>"
+            data-editor-can-edit="<?php echo ! empty( $payload['can_edit'] ) ? '1' : '0'; ?>"
+            data-editor-can-publish="<?php echo ! empty( $payload['can_publish'] ) ? '1' : '0'; ?>"
+            data-editor-can-create="<?php echo ! empty( $payload['can_create'] ) ? '1' : '0'; ?>"
         ></div>
         <div id="metis-editor-boot-status" class="metis-editor-boot-status">
             <div class="metis-editor-boot-card">

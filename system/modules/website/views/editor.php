@@ -3,6 +3,11 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_website_require_view_permission( 'editor' ) ) {
+    return;
+}
+
 use Metis\Modules\Website\Services\PageService;
 use Metis\Modules\Website\Services\PostService;
 
@@ -12,8 +17,6 @@ $editor_page_id = (int) metis_get_query_var( 'metis_editor_page_id' );
 $editor_post_id = (int) metis_get_query_var( 'metis_editor_post_id' );
 $editor_key = trim( (string) metis_get_query_var( 'metis_editor_key' ) );
 $editor_new = trim( (string) metis_get_query_var( 'metis_editor_new' ) );
-$editor_context = strtolower( trim( (string) metis_get_query_var( 'metis_editor_context' ) ) );
-$editor_kind = strtolower( trim( (string) metis_get_query_var( 'metis_editor_kind' ) ) );
 $request_path = (string) ( parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH ) ?? '' );
 $portal_slug = function_exists( 'metis_portal_slug' ) ? trim( (string) metis_portal_slug(), '/' ) : '';
 $portal_base = '';
@@ -33,20 +36,9 @@ if ( $editor_new === '' ) {
 
 $is_template_editor = (
     $editor_new === 'template'
-    || $editor_context === 'template'
     || preg_match( '#/(?:website/)?editor/template/(?:[A-Za-z0-9_-]+)/?$#i', $request_path ) === 1
     || preg_match( '#/(?:website/)?editor/new/template/?$#i', $request_path ) === 1
 );
-$is_newsletter_editor = (
-    in_array( $editor_new, [ 'newsletter_campaign', 'newsletter_template' ], true )
-    || $editor_context === 'newsletter'
-    || strpos( $request_path, '/newsletter/' ) !== false
-);
-
-if ( $is_newsletter_editor ) {
-    require dirname( __DIR__, 2 ) . '/newsletter/views/editor.php';
-    return;
-}
 
 if ( ! headers_sent() && function_exists( 'metis_safe_redirect' ) ) {
     if ( $is_template_editor ) {
@@ -57,21 +49,10 @@ if ( ! headers_sent() && function_exists( 'metis_safe_redirect' ) ) {
         metis_safe_redirect( $template_target );
         exit;
     }
-
-    if ( $is_newsletter_editor ) {
-        $newsletter_kind = ( $editor_new === 'newsletter_template' || $editor_kind === 'template' || strpos( $request_path, '/newsletter/template/' ) !== false )
-            ? 'template'
-            : 'campaign';
-        $newsletter_target = $portal_base . '/website/editor/new/newsletter/' . $newsletter_kind . '/';
-        if ( $editor_key !== '' ) {
-            $newsletter_target = $portal_base . '/website/editor/newsletter/' . $newsletter_kind . '/' . rawurlencode( $editor_key ) . '/';
-        }
-        metis_safe_redirect( $newsletter_target );
-        exit;
-    }
 }
 
-$context = ( $editor_post_id > 0 || $editor_new === 'post' || strtoupper( substr( $editor_key, 0, 3 ) ) === 'WBP' ) ? 'post' : 'website';
+$context = ( $editor_post_id > 0 || $editor_new === 'post' || strtoupper( substr( $editor_key, 0, 4 ) ) === 'WBP' ) ? 'website_post' : 'website_page';
+$editor_kind = '';
 
 $is_editor_route = (
     $editor_page_id > 0
@@ -90,14 +71,14 @@ if ( ! $is_editor_route ) {
 }
 
 $editor_target_id = 0;
-if ( $context === 'post' ) {
+if ( $context === 'website_post' ) {
     if ( $editor_post_id > 0 ) {
         $editor_target_id = $editor_post_id;
     } elseif ( $editor_key !== '' && class_exists( PostService::class ) ) {
         $post = PostService::getByCode( $editor_key );
         $editor_target_id = $post !== null ? (int) ( $post->id ?? 0 ) : 0;
     }
-} elseif ( $context === 'website' ) {
+} elseif ( $context === 'website_page' ) {
     if ( $editor_page_id > 0 ) {
         $editor_target_id = $editor_page_id;
     } elseif ( $editor_key !== '' && class_exists( PageService::class ) ) {

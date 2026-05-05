@@ -48,7 +48,7 @@ final class LayoutProfileService {
         ];
     }
 
-    public static function defaultWebsiteProfileKey(): string {
+    public static function defaultWBProfileKey(): string {
         return TemplateService::getActiveTemplateSlug();
     }
 
@@ -56,9 +56,9 @@ final class LayoutProfileService {
         return 'newsletter_standard';
     }
 
-    public static function sanitizeWebsiteProfile( string $key ): string {
+    public static function sanitizeWBProfile( string $key ): string {
         $candidate = metis_key_clean( $key );
-        return array_key_exists( $candidate, self::websiteProfiles() ) ? $candidate : self::defaultWebsiteProfileKey();
+        return array_key_exists( $candidate, self::websiteProfiles() ) ? $candidate : self::defaultWBProfileKey();
     }
 
     public static function sanitizeNewsletterProfile( string $key ): string {
@@ -69,9 +69,9 @@ final class LayoutProfileService {
     /**
      * @return array<string,mixed>
      */
-    public static function resolveWebsiteProfile( string $key ): array {
+    public static function resolveWBProfile( string $key ): array {
         $profiles = self::websiteProfiles();
-        $resolved = self::sanitizeWebsiteProfile( $key );
+        $resolved = self::sanitizeWBProfile( $key );
         if ( isset( $profiles[ $resolved ] ) ) {
             return $profiles[ $resolved ];
         }

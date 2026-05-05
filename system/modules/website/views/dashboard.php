@@ -3,109 +3,244 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_website_require_view_permission( 'dashboard' ) ) {
+    return;
+}
+
 use Metis\Modules\Website\Services\PageService;
 use Metis\Modules\Website\Services\PostService;
+use Metis\Modules\Website\Services\WebsiteReadinessService;
 
-$total_pages = PageService::countAll();
-$pub_pages   = PageService::countAll( [ 'status' => 'published' ] );
-$draft_pages = max( 0, $total_pages - $pub_pages );
-$recent_pages = PageService::getAll( [ 'limit' => 3, 'offset' => 0 ] );
+$total_pages  = PageService::countAll();
+$pub_pages    = PageService::countAll( [ 'status' => 'published' ] );
+$draft_pages  = max( 0, $total_pages - $pub_pages );
+$recent_pages = PageService::getAll( [ 'limit' => 4, 'offset' => 0 ] );
 
-$total_posts = PostService::countAll();
-$pub_posts   = PostService::countAll( [ 'status' => 'published' ] );
-$draft_posts = max( 0, $total_posts - $pub_posts );
-$recent_posts = PostService::getAll( [ 'limit' => 3, 'offset' => 0 ] );
+$total_posts  = PostService::countAll();
+$pub_posts    = PostService::countAll( [ 'status' => 'published' ] );
+$draft_posts  = max( 0, $total_posts - $pub_posts );
+$recent_posts = PostService::getAll( [ 'limit' => 4, 'offset' => 0 ] );
 
-$pages_url   = metis_portal_url( 'website', 'pages' );
-$posts_url   = metis_portal_url( 'website', 'posts' );
-$media_url   = metis_portal_url( 'website', 'media' );
-$media_library_url = metis_portal_url( 'media', 'library' );
-$banners_url = metis_portal_url( 'website', 'banners' );
-$menus_url   = metis_portal_url( 'website', 'menus' );
-$theme_url   = metis_portal_url( 'website', 'theme' );
-$import_url  = metis_portal_url( 'website', 'import' );
+$pages_url     = metis_portal_url( 'website', 'pages' );
+$launch_url    = metis_portal_url( 'website', 'launch' );
+$posts_url     = metis_portal_url( 'website', 'posts' );
+$media_url     = metis_portal_url( 'website', 'media' );
+$banners_url   = metis_portal_url( 'website', 'banners' );
+$menus_url     = metis_portal_url( 'website', 'menus' );
+$popups_url    = metis_portal_url( 'website', 'popups' );
+$redirects_url = metis_portal_url( 'website', 'redirects' );
+$templates_url = metis_portal_url( 'website', 'templates' );
+$webparts_url  = metis_portal_url( 'website', 'webparts' );
+$theme_url     = metis_portal_url( 'website', 'theme' );
+$import_url    = metis_portal_url( 'website', 'import' );
+
+$can_create           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.create' ) : false;
+$can_launch           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.launch' ) : false;
+$can_edit             = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.edit' ) : false;
+$can_manage_media     = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_media' ) : false;
+$can_manage_banners   = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_banners' ) : false;
+$can_manage_menus     = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_menus' ) : false;
+$can_manage_popups    = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_popups' ) : false;
+$can_manage_redirects = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_redirects' ) : false;
+$can_manage_templates = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_templates' ) : false;
+$can_manage_webparts  = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_webparts' ) : false;
+$can_manage_theme     = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_theme' ) : false;
+$can_import           = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.import' ) : false;
+$readiness            = WebsiteReadinessService::summary();
+$public_routes_enabled = ! empty( $readiness['public_routes_enabled'] );
+$readiness_action_allowed = static function ( array $item ) use ( $can_launch, $can_manage_menus, $can_manage_templates, $can_manage_webparts, $can_manage_redirects, $can_manage_theme ): bool {
+    $label = (string) ( $item['action_label'] ?? '' );
+    if ( $label === 'Launch' ) {
+        return $can_launch;
+    }
+    if ( $label === 'Menus' ) {
+        return $can_manage_menus;
+    }
+    if ( $label === 'Templates' ) {
+        return $can_manage_templates;
+    }
+    if ( $label === 'Web Parts' ) {
+        return $can_manage_webparts;
+    }
+    if ( $label === 'Redirects' ) {
+        return $can_manage_redirects;
+    }
+    if ( $label === 'Theme' ) {
+        return $can_manage_theme;
+    }
+
+    return in_array( $label, [ 'Pages', 'Posts' ], true );
+};
 ?>
-<div class="metis-ws-dashboard">
+<div class="metis-website-home">
     <div class="metis-page-header">
         <div class="metis-page-header-left">
-            <h1 class="metis-page-title">Website</h1>
-            <p class="metis-subtitle">Manage pages, posts, navigation, media, banners, and import workflows.</p>
+            <div class="metis-breadcrumb-card">Website</div>
+            <h1 class="metis-page-title">Publishing Center</h1>
+            <p class="metis-subtitle">Create content, manage the public experience, and keep publishing work organized.</p>
         </div>
         <div class="metis-page-header-right">
-            <button type="button" id="metis-dashboard-new-page-btn" class="metis-btn metis-btn-primary metis-btn-sm">New Page</button>
-            <button type="button" id="metis-dashboard-new-post-btn" class="metis-btn metis-btn-secondary metis-btn-sm">New Post</button>
+            <?php if ( $can_create ) : ?>
+                <button type="button" id="metis-dashboard-new-page-btn" class="metis-btn metis-btn-primary metis-btn-sm">New Page</button>
+                <button type="button" id="metis-dashboard-new-post-btn" class="metis-btn metis-btn-secondary metis-btn-sm">New Post</button>
+            <?php endif; ?>
         </div>
     </div>
-    <div class="metis-ws-grid">
 
-        <div class="metis-ws-card">
-            <div class="metis-ws-card-icon">&#128196;</div>
-            <div class="metis-ws-card-body">
-                <h3>Pages</h3>
-                <div class="metis-ws-stat"><?php echo metis_escape_html( (string) $total_pages ); ?></div>
-                <div class="metis-ws-meta"><?php echo metis_escape_html( (string) $pub_pages ); ?> published &middot; <?php echo metis_escape_html( (string) $draft_pages ); ?> drafts</div>
-                <a href="<?php echo metis_escape_url( $pages_url ); ?>" class="metis-ws-link">Manage Pages &rarr;</a>
+    <div class="metis-website-status-grid">
+        <section class="metis-website-status-card">
+            <span class="metis-website-status-label">Pages</span>
+            <strong><?php echo metis_escape_html( (string) $total_pages ); ?></strong>
+            <span><?php echo metis_escape_html( (string) $pub_pages ); ?> published · <?php echo metis_escape_html( (string) $draft_pages ); ?> draft</span>
+        </section>
+        <section class="metis-website-status-card">
+            <span class="metis-website-status-label">Posts</span>
+            <strong><?php echo metis_escape_html( (string) $total_posts ); ?></strong>
+            <span><?php echo metis_escape_html( (string) $pub_posts ); ?> published · <?php echo metis_escape_html( (string) $draft_posts ); ?> draft</span>
+        </section>
+        <section class="metis-website-status-card">
+            <span class="metis-website-status-label">Public Routes</span>
+            <strong><?php echo $public_routes_enabled ? 'On' : 'Off'; ?></strong>
+            <span><?php echo $public_routes_enabled ? 'Website public routing is enabled.' : 'Website public routing is disabled until launch readiness is confirmed.'; ?></span>
+            <?php if ( $can_launch ) : ?>
+                <a class="metis-btn-xs" href="<?php echo metis_escape_url( $launch_url ); ?>">Launch Center</a>
+            <?php endif; ?>
+        </section>
+    </div>
+
+    <section class="metis-website-panel metis-website-readiness-panel">
+        <div class="metis-website-readiness-summary">
+            <div class="metis-website-panel-heading">
+                <h2>Launch Readiness</h2>
+                <p>Review the core publishing checks before opening the Website to visitors.</p>
             </div>
-        </div>
-
-        <div class="metis-ws-card">
-            <div class="metis-ws-card-icon">&#9997;</div>
-            <div class="metis-ws-card-body">
-                <h3>Posts</h3>
-                <div class="metis-ws-stat"><?php echo metis_escape_html( (string) $total_posts ); ?></div>
-                <div class="metis-ws-meta"><?php echo metis_escape_html( (string) $pub_posts ); ?> published &middot; <?php echo metis_escape_html( (string) $draft_posts ); ?> drafts</div>
-                <a href="<?php echo metis_escape_url( $posts_url ); ?>" class="metis-ws-link">Manage Posts &rarr;</a>
+            <div class="metis-website-readiness-score metis-website-readiness-score--<?php echo metis_escape_attr( (string) ( $readiness['state'] ?? 'setup' ) ); ?>">
+                <strong><?php echo metis_escape_html( (string) ( $readiness['score'] ?? 0 ) ); ?>/<?php echo metis_escape_html( (string) ( $readiness['total'] ?? 0 ) ); ?></strong>
+                <span>checks ready</span>
             </div>
+            <?php if ( $can_launch ) : ?>
+                <a class="metis-btn metis-btn-secondary metis-btn-sm" href="<?php echo metis_escape_url( $launch_url ); ?>">Manage Launch</a>
+            <?php endif; ?>
         </div>
+        <div class="metis-website-readiness-list">
+            <?php foreach ( (array) ( $readiness['items'] ?? [] ) as $item ) : ?>
+                <?php
+                $item_status = metis_key_clean( (string) ( $item['status'] ?? 'attention' ) );
+                $item_status = in_array( $item_status, [ 'ready', 'attention', 'blocked' ], true ) ? $item_status : 'attention';
+                $action_url = (string) ( $item['action_url'] ?? '' );
+                $show_action = $action_url !== '' && $item_status !== 'ready' && $readiness_action_allowed( $item );
+                ?>
+                <article class="metis-website-readiness-item metis-website-readiness-item--<?php echo metis_escape_attr( $item_status ); ?>">
+                    <span class="metis-website-readiness-dot" aria-hidden="true"></span>
+                    <div>
+                        <strong><?php echo metis_escape_html( (string) ( $item['label'] ?? '' ) ); ?></strong>
+                        <span><?php echo metis_escape_html( (string) ( $item['detail'] ?? '' ) ); ?></span>
+                    </div>
+                    <?php if ( $show_action ) : ?>
+                        <a class="metis-btn-xs" href="<?php echo metis_escape_url( $action_url ); ?>"><?php echo metis_escape_html( (string) ( $item['action_label'] ?? 'Open' ) ); ?></a>
+                    <?php endif; ?>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
 
-        <div class="metis-ws-card">
-            <div class="metis-ws-card-icon">&#128247;</div>
-            <div class="metis-ws-card-body">
-                <h3>Media</h3>
-                <div class="metis-ws-meta" style="margin-top:8px;">Manage uploaded website files</div>
-                <a href="<?php echo metis_escape_url( $media_url ); ?>" class="metis-ws-link">Open Media Browser &rarr;</a>
-                <a href="<?php echo metis_escape_url( $media_library_url ); ?>" class="metis-ws-link">Open Shared Media Library &rarr;</a>
+    <div class="metis-website-workspace-grid">
+        <section class="metis-website-panel metis-website-panel-primary">
+            <div class="metis-website-panel-heading">
+                <h2>Content</h2>
+                <p>Everyday publishing work starts here.</p>
             </div>
-        </div>
-
-        <div class="metis-ws-card">
-            <div class="metis-ws-card-icon">&#9776;</div>
-            <div class="metis-ws-card-body">
-                <h3>Menus</h3>
-                <div class="metis-ws-meta" style="margin-top:8px;">Manage navigation menus</div>
-                <a href="<?php echo metis_escape_url( $menus_url ); ?>" class="metis-ws-link">Manage Menus &rarr;</a>
+            <div class="metis-website-action-grid">
+                <a class="metis-website-action" href="<?php echo metis_escape_url( $pages_url ); ?>">
+                    <strong>Pages</strong>
+                    <span>Manage site pages, homepage content, and page drafts.</span>
+                </a>
+                <a class="metis-website-action" href="<?php echo metis_escape_url( $posts_url ); ?>">
+                    <strong>Posts</strong>
+                    <span>Write updates, articles, and structured post content.</span>
+                </a>
+                <?php if ( $can_manage_media ) : ?>
+                    <a class="metis-website-action" href="<?php echo metis_escape_url( $media_url ); ?>">
+                        <strong>Media</strong>
+                        <span>Use images and files that support published content.</span>
+                    </a>
+                <?php endif; ?>
+                <?php if ( $can_import ) : ?>
+                    <a class="metis-website-action" href="<?php echo metis_escape_url( $import_url ); ?>">
+                        <strong>Import</strong>
+                        <span>Bring content in through controlled import workflows.</span>
+                    </a>
+                <?php endif; ?>
             </div>
-        </div>
+        </section>
 
-        <div class="metis-ws-card">
-            <div class="metis-ws-card-icon">&#128227;</div>
-            <div class="metis-ws-card-body">
-                <h3>Banners</h3>
-                <div class="metis-ws-meta" style="margin-top:8px;">Schedule site-wide announcements</div>
-                <a href="<?php echo metis_escape_url( $banners_url ); ?>" class="metis-ws-link">Manage Banners &rarr;</a>
+        <section class="metis-website-panel">
+            <div class="metis-website-panel-heading">
+                <h2>Site Experience</h2>
+                <p>Control navigation, layout, announcements, and visitor flow.</p>
             </div>
-        </div>
-
-        <div class="metis-ws-card">
-            <div class="metis-ws-card-icon">&#9889;</div>
-            <div class="metis-ws-card-body">
-                <h3>Quick Actions</h3>
-                <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-                    <button type="button" id="metis-dashboard-quick-new-page-btn" class="metis-btn metis-btn-primary metis-btn-sm">+ New Page</button>
-                    <button type="button" id="metis-dashboard-quick-new-post-btn" class="metis-btn metis-btn-secondary metis-btn-sm">+ New Post</button>
-                </div>
-                <div style="margin-top:14px;display:flex;flex-direction:column;gap:6px;">
-                    <div class="metis-help" style="margin:0;">Quick edit recent pages</div>
-                    <?php foreach ( $recent_pages as $page ) : ?>
-                        <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm metis-edit-page" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $page->page_code ?? '' ) ); ?>"><?php echo metis_escape_html( (string) $page->title ); ?></button>
-                    <?php endforeach; ?>
-                    <div class="metis-help" style="margin:6px 0 0;">Quick edit recent posts</div>
-                    <?php foreach ( $recent_posts as $post ) : ?>
-                        <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm metis-edit-post" data-id="<?php echo metis_escape_attr( (string) $post->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $post->post_code ?? '' ) ); ?>"><?php echo metis_escape_html( (string) $post->title ); ?></button>
-                    <?php endforeach; ?>
-                </div>
+            <div class="metis-website-action-list">
+                <?php if ( $can_manage_menus ) : ?>
+                    <a href="<?php echo metis_escape_url( $menus_url ); ?>">Menus</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_banners ) : ?>
+                    <a href="<?php echo metis_escape_url( $banners_url ); ?>">Banners</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_popups ) : ?>
+                    <a href="<?php echo metis_escape_url( $popups_url ); ?>">Popups</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_redirects ) : ?>
+                    <a href="<?php echo metis_escape_url( $redirects_url ); ?>">Redirects</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_templates ) : ?>
+                    <a href="<?php echo metis_escape_url( $templates_url ); ?>">Templates</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_webparts ) : ?>
+                    <a href="<?php echo metis_escape_url( $webparts_url ); ?>">Web Parts</a>
+                <?php endif; ?>
+                <?php if ( $can_manage_theme ) : ?>
+                    <a href="<?php echo metis_escape_url( $theme_url ); ?>">Theme</a>
+                <?php endif; ?>
             </div>
-        </div>
+        </section>
+    </div>
 
+    <div class="metis-website-workspace-grid">
+        <section class="metis-website-panel">
+            <div class="metis-website-panel-heading">
+                <h2>Recent Pages</h2>
+                <p>Quickly return to current page work.</p>
+            </div>
+            <div class="metis-website-recent-list">
+                <?php if ( empty( $recent_pages ) ) : ?>
+                    <span class="metis-website-empty">No pages yet.</span>
+                <?php endif; ?>
+                <?php foreach ( $recent_pages as $page ) : ?>
+                    <button type="button" class="metis-website-recent-item<?php echo $can_edit ? ' metis-edit-page' : ''; ?>" data-id="<?php echo metis_escape_attr( (string) $page->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $page->page_code ?? '' ) ); ?>">
+                        <strong><?php echo metis_escape_html( (string) $page->title ); ?></strong>
+                        <span><?php echo metis_escape_html( $can_edit ? (string) ( $page->status ?? 'draft' ) : 'View only' ); ?></span>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        </section>
+
+        <section class="metis-website-panel">
+            <div class="metis-website-panel-heading">
+                <h2>Recent Posts</h2>
+                <p>Draft, review, and publish updates.</p>
+            </div>
+            <div class="metis-website-recent-list">
+                <?php if ( empty( $recent_posts ) ) : ?>
+                    <span class="metis-website-empty">No posts yet.</span>
+                <?php endif; ?>
+                <?php foreach ( $recent_posts as $post ) : ?>
+                    <button type="button" class="metis-website-recent-item<?php echo $can_edit ? ' metis-edit-post' : ''; ?>" data-id="<?php echo metis_escape_attr( (string) $post->id ); ?>" data-code="<?php echo metis_escape_attr( (string) ( $post->post_code ?? '' ) ); ?>">
+                        <strong><?php echo metis_escape_html( (string) $post->title ); ?></strong>
+                        <span><?php echo metis_escape_html( $can_edit ? (string) ( $post->status ?? 'draft' ) : 'View only' ); ?></span>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        </section>
     </div>
 </div>

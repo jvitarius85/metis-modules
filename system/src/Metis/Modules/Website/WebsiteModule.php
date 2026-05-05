@@ -30,7 +30,7 @@ final class WebsiteModule {
     }
 
     /**
-     * Check if user can view website module
+     * Check if user can view Website module
      */
     public static function canView(): bool {
         if ( ! function_exists( 'metis_security_user_can' ) ) {
@@ -41,7 +41,7 @@ final class WebsiteModule {
     }
 
     /**
-     * Check if user can manage website content
+     * Check if user can manage Website content
      */
     public static function canManage(): bool {
         if ( ! function_exists( 'metis_security_user_can' ) ) {
@@ -74,7 +74,7 @@ final class WebsiteModule {
     }
 
     /**
-     * Get base URL for website module
+     * Get base URL for Website module
      */
     public static function baseUrl(): string {
         if ( function_exists( 'metis_portal_url' ) ) {

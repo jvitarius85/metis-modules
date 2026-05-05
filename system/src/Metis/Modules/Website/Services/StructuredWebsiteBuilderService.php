@@ -11,31 +11,19 @@ final class StructuredWebsiteBuilderService {
     private const PAGE_TYPES = [ 'homepage', 'page' ];
 
     /** @var array<int,string> */
-    private const PAGE_SECTION_TYPES = [ 'text', 'columns', 'feature_grid', 'cta', 'events', 'spacer', 'posts_list' ];
+    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'spacer', 'posts_list', 'html' ];
 
     /** @var array<int,string> */
-    private const POST_SECTION_TYPES = [ 'text', 'transcript' ];
+    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript' ];
 
     /** @var array<int,string> */
     private const TEMPLATE_KEYS = [
         'default',
-        'hero_split_glass',
-        'centered_stack_marketing',
-        'image_overlay_banner',
-        'modular_grid_dash',
-        'editorial_focus',
-        'compact_app_style',
     ];
 
     /** @var array<string,string> */
     private const TEMPLATE_LABELS = [
         'default' => 'Default',
-        'hero_split_glass' => 'Hero Split Glass',
-        'centered_stack_marketing' => 'Centered Stack Marketing',
-        'image_overlay_banner' => 'Image Overlay Banner',
-        'modular_grid_dash' => 'Modular Grid Dash',
-        'editorial_focus' => 'Editorial Focus',
-        'compact_app_style' => 'Compact App Style',
     ];
 
     /** @var array<string,string> */
@@ -230,6 +218,8 @@ final class StructuredWebsiteBuilderService {
             'header' => $header !== '' ? $header : null,
             'subtext' => $subtext !== '' ? $subtext : null,
             'content' => $content,
+            'order' => isset( $section['order'] ) ? max( 0, (int) $section['order'] ) : $index,
+            'metadata' => self::normalizeSectionMetadata( isset( $section['metadata'] ) && is_array( $section['metadata'] ) ? $section['metadata'] : [] ),
         ];
 
         $settings = self::normalizeSectionSettings( isset( $section['settings'] ) && is_array( $section['settings'] ) ? $section['settings'] : [] );
@@ -250,16 +240,73 @@ final class StructuredWebsiteBuilderService {
     }
 
     /**
+     * @param array<string,mixed> $metadata
+     * @return array<string,mixed>
+     */
+    private static function normalizeSectionMetadata( array $metadata ): array {
+        $out = [
+            'created_at' => isset( $metadata['created_at'] ) && is_scalar( $metadata['created_at'] ) ? self::sanitizeText( (string) $metadata['created_at'] ) : '',
+            'updated_at' => isset( $metadata['updated_at'] ) && is_scalar( $metadata['updated_at'] ) ? self::sanitizeText( (string) $metadata['updated_at'] ) : '',
+        ];
+        return array_filter( $out, static fn( mixed $value ): bool => $value !== '' );
+    }
+
+    /**
      * @param array<string,mixed> $content
      * @return array<string,mixed>
      */
     private static function normalizeSectionContent( string $type, array $content ): array {
+        if ( $type === 'heading' ) {
+            $level = metis_key_clean( (string) ( $content['level'] ?? 'h2' ) );
+            if ( ! in_array( $level, [ 'h1', 'h2', 'h3', 'h4' ], true ) ) {
+                $level = 'h2';
+            }
+            return [
+                'text' => self::sanitizeText( (string) ( $content['text'] ?? 'Heading' ) ),
+                'level' => $level,
+            ];
+        }
+
         if ( $type === 'text' ) {
             $body = self::sanitizeRichText( (string) ( $content['body'] ?? '' ) );
             if ( $body === '' ) {
                 $body = '<p></p>';
             }
             return [ 'body' => $body ];
+        }
+
+        if ( $type === 'image' ) {
+            return [
+                'src' => self::normalizeOptionalUrl( (string) ( $content['src'] ?? '' ) ),
+                'alt' => self::sanitizeText( (string) ( $content['alt'] ?? '' ) ),
+                'caption' => self::sanitizeText( (string) ( $content['caption'] ?? '' ) ),
+            ];
+        }
+
+        if ( $type === 'button' ) {
+            return [
+                'label' => self::sanitizeText( (string) ( $content['label'] ?? 'Learn more' ) ),
+                'url' => self::normalizeUrl( (string) ( $content['url'] ?? '#' ) ),
+                'align' => in_array( metis_key_clean( (string) ( $content['align'] ?? 'left' ) ), [ 'left', 'center', 'right' ], true )
+                    ? metis_key_clean( (string) ( $content['align'] ?? 'left' ) )
+                    : 'left',
+            ];
+        }
+
+        if ( $type === 'hero' ) {
+            return [
+                'title' => self::sanitizeText( (string) ( $content['title'] ?? 'Hero Title' ) ),
+                'subtitle' => self::sanitizeText( (string) ( $content['subtitle'] ?? '' ) ),
+                'cta_label' => self::sanitizeText( (string) ( $content['cta_label'] ?? 'Learn More' ) ),
+                'cta_url' => self::normalizeUrl( (string) ( $content['cta_url'] ?? '#' ) ),
+                'image_src' => self::normalizeOptionalUrl( (string) ( $content['image_src'] ?? '' ) ),
+            ];
+        }
+
+        if ( $type === 'html' ) {
+            return [
+                'html' => self::sanitizeRichText( (string) ( $content['html'] ?? '' ) ),
+            ];
         }
 
         if ( $type === 'transcript' ) {
@@ -300,7 +347,7 @@ final class StructuredWebsiteBuilderService {
             return [ 'columns' => $out ];
         }
 
-        if ( $type === 'feature_grid' ) {
+        if ( $type === 'feature_grid' || $type === 'card_grid' ) {
             $cols = (int) ( $content['columns'] ?? 3 );
             if ( ! in_array( $cols, [ 2, 3, 4 ], true ) ) {
                 $cols = 3;
@@ -462,6 +509,9 @@ final class StructuredWebsiteBuilderService {
             $modules = self::sectionModules( $section, $id );
             $layout_sections[] = [
                 'id' => $id,
+                'type' => (string) ( $section['type'] ?? 'text' ),
+                'order' => $index,
+                'metadata' => isset( $section['metadata'] ) && is_array( $section['metadata'] ) ? $section['metadata'] : [],
                 'columns' => [
                     [
                         'id' => $id . '_col_0',
@@ -548,8 +598,89 @@ final class StructuredWebsiteBuilderService {
         $type = (string) ( $section['type'] ?? 'text' );
         $content = isset( $section['content'] ) && is_array( $section['content'] ) ? $section['content'] : [];
 
+        if ( $type === 'heading' ) {
+            $modules[] = [
+                'id' => $section_id . '_heading',
+                'type' => 'heading',
+                'data' => [
+                    'content' => (string) ( $content['text'] ?? 'Heading' ),
+                    'level' => (string) ( $content['level'] ?? 'h2' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
         if ( $type === 'text' ) {
             $modules[] = [ 'id' => $section_id . '_text', 'type' => 'text', 'data' => [ 'content' => (string) ( $content['body'] ?? '<p></p>' ), 'tag' => 'div' ], 'style' => [] ];
+            return $modules;
+        }
+
+        if ( $type === 'image' ) {
+            $modules[] = [
+                'id' => $section_id . '_image',
+                'type' => 'image',
+                'data' => [
+                    'src' => (string) ( $content['src'] ?? '' ),
+                    'alt' => (string) ( $content['alt'] ?? '' ),
+                ],
+                'style' => [],
+            ];
+            if ( trim( (string) ( $content['caption'] ?? '' ) ) !== '' ) {
+                $modules[] = [
+                    'id' => $section_id . '_caption',
+                    'type' => 'text',
+                    'data' => [ 'content' => '<p>' . metis_escape_html( (string) $content['caption'] ) . '</p>', 'tag' => 'div' ],
+                    'style' => [],
+                ];
+            }
+            return $modules;
+        }
+
+        if ( $type === 'button' ) {
+            $align = metis_key_clean( (string) ( $content['align'] ?? 'left' ) );
+            $modules[] = [
+                'id' => $section_id . '_button',
+                'type' => 'button_group',
+                'data' => [
+                    'align' => in_array( $align, [ 'left', 'center', 'right' ], true ) ? $align : 'left',
+                    'buttons' => [
+                        [
+                            'label' => (string) ( $content['label'] ?? 'Learn more' ),
+                            'url' => self::normalizeUrl( (string) ( $content['url'] ?? '#' ) ),
+                            'bgcolor' => '#485bc7',
+                            'color' => '#ffffff',
+                        ],
+                    ],
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'hero' ) {
+            $modules[] = [
+                'id' => $section_id . '_hero',
+                'type' => 'hero',
+                'data' => [
+                    'title' => (string) ( $content['title'] ?? 'Hero Title' ),
+                    'subtitle' => (string) ( $content['subtitle'] ?? '' ),
+                    'cta_label' => (string) ( $content['cta_label'] ?? 'Learn More' ),
+                    'cta_url' => self::normalizeUrl( (string) ( $content['cta_url'] ?? '#' ) ),
+                    'image_src' => (string) ( $content['image_src'] ?? '' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'html' ) {
+            $modules[] = [
+                'id' => $section_id . '_html',
+                'type' => 'text',
+                'data' => [ 'content' => (string) ( $content['html'] ?? '' ), 'tag' => 'div' ],
+                'style' => [],
+            ];
             return $modules;
         }
 
@@ -594,7 +725,7 @@ final class StructuredWebsiteBuilderService {
             return $modules;
         }
 
-        if ( $type === 'feature_grid' ) {
+        if ( $type === 'feature_grid' || $type === 'card_grid' ) {
             $cols = (int) ( $content['columns'] ?? 3 );
             if ( ! in_array( $cols, [ 2, 3, 4 ], true ) ) {
                 $cols = 3;

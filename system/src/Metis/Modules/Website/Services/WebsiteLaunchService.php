@@ -1,23 +1,23 @@
 <?php
 declare(strict_types=1);
 
-namespace Metis\Modules\Cms\Services;
+namespace Metis\Modules\Website\Services;
 
 /**
- * Controls the CMS public launch switch without changing routing behavior.
+ * Controls the Website public launch switch without changing routing behavior.
  */
-final class CmsLaunchService {
-    private const ROUTES_KEY = 'metis_cms_public_routes_enabled';
-    private const ENABLED_AT_KEY = 'metis_cms_public_routes_enabled_at';
-    private const ENABLED_BY_KEY = 'metis_cms_public_routes_enabled_by';
-    private const DISABLED_AT_KEY = 'metis_cms_public_routes_disabled_at';
-    private const DISABLED_BY_KEY = 'metis_cms_public_routes_disabled_by';
+final class WebsiteLaunchService {
+    private const ROUTES_KEY = 'metis_website_public_routes_enabled';
+    private const ENABLED_AT_KEY = 'metis_website_public_routes_enabled_at';
+    private const ENABLED_BY_KEY = 'metis_website_public_routes_enabled_by';
+    private const DISABLED_AT_KEY = 'metis_website_public_routes_disabled_at';
+    private const DISABLED_BY_KEY = 'metis_website_public_routes_disabled_by';
 
     /**
      * @return array<string,mixed>
      */
     public static function status(): array {
-        $readiness = CmsReadinessService::summary();
+        $readiness = WebsiteReadinessService::summary();
         $items = is_array( $readiness['items'] ?? null ) ? $readiness['items'] : [];
         $blockers = [];
         $warnings = [];
@@ -34,7 +34,7 @@ final class CmsLaunchService {
             }
         }
 
-        $launched = CmsReadinessService::publicRoutesEnabled();
+        $launched = WebsiteReadinessService::publicRoutesEnabled();
 
         return [
             'ok' => true,
@@ -62,7 +62,7 @@ final class CmsLaunchService {
         if ( ! $force && count( $blockers ) > 0 ) {
             return [
                 'ok' => false,
-                'message' => 'Resolve launch blockers before enabling public CMS routes.',
+                'message' => 'Resolve launch blockers before enabling public Website routes.',
                 'status' => $status,
             ];
         }
@@ -70,7 +70,7 @@ final class CmsLaunchService {
         if ( ! self::setSetting( self::ROUTES_KEY, true, true ) ) {
             return [
                 'ok' => false,
-                'message' => 'Unable to enable public CMS routes.',
+                'message' => 'Unable to enable public Website routes.',
                 'status' => $status,
             ];
         }
@@ -80,7 +80,7 @@ final class CmsLaunchService {
 
         return [
             'ok' => true,
-            'message' => 'Public CMS routes enabled.',
+            'message' => 'Public Website routes enabled.',
             'status' => self::status(),
         ];
     }
@@ -92,7 +92,7 @@ final class CmsLaunchService {
         if ( ! self::setSetting( self::ROUTES_KEY, false, true ) ) {
             return [
                 'ok' => false,
-                'message' => 'Unable to disable public CMS routes.',
+                'message' => 'Unable to disable public Website routes.',
                 'status' => self::status(),
             ];
         }
@@ -102,7 +102,7 @@ final class CmsLaunchService {
 
         return [
             'ok' => true,
-            'message' => 'Public CMS routes disabled.',
+            'message' => 'Public Website routes disabled.',
             'status' => self::status(),
         ];
     }

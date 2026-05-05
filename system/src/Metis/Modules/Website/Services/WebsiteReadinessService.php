@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace Metis\Modules\Cms\Services;
+namespace Metis\Modules\Website\Services;
 
 /**
- * Lightweight CMS launch readiness summary for the admin dashboard.
+ * Lightweight Website launch readiness summary for the admin dashboard.
  */
-final class CmsReadinessService {
+final class WebsiteReadinessService {
     /**
      * @return array{score:int,total:int,state:string,public_routes_enabled:bool,items:array<int,array<string,string>>}
      */
@@ -35,8 +35,8 @@ final class CmsReadinessService {
                 'label' => 'Public routes',
                 'status' => $public_routes_enabled ? 'ready' : 'attention',
                 'detail' => $public_routes_enabled
-                    ? 'Visitor-facing CMS routes are enabled.'
-                    : 'Enable public CMS routes when launch content is ready.',
+                    ? 'Visitor-facing Website routes are enabled.'
+                    : 'Enable public Website routes when launch content is ready.',
                 'action_label' => 'Launch',
                 'action_url' => self::portalUrl( 'launch' ),
             ],
@@ -72,7 +72,7 @@ final class CmsReadinessService {
                 'status' => $active_template_ready ? 'ready' : 'blocked',
                 'detail' => $active_template_ready
                     ? 'Active template: ' . $active_template . '.'
-                    : 'Select a valid CMS template.',
+                    : 'Select a valid Website template.',
                 'action_label' => 'Templates',
                 'action_url' => self::portalUrl( 'templates' ),
             ],
@@ -130,10 +130,10 @@ final class CmsReadinessService {
 
     public static function publicRoutesEnabled(): bool {
         if ( function_exists( 'metis_get_option' ) ) {
-            return (bool) \metis_get_option( 'metis_cms_public_routes_enabled', false );
+            return (bool) \metis_get_option( 'metis_website_public_routes_enabled', false );
         }
         if ( class_exists( '\\Core_Settings_Service' ) ) {
-            return (bool) \Core_Settings_Service::get( 'metis_cms_public_routes_enabled', false );
+            return (bool) \Core_Settings_Service::get( 'metis_website_public_routes_enabled', false );
         }
 
         return false;
@@ -141,7 +141,7 @@ final class CmsReadinessService {
 
     private static function portalUrl( string $view ): string {
         return function_exists( 'metis_portal_url' )
-            ? (string) \metis_portal_url( 'cms', $view )
-            : '/admin/cms/' . trim( $view, '/' ) . '/';
+            ? (string) \metis_portal_url( 'website', $view )
+            : '/admin/website/' . trim( $view, '/' ) . '/';
     }
 }

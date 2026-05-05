@@ -318,6 +318,133 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
 .metis-nl-modal__dialog {
     width: min(560px, calc(100vw - 32px));
 }
+
+.metis-content-editor-grid {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) 280px;
+    gap: 14px;
+    align-items: start;
+    min-width: 0;
+}
+.metis-content-library,
+.metis-content-side-panel {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    min-width: 0;
+}
+.metis-content-panel-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--metis-text-muted, #6d7485);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+.metis-content-library-list,
+.metis-content-revisions {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+.metis-content-library-item {
+    width: 100%;
+    display: grid;
+    gap: 3px;
+    text-align: left;
+    border: 1px solid var(--metis-border, #e0e2ea);
+    border-radius: 8px;
+    background: var(--metis-surface, #fff);
+    color: var(--metis-text, #1f2330);
+    padding: 10px 12px;
+    cursor: pointer;
+    font: inherit;
+}
+.metis-content-library-item:hover,
+.metis-content-library-item:focus-visible {
+    border-color: var(--metis-primary, #485bc7);
+    outline: none;
+}
+.metis-content-library-item strong {
+    font-size: 13px;
+}
+.metis-content-library-item small,
+.metis-content-block-main small,
+.metis-content-revision-row small {
+    display: block;
+    color: var(--metis-text-muted, #6d7485);
+    font-size: 12px;
+    line-height: 1.35;
+}
+.metis-content-canvas {
+    min-width: 0;
+}
+.metis-content-block-list {
+    display: grid;
+    gap: 10px;
+}
+.metis-content-block-card {
+    border-radius: 8px;
+    border: 1px solid var(--metis-border, #e0e2ea);
+    background: var(--metis-surface, #fff);
+    padding: 10px;
+}
+.metis-content-block-card.is-selected {
+    border-color: var(--metis-primary, #485bc7);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--metis-primary, #485bc7) 18%, transparent);
+}
+.metis-content-block-main {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    min-width: 0;
+    font: inherit;
+}
+.metis-content-block-index {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--metis-row-even-bg, #f8f9fd);
+    border: 1px solid var(--metis-border, #e0e2ea);
+    font-weight: 800;
+}
+.metis-content-block-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+.metis-content-recovery,
+.metis-content-revision-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--metis-border, #e0e2ea);
+    border-radius: 8px;
+    background: var(--metis-surface, #fff);
+    padding: 10px 12px;
+}
+.metis-content-code-field {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+}
+@media (max-width: 1180px) {
+    .metis-content-editor-grid {
+        grid-template-columns: 1fr;
+    }
+    .metis-content-block-actions {
+        justify-content: flex-start;
+    }
+}
 @media (max-width: 1180px) {
     .metis-nl-body {
         grid-template-columns: 1fr;

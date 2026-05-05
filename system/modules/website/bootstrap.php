@@ -25,63 +25,11 @@ metis_on( 'init', static function (): void {
     metis_add_rewrite_tag( '%metis_editor_page_id%', '([0-9]+)' );
     metis_add_rewrite_tag( '%metis_editor_post_id%', '([0-9]+)' );
     metis_add_rewrite_tag( '%metis_editor_key%', '([A-Za-z0-9_-]+)' );
-    metis_add_rewrite_tag( '%metis_editor_new%', '(page|post|newsletter_campaign|newsletter_template)' );
-    metis_add_rewrite_tag( '%metis_editor_context%', '([a-z_]+)' );
-    metis_add_rewrite_tag( '%metis_editor_kind%', '([a-z_]+)' );
+    metis_add_rewrite_tag( '%metis_editor_new%', '(page|post)' );
     metis_add_rewrite_tag( '%metis_shell%', '([a-z_]+)' );
     metis_add_rewrite_tag( '%metis_template_setup%', '(new|edit)' );
     metis_add_rewrite_tag( '%metis_template_setup_key%', '([A-Za-z0-9_-]+)' );
 
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/([A-Za-z0-9-]+)/?$',
-        'index.php?metis_domain=website&metis_view=editor&metis_editor_key=$matches[1]&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/new/(page|post)/?$',
-        'index.php?metis_domain=website&metis_view=editor&metis_editor_new=$matches[1]&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/new/template/?$',
-        'index.php?metis_domain=website&metis_view=templates&metis_template_setup=new',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/new/newsletter/campaign/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_new=newsletter_campaign&metis_editor_context=newsletter&metis_editor_kind=campaign&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/new/newsletter/template/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_new=newsletter_template&metis_editor_context=newsletter&metis_editor_kind=template&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/newsletter/campaign/([A-Za-z0-9_-]+)/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_key=$matches[1]&metis_editor_context=newsletter&metis_editor_kind=campaign&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/newsletter/template/([A-Za-z0-9_-]+)/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_key=$matches[1]&metis_editor_context=newsletter&metis_editor_kind=template&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/page/([0-9]+)/?$',
-        'index.php?metis_domain=website&metis_view=editor&metis_editor_page_id=$matches[1]&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/post/([0-9]+)/?$',
-        'index.php?metis_domain=website&metis_view=editor&metis_editor_post_id=$matches[1]&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/editor/template/([A-Za-z0-9_-]+)/?$',
-        'index.php?metis_domain=website&metis_view=templates&metis_template_setup=edit&metis_template_setup_key=$matches[1]',
-        'top'
-    );
     metis_add_rewrite_rule(
         '^' . preg_quote( $slug, '#' ) . '/website/editor/([A-Za-z0-9-]+)/?$',
         'index.php?metis_domain=website&metis_view=editor&metis_editor_key=$matches[1]&metis_shell=editor',
@@ -95,26 +43,6 @@ metis_on( 'init', static function (): void {
     metis_add_rewrite_rule(
         '^' . preg_quote( $slug, '#' ) . '/website/editor/new/template/?$',
         'index.php?metis_domain=website&metis_view=templates&metis_template_setup=new',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/website/editor/new/newsletter/campaign/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_new=newsletter_campaign&metis_editor_context=newsletter&metis_editor_kind=campaign&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/website/editor/new/newsletter/template/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_new=newsletter_template&metis_editor_context=newsletter&metis_editor_kind=template&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/website/editor/newsletter/campaign/([A-Za-z0-9_-]+)/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_key=$matches[1]&metis_editor_context=newsletter&metis_editor_kind=campaign&metis_shell=editor',
-        'top'
-    );
-    metis_add_rewrite_rule(
-        '^' . preg_quote( $slug, '#' ) . '/website/editor/newsletter/template/([A-Za-z0-9_-]+)/?$',
-        'index.php?metis_domain=newsletter&metis_view=editor&metis_editor_key=$matches[1]&metis_editor_context=newsletter&metis_editor_kind=template&metis_shell=editor',
         'top'
     );
     metis_add_rewrite_rule(
@@ -148,11 +76,7 @@ metis_on( 'template_redirect', static function (): void {
     }
     $path = (string) ( parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH ) ?? '' );
     if (
-        (
-            preg_match( '#/editor(?:/|$)#i', $path ) === 1
-            && preg_match( '#/newsletter/editor(?:/|$)#i', $path ) !== 1
-        )
-        || preg_match( '#/website/editor(?:/|$)#i', $path ) === 1
+        preg_match( '#/website/editor(?:/|$)#i', $path ) === 1
         || preg_match( '#/website/pages/editor(?:/|$)#i', $path ) === 1
         || preg_match( '#/website/posts/editor(?:/|$)#i', $path ) === 1
     ) {
@@ -165,6 +89,13 @@ metis_on( 'template_redirect', static function (): void {
 // not yet exist when the manifest validator runs during the early boot phase.
 metis_on( 'init', static function (): void {
     if ( ! function_exists( 'metis_http_router' ) ) {
+        return;
+    }
+
+    $public_routes_enabled = function_exists( 'metis_get_option' )
+        ? (bool) metis_get_option( 'metis_website_public_routes_enabled', false )
+        : false;
+    if ( ! $public_routes_enabled ) {
         return;
     }
 

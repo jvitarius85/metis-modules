@@ -3,6 +3,11 @@ if ( ! defined( 'METIS_ROOT' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/_access.php';
+if ( ! metis_website_require_view_permission( 'theme' ) ) {
+    return;
+}
+
 use Metis\Modules\Website\Services\ThemeService;
 
 $theme = ThemeService::getActiveNormalized();
