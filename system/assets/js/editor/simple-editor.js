@@ -584,6 +584,19 @@
         return appBasePath() + '/svg/' + encodeURIComponent(s(slug || '')) + '/';
     }
 
+    function bindIconFallbacks(scope) {
+        var rootNode = scope && scope.querySelectorAll ? scope : document;
+        rootNode.querySelectorAll('img[data-icon-fallback]').forEach(function (img) {
+            if (img.getAttribute('data-fallback-bound') === '1') return;
+            img.setAttribute('data-fallback-bound', '1');
+            img.addEventListener('error', function () {
+                var fallback = s(img.getAttribute('data-icon-fallback') || '');
+                if (!fallback || img.getAttribute('src') === fallback) return;
+                img.setAttribute('src', fallback);
+            });
+        });
+    }
+
     function defaultCsrfAction() {
         if (isNewsletterContext()) return 'metis_newsletter';
         return isCmsContext() ? 'metis_cms' : 'metis_website';
@@ -2063,7 +2076,7 @@
         var HERO_STYLES = ['split', 'centered', 'overlay'];
 
         state.sections = [];
-        state.activeSection = 0;
+        state.activeSection = -1;
         state.hero = {
             enabled: false,
             style: 'split',
@@ -2647,7 +2660,7 @@
 
         function activeSection() {
             if (!Array.isArray(state.sections) || !state.sections.length) state.sections = normalizeSections([], isPostContext());
-            if (state.activeSection < 0) state.activeSection = 0;
+            if (state.activeSection < 0) return state.sections[0];
             if (state.activeSection >= state.sections.length) state.activeSection = state.sections.length - 1;
             return state.sections[state.activeSection];
         }
@@ -2732,28 +2745,190 @@
             });
         }
 
-        function renderSectionList() {
-            var list = document.getElementById('metis-v2-section-list');
-            if (!list) return;
-            var html = '';
-            state.sections.forEach(function (sec, i) {
-                html += '<div class="metis-se-section-item metis-content-block-card' + (i === state.activeSection ? ' is-selected' : '') + '" data-index="' + i + '">' +
-                    '<div class="metis-se-section-row">' +
-                        '<button type="button" class="metis-content-block-main" data-v2-list-act="edit">' +
-                            '<span class="metis-content-block-index">' + esc(String(i + 1)) + '</span>' +
-                            '<span><strong>' + esc(sectionSummary(sec)) + '</strong><small>' + esc(sectionTypeLabel(sec.type)) + ' · ' + esc(sectionDescription(sec.type)) + '</small></span>' +
-                        '</button>' +
-                        '<div class="metis-content-block-actions">' +
-                            '<button type="button" class="metis-se-nav-btn" data-v2-list-act="edit">Edit</button> ' +
-                            '<button type="button" class="metis-se-nav-btn" data-v2-list-act="up">&uarr;</button> ' +
-                            '<button type="button" class="metis-se-nav-btn" data-v2-list-act="down">&darr;</button> ' +
-                            '<button type="button" class="metis-se-nav-btn" data-v2-list-act="duplicate">Duplicate</button> ' +
-                            '<button type="button" class="metis-se-nav-btn" data-v2-list-act="delete">Delete</button>' +
-                        '</div>' +
-                    '</div>' +
+        function blockLibraryTypes() {
+            var allowed = availableSectionTypes();
+            var preferred = isPostContext()
+                ? ['heading', 'text', 'image', 'button', 'columns', 'card_grid', 'html', 'transcript']
+                : ['heading', 'text', 'image', 'button', 'columns', 'hero', 'card_grid', 'posts_list', 'html'];
+            return preferred.filter(function (type) { return allowed.indexOf(type) !== -1; });
+        }
+
+        function plainTextFromHtml(html) {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = s(html || '');
+            return s(wrap.textContent || wrap.innerText || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function emptyText(value, fallback) {
+            var raw = s(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            return raw || fallback;
+        }
+
+        function editableAttr(index, field, extra) {
+            if (!state.canEdit && !(state.id < 1 && state.canCreate)) return '';
+            return ' contenteditable="true" spellcheck="true" data-v2-inline="' + esc(field) + '" data-inline-index="' + esc(String(index)) + '"' + (extra || '');
+        }
+
+        function renderCanvasToolbar(index) {
+            if (!state.canEdit && !(state.id < 1 && state.canCreate)) return '';
+            return '<div class="metis-builder-block-tools" aria-label="Block controls">' +
+                '<button type="button" class="metis-builder-icon-btn" data-v2-list-act="up" title="Move up" aria-label="Move up">&uarr;</button>' +
+                '<button type="button" class="metis-builder-icon-btn" data-v2-list-act="down" title="Move down" aria-label="Move down">&darr;</button>' +
+                '<button type="button" class="metis-builder-tool-btn" data-v2-list-act="duplicate">Duplicate</button>' +
+                '<button type="button" class="metis-builder-tool-btn" data-v2-list-act="delete">Delete</button>' +
+                (state.canEdit ? '<button type="button" class="metis-builder-tool-btn" data-save-reusable="1">Save reusable</button>' : '') +
+            '</div>';
+        }
+
+        function renderVisualBlock(sec, index) {
+            var type = s(sec && sec.type || 'text');
+            var content = sec && sec.content && typeof sec.content === 'object' ? sec.content : {};
+            var selected = index === state.activeSection;
+            var body = '';
+            if (type === 'heading') {
+                var level = ['h1', 'h2', 'h3', 'h4'].indexOf(s(content.level || 'h2')) !== -1 ? s(content.level || 'h2') : 'h2';
+                body = '<' + level + ' class="metis-builder-heading"' + editableAttr(index, 'heading_text') + '>' + esc(s(content.text || 'Heading')) + '</' + level + '>';
+            } else if (type === 'text') {
+                body = '<div class="metis-builder-richtext metis-se-rich-editor" data-v2-rich="canvas_text" id="metis-v2-canvas-rich-' + esc(String(index)) + '"' + editableAttr(index, 'text_body') + '>' + s(content.body || '<p>Start typing...</p>') + '</div>';
+            } else if (type === 'image') {
+                body = '<figure class="metis-builder-image">' +
+                    (content.src ? '<img src="' + esc(s(content.src || '')) + '" alt="' + esc(s(content.alt || '')) + '">' : '<div class="metis-builder-media-empty">Choose an image in settings.</div>') +
+                    '<figcaption' + editableAttr(index, 'image_caption') + '>' + esc(s(content.caption || '')) + '</figcaption>' +
+                '</figure>';
+            } else if (type === 'button') {
+                body = '<div class="metis-builder-button-row is-' + esc(s(content.align || 'left')) + '">' +
+                    '<a class="metis-builder-button" href="' + esc(s(content.url || '#')) + '" data-builder-link="1"' + editableAttr(index, 'button_label') + '>' + esc(s(content.label || 'Learn more')) + '</a>' +
                 '</div>';
+            } else if (type === 'hero') {
+                body = '<div class="metis-builder-hero">' +
+                    '<div class="metis-builder-hero-copy">' +
+                        '<h1' + editableAttr(index, 'hero_title') + '>' + esc(s(content.title || 'Hero Title')) + '</h1>' +
+                        '<p' + editableAttr(index, 'hero_subtitle') + '>' + esc(s(content.subtitle || 'Add a concise supporting message.')) + '</p>' +
+                        '<a class="metis-builder-button" href="' + esc(s(content.cta_url || '#')) + '" data-builder-link="1"' + editableAttr(index, 'hero_cta_label') + '>' + esc(s(content.cta_label || 'Learn More')) + '</a>' +
+                    '</div>' +
+                    '<div class="metis-builder-hero-media">' + (content.image_src ? '<img src="' + esc(s(content.image_src || '')) + '" alt="">' : '<span>Hero media</span>') + '</div>' +
+                '</div>';
+            } else if (type === 'columns') {
+                var cols = Array.isArray(content.columns) ? content.columns : [];
+                body = '<div class="metis-builder-columns" style="--metis-builder-cols:' + esc(String(Math.max(1, cols.length || 2))) + ';">' + cols.map(function (col, colIndex) {
+                    return '<div class="metis-builder-column metis-se-rich-editor" id="metis-v2-canvas-col-' + esc(String(index)) + '-' + esc(String(colIndex)) + '" contenteditable="' + ((state.canEdit || (state.id < 1 && state.canCreate)) ? 'true' : 'false') + '" spellcheck="true" data-v2-inline-col="' + esc(String(colIndex)) + '" data-inline-index="' + esc(String(index)) + '">' + s(col.body || '<p>Column text</p>') + '</div>';
+                }).join('') + '</div>';
+            } else if (type === 'feature_grid' || type === 'card_grid') {
+                var items = Array.isArray(content.items) ? content.items : [];
+                var columns = Math.max(2, Math.min(4, parseInt(s(content.columns || '3'), 10) || 3));
+                body = '<div class="metis-builder-card-grid" style="--metis-builder-cols:' + esc(String(columns)) + ';">' + items.map(function (item, itemIndex) {
+                    return '<article class="metis-builder-card-item">' +
+                        (item.icon ? '<div class="metis-builder-card-icon">' + esc(s(item.icon || '')) + '</div>' : '') +
+                        '<h3 contenteditable="' + ((state.canEdit || (state.id < 1 && state.canCreate)) ? 'true' : 'false') + '" data-v2-inline-item="' + esc(String(itemIndex)) + '" data-inline-item-field="title" data-inline-index="' + esc(String(index)) + '">' + esc(s(item.title || 'Card')) + '</h3>' +
+                        '<p contenteditable="' + ((state.canEdit || (state.id < 1 && state.canCreate)) ? 'true' : 'false') + '" data-v2-inline-item="' + esc(String(itemIndex)) + '" data-inline-item-field="text" data-inline-index="' + esc(String(index)) + '">' + esc(s(item.text || 'Add supporting text.')) + '</p>' +
+                    '</article>';
+                }).join('') + '</div>';
+            } else if (type === 'posts_list') {
+                body = '<div class="metis-builder-posts-list"><div><strong>Posts list</strong><span>' + esc(String(parseInt(s(content.limit || '5'), 10) || 5)) + ' items from ' + esc(s(content.source || 'this_page').replace('_', ' ')) + '</span></div></div>';
+            } else if (type === 'html') {
+                body = '<pre class="metis-builder-code-preview">' + esc(emptyText(content.html || '', '<div></div>')) + '</pre>';
+            } else if (type === 'cta') {
+                var ctaItems = Array.isArray(content.items) ? content.items : [];
+                body = '<div class="metis-builder-cta">' + ctaItems.map(function (item, ctaIndex) {
+                    var btn = item.button && typeof item.button === 'object' ? item.button : {};
+                    return '<div><h3 contenteditable="' + ((state.canEdit || (state.id < 1 && state.canCreate)) ? 'true' : 'false') + '" data-v2-inline-item="' + esc(String(ctaIndex)) + '" data-inline-item-field="title" data-inline-index="' + esc(String(index)) + '">' + esc(s(item.title || 'Call to Action')) + '</h3><p>' + esc(s(item.text || '')) + '</p>' + (btn.label ? '<a class="metis-builder-button" data-builder-link="1" href="' + esc(s(btn.url || '#')) + '">' + esc(s(btn.label || 'Learn More')) + '</a>' : '') + '</div>';
+                }).join('') + '</div>';
+            } else if (type === 'events') {
+                body = '<div class="metis-builder-posts-list"><div><strong>Events</strong><span>' + esc(String(parseInt(s(content.limit || '5'), 10) || 5)) + ' upcoming items</span></div></div>';
+            } else if (type === 'spacer') {
+                body = '<div class="metis-builder-spacer is-' + esc(s(content.height || 'medium')) + '"></div>';
+            } else if (type === 'transcript') {
+                body = '<div class="metis-builder-transcript"><strong>Transcript</strong><p>' + esc(plainTextFromHtml(s(content.source || '')).slice(0, 220) || 'Paste transcript text in settings.') + '</p></div>';
+            } else {
+                body = '<div class="metis-builder-richtext">' + s(content.body || '<p>Content block</p>') + '</div>';
+            }
+            return '<section class="metis-builder-block' + (selected ? ' is-selected' : '') + '" data-builder-block-index="' + esc(String(index)) + '" data-index="' + esc(String(index)) + '" tabindex="0" aria-label="' + esc(sectionTypeLabel(type)) + ' block">' +
+                '<div class="metis-builder-block-chrome"><span class="metis-builder-block-label">' + esc(sectionTypeLabel(type)) + '</span>' + renderCanvasToolbar(index) + '</div>' +
+                '<div class="metis-builder-block-body">' + body + '</div>' +
+            '</section>';
+        }
+
+        function renderBuilderCanvas() {
+            var canvas = document.getElementById('metis-v2-canvas');
+            if (!canvas) return;
+            var sections = Array.isArray(state.sections) ? state.sections : [];
+            if (!sections.length) {
+                canvas.innerHTML = '<div class="metis-builder-empty"><strong>No blocks yet.</strong><span>Add a block from the left panel to start composing.</span></div>';
+                return;
+            }
+            canvas.innerHTML = sections.map(function (sec, index) { return renderVisualBlock(sec, index); }).join('');
+            bindIconFallbacks(canvas);
+        }
+
+        function renderBuilderOutline() {
+            var host = document.getElementById('metis-v2-outline');
+            if (!host) return;
+            var rows = '<button type="button" class="metis-builder-outline-item' + (state.activeSection < 0 ? ' is-selected' : '') + '" data-panel-target="page"><span>Page</span><small>Settings</small></button>';
+            (state.sections || []).forEach(function (sec, index) {
+                rows += '<button type="button" class="metis-builder-outline-item' + (index === state.activeSection ? ' is-selected' : '') + '" data-outline-index="' + esc(String(index)) + '"><span>' + esc(sectionSummary(sec)) + '</span><small>' + esc(sectionTypeLabel(sec.type)) + '</small></button>';
             });
-            list.innerHTML = html;
+            host.innerHTML = rows;
+        }
+
+        function renderBlockLibrary() {
+            var host = document.getElementById('metis-v2-block-library');
+            if (!host) return;
+            if (!state.canEdit && !(state.id < 1 && state.canCreate)) {
+                host.innerHTML = '<div class="metis-se-meta-value">View only.</div>';
+                return;
+            }
+            host.innerHTML = blockLibraryTypes().map(function (type) {
+                return '<button type="button" class="metis-content-library-item" draggable="true" data-add-block-type="' + esc(type) + '"><strong>' + esc(sectionTypeLabel(type)) + '</strong><small>' + esc(sectionDescription(type)) + '</small></button>';
+            }).join('');
+        }
+
+        function renderBuilderSettings() {
+            var page = document.getElementById('metis-builder-settings-page');
+            var block = document.getElementById('metis-builder-settings-block');
+            var empty = document.getElementById('metis-builder-settings-empty');
+            if (!page || !block) return;
+            var blockSelected = state.activeSection >= 0 && state.activeSection < state.sections.length;
+            page.hidden = blockSelected;
+            block.hidden = !blockSelected;
+            if (empty) empty.hidden = blockSelected || !state.sections.length;
+            if (blockSelected) {
+                renderStep2Editor();
+            } else {
+                var settings = document.getElementById('metis-v2-section-settings');
+                var content = document.getElementById('metis-v2-section-content');
+                if (settings) settings.innerHTML = '';
+                if (content) content.innerHTML = '';
+            }
+        }
+
+        function syncBuilderChrome() {
+            var statusEl = document.getElementById('metis-v2-status');
+            var titleEl = document.getElementById('metis-v2-title');
+            var topStatus = document.getElementById('metis-builder-top-status');
+            var publishBtn = document.getElementById('metis-v2-publish');
+            if (topStatus) {
+                var status = s(statusEl && statusEl.value || state.entity && state.entity.status || 'draft') || 'draft';
+                topStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            }
+            if (publishBtn) {
+                var selectedStatus = s(statusEl && statusEl.value || '');
+                if (state.canPublish && selectedStatus === 'scheduled') {
+                    publishBtn.textContent = 'Schedule';
+                } else {
+                    publishBtn.textContent = state.canPublish ? (hasPublishedVersion() ? 'Update' : 'Publish') : 'Save Draft';
+                }
+            }
+            updateTopTitle(s(titleEl && titleEl.value || state.entity && state.entity.title || ''));
+        }
+
+        function renderSectionList() {
+            renderBuilderCanvas();
+            renderBuilderOutline();
+            renderBlockLibrary();
+            renderBuilderSettings();
+            renderReusableBlocks();
+            renderRevisionList();
+            syncBuilderChrome();
         }
 
         function sectionCardItemPrefix(key, i) {
@@ -2972,7 +3147,7 @@
             var slugEl = document.getElementById('metis-v2-slug');
             if (titleEl && draft.title) titleEl.value = s(draft.title);
             if (slugEl && draft.slug) slugEl.value = s(draft.slug);
-            state.activeSection = 0;
+            state.activeSection = -1;
             renderSectionList();
             syncStepUi();
             setStatus('Recovered local draft', 'saving');
@@ -3330,7 +3505,17 @@
                 state.id = parseInt(s(entity.id || state.id || '0'), 10) || state.id;
                 state.key = isPageContext() ? s(entity.page_code || state.key) : s(entity.post_code || state.key);
                 applyInputsFromEntity(entity);
-                setStatus('Saved at ' + (new Date()).toLocaleTimeString(), 'ok');
+                var savedMessage = 'Saved at ' + (new Date()).toLocaleTimeString();
+                var savedKind = 'ok';
+                if (resp.public_routes_auto_enabled) {
+                    savedMessage = 'Published and public routes enabled.';
+                } else if (resp.launch_required && entity && entity.is_homepage) {
+                    savedMessage = resp.can_launch
+                        ? 'Published. Enable public routes in Launch Center.'
+                        : 'Published. Launch permission is required for public routes.';
+                    savedKind = 'saving';
+                }
+                setStatus(savedMessage, savedKind);
                 state.dirty = false;
                 clearRecoveryDraft();
                 loadRevisionList();
@@ -3343,10 +3528,8 @@
 
         function renderTop() {
             var title = state.entity && state.entity.title ? s(state.entity.title) : (isPostContext() ? 'Post' : 'Page');
-            var sectionStep = sectionEditorStepNumber();
-            var previewStep = previewStepNumber();
             root.innerHTML = '' +
-                '<div class="metis-se-shell">' +
+                '<div class="metis-se-shell metis-builder-shell">' +
                     '<div id="metis-v2-editor-loading" class="metis-se-editor-loading" aria-hidden="false">' +
                         '<div class="metis-se-editor-loading-card">' +
                             '<div class="metis-se-editor-loading-spinner" aria-hidden="true"></div>' +
@@ -3354,77 +3537,76 @@
                             '<div id="metis-v2-editor-loading-copy" class="metis-se-editor-loading-copy">Loading content and settings...</div>' +
                         '</div>' +
                     '</div>' +
-                    '<div class="metis-se-topbar">' +
+                    '<div class="metis-se-topbar metis-builder-topbar">' +
                         '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(isPostContext() ? (appBasePath() + '/admin/' + contentModuleSlug() + '/posts/') : (appBasePath() + '/admin/' + contentModuleSlug() + '/pages/')) + '">&larr; ' + esc(isPostContext() ? 'Back to Posts' : 'Back to Pages') + '</a></div>' +
-                        '<div class="metis-se-top-center"><div id="metis-se-top-title" class="metis-se-top-title">' + esc(title) + '</div></div>' +
-                        '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button id="metis-v2-prev" type="button" class="metis-se-nav-btn">Previous Step</button>' + (state.canEdit || state.canCreate ? '<button id="metis-v2-next" type="button" class="metis-se-nav-btn">Next Step</button>' : '') + '</div>' +
+                        '<div class="metis-se-top-center"><div id="metis-se-top-title" class="metis-se-top-title">' + esc(title) + '</div><span id="metis-builder-top-status" class="metis-builder-status-pill">Draft</span></div>' +
+                        '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button type="button" class="metis-se-nav-btn" data-preview-toggle="1">Preview</button><button type="button" class="metis-se-nav-btn" data-revisions-toggle="1">Revisions</button>' + ((state.canEdit || state.canCreate) ? '<button id="metis-v2-publish" type="button" class="metis-se-nav-btn metis-builder-primary-btn">Publish</button>' : '') + '</div>' +
                     '</div>' +
-                    '<div class="metis-se-stage-wrap">' +
-                        '<section class="metis-se-stage" data-v2-step="1">' +
-                            '<h2 class="metis-se-stage-title">Properties</h2>' +
-                            '<div class="metis-se-card"><div class="metis-se-field-grid">' +
-                                '<div class="metis-se-field-row"><label for="metis-v2-title">Title</label><input id="metis-v2-title" class="metis-se-input" type="text" placeholder="Title"></div>' +
-                                '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option>' + (state.canPublish ? '<option value="published">Published</option><option value="scheduled">Scheduled</option>' : '') + '</select></div>' +
-                                '<div class="metis-se-field-row"><label for="metis-v2-slug">URL Path</label><input id="metis-v2-slug" class="metis-se-input" type="text" placeholder="' + (isPostContext() ? 'post-slug-title' : 'page-slug') + '">' + (isPostContext() ? '<div class="metis-se-field-help">Public path uses the primary category, optional child category, and original publish year automatically.</div><div id="metis-v2-post-path-preview" class="metis-se-meta-value metis-se-path-preview">Select a primary category to generate the public path.</div>' : '') + '</div>' +
-                                '<div class="metis-se-field-row"><label>' + esc(contentLabel()) + ' Template</label><div id="metis-v2-template-display" class="metis-se-meta-value">Loading active template…</div></div>' +
-                                (isPageContext() ? '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' : '') +
-                                (isPostContext() ? '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' : '') +
-                                (isPostContext() ? '<div class="metis-se-field-row"><label>Categories</label><div id="metis-v2-category-chip-host">' + categoryChipField('metis-v2-category-ids', [], 'No categories available.') + '</div></div>' : '') +
-                                (isPostContext() ? '<div class="metis-se-field-row"><label>Featured Image</label><input id="metis-v2-featured-image-id" type="hidden" value=""><div class="metis-featured-image-actions"><button type="button" id="metis-v2-featured-image-open" class="metis-se-nav-btn">Choose Image</button><button type="button" id="metis-v2-featured-image-clear" class="metis-se-nav-btn">Remove</button></div><div id="metis-v2-featured-image-preview" class="metis-media-grid metis-featured-image-preview"></div></div>' : '') +
-                                (isPostContext() ? '<div class="metis-se-field-row" id="metis-v2-featured-image-caption-row" style="display:none;"><label for="metis-v2-featured-image-caption">Featured Image Caption</label><textarea id="metis-v2-featured-image-caption" class="metis-se-textarea" rows="2" placeholder="Optional caption shown under the featured image."></textarea></div>' : '') +
-                                (isPostContext() ? '<div class="metis-se-field-row"><label for="metis-v2-excerpt">Excerpt</label><textarea id="metis-v2-excerpt" class="metis-se-textarea" rows="3" placeholder="Optional summary for cards and SEO."></textarea></div>' : '') +
-                                '<div class="metis-se-field-row"><label>Author</label><div id="metis-v2-author-name" class="metis-se-meta-value">—</div></div>' +
-                                '<div class="metis-se-field-row" id="metis-v2-last-edit-row"><label>Last Edit</label><div id="metis-v2-last-edit" class="metis-se-meta-value">—</div></div>' +
-                                '<div class="metis-se-field-row"><label for="metis-v2-published-date">Published Date</label><input id="metis-v2-published-date" class="metis-se-input" type="datetime-local"></div>' +
-                                (isPageContext() ? '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-homepage"><input id="metis-v2-homepage" type="checkbox"> Set as homepage</label></div>' : '') +
-                            '</div></div>' +
-                            '<div id="metis-v2-recovery"></div>' +
-                            '<div class="metis-se-step-divider"></div><div class="metis-se-sections-panel metis-se-sections-panel-full metis-content-canvas-shell"><div class="metis-se-sections-head">Canvas</div><div class="metis-content-editor-grid">' +
-                                '<aside class="metis-content-library"><div class="metis-content-panel-title">Block Library</div><div class="metis-content-library-list">' + (state.canEdit || state.canCreate ? availableSectionTypes().map(function (type) { return '<button type="button" class="metis-content-library-item" data-add-block-type="' + esc(type) + '"><strong>' + esc(sectionTypeLabel(type)) + '</strong><small>' + esc(sectionDescription(type)) + '</small></button>'; }).join('') : '<div class="metis-se-meta-value">View only.</div>') + '</div><div class="metis-content-panel-title">Reusable</div><div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div></aside>' +
-                                '<main class="metis-content-canvas"><div id="metis-v2-section-list" class="metis-se-section-list metis-content-block-list"></div></main>' +
-                                '<aside class="metis-content-side-panel"><div class="metis-content-panel-title">Revisions</div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
-                            '</div></div>' +
+                    '<div class="metis-se-stage-wrap metis-builder-stage-wrap">' +
+                        '<section class="metis-se-stage metis-builder-stage" data-v2-step="1">' +
+                            '<aside class="metis-builder-left-panel">' +
+                                '<div class="metis-content-panel-title">Blocks</div>' +
+                                '<div id="metis-v2-block-library" class="metis-content-library-list"></div>' +
+                                '<div class="metis-content-panel-title">Outline</div>' +
+                                '<div id="metis-v2-outline" class="metis-builder-outline"></div>' +
+                                '<div class="metis-content-panel-title">Reusable</div>' +
+                                '<div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div>' +
+                            '</aside>' +
+                            '<main class="metis-builder-canvas" aria-label="Page canvas">' +
+                                '<div class="metis-builder-canvas-frame">' +
+                                    '<div id="metis-v2-canvas" class="metis-builder-canvas-inner"></div>' +
+                                '</div>' +
+                            '</main>' +
+                            '<aside class="metis-builder-settings-panel" aria-label="Settings">' +
+                                '<div id="metis-builder-settings-page" class="metis-builder-settings-page">' +
+                                    '<div class="metis-content-panel-title">Page Settings</div>' +
+                                    '<div id="metis-v2-recovery"></div>' +
+                                    '<div class="metis-builder-settings-card"><div class="metis-se-field-grid">' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-title">Title</label><input id="metis-v2-title" class="metis-se-input" type="text" placeholder="Title"></div>' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option>' + (state.canPublish ? '<option value="published">Published</option><option value="scheduled">Scheduled</option>' : '') + '</select></div>' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-slug">URL Path</label><input id="metis-v2-slug" class="metis-se-input" type="text" placeholder="' + (isPostContext() ? 'post-slug-title' : 'page-slug') + '">' + (isPostContext() ? '<div class="metis-se-field-help">Public path uses the primary category, optional child category, and original publish year automatically.</div><div id="metis-v2-post-path-preview" class="metis-se-meta-value metis-se-path-preview">Select a primary category to generate the public path.</div>' : '') + '</div>' +
+                                        '<div class="metis-se-field-row"><label>' + esc(contentLabel()) + ' Template</label><div id="metis-v2-template-display" class="metis-se-meta-value">Loading active template...</div></div>' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' +
+                                        (isPostContext() ? '<div class="metis-se-field-row"><label>Categories</label><div id="metis-v2-category-chip-host">' + categoryChipField('metis-v2-category-ids', [], 'No categories available.') + '</div></div>' : '') +
+                                        (isPostContext() ? '<div class="metis-se-field-row"><label>Featured Image</label><input id="metis-v2-featured-image-id" type="hidden" value=""><div class="metis-featured-image-actions"><button type="button" id="metis-v2-featured-image-open" class="metis-se-nav-btn">Choose Image</button><button type="button" id="metis-v2-featured-image-clear" class="metis-se-nav-btn">Remove</button></div><div id="metis-v2-featured-image-preview" class="metis-media-grid metis-featured-image-preview"></div></div>' : '') +
+                                        (isPostContext() ? '<div class="metis-se-field-row" id="metis-v2-featured-image-caption-row" style="display:none;"><label for="metis-v2-featured-image-caption">Featured Image Caption</label><textarea id="metis-v2-featured-image-caption" class="metis-se-textarea" rows="2" placeholder="Optional caption shown under the featured image."></textarea></div>' : '') +
+                                        (isPostContext() ? '<div class="metis-se-field-row"><label for="metis-v2-excerpt">Excerpt</label><textarea id="metis-v2-excerpt" class="metis-se-textarea" rows="3" placeholder="Optional summary for cards and SEO."></textarea></div>' : '') +
+                                        '<div class="metis-se-field-row"><label>Author</label><div id="metis-v2-author-name" class="metis-se-meta-value">-</div></div>' +
+                                        '<div class="metis-se-field-row" id="metis-v2-last-edit-row"><label>Last Edit</label><div id="metis-v2-last-edit" class="metis-se-meta-value">-</div></div>' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-published-date">Published Date</label><input id="metis-v2-published-date" class="metis-se-input" type="datetime-local"></div>' +
+                                        (isPageContext() ? '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-homepage"><input id="metis-v2-homepage" type="checkbox"> Set as homepage</label></div>' : '') +
+                                    '</div></div>' +
+                                    (isPageContext() ? '<div id="metis-v2-hero-editor" class="metis-se-builder-stack"></div>' : '') +
+                                '</div>' +
+                                '<div id="metis-builder-settings-block" class="metis-builder-settings-block" hidden>' +
+                                    '<div class="metis-content-panel-title">Block Settings</div>' +
+                                    '<div class="metis-se-section-switch"><button id="metis-v2-section-prev" type="button" class="metis-se-nav-btn">&larr;</button><span id="metis-v2-section-label" class="metis-se-active-section-label"></span><button id="metis-v2-section-next" type="button" class="metis-se-nav-btn">&rarr;</button></div>' +
+                                    '<div id="metis-v2-section-settings"></div>' +
+                                    '<div id="metis-v2-section-content"></div>' +
+                                '</div>' +
+                                '<div id="metis-builder-settings-empty" class="metis-builder-empty" hidden><strong>Select a block.</strong><span>Block controls will appear here.</span></div>' +
+                            '</aside>' +
                         '</section>' +
-                        (isPageContext() ? '<section class="metis-se-stage" data-v2-step="2" hidden><h2 class="metis-se-stage-title">Homepage Hero</h2><div id="metis-v2-hero-editor" class="metis-se-builder-stack"></div></section>' : '') +
-                        '<section class="metis-se-stage" data-v2-step="' + sectionStep + '" hidden>' +
-                            '<h2 class="metis-se-stage-title">' + (isPostContext() ? 'Content Sections' : 'Section Editor') + '</h2>' +
-                            '<div class="metis-se-builder-grid metis-content-settings-layout"><aside class="metis-se-builder-left"><div class="metis-se-section-switch"><button id="metis-v2-section-prev" type="button" class="metis-se-nav-btn">&larr;</button><span id="metis-v2-section-label" class="metis-se-active-section-label"></span><button id="metis-v2-section-next" type="button" class="metis-se-nav-btn">&rarr;</button></div><div id="metis-v2-section-settings"></div>' + (state.canEdit ? '<button type="button" id="metis-v2-save-reusable" class="metis-se-nav-btn">Save as Reusable</button>' : '') + '</aside><div class="metis-se-builder-right metis-se-builder-right--full"><div id="metis-v2-section-content"></div></div></div>' +
-                        '</section>' +
-                        '<section class="metis-se-stage" data-v2-step="' + previewStep + '" hidden><h2 class="metis-se-stage-title">Preview</h2><div id="metis-v2-preview" class="metis-se-preview"></div></section>' +
                     '</div>' +
+                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-label="Revisions"><div class="metis-builder-drawer-head"><div><strong>Revisions</strong><span>Restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
+                    '<aside id="metis-v2-preview-drawer" class="metis-builder-drawer metis-builder-preview-drawer" hidden aria-label="Preview"><div class="metis-builder-drawer-head"><div><strong>Preview</strong><span>Rendered from current blocks.</span></div><button type="button" class="metis-modal-close" data-drawer-close="preview" aria-label="Close">&times;</button></div><div id="metis-v2-preview" class="metis-se-preview"></div></aside>' +
                     (isPostContext() ? '<div id="metis-v2-featured-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Featured Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Choose Featured Image</h2><div id="metis-v2-featured-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-featured-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-featured-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-featured-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div><div id="metis-v2-featured-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-featured-image-cancel">Close</button></div></div></div>' : '') +
                     '<div id="metis-v2-inline-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Inline Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Insert Image</h2><div id="metis-v2-inline-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-inline-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-inline-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-inline-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div><div id="metis-v2-inline-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-inline-image-cancel">Close</button></div></div></div>' +
                 '</div>';
         }
 
         function syncStepUi() {
-            var max = maxSteps();
-            if (state.step < 1) state.step = 1;
-            if (state.step > max) state.step = max;
+            state.step = 1;
             root.querySelectorAll('[data-v2-step]').forEach(function (stage) {
                 var idx = parseInt(s(stage.getAttribute('data-v2-step') || '1'), 10) || 1;
                 var active = idx === state.step;
                 stage.hidden = !active;
-                stage.style.display = active ? 'flex' : 'none';
+                stage.style.display = active ? (stage.classList.contains('metis-builder-stage') ? 'grid' : 'flex') : 'none';
             });
-            var prev = document.getElementById('metis-v2-prev');
-            var next = document.getElementById('metis-v2-next');
-            if (prev) {
-                prev.disabled = state.step === 1;
-                prev.style.visibility = state.step === 1 ? 'hidden' : 'visible';
-                if (state.step === sectionEditorStepNumber()) prev.textContent = isPageContext() ? 'Back to Hero' : 'Back to Properties';
-                else if (state.step === previewStepNumber()) prev.textContent = 'Back to Content';
-                else prev.textContent = 'Back to Properties';
-            }
-            if (next) {
-                if (state.step === 1) next.textContent = isPageContext() ? 'Continue to Hero' : 'Continue to Content';
-                else if (state.step === sectionEditorStepNumber()) next.textContent = 'Continue to Preview';
-                else if (state.step === max) next.textContent = 'Publish';
-                else next.textContent = 'Continue to Content';
-            }
-            if (isPageContext() && state.step === 2) renderHeroEditor();
-            if (state.step === sectionEditorStepNumber()) renderStep2Editor();
-            if (state.step === previewStepNumber()) updatePreview();
+            if (isPageContext()) renderHeroEditor();
+            renderSectionList();
+            var previewDrawer = document.getElementById('metis-v2-preview-drawer');
+            if (previewDrawer && !previewDrawer.hidden) updatePreview();
         }
 
         function applyInputsFromEntity(entity) {
@@ -3468,7 +3650,9 @@
             syncPublishedDateField();
             if (isPageContext()) {
                 state.hero = normalizeHeroState(state.hero, currentPageType() === 'homepage');
+                renderHeroEditor();
             }
+            syncBuilderChrome();
         }
 
         function applyOptions(resp) {
@@ -3540,7 +3724,7 @@
                     s(entity.template_key || layoutModel.template_key || ''),
                     layoutModel.page_type
                 );
-                state.activeSection = 0;
+                state.activeSection = -1;
                 return request(contentAction('editor_properties_options'), {
                     context: isPostContext() ? 'post' : 'page',
                     id: state.id || 0,
@@ -3580,6 +3764,58 @@
                 syncStepUi();
             });
             root.addEventListener('click', function (e) {
+                var publishBtn = e.target.closest('#metis-v2-publish');
+                if (publishBtn) {
+                    var publishStatusEl = document.getElementById('metis-v2-status');
+                    if (state.canPublish && publishStatusEl && s(publishStatusEl.value || '') !== 'scheduled') {
+                        publishStatusEl.value = 'published';
+                        syncBuilderChrome();
+                    }
+                    saveEntity(false);
+                    return;
+                }
+                var previewToggle = e.target.closest('[data-preview-toggle]');
+                if (previewToggle) {
+                    var previewDrawer = document.getElementById('metis-v2-preview-drawer');
+                    if (previewDrawer) {
+                        previewDrawer.hidden = false;
+                        updatePreview();
+                    }
+                    return;
+                }
+                var revisionsToggle = e.target.closest('[data-revisions-toggle]');
+                if (revisionsToggle) {
+                    var revisionDrawer = document.getElementById('metis-v2-revision-drawer');
+                    if (revisionDrawer) {
+                        revisionDrawer.hidden = false;
+                        loadRevisionList();
+                    }
+                    return;
+                }
+                var drawerClose = e.target.closest('[data-drawer-close]');
+                if (drawerClose) {
+                    var drawerKind = s(drawerClose.getAttribute('data-drawer-close') || '');
+                    var drawer = drawerKind === 'preview' ? document.getElementById('metis-v2-preview-drawer') : document.getElementById('metis-v2-revision-drawer');
+                    if (drawer) drawer.hidden = true;
+                    return;
+                }
+                var builderLink = e.target.closest('[data-builder-link]');
+                if (builderLink) {
+                    e.preventDefault();
+                    if (!builderLink.isContentEditable) return;
+                }
+                var pagePanel = e.target.closest('[data-panel-target="page"]');
+                if (pagePanel) {
+                    state.activeSection = -1;
+                    renderSectionList();
+                    return;
+                }
+                var outlineItem = e.target.closest('[data-outline-index]');
+                if (outlineItem) {
+                    state.activeSection = parseInt(s(outlineItem.getAttribute('data-outline-index') || '-1'), 10);
+                    renderSectionList();
+                    return;
+                }
                 var addBlockType = e.target.closest('[data-add-block-type]');
                 if (addBlockType) {
                     state.sections.push(defaultSectionByType(s(addBlockType.getAttribute('data-add-block-type') || 'text')));
@@ -3650,7 +3886,7 @@
                     }
                     return;
                 }
-                var saveReusable = e.target.closest('#metis-v2-save-reusable');
+                var saveReusable = e.target.closest('[data-save-reusable]');
                 if (saveReusable) {
                     var reusableSection = activeSection();
                     var name = sectionSummary(reusableSection);
@@ -3695,13 +3931,22 @@
                     }
                     return;
                 }
+                var canvasBlock = e.target.closest('[data-builder-block-index]');
+                if (canvasBlock && !e.target.closest('[data-v2-list-act]') && !e.target.closest('[data-save-reusable]')) {
+                    var editingInline = !!e.target.closest('[contenteditable="true"]');
+                    state.activeSection = parseInt(s(canvasBlock.getAttribute('data-builder-block-index') || '-1'), 10);
+                    renderBuilderOutline();
+                    renderBuilderSettings();
+                    if (!editingInline) renderBuilderCanvas();
+                    return;
+                }
                 var rowBtn = e.target.closest('[data-v2-list-act]');
                 if (rowBtn) {
                     var row = rowBtn.closest('[data-index]');
                     var idx = parseInt(s(row && row.getAttribute('data-index') || '-1'), 10);
                     if (idx < 0 || idx >= state.sections.length) return;
                     var act = s(rowBtn.getAttribute('data-v2-list-act') || '');
-                    if (act === 'edit') { state.activeSection = idx; state.step = sectionEditorStepNumber(); syncStepUi(); return; }
+                    if (act === 'edit') { state.activeSection = idx; syncStepUi(); return; }
                     if (act === 'up' && idx > 0) { var a = state.sections[idx - 1]; state.sections[idx - 1] = state.sections[idx]; state.sections[idx] = a; if (state.activeSection === idx) state.activeSection = idx - 1; }
                     if (act === 'down' && idx < state.sections.length - 1) { var b = state.sections[idx + 1]; state.sections[idx + 1] = state.sections[idx]; state.sections[idx] = b; if (state.activeSection === idx) state.activeSection = idx + 1; }
                     if (act === 'duplicate') { var copy = JSON.parse(JSON.stringify(state.sections[idx])); copy.id = uid(); copy.metadata = { created_at: (new Date()).toISOString() }; state.sections.splice(idx + 1, 0, copy); state.activeSection = idx + 1; }
@@ -3887,9 +4132,52 @@
                     renderInlineImagePickerList();
                     return;
                 }
+                var inlineBlock = target.closest && target.closest('[data-v2-inline]');
+                if (inlineBlock) {
+                    var inlineIndex = parseInt(s(inlineBlock.getAttribute('data-inline-index') || '-1'), 10);
+                    var inlineField = s(inlineBlock.getAttribute('data-v2-inline') || '');
+                    var inlineSection = inlineIndex >= 0 && state.sections[inlineIndex] ? state.sections[inlineIndex] : null;
+                    if (!inlineSection) return;
+                    inlineSection.content = inlineSection.content && typeof inlineSection.content === 'object' ? inlineSection.content : {};
+                    if (inlineField === 'heading_text') inlineSection.content.text = s(inlineBlock.textContent || '');
+                    else if (inlineField === 'text_body') inlineSection.content.body = inlineBlock.innerHTML;
+                    else if (inlineField === 'image_caption') inlineSection.content.caption = s(inlineBlock.textContent || '');
+                    else if (inlineField === 'button_label') inlineSection.content.label = s(inlineBlock.textContent || '');
+                    else if (inlineField === 'hero_title') inlineSection.content.title = s(inlineBlock.textContent || '');
+                    else if (inlineField === 'hero_subtitle') inlineSection.content.subtitle = s(inlineBlock.textContent || '');
+                    else if (inlineField === 'hero_cta_label') inlineSection.content.cta_label = s(inlineBlock.textContent || '');
+                    renderBuilderOutline();
+                    setDirtyAutosave();
+                    return;
+                }
+                var inlineCol = target.closest && target.closest('[data-v2-inline-col]');
+                if (inlineCol) {
+                    var blockIndex = parseInt(s(inlineCol.getAttribute('data-inline-index') || '-1'), 10);
+                    var colIndex = parseInt(s(inlineCol.getAttribute('data-v2-inline-col') || '-1'), 10);
+                    var colSection = blockIndex >= 0 && state.sections[blockIndex] ? state.sections[blockIndex] : null;
+                    if (colSection && Array.isArray(colSection.content && colSection.content.columns) && colSection.content.columns[colIndex]) {
+                        colSection.content.columns[colIndex].body = inlineCol.innerHTML;
+                        setDirtyAutosave();
+                    }
+                    return;
+                }
+                var inlineItem = target.closest && target.closest('[data-v2-inline-item]');
+                if (inlineItem) {
+                    var itemBlockIndex = parseInt(s(inlineItem.getAttribute('data-inline-index') || '-1'), 10);
+                    var itemIndex = parseInt(s(inlineItem.getAttribute('data-v2-inline-item') || '-1'), 10);
+                    var itemField = s(inlineItem.getAttribute('data-inline-item-field') || '');
+                    var itemSection = itemBlockIndex >= 0 && state.sections[itemBlockIndex] ? state.sections[itemBlockIndex] : null;
+                    if (itemSection && Array.isArray(itemSection.content && itemSection.content.items) && itemSection.content.items[itemIndex]) {
+                        itemSection.content.items[itemIndex][itemField] = s(inlineItem.textContent || '');
+                        renderBuilderOutline();
+                        setDirtyAutosave();
+                    }
+                    return;
+                }
                 if (target.id === 'metis-v2-title') {
                     var slugEl = document.getElementById('metis-v2-slug');
                     if (slugEl && !state.slugManuallyEdited) slugEl.value = slugifyValue(s(target.value || ''));
+                    updateTopTitle(s(target.value || ''));
                     renderPostPathPreview();
                     setDirtyAutosave();
                     return;
@@ -4020,13 +4308,12 @@
                     }
                     state.hero = normalizeHeroState(state.hero, isHomepage);
                     state.selectedTemplateKey = normalizeSelectedTemplateKey(state.selectedTemplateKey, currentPageType());
-                    if (isPageContext() && state.step === 2) {
-                        renderHeroEditor();
-                    }
+                    if (isPageContext()) renderHeroEditor();
+                    syncBuilderChrome();
                     setDirtyAutosave();
                     return;
                 }
-                if (target.id === 'metis-v2-status') { syncPublishedDateField(); renderPostPathPreview(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-status') { syncPublishedDateField(); renderPostPathPreview(); syncBuilderChrome(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-parent-id' || target.id === 'metis-v2-featured-image-id' || target.id === 'metis-v2-published-date' || target.id === 'metis-v2-excerpt') { setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-enabled') { state.hero.enabled = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-style') { state.hero.style = HERO_STYLES.indexOf(s(target.value || 'split')) !== -1 ? s(target.value || 'split') : 'split'; setDirtyAutosave(); return; }
@@ -4052,6 +4339,33 @@
             root.addEventListener('focusin', function (e) {
                 var target = e.target && e.target.closest ? e.target.closest('.metis-se-rich-editor') : null;
                 if (target) saveRichSelection(target);
+            });
+            root.addEventListener('dragstart', function (e) {
+                var block = e.target && e.target.closest ? e.target.closest('[data-add-block-type]') : null;
+                if (!block || (!state.canEdit && !(state.id < 1 && state.canCreate))) return;
+                state.dragBlockType = s(block.getAttribute('data-add-block-type') || 'text');
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'copy';
+                    e.dataTransfer.setData('text/plain', state.dragBlockType);
+                }
+            });
+            root.addEventListener('dragover', function (e) {
+                if (!state.dragBlockType) return;
+                var zone = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
+                if (!zone) return;
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            });
+            root.addEventListener('drop', function (e) {
+                var zone = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
+                var type = s((e.dataTransfer && e.dataTransfer.getData('text/plain')) || state.dragBlockType || '');
+                state.dragBlockType = '';
+                if (!zone || !type || (!state.canEdit && !(state.id < 1 && state.canCreate))) return;
+                e.preventDefault();
+                state.sections.push(defaultSectionByType(type));
+                state.activeSection = state.sections.length - 1;
+                renderSectionList();
+                setDirtyAutosave();
             });
         }
 

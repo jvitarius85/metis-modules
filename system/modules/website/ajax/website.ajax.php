@@ -1251,6 +1251,42 @@ function metis_website_ajax_lock_key( string $entity_type, int $entity_id ): str
     return 'metis_editor_lock_' . metis_key_clean( $entity_type ) . '_' . max( 0, $entity_id );
 }
 
+/**
+ * Enable public routes for an explicitly published homepage only when the
+ * current user also holds the launch permission.
+ *
+ * @return array<string,mixed>
+ */
+function metis_website_ajax_homepage_launch_state( bool $attempt_enable ): array {
+    $status = WebsiteLaunchService::status();
+    $launched = ! empty( $status['launched'] );
+    $can_launch = function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.launch' ) : false;
+    $auto_enabled = false;
+    $launch_error = '';
+
+    if ( $attempt_enable && ! $launched && $can_launch ) {
+        $result = WebsiteLaunchService::enable( true );
+        if ( is_array( $result['status'] ?? null ) ) {
+            $status = $result['status'];
+        } else {
+            $status = WebsiteLaunchService::status();
+        }
+        $launched = ! empty( $status['launched'] );
+        $auto_enabled = ! empty( $result['ok'] ) && $launched;
+        if ( ! $auto_enabled ) {
+            $launch_error = (string) ( $result['message'] ?? 'Unable to enable public Website routes.' );
+        }
+    }
+
+    return [
+        'public_routes_enabled' => $launched,
+        'public_routes_auto_enabled' => $auto_enabled,
+        'launch_required' => ! $launched,
+        'can_launch' => $can_launch,
+        'launch_error' => $launch_error,
+    ];
+}
+
 metis_ajax_register_handler( 'metis_core_editor_config', function (): void {
     metis_website_ajax_verify_nonce();
     metis_website_ajax_require_permission( 'website.view' );
@@ -1318,7 +1354,7 @@ metis_ajax_register_handler( 'metis_editor_render_preview', function (): void {
 
     $requested_context = isset( $_POST['context'] ) ? metis_key_clean( (string) $_POST['context'] ) : 'website';
     $requested_render_mode = isset( $_POST['render_mode'] ) ? metis_key_clean( (string) $_POST['render_mode'] ) : '';
-    if ( in_array( $requested_context, [ 'website', 'website_page', 'website', 'page' ], true ) ) {
+    if ( in_array( $requested_context, [ 'website', 'website_page', 'page' ], true ) ) {
         $context = 'website';
     } elseif ( in_array( $requested_context, [ 'post', 'website_post' ], true ) ) {
         $context = 'post';
@@ -1895,8 +1931,10 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
         $revision_note
     );
 
+    $launch_state = metis_website_ajax_homepage_launch_state( false );
     if ( $set_homepage && $requested_status === 'published' ) {
         HomepageService::setHomepagePageId( (int) $page->id );
+        $launch_state = metis_website_ajax_homepage_launch_state( true );
     }
 
     $page = PageService::getById( (int) $page->id ) ?? $page;
@@ -1912,10 +1950,10 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
     $row['section_count'] = metis_website_ajax_page_section_count( $row );
 
-    metis_runtime_send_json_success( [
+    metis_runtime_send_json_success( array_merge( [
         'message' => 'Page created.',
         'page'    => $row,
-    ] );
+    ], $launch_state ) );
 } );
 
 metis_ajax_register_handler( 'metis_website_page_save', function (): void {
@@ -2078,8 +2116,10 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         $revision_note
     );
 
+    $launch_state = metis_website_ajax_homepage_launch_state( false );
     if ( $set_homepage && $requested_status === 'published' ) {
         HomepageService::setHomepagePageId( $id );
+        $launch_state = metis_website_ajax_homepage_launch_state( true );
     }
 
     $page = PageService::getById( $id );
@@ -2110,10 +2150,10 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
     $row['section_count'] = metis_website_ajax_page_section_count( $row );
 
-    metis_runtime_send_json_success( [
+    metis_runtime_send_json_success( array_merge( [
         'message' => 'Page saved.',
         'page'    => $row,
-    ] );
+    ], $launch_state ) );
 } );
 
 metis_ajax_register_handler( 'metis_website_homepage_set', function (): void {
@@ -2136,6 +2176,7 @@ metis_ajax_register_handler( 'metis_website_homepage_set', function (): void {
     if ( ! HomepageService::setHomepagePageId( $id ) ) {
         metis_runtime_send_json_error( 'Failed to set homepage.', 500 );
     }
+    $launch_state = metis_website_ajax_homepage_launch_state( true );
 
     $page = PageService::getById( $id );
     if ( $page === null ) {
@@ -2154,11 +2195,11 @@ metis_ajax_register_handler( 'metis_website_homepage_set', function (): void {
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
     $row['section_count'] = metis_website_ajax_page_section_count( $row );
 
-    metis_runtime_send_json_success( [
+    metis_runtime_send_json_success( array_merge( [
         'message' => 'Homepage updated.',
         'page' => $row,
         'homepage_page_id' => $id,
-    ] );
+    ], $launch_state ) );
 } );
 
 metis_ajax_register_handler( 'metis_website_page_publish', function (): void {

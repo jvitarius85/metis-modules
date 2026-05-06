@@ -3011,8 +3011,8 @@ final class WebsiteRenderer {
             return '';
         }
 
-        $header = trim( (string) ( $section['header'] ?? '' ) );
-        $subtext = trim( (string) ( $section['subtext'] ?? '' ) );
+        $header = trim( self::repairMojibakeText( (string) ( $section['header'] ?? '' ) ) );
+        $subtext = trim( self::repairMojibakeText( (string) ( $section['subtext'] ?? '' ) ) );
         $header_html = '';
         if ( $header !== '' || $subtext !== '' ) {
             $header_html .= '<header class="metis-structured-section__head">';
@@ -3046,9 +3046,58 @@ final class WebsiteRenderer {
         if ( trim( $safe ) === '' ) {
             return '';
         }
+        $safe = self::repairPublicHtmlText( $safe );
         $safe = self::transformTranscriptTables( $safe );
         $safe = self::replaceEmojiShortcodes( $safe );
         return '<div class="metis-structured-text">' . $safe . '</div>';
+    }
+
+    private static function repairPublicHtmlText( string $html ): string {
+        if ( trim( $html ) === '' ) {
+            return '';
+        }
+
+        $parts = preg_split( '/(<[^>]+>)/u', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
+        if ( ! is_array( $parts ) ) {
+            return self::repairMojibakeText( $html );
+        }
+
+        foreach ( $parts as $index => $part ) {
+            if ( $part === '' || str_starts_with( $part, '<' ) ) {
+                continue;
+            }
+            $parts[ $index ] = self::repairPublicTextNode( $part );
+        }
+
+        return implode( '', $parts );
+    }
+
+    private static function repairPublicTextNode( string $text ): string {
+        if ( $text === '' ) {
+            return '';
+        }
+
+        $text = str_ireplace(
+            [
+                '&Acirc;&nbsp;',
+                '&Acirc;&#160;',
+                '&Acirc;&#xA0;',
+                '&Acirc;&#xa0;',
+                'Â&nbsp;',
+                'Â&#160;',
+                'Â&#xA0;',
+                'Â&#xa0;',
+                '&nbsp;',
+                '&#160;',
+                '&#xA0;',
+                '&#xa0;',
+            ],
+            ' ',
+            $text
+        );
+        $text = self::repairMojibakeText( $text );
+
+        return preg_replace( '/[ \t]{2,}/u', ' ', $text ) ?? $text;
     }
 
     private static function replaceEmojiShortcodes( string $html ): string {
@@ -3422,6 +3471,20 @@ final class WebsiteRenderer {
 
     private static function repairMojibakeText( string $text ): string {
         $current = self::replaceCommonMojibakeSequences( $text );
+        $current = str_ireplace(
+            [
+                '&Acirc;&nbsp;',
+                '&Acirc;&#160;',
+                '&Acirc;&#xA0;',
+                '&Acirc;&#xa0;',
+                'Â&nbsp;',
+                'Â&#160;',
+                'Â&#xA0;',
+                'Â&#xa0;',
+            ],
+            ' ',
+            $current
+        );
         for ( $i = 0; $i < 3; $i++ ) {
             $candidate = function_exists( 'mb_convert_encoding' )
                 ? @mb_convert_encoding( $current, 'UTF-8', 'Windows-1252' )
@@ -3435,7 +3498,11 @@ final class WebsiteRenderer {
             $current = $candidate;
         }
 
-        $current = str_replace( [ "\xc2\xa0", "\xa0" ], ' ', $current );
+        $current = str_replace( [ "\xc2\xa0", "\u{00A0}", "\xa0" ], ' ', $current );
+        $current = str_replace( 'ï¿½', '', $current );
+        $current = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/u', '', $current ) ?? $current;
+        $current = preg_replace( '/\x{FFFD}+/u', '', $current ) ?? $current;
+        $current = preg_replace( '/Â+(?=\s|$)/u', '', $current ) ?? $current;
         return $current;
     }
 
@@ -3494,7 +3561,7 @@ final class WebsiteRenderer {
     }
 
     private static function mojibakeScore( string $text ): int {
-        $markers = [ 'Ã', 'Â', 'â€', 'â', 'â€™', 'â€œ', 'â€\x9d', '�' ];
+        $markers = [ 'Ã', 'Â', 'â€', 'â', 'â€™', 'â€œ', 'â€\x9d', 'ï¿½', '�' ];
         $score = 0;
         foreach ( $markers as $marker ) {
             $score += substr_count( $text, $marker );
@@ -3602,6 +3669,7 @@ final class WebsiteRenderer {
             $safe_body = function_exists( 'metis_runtime_kses_post' )
                 ? (string) metis_runtime_kses_post( $body )
                 : strip_tags( $body, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div>' );
+            $safe_body = self::repairPublicHtmlText( $safe_body );
             $items .= '<div class="metis-structured-columns__col is-w' . metis_escape_attr( (string) $width ) . '">'
                 . $safe_body . '</div>';
             $count++;
@@ -3630,11 +3698,11 @@ final class WebsiteRenderer {
             if ( ! is_array( $item ) ) {
                 continue;
             }
-            $icon = trim( (string) ( $item['icon'] ?? '' ) );
-            $title = trim( (string) ( $item['title'] ?? '' ) );
-            $text = trim( (string) ( $item['text'] ?? '' ) );
+            $icon = trim( self::repairMojibakeText( (string) ( $item['icon'] ?? '' ) ) );
+            $title = trim( self::repairMojibakeText( (string) ( $item['title'] ?? '' ) ) );
+            $text = trim( self::repairMojibakeText( (string) ( $item['text'] ?? '' ) ) );
             $cta = is_array( $item['cta'] ?? null ) ? $item['cta'] : [];
-            $cta_label = trim( (string) ( $cta['label'] ?? '' ) );
+            $cta_label = trim( self::repairMojibakeText( (string) ( $cta['label'] ?? '' ) ) );
             $cta_url = trim( (string) ( $cta['url'] ?? '' ) );
             if ( $title === '' && $text === '' && $cta_label === '' ) {
                 continue;
@@ -3681,10 +3749,10 @@ final class WebsiteRenderer {
             if ( ! is_array( $item ) ) {
                 continue;
             }
-            $title = trim( (string) ( $item['title'] ?? '' ) );
-            $text = trim( (string) ( $item['text'] ?? '' ) );
+            $title = trim( self::repairMojibakeText( (string) ( $item['title'] ?? '' ) ) );
+            $text = trim( self::repairMojibakeText( (string) ( $item['text'] ?? '' ) ) );
             $button = is_array( $item['button'] ?? null ) ? $item['button'] : [];
-            $button_label = trim( (string) ( $button['label'] ?? '' ) );
+            $button_label = trim( self::repairMojibakeText( (string) ( $button['label'] ?? '' ) ) );
             $button_url = trim( (string) ( $button['url'] ?? '' ) );
             if ( $title === '' && $text === '' && $button_label === '' ) {
                 continue;
