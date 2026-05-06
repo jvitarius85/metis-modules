@@ -118,6 +118,7 @@ if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
             'can_edit' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.edit' ) : false,
             'can_publish' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.publish' ) : false,
             'can_create' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.create' ) : false,
+            'can_manage_media' => function_exists( 'metis_security_user_can' ) ? metis_security_user_can( 'website.manage_media' ) : false,
         ];
     }
 }
@@ -143,6 +144,7 @@ if ( ! function_exists( 'metis_website_render_editor_bootstrap' ) ) {
             data-editor-can-edit="<?php echo ! empty( $payload['can_edit'] ) ? '1' : '0'; ?>"
             data-editor-can-publish="<?php echo ! empty( $payload['can_publish'] ) ? '1' : '0'; ?>"
             data-editor-can-create="<?php echo ! empty( $payload['can_create'] ) ? '1' : '0'; ?>"
+            data-editor-can-manage-media="<?php echo ! empty( $payload['can_manage_media'] ) ? '1' : '0'; ?>"
         ></div>
         <div id="metis-editor-boot-status" class="metis-editor-boot-status">
             <div class="metis-editor-boot-card">

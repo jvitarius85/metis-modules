@@ -136,6 +136,55 @@
     border-color: #7087dd;
 }
 
+.metis-media-dropzone.is-uploading,
+.metis-media-dropzone[disabled] {
+    cursor: wait;
+    opacity: .72;
+}
+
+.metis-media-upload-progress {
+    margin: -4px 0 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--metis-border, #d8d8df);
+    border-radius: 12px;
+    background: var(--metis-surface, #fff);
+}
+
+.metis-media-upload-progress__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 9px;
+}
+
+.metis-media-upload-progress__head strong {
+    color: #24315f;
+    font-size: 13px;
+}
+
+.metis-media-upload-progress__head span {
+    color: #667392;
+    font-size: 12px;
+    text-align: right;
+}
+
+.metis-media-upload-progress__track {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2e7f1;
+}
+
+.metis-media-upload-progress__track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--metis-primary, #485bc7);
+    transition: width .16s ease;
+}
+
 .metis-media-view-toggle {
     display: inline-flex;
     gap: 6px;

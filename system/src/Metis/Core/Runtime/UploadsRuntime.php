@@ -498,6 +498,140 @@ function metis_store_upload_bits( string $name, string $bits, array $allowed_mim
     ];
 }
 
+function metis_uploads_destroy_gd_image( $image ): void {
+    if ( PHP_VERSION_ID >= 80000 || ! is_resource( $image ) || ! function_exists( 'imagedestroy' ) ) {
+        return;
+    }
+
+    @imagedestroy( $image );
+}
+
+function metis_optimize_uploaded_image_file( string $path, string $mime_type, array $overrides = [] ): array {
+    if ( empty( $overrides['optimize_images'] ) || ! is_file( $path ) ) {
+        return [ 'optimized' => false ];
+    }
+
+    $mime_type = strtolower( trim( $mime_type ) );
+    if ( ! in_array( $mime_type, [ 'image/jpeg', 'image/png', 'image/webp' ], true ) ) {
+        return [ 'optimized' => false ];
+    }
+
+    if ( ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagecopyresampled' ) ) {
+        return [ 'optimized' => false ];
+    }
+
+    $info = @getimagesize( $path );
+    $width = is_array( $info ) ? (int) ( $info[0] ?? 0 ) : 0;
+    $height = is_array( $info ) ? (int) ( $info[1] ?? 0 ) : 0;
+    if ( $width < 1 || $height < 1 ) {
+        return [ 'optimized' => false ];
+    }
+
+    $max_dimension = isset( $overrides['image_max_dimension'] ) ? (int) $overrides['image_max_dimension'] : 2400;
+    $max_dimension = max( 640, min( 6000, $max_dimension ) );
+    $quality = isset( $overrides['image_quality'] ) ? (int) $overrides['image_quality'] : 82;
+    $quality = max( 50, min( 92, $quality ) );
+
+    $source = null;
+    if ( $mime_type === 'image/jpeg' && function_exists( 'imagecreatefromjpeg' ) ) {
+        $source = @imagecreatefromjpeg( $path );
+    } elseif ( $mime_type === 'image/png' && function_exists( 'imagecreatefrompng' ) ) {
+        $source = @imagecreatefrompng( $path );
+    } elseif ( $mime_type === 'image/webp' && function_exists( 'imagecreatefromwebp' ) && function_exists( 'imagewebp' ) ) {
+        $source = @imagecreatefromwebp( $path );
+    }
+
+    if ( ! is_resource( $source ) && ! ( $source instanceof \GdImage ) ) {
+        return [ 'optimized' => false ];
+    }
+
+    $scale = min( 1.0, $max_dimension / max( $width, $height ) );
+    $target_width = max( 1, (int) round( $width * $scale ) );
+    $target_height = max( 1, (int) round( $height * $scale ) );
+    $target = imagecreatetruecolor( $target_width, $target_height );
+    if ( ! $target ) {
+        metis_uploads_destroy_gd_image( $source );
+        return [ 'optimized' => false ];
+    }
+
+    if ( $mime_type === 'image/png' || $mime_type === 'image/webp' ) {
+        imagealphablending( $target, false );
+        imagesavealpha( $target, true );
+        $transparent = imagecolorallocatealpha( $target, 0, 0, 0, 127 );
+        if ( $transparent !== false ) {
+            imagefill( $target, 0, 0, $transparent );
+        }
+    } else {
+        imagealphablending( $target, true );
+        imagesavealpha( $target, false );
+        $white = imagecolorallocate( $target, 255, 255, 255 );
+        if ( $white !== false ) {
+            imagefill( $target, 0, 0, $white );
+        }
+    }
+
+    imagecopyresampled( $target, $source, 0, 0, 0, 0, $target_width, $target_height, $width, $height );
+
+    $tmp = tempnam( dirname( $path ), 'metis-img-' );
+    if ( ! is_string( $tmp ) || $tmp === '' ) {
+        metis_uploads_destroy_gd_image( $source );
+        metis_uploads_destroy_gd_image( $target );
+        return [ 'optimized' => false ];
+    }
+
+    $saved = false;
+    if ( $mime_type === 'image/jpeg' && function_exists( 'imagejpeg' ) ) {
+        if ( function_exists( 'imageinterlace' ) ) {
+            imageinterlace( $target, true );
+        }
+        $saved = imagejpeg( $target, $tmp, $quality );
+    } elseif ( $mime_type === 'image/png' && function_exists( 'imagepng' ) ) {
+        $saved = imagepng( $target, $tmp, 6 );
+    } elseif ( $mime_type === 'image/webp' && function_exists( 'imagewebp' ) ) {
+        $saved = imagewebp( $target, $tmp, $quality );
+    }
+
+    metis_uploads_destroy_gd_image( $source );
+    metis_uploads_destroy_gd_image( $target );
+
+    if ( ! $saved || ! is_file( $tmp ) ) {
+        @unlink( $tmp );
+        return [ 'optimized' => false ];
+    }
+
+    $original_size = (int) @filesize( $path );
+    $optimized_size = (int) @filesize( $tmp );
+    $resized = $target_width !== $width || $target_height !== $height;
+    if ( $optimized_size < 1 || ( ! $resized && $original_size > 0 && $optimized_size >= $original_size ) ) {
+        @unlink( $tmp );
+        return [
+            'optimized' => false,
+            'width' => $width,
+            'height' => $height,
+            'size' => $original_size,
+        ];
+    }
+
+    if ( ! @rename( $tmp, $path ) ) {
+        if ( ! @copy( $tmp, $path ) ) {
+            @unlink( $tmp );
+            return [ 'optimized' => false ];
+        }
+        @unlink( $tmp );
+    }
+    @chmod( $path, 0644 );
+
+    return [
+        'optimized' => true,
+        'original_size' => $original_size,
+        'optimized_size' => (int) @filesize( $path ),
+        'original_width' => $width,
+        'original_height' => $height,
+        'width' => $target_width,
+        'height' => $target_height,
+    ];
+}
+
 function metis_handle_upload( array $file, array $overrides = [] ): array {
     if ( empty( $file['tmp_name'] ) || empty( $file['name'] ) ) {
         return [ 'error' => 'Invalid upload payload.' ];
@@ -546,6 +680,7 @@ function metis_handle_upload( array $file, array $overrides = [] ): array {
     }
 
     @chmod( $destination, 0644 );
+    $optimization = metis_optimize_uploaded_image_file( $destination, $detected_mime, $overrides );
 
     $uploaded_by = function_exists( 'metis_current_user_id' ) ? (int) metis_current_user_id() : null;
     $media = metis_media_register_file(
@@ -561,5 +696,7 @@ function metis_handle_upload( array $file, array $overrides = [] ): array {
         'url' => $media['url'] ?? ( metis_trailingslashit( (string) $uploads['url'] ) . basename( $destination ) ),
         'token' => $media['token'] ?? null,
         'type' => $detected_mime,
+        'optimized' => ! empty( $optimization['optimized'] ),
+        'optimization' => $optimization,
     ];
 }

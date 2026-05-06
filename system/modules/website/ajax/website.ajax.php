@@ -1931,6 +1931,9 @@ metis_ajax_register_handler( 'metis_website_editor_media_upload', function (): v
 
     $result = metis_handle_upload( $_FILES['file'], [
         'test_form' => false,
+        'optimize_images' => true,
+        'image_max_dimension' => 2400,
+        'image_quality' => 82,
         'mimes' => [
             'jpg|jpeg|jpe' => 'image/jpeg',
             'gif' => 'image/gif',
@@ -1956,6 +1959,7 @@ metis_ajax_register_handler( 'metis_website_editor_media_upload', function (): v
             'label' => (string) ( $result['file_name'] ?? basename( (string) ( $result['file'] ?? '' ) ) ),
             'url' => $url,
             'mime' => (string) ( $result['type'] ?? '' ),
+            'optimized' => ! empty( $result['optimized'] ),
         ],
     ] );
 } );

@@ -66,6 +66,9 @@ metis_ajax_register_handler( 'metis_media_library_upload', function (): void {
     $uploaded = metis_handle_upload( $file, [
         'policy' => 'media_library',
         'test_form' => false,
+        'optimize_images' => true,
+        'image_max_dimension' => 2400,
+        'image_quality' => 82,
     ] );
 
     if ( ! is_array( $uploaded ) || ! empty( $uploaded['error'] ) ) {
@@ -83,7 +86,10 @@ metis_ajax_register_handler( 'metis_media_library_upload', function (): void {
         'url' => isset( $uploaded['url'] ) ? metis_url_clean( (string) $uploaded['url'] ) : '',
         'token' => $token,
         'file_name' => metis_filename_clean( (string) ( $file['name'] ?? '' ) ),
-        'size' => $size,
+        'size' => isset( $uploaded['optimization']['optimized_size'] )
+            ? (int) $uploaded['optimization']['optimized_size']
+            : $size,
+        'optimized' => ! empty( $uploaded['optimized'] ),
     ] );
 } );
 

@@ -4,6 +4,7 @@
     var facetState = { folders: [], categories: [] };
     var canEdit = false;
     var canDelete = false;
+    var uploadInProgress = false;
 
     function ensureToastWrap() {
         var id = 'metis-toast-wrap';
@@ -211,6 +212,27 @@
         return normalized;
     }
 
+    function setUploadControlsBusy(isBusy) {
+        $('#metis-media-upload-btn, #metis-media-upload-input, #metis-media-upload-folder, #metis-media-upload-category').prop('disabled', !!isBusy);
+        $('#metis-media-dropzone')
+            .prop('disabled', !!isBusy)
+            .toggleClass('is-uploading', !!isBusy)
+            .toggleClass('is-drag-over', false)
+            .attr('aria-disabled', isBusy ? 'true' : 'false');
+    }
+
+    function setUploadProgress(isActive, percent, copy, title) {
+        var pct = Math.max(0, Math.min(100, parseInt(String(percent || '0'), 10) || 0));
+        var $wrap = $('#metis-media-upload-progress');
+        if (!$wrap.length) return;
+        $wrap.prop('hidden', !isActive);
+        $wrap.attr('aria-busy', isActive ? 'true' : 'false');
+        $('#metis-media-upload-progress-title').text(title || 'Uploading media');
+        $('#metis-media-upload-progress-copy').text(copy || (isActive ? 'Uploading...' : 'Ready.'));
+        $('#metis-media-upload-progress-bar').css('width', pct + '%');
+        $wrap.find('[role="progressbar"]').attr('aria-valuenow', String(pct));
+    }
+
     function openModal(id) {
         if (window.Metis && Metis.modal && typeof Metis.modal.open === 'function') {
             Metis.modal.open(id);
@@ -257,9 +279,19 @@
         if (!files || !files.length) {
             return;
         }
+        if (uploadInProgress) {
+            toast('Upload already in progress.', 'info');
+            return;
+        }
 
         var cfg = ajaxBase();
         var queue = Array.prototype.slice.call(files);
+        var total = queue.length;
+        var completed = 0;
+        var failed = 0;
+        uploadInProgress = true;
+        setUploadControlsBusy(true);
+        setUploadProgress(true, 0, total === 1 ? 'Preparing 1 file...' : 'Preparing ' + total + ' files...');
 
         function responseErrorMessage(xhr, fallback) {
             var fallbackMessage = fallback || 'Upload failed.';
@@ -286,12 +318,20 @@
 
         function next() {
             if (!queue.length) {
+                var successCount = Math.max(0, completed - failed);
+                setUploadProgress(true, 100, successCount + ' uploaded' + (failed ? ', ' + failed + ' failed.' : '.'), 'Upload complete');
+                uploadInProgress = false;
+                setUploadControlsBusy(false);
+                window.setTimeout(function () {
+                    if (!uploadInProgress) setUploadProgress(false, 0, '');
+                }, 1400);
                 loadFacets();
                 loadMedia();
                 return;
             }
 
             var file = queue.shift();
+            var currentNumber = completed + 1;
             var form = new FormData();
             form.append('action', 'metis_media_library_upload');
             form.append('nonce', cfg.nonce || '');
@@ -299,6 +339,7 @@
             form.append('folder_path', ($('#metis-media-upload-folder').val() || '').trim());
             form.append('category_key', ($('#metis-media-upload-category').val() || '').trim());
             form.append('file', file);
+            setUploadProgress(true, Math.round((completed / total) * 100), 'Uploading ' + currentNumber + ' of ' + total + ': ' + (file.name || 'file'));
 
             $.ajax({
                 url: cfg.ajax_url,
@@ -306,9 +347,22 @@
                 processData: false,
                 contentType: false,
                 dataType: 'json',
-                data: form
+                data: form,
+                xhr: function () {
+                    var xhr = $.ajaxSettings.xhr();
+                    if (xhr.upload) {
+                        xhr.upload.addEventListener('progress', function (event) {
+                            if (!event.lengthComputable) return;
+                            var fileRatio = event.total > 0 ? (event.loaded / event.total) : 0;
+                            var batchPercent = Math.max(1, Math.min(99, Math.round(((completed + fileRatio) / total) * 100)));
+                            setUploadProgress(true, batchPercent, 'Uploading ' + currentNumber + ' of ' + total + ': ' + (file.name || 'file'));
+                        });
+                    }
+                    return xhr;
+                }
             }).done(function (response, _statusText, xhr) {
                 if (!(response && response.success)) {
+                    failed += 1;
                     var doneMessage = responseErrorMessage(xhr, 'Upload failed for ' + (file.name || 'file') + '.');
                     toast(doneMessage, 'error');
                     if (window.console && typeof window.console.error === 'function') {
@@ -316,6 +370,7 @@
                     }
                 }
             }).fail(function (xhr) {
+                failed += 1;
                 var failMessage = responseErrorMessage(xhr, 'Upload failed for ' + (file.name || 'file') + '.');
                 toast(failMessage, 'error');
                 if (window.console && typeof window.console.error === 'function') {
@@ -325,7 +380,10 @@
                         responseJSON: xhr && xhr.responseJSON ? xhr.responseJSON : null
                     });
                 }
-            }).always(next);
+            }).always(function () {
+                completed += 1;
+                next();
+            });
         }
 
         next();
@@ -376,7 +434,7 @@
         });
 
         $('#metis-media-upload-btn').on('click', function () {
-            if (!canEdit) return;
+            if (!canEdit || uploadInProgress) return;
             $('#metis-media-upload-input').trigger('click');
         });
 
@@ -405,13 +463,14 @@
 
         $('#metis-media-dropzone').on('click', function (e) {
             e.preventDefault();
-            if (!canEdit) return;
+            if (!canEdit || uploadInProgress) return;
             $('#metis-media-upload-input').trigger('click');
         });
 
         $('#metis-media-dropzone').on('dragover', function (e) {
             e.preventDefault();
             e.stopPropagation();
+            if (uploadInProgress) return;
             $(this).addClass('is-drag-over');
         });
 
@@ -425,6 +484,10 @@
             e.preventDefault();
             e.stopPropagation();
             $(this).removeClass('is-drag-over');
+            if (uploadInProgress) {
+                toast('Upload already in progress.', 'info');
+                return;
+            }
             var files = (e.originalEvent && e.originalEvent.dataTransfer && e.originalEvent.dataTransfer.files) ? e.originalEvent.dataTransfer.files : null;
             uploadFiles(files);
         });

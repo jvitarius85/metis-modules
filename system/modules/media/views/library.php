@@ -24,6 +24,15 @@ $can_delete = function_exists( 'metis_security_user_can' ) && metis_security_use
         <strong>Drop files here to upload</strong>
         <span>or click to choose files</span>
     </button>
+    <div id="metis-media-upload-progress" class="metis-media-upload-progress" hidden aria-live="polite" aria-busy="false">
+        <div class="metis-media-upload-progress__head">
+            <strong id="metis-media-upload-progress-title">Uploading media</strong>
+            <span id="metis-media-upload-progress-copy">Preparing upload...</span>
+        </div>
+        <div class="metis-media-upload-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="metis-media-upload-progress-bar"></span>
+        </div>
+    </div>
     <?php endif; ?>
     <div class="metis-media-toolbar">
         <label class="screen-reader-text" for="metis-media-search">Search media by filename</label>

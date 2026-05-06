@@ -383,6 +383,25 @@
         return options.sort();
     }
 
+    function normalizeMediaOption(row) {
+        var data = row && typeof row === 'object' ? row : {};
+        var id = parseInt(s(data.id || data.media_id || '0'), 10) || 0;
+        var label = s(data.label || data.file_name || data.name || 'Image');
+        var mime = s(data.mime || data.mime_type || data.type || '');
+        var url = s(data.url || data.src || '');
+        var token = s(data.value || data.token || data.public_token || '');
+        return {
+            id: id,
+            media_id: id,
+            value: token,
+            label: label,
+            file_name: label,
+            url: url,
+            mime: mime,
+            mime_type: mime
+        };
+    }
+
     var boot = document.getElementById('metis-editor-bootstrap');
     if (!boot) return;
     var bootSignature = [
@@ -465,6 +484,11 @@
             mime: ''
         },
         inlineImageTargetId: '',
+        mediaUpload: {
+            active: false,
+            context: '',
+            percent: 0
+        },
         selectedTemplateKey: '',
         blockLibrarySearch: '',
         blockPickerIndex: null,
@@ -476,7 +500,8 @@
         sectionsTouched: false,
         canEdit: s(boot.getAttribute('data-editor-can-edit') || '1') !== '0',
         canPublish: s(boot.getAttribute('data-editor-can-publish') || '1') !== '0',
-        canCreate: s(boot.getAttribute('data-editor-can-create') || '1') !== '0'
+        canCreate: s(boot.getAttribute('data-editor-can-create') || '1') !== '0',
+        canManageMedia: s(boot.getAttribute('data-editor-can-manage-media') || '0') === '1'
     };
 
     var initialEntity = j(s(boot.getAttribute('data-editor-initial-entity') || ''), null);
@@ -4038,6 +4063,188 @@
             if (searchEl) searchEl.focus();
         }
 
+        function editorMediaUploadPanelHtml(context) {
+            if (!state.canManageMedia) return '';
+            var cleanContext = s(context || 'inline');
+            return '' +
+                '<div class="metis-editor-media-upload" data-editor-media-upload-panel="' + esc(cleanContext) + '">' +
+                    '<div class="metis-editor-media-upload__main">' +
+                        '<div><strong>Upload image</strong><span data-editor-media-upload-status="' + esc(cleanContext) + '">Choose a JPG, PNG, GIF, WEBP, or SVG.</span></div>' +
+                        '<button type="button" class="metis-se-nav-btn" data-editor-media-upload-btn="' + esc(cleanContext) + '">Upload</button>' +
+                        '<input type="file" class="metis-editor-media-upload__input" data-editor-media-upload-input="' + esc(cleanContext) + '" accept="image/*" hidden>' +
+                    '</div>' +
+                    '<div class="metis-editor-media-upload__progress" data-editor-media-upload-progress-wrap="' + esc(cleanContext) + '" hidden><span data-editor-media-upload-progress="' + esc(cleanContext) + '"></span></div>' +
+                '</div>';
+        }
+
+        function setEditorMediaUploadUi(context, active, percent, message) {
+            var pct = Math.max(0, Math.min(100, parseInt(s(percent || '0'), 10) || 0));
+            var ctx = s(context || state.mediaUpload.context || '');
+            root.querySelectorAll('[data-editor-media-upload-panel]').forEach(function (panel) {
+                var panelCtx = s(panel.getAttribute('data-editor-media-upload-panel') || '');
+                var isCurrent = !ctx || panelCtx === ctx;
+                panel.classList.toggle('is-uploading', !!active && isCurrent);
+                panel.setAttribute('aria-busy', active && isCurrent ? 'true' : 'false');
+                panel.querySelectorAll('[data-editor-media-upload-btn], [data-editor-media-upload-input]').forEach(function (control) {
+                    control.disabled = !!active || !state.canManageMedia;
+                });
+                var status = panel.querySelector('[data-editor-media-upload-status]');
+                if (status && isCurrent) {
+                    status.textContent = s(message || (active ? 'Uploading...' : 'Ready to upload.'));
+                }
+                var wrap = panel.querySelector('[data-editor-media-upload-progress-wrap]');
+                var bar = panel.querySelector('[data-editor-media-upload-progress]');
+                if (wrap) wrap.hidden = !(active && isCurrent);
+                if (bar && isCurrent) bar.style.width = pct + '%';
+            });
+        }
+
+        function upsertEditorMediaOption(media) {
+            var row = normalizeMediaOption(media);
+            if (!row.url) return null;
+            var rowId = parseInt(s(row.id || '0'), 10) || 0;
+            var rowUrl = s(row.url || '');
+            var rows = Array.isArray(state.options.media) ? state.options.media : [];
+            state.options.media = rows.filter(function (existing) {
+                var existingId = parseInt(s(existing && (existing.id || existing.media_id || '0') || '0'), 10) || 0;
+                var existingUrl = s(existing && existing.url || '');
+                if (rowId > 0 && existingId === rowId) return false;
+                return !(rowUrl && existingUrl === rowUrl);
+            });
+            state.options.media.unshift(row);
+            return row;
+        }
+
+        function applyUploadedEditorImage(context, media) {
+            var row = upsertEditorMediaOption(media);
+            if (!row) return;
+            var ctx = s(context || 'inline');
+            if (ctx === 'featured') {
+                var hiddenEl = document.getElementById('metis-v2-featured-image-id');
+                if (hiddenEl && row.id > 0) hiddenEl.value = String(row.id);
+                renderFeaturedImagePickerList();
+                renderFeaturedImageField();
+                closeFeaturedImageModal();
+                setDirtyAutosave();
+                return;
+            }
+
+            renderInlineImagePickerList();
+            var blockTarget = blockImageTargetFromId(state.inlineImageTargetId);
+            if (blockTarget && state.sections[blockTarget.index]) {
+                var imageSection = state.sections[blockTarget.index];
+                imageSection.content = imageSection.content && typeof imageSection.content === 'object' ? imageSection.content : {};
+                imageSection.content[blockTarget.field] = s(row.url || '');
+                if (imageSection.type === 'image' && blockTarget.field === 'src' && !s(imageSection.content.alt || '')) {
+                    imageSection.content.alt = s(row.label || 'Image');
+                }
+                state.activeSection = blockTarget.index;
+                closeInlineImageModal();
+                renderSectionList();
+                setDirtyAutosave();
+                return;
+            }
+
+            var inlineTarget = state.inlineImageTargetId ? document.getElementById(state.inlineImageTargetId) : null;
+            requestInlineImageSize().then(function (sizeChoice) {
+                if (inlineTarget && sizeChoice) {
+                    insertHtmlAtSelection(inlineTarget, '<figure class="metis-inline-image is-' + esc(sizeChoice) + '"><img src="' + esc(s(row.url || '')) + '" alt="' + esc(s(row.label || 'Inline image')) + '"></figure>');
+                    setDirtyAutosave();
+                }
+                closeInlineImageModal();
+            });
+        }
+
+        function editorUploadErrorMessage(raw, fallback) {
+            var fallbackMessage = fallback || 'Upload failed.';
+            if (!raw) return fallbackMessage;
+            var payload = raw;
+            if (typeof raw === 'string') {
+                try {
+                    payload = JSON.parse(raw);
+                } catch (_err) {
+                    return raw.trim().slice(0, 240) || fallbackMessage;
+                }
+            }
+            if (payload && payload.data && payload.data.message) return s(payload.data.message);
+            if (payload && payload.message) return s(payload.message);
+            if (typeof payload.data === 'string') return s(payload.data);
+            return fallbackMessage;
+        }
+
+        function uploadEditorImage(context, files) {
+            if (!state.canManageMedia) {
+                setStatus('Media upload requires permission.', 'error');
+                return;
+            }
+            if (state.mediaUpload.active) {
+                setEditorMediaUploadUi(context, true, state.mediaUpload.percent, 'Upload already in progress.');
+                return;
+            }
+            var file = files && files.length ? files[0] : null;
+            if (!file) return;
+            if (file.type && file.type.indexOf('image/') !== 0) {
+                setEditorMediaUploadUi(context, false, 0, 'Choose an image file.');
+                setStatus('Choose an image file.', 'error');
+                return;
+            }
+
+            var action = 'metis_website_editor_media_upload';
+            var cfg = ajaxConfig(action);
+            var form = new FormData();
+            form.append('action', action);
+            form.append('nonce', cfg.nonce || '');
+            form.append('metis_action_nonce', cfg.action_nonce || '');
+            form.append('metis_csrf_action', cfg.csrf_action || defaultCsrfAction());
+            form.append('file', file);
+
+            state.mediaUpload.active = true;
+            state.mediaUpload.context = s(context || 'inline');
+            state.mediaUpload.percent = 0;
+            setEditorMediaUploadUi(context, true, 0, 'Uploading ' + s(file.name || 'image') + '...');
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', cfg.ajax_url, true);
+            xhr.responseType = 'text';
+            xhr.upload.onprogress = function (event) {
+                if (!event.lengthComputable) return;
+                var pct = Math.max(1, Math.min(99, Math.round((event.loaded / event.total) * 100)));
+                state.mediaUpload.percent = pct;
+                setEditorMediaUploadUi(context, true, pct, 'Uploading ' + pct + '%...');
+            };
+            xhr.onload = function () {
+                var parsed = null;
+                try {
+                    parsed = JSON.parse(s(xhr.responseText || ''));
+                } catch (_err) {}
+                if (xhr.status < 200 || xhr.status >= 300 || !parsed || !parsed.success) {
+                    var message = editorUploadErrorMessage(parsed || xhr.responseText, 'Upload failed.');
+                    setEditorMediaUploadUi(context, false, 0, message);
+                    setStatus(message, 'error');
+                    return;
+                }
+                state.mediaUpload.percent = 100;
+                setEditorMediaUploadUi(context, true, 100, 'Upload complete.');
+                applyUploadedEditorImage(context, parsed.data && parsed.data.media ? parsed.data.media : {});
+                setStatus('Image uploaded.', 'ok');
+            };
+            xhr.onerror = function () {
+                setEditorMediaUploadUi(context, false, 0, 'Upload failed.');
+                setStatus('Upload failed.', 'error');
+            };
+            xhr.onloadend = function () {
+                state.mediaUpload.active = false;
+                state.mediaUpload.context = '';
+                window.setTimeout(function () {
+                    if (!state.mediaUpload.active) setEditorMediaUploadUi(context, false, 0, 'Ready to upload.');
+                }, 800);
+                root.querySelectorAll('[data-editor-media-upload-input]').forEach(function (input) {
+                    input.value = '';
+                });
+            };
+            xhr.send(form);
+        }
+
         function updatePreview() {
             var host = document.getElementById('metis-v2-preview');
             if (!host) return;
@@ -4216,6 +4423,7 @@
                                 '</div>' +
                                 '<div id="metis-builder-settings-block" class="metis-builder-settings-block" hidden>' +
                                     '<div class="metis-content-panel-title">Block Settings</div>' +
+                                    '<button type="button" class="metis-se-nav-btn metis-builder-page-settings-return" data-panel-target="page">&larr; ' + esc(contentLabel()) + ' Settings</button>' +
                                     '<div class="metis-se-section-switch"><button id="metis-v2-section-prev" type="button" class="metis-se-nav-btn">&larr;</button><span id="metis-v2-section-label" class="metis-se-active-section-label"></span><button id="metis-v2-section-next" type="button" class="metis-se-nav-btn">&rarr;</button></div>' +
                                     '<div id="metis-v2-section-settings"></div>' +
 	                                    '<div id="metis-v2-section-content"></div>' +
@@ -4227,8 +4435,8 @@
 	                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-label="Revisions"><div class="metis-builder-drawer-head"><div><strong>Revisions</strong><span>Compare or restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revision-compare" class="metis-content-revision-compare" hidden></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
                     '<aside id="metis-v2-preview-drawer" class="metis-builder-drawer metis-builder-preview-drawer" hidden aria-label="Preview"><div class="metis-builder-drawer-head"><div><strong>Preview</strong><span>Rendered from current blocks.</span></div><button type="button" class="metis-modal-close" data-drawer-close="preview" aria-label="Close">&times;</button></div><div id="metis-v2-preview" class="metis-se-preview"></div></aside>' +
                     '<div id="metis-v2-confirm-modal" class="metis-modal-overlay metis-v2-confirm-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="metis-v2-confirm-title" aria-describedby="metis-v2-confirm-message"><div class="metis-modal metis-v2-confirm-modal__dialog"><div class="metis-modal-header"><h2 id="metis-v2-confirm-title" class="metis-modal-title">Confirm action</h2><button type="button" class="metis-modal-close" data-confirm-cancel="1" aria-label="Close">&times;</button></div><div class="metis-modal-body"><p id="metis-v2-confirm-message" class="metis-v2-confirm-modal__message">Continue?</p></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-confirm-cancel" data-confirm-cancel="1">Cancel</button><button type="button" class="metis-btn metis-btn-primary" id="metis-v2-confirm-accept" data-confirm-accept="1">Continue</button></div></div></div>' +
-                    (isPostContext() ? '<div id="metis-v2-featured-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Featured Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Choose Featured Image</h2><div id="metis-v2-featured-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-featured-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-featured-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-featured-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div><div id="metis-v2-featured-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-featured-image-cancel">Close</button></div></div></div>' : '') +
-                    '<div id="metis-v2-inline-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Inline Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Insert Image</h2><div id="metis-v2-inline-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-inline-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-inline-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-inline-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div><div id="metis-v2-inline-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-inline-image-cancel">Close</button></div></div></div>' +
+                    (isPostContext() ? '<div id="metis-v2-featured-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Featured Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Choose Featured Image</h2><div id="metis-v2-featured-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-featured-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-featured-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-featured-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div>' + editorMediaUploadPanelHtml('featured') + '<div id="metis-v2-featured-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-featured-image-cancel">Close</button></div></div></div>' : '') +
+                    '<div id="metis-v2-inline-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Inline Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Insert Image</h2><div id="metis-v2-inline-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-inline-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-inline-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-inline-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div>' + editorMediaUploadPanelHtml('inline') + '<div id="metis-v2-inline-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-inline-image-cancel">Close</button></div></div></div>' +
                 '</div>';
         }
 
@@ -4658,6 +4866,13 @@
                     syncStepUi();
                     return;
                 }
+                var uploadMediaBtn = e.target.closest('[data-editor-media-upload-btn]');
+                if (uploadMediaBtn) {
+                    var uploadContext = s(uploadMediaBtn.getAttribute('data-editor-media-upload-btn') || 'inline');
+                    var uploadInput = root.querySelector('[data-editor-media-upload-input="' + uploadContext + '"]');
+                    if (uploadInput && !uploadInput.disabled) uploadInput.click();
+                    return;
+                }
                 var openFeatured = e.target.closest('#metis-v2-featured-image-open');
                 if (openFeatured) {
                     openFeaturedImageModal();
@@ -5051,6 +5266,11 @@
             });
             root.addEventListener('change', function (e) {
                 var target = e.target;
+                if (target && target.matches && target.matches('[data-editor-media-upload-input]')) {
+                    var uploadContext = s(target.getAttribute('data-editor-media-upload-input') || 'inline');
+                    uploadEditorImage(uploadContext, target.files);
+                    return;
+                }
                 var sec = activeSection();
                 if (target.id === 'metis-v2-featured-image-mime') {
                     renderFeaturedImagePickerList();
