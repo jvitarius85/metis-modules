@@ -375,6 +375,21 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     font-size: 12px;
     line-height: 1.35;
 }
+.metis-builder-block-search {
+    min-height: 38px;
+}
+.metis-builder-library-group {
+    display: grid;
+    gap: 8px;
+}
+.metis-builder-library-group-title {
+    margin-top: 2px;
+    color: var(--metis-text-muted, #6d7485);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
 .metis-content-canvas {
     min-width: 0;
 }
@@ -502,7 +517,7 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
 }
 .metis-builder-canvas-frame {
     width: min(100%, 960px);
-    min-height: 100%;
+    min-height: 0;
     margin: 0 auto;
     background: var(--metis-surface, #fff);
     border: 1px solid var(--metis-border, #e0e2ea);
@@ -514,8 +529,35 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     gap: 0;
     align-content: start;
     align-items: start;
-    min-height: 720px;
-    padding: 22px;
+    min-height: 220px;
+    padding: 14px;
+}
+.metis-builder-drop-zone {
+    min-height: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 2px 0;
+    border: 1px dashed transparent;
+    border-radius: 8px;
+    color: transparent;
+    transition: min-height .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
+}
+.metis-builder-drop-zone span {
+    font-size: 12px;
+    font-weight: 700;
+}
+.metis-builder-canvas-inner.is-dragging .metis-builder-drop-zone {
+    min-height: 28px;
+    border-color: var(--metis-border, #e0e2ea);
+    background: var(--metis-row-even-bg, #f8f9fd);
+    color: var(--metis-text-muted, #6d7485);
+}
+.metis-builder-drop-zone.is-active {
+    min-height: 34px;
+    border-color: var(--metis-primary, #485bc7);
+    background: var(--metis-header-bg, #eceeff);
+    color: var(--metis-primary-dark, #3246a7);
 }
 .metis-builder-outline {
     display: grid;
@@ -880,7 +922,7 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
         overflow: visible;
     }
     .metis-builder-canvas-inner {
-        min-height: 420px;
+        min-height: 180px;
         padding: 14px;
     }
     .metis-builder-hero,
@@ -1631,14 +1673,14 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     min-height: 30px;
 }
 .metis-builder-block .metis-se-rich-editor {
-    min-height: 58px;
-    padding: 10px 12px;
+    min-height: 42px;
+    padding: 8px 10px;
     border-radius: 8px;
     line-height: 1.55;
     grid-column: auto;
 }
 .metis-builder-block .metis-builder-richtext {
-    min-height: 58px;
+    min-height: 42px;
 }
 .metis-builder-block .metis-builder-richtext p {
     margin-top: 0;

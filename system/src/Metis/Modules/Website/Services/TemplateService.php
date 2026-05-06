@@ -69,20 +69,28 @@ final class TemplateService {
 
     public static function resolveForPage( Page $page ): array {
         $page_type = self::pageTypeFromEntity( $page );
-        $template_key = self::normalizeStructuredTemplateKey(
-            self::getActiveTemplateSlug(),
-            $page_type
-        );
+        $template_key = self::templateKeyFromEntity( $page, $page_type, false );
         return self::resolveStructuredTemplateLayout( $template_key, $page_type );
     }
 
     public static function resolveForPost( Post $post ): array {
         $page_type = self::pageTypeFromEntity( $post, true );
-        $template_key = self::normalizeStructuredTemplateKey(
-            self::getActiveTemplateSlug(),
-            $page_type
-        );
+        $template_key = self::templateKeyFromEntity( $post, $page_type, true );
         return self::resolveStructuredTemplateLayout( $template_key, $page_type );
+    }
+
+    public static function isValidTemplateKey( string $template_key ): bool {
+        $candidate = self::canonicalTemplateKeyOrRaw( $template_key );
+        return $candidate !== '' && self::templateMeta( $candidate ) !== [];
+    }
+
+    public static function normalizeTemplateKeyForPageType( string $template_key, string $page_type ): string {
+        $candidate = self::canonicalTemplateKeyOrRaw( $template_key );
+        if ( $candidate !== '' && self::templateMeta( $candidate ) !== [] ) {
+            return self::normalizeStructuredTemplateKey( $candidate, $page_type );
+        }
+
+        return self::normalizeStructuredTemplateKey( self::getActiveTemplateSlug(), $page_type );
     }
 
     public static function resolveForArchive(): array {
@@ -522,5 +530,32 @@ final class TemplateService {
         }
 
         return self::normalizePageType( $page_type, $is_post );
+    }
+
+    private static function templateKeyFromEntity( object $entity, string $page_type, bool $is_post ): string {
+        $stored_key = '';
+        if ( isset( $entity->template_key ) && is_scalar( $entity->template_key ) ) {
+            $stored_key = (string) $entity->template_key;
+        }
+        if ( self::isValidTemplateKey( $stored_key ) ) {
+            return self::normalizeStructuredTemplateKey( $stored_key, $page_type );
+        }
+
+        $layout_raw = '';
+        if ( $is_post ) {
+            $layout_raw = (string) ( $entity->draft_content_json ?? $entity->content_json ?? '' );
+        } else {
+            $layout_raw = (string) ( $entity->draft_layout_json ?? $entity->layout_json ?? '' );
+        }
+        $layout = json_decode( $layout_raw, true );
+        if ( is_array( $layout ) ) {
+            $meta = StructuredWebsiteBuilderService::structuredMetaFromDecodedLayout( $layout );
+            $layout_key = isset( $meta['template_key'] ) && is_scalar( $meta['template_key'] ) ? (string) $meta['template_key'] : '';
+            if ( self::isValidTemplateKey( $layout_key ) ) {
+                return self::normalizeStructuredTemplateKey( $layout_key, $page_type );
+            }
+        }
+
+        return self::normalizeStructuredTemplateKey( self::getActiveTemplateSlug(), $page_type );
     }
 }

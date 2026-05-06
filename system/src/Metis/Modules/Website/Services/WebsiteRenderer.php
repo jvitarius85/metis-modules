@@ -2990,13 +2990,23 @@ final class WebsiteRenderer {
 
         $content = is_array( $section['content'] ?? null ) ? $section['content'] : [];
         $body = '';
-        if ( $type === 'text' ) {
+        if ( $type === 'heading' ) {
+            $body = self::renderStructuredHeadingSection( $content );
+        } elseif ( $type === 'text' ) {
             $body = self::renderStructuredTextSection( $content );
+        } elseif ( $type === 'image' ) {
+            $body = self::renderStructuredImageSection( $content );
+        } elseif ( $type === 'button' ) {
+            $body = self::renderStructuredButtonSection( $content );
+        } elseif ( $type === 'hero' ) {
+            $body = self::renderStructuredHeroBlockSection( $content );
+        } elseif ( $type === 'html' ) {
+            $body = self::renderStructuredHtmlSection( $content );
         } elseif ( $type === 'transcript' ) {
             $body = self::renderStructuredTranscriptSection( $content );
         } elseif ( $type === 'columns' ) {
             $body = self::renderStructuredColumnsSection( $content );
-        } elseif ( $type === 'feature_grid' ) {
+        } elseif ( $type === 'feature_grid' || $type === 'card_grid' ) {
             $body = self::renderStructuredFeatureGridSection( $content );
         } elseif ( $type === 'cta' ) {
             $body = self::renderStructuredCtaSection( $content );
@@ -3035,6 +3045,24 @@ final class WebsiteRenderer {
     /**
      * @param array<string,mixed> $content
      */
+    private static function renderStructuredHeadingSection( array $content ): string {
+        $text = trim( self::repairMojibakeText( (string) ( $content['text'] ?? '' ) ) );
+        if ( $text === '' ) {
+            return '';
+        }
+        $level = metis_key_clean( (string) ( $content['level'] ?? 'h2' ) );
+        if ( ! in_array( $level, [ 'h1', 'h2', 'h3', 'h4' ], true ) ) {
+            $level = 'h2';
+        }
+
+        return '<' . $level . ' class="metis-structured-heading metis-structured-heading--' . metis_escape_attr( $level ) . '">'
+            . metis_escape_html( $text )
+            . '</' . $level . '>';
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     */
     private static function renderStructuredTextSection( array $content ): string {
         $body = trim( (string) ( $content['body'] ?? '' ) );
         if ( $body === '' ) {
@@ -3050,6 +3078,98 @@ final class WebsiteRenderer {
         $safe = self::transformTranscriptTables( $safe );
         $safe = self::replaceEmojiShortcodes( $safe );
         return '<div class="metis-structured-text">' . $safe . '</div>';
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     */
+    private static function renderStructuredImageSection( array $content ): string {
+        $src = trim( (string) ( $content['src'] ?? '' ) );
+        if ( $src === '' ) {
+            return '';
+        }
+        $alt = self::repairMojibakeText( (string) ( $content['alt'] ?? '' ) );
+        $caption = trim( self::repairMojibakeText( (string) ( $content['caption'] ?? '' ) ) );
+
+        $html = '<figure class="metis-structured-image">';
+        $html .= '<img src="' . metis_escape_attr( self::normalizePublicUrl( $src ) ) . '" alt="' . metis_escape_attr( $alt ) . '" loading="lazy">';
+        if ( $caption !== '' ) {
+            $html .= '<figcaption>' . metis_escape_html( $caption ) . '</figcaption>';
+        }
+        $html .= '</figure>';
+        return $html;
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     */
+    private static function renderStructuredButtonSection( array $content ): string {
+        $label = trim( self::repairMojibakeText( (string) ( $content['label'] ?? '' ) ) );
+        if ( $label === '' ) {
+            return '';
+        }
+        $url = trim( (string) ( $content['url'] ?? '#' ) );
+        $align = metis_key_clean( (string) ( $content['align'] ?? 'left' ) );
+        if ( ! in_array( $align, [ 'left', 'center', 'right' ], true ) ) {
+            $align = 'left';
+        }
+
+        return '<p class="metis-structured-button-row is-' . metis_escape_attr( $align ) . '">'
+            . '<a class="metis-structured-button" href="' . metis_escape_attr( self::normalizePublicUrl( $url !== '' ? $url : '#' ) ) . '">'
+            . metis_escape_html( $label )
+            . '</a></p>';
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     */
+    private static function renderStructuredHeroBlockSection( array $content ): string {
+        $title = trim( self::repairMojibakeText( (string) ( $content['title'] ?? '' ) ) );
+        $subtitle = trim( self::repairMojibakeText( (string) ( $content['subtitle'] ?? '' ) ) );
+        $cta_label = trim( self::repairMojibakeText( (string) ( $content['cta_label'] ?? '' ) ) );
+        $cta_url = trim( (string) ( $content['cta_url'] ?? '#' ) );
+        $image_src = trim( (string) ( $content['image_src'] ?? '' ) );
+        if ( $title === '' && $subtitle === '' && $cta_label === '' && $image_src === '' ) {
+            return '';
+        }
+
+        $html = '<div class="metis-structured-hero-block">';
+        $html .= '<div class="metis-structured-hero-block__copy">';
+        if ( $title !== '' ) {
+            $html .= '<h1>' . metis_escape_html( $title ) . '</h1>';
+        }
+        if ( $subtitle !== '' ) {
+            $html .= '<p>' . metis_escape_html( $subtitle ) . '</p>';
+        }
+        if ( $cta_label !== '' ) {
+            $html .= '<a class="metis-structured-button" href="' . metis_escape_attr( self::normalizePublicUrl( $cta_url !== '' ? $cta_url : '#' ) ) . '">'
+                . metis_escape_html( $cta_label )
+                . '</a>';
+        }
+        $html .= '</div>';
+        if ( $image_src !== '' ) {
+            $html .= '<figure class="metis-structured-hero-block__media"><img src="' . metis_escape_attr( self::normalizePublicUrl( $image_src ) ) . '" alt="" loading="lazy"></figure>';
+        }
+        $html .= '</div>';
+        return $html;
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     */
+    private static function renderStructuredHtmlSection( array $content ): string {
+        $html = trim( (string) ( $content['html'] ?? '' ) );
+        if ( $html === '' ) {
+            return '';
+        }
+        $safe = function_exists( 'metis_runtime_kses_post' )
+            ? (string) metis_runtime_kses_post( $html )
+            : strip_tags( $html, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div><figure><img><table><thead><tbody><tr><th><td>' );
+        $safe = self::repairPublicHtmlText( $safe );
+        if ( trim( $safe ) === '' ) {
+            return '';
+        }
+        return '<div class="metis-structured-html">' . $safe . '</div>';
     }
 
     private static function repairPublicHtmlText( string $html ): string {
@@ -4388,6 +4508,22 @@ final class WebsiteRenderer {
             '.metis-structured-section > .metis-structured-section__head{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;left:50%;width:100vw;max-width:none;min-height:120px;margin:0 0 10px -50vw;padding:35px 24px;border:0;border-radius:0;box-shadow:none;text-align:center;box-sizing:border-box;}',
             '.metis-structured-section__title{margin:0;font-size:clamp(1.9rem,2.5vw,2.9rem);line-height:1.08;}',
             '.metis-structured-section__subtext{margin:0 auto;max-width:70ch;color:var(--metis-color-muted,#64748b);font-size:1rem;line-height:1.65;}',
+            '.metis-structured-heading{margin:0 0 .7em;line-height:1.12;letter-spacing:0;color:var(--metis-color-text,#1a1f2b);}',
+            '.metis-structured-image{display:grid;gap:10px;justify-items:center;margin:0;}',
+            '.metis-structured-image img{display:block;width:100%;max-width:min(920px,100%);height:auto;border-radius:16px;border:1px solid var(--metis-color-border,#dbe3ef);}',
+            '.metis-structured-image figcaption{max-width:72ch;text-align:center;color:var(--metis-color-muted,#64748b);}',
+            '.metis-structured-button-row{display:flex;margin:0;}',
+            '.metis-structured-button-row.is-center{justify-content:center;}',
+            '.metis-structured-button-row.is-right{justify-content:flex-end;}',
+            '.metis-structured-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 18px;border-radius:10px;background:var(--metis-color-primary,#485bc7);color:var(--metis-color-button_text,#fff) !important;text-decoration:none;font-weight:700;border:1px solid transparent;}',
+            '.metis-structured-button:hover{background:var(--metis-color-primary_dark,#3246a7);color:var(--metis-color-button_text,#fff) !important;text-decoration:none;}',
+            '.metis-structured-hero-block{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(220px,.95fr);gap:24px;align-items:center;padding:26px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:16px;background:var(--metis-color-surface_alt,#f8fafc);}',
+            '.metis-structured-hero-block__copy{display:grid;gap:12px;align-content:center;}',
+            '.metis-structured-hero-block__copy h1{margin:0;}',
+            '.metis-structured-hero-block__copy p{margin:0;color:var(--metis-color-muted,#64748b);}',
+            '.metis-structured-hero-block__media{margin:0;}',
+            '.metis-structured-hero-block__media img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--metis-color-border,#dbe3ef);}',
+            '.metis-structured-html{min-width:0;}',
             '.metis-structured-text .metis-inline-image{margin:18px auto;display:grid;justify-items:center;gap:10px;max-width:100%;}',
             '.metis-structured-text .metis-inline-image .metis-inline-image{margin:0;}',
             '.metis-structured-text .metis-inline-image > img{display:block;width:auto;max-width:min(720px,100%);height:auto;border-radius:16px;border:1px solid var(--metis-color-border,#dbe3ef);box-shadow:0 18px 40px rgba(15,23,42,.08);}',
@@ -4489,7 +4625,7 @@ final class WebsiteRenderer {
             '.metis-public-banner__dismiss{margin-left:8px;border:0;background:transparent;color:#fff;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}',
             '@media (max-width: 980px){.metis-shell-header-inner{padding:12px 16px;flex-wrap:wrap;display:flex !important;}.metis-shell-menu-list{gap:8px 10px;}.metis-shell-body-grid{grid-template-columns:1fr;}.metis-simple-grid-2,.metis-simple-grid-3{grid-template-columns:1fr;}.metis-shell-brand-logo-header{max-height:88px;}.metis-shell-brand-logo-footer{max-height:70px;}.metis-shell-footer-menu-grid{grid-template-columns:1fr;}.metis-shell-nav-utility{width:100%;}.metis-shell-nav-utility .metis-shell-menu-list{justify-content:flex-start;}.metis-shell-footer-variant-inline .metis-shell-footer-inner{display:block;}body.metis-layout-centered_editorial .metis-shell-header-inner{display:flex !important;}body.metis-layout-centered_editorial .metis-shell-header-row-main{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:100%;}body.metis-layout-centered_editorial .metis-shell-brand{order:1;margin-right:auto;}body.metis-layout-centered_editorial .metis-shell-nav-primary{order:3;width:100%;}body.metis-layout-centered_editorial .metis-shell-nav-primary .metis-shell-menu-list{justify-content:flex-start;}body.metis-layout-centered_editorial .metis-shell-nav-utility{order:2;margin-left:auto;}body.metis-layout-story_sidebar .metis-shell-header{position:relative;width:100%;height:auto;left:auto;top:auto;bottom:auto;border-right:0;border-bottom:1px solid var(--metis-color-border,#e2e8f0);}body.metis-layout-story_sidebar .metis-shell-header-inner{height:auto;padding:12px 16px;}body.metis-layout-story_sidebar .metis-shell-header-row-main{flex-direction:row;flex-wrap:wrap;}body.metis-layout-story_sidebar .metis-shell-body,body.metis-layout-story_sidebar .metis-site-footer{margin-left:0;}body.metis-layout-story_sidebar .metis-shell-nav-primary .metis-shell-menu-list{flex-direction:row;flex-wrap:wrap;}body.metis-layout-minimal_focus .metis-shell-nav-toggle{display:inline-flex;}body.metis-layout-minimal_focus .metis-shell-nav-primary{width:min(320px,90vw);}body.metis-layout-showcase_grid .metis-shell-header-row-main{display:flex;flex-wrap:wrap;}body.metis-layout-showcase_grid .metis-shell-nav-primary{width:100%;}}',
             '@media (max-width: 980px){body.metis-menu-style-v_sidebar_clean .metis-shell-nav-primary,body.metis-menu-style-v_sidebar_cards .metis-shell-nav-primary,body.metis-menu-style-v_sidebar_compact .metis-shell-nav-primary{position:static;width:100%;max-height:none;box-shadow:none;border-left:0;padding:0;}body.metis-menu-style-v_sidebar_clean .metis-shell-body,body.metis-menu-style-v_sidebar_cards .metis-shell-body,body.metis-menu-style-v_sidebar_compact .metis-shell-body,body.metis-menu-style-v_sidebar_clean .metis-shell-footer,body.metis-menu-style-v_sidebar_cards .metis-shell-footer,body.metis-menu-style-v_sidebar_compact .metis-shell-footer{padding-right:max(16px,3vw);}}',
-            '@media (max-width: 900px){.metis-block-grid{grid-template-columns:1fr !important;}.metis-structured-columns{grid-template-columns:1fr;}.metis-structured-columns__col.is-w25,.metis-structured-columns__col.is-w33,.metis-structured-columns__col.is-w50,.metis-structured-columns__col.is-w100{grid-column:1/-1;}.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4,.metis-structured-cta--split{grid-template-columns:1fr;}}',
+            '@media (max-width: 900px){.metis-block-grid{grid-template-columns:1fr !important;}.metis-structured-columns{grid-template-columns:1fr;}.metis-structured-columns__col.is-w25,.metis-structured-columns__col.is-w33,.metis-structured-columns__col.is-w50,.metis-structured-columns__col.is-w100{grid-column:1/-1;}.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4,.metis-structured-cta--split,.metis-structured-hero-block{grid-template-columns:1fr;}.metis-structured-hero-block{padding:18px;}}',
         ] );
     }
 

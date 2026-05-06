@@ -668,11 +668,51 @@ function metis_website_ajax_assert_layout_valid( $raw_json ): void {
  * @param array<string,mixed> $options
  * @return array{layout_json:string,page_type:string,template_key:string,template_override:bool,hero:array<string,mixed>,sections:array<int,array<string,mixed>>}
  */
+function metis_website_ajax_selected_template_key( string $page_type, string $fallback = '' ): string {
+    $requested = isset( $_POST['template_key'] )
+        ? metis_key_clean( (string) metis_runtime_unslash( $_POST['template_key'] ) )
+        : '';
+    if ( $requested !== '' ) {
+        if ( ! TemplateService::isValidTemplateKey( $requested ) ) {
+            metis_runtime_send_json_error(
+                [
+                    'message' => 'Selected template is not available.',
+                    'code' => 'invalid_template_key',
+                ],
+                422
+            );
+        }
+        return TemplateService::normalizeTemplateKeyForPageType( $requested, $page_type );
+    }
+
+    if ( $fallback !== '' && TemplateService::isValidTemplateKey( $fallback ) ) {
+        return TemplateService::normalizeTemplateKeyForPageType( $fallback, $page_type );
+    }
+
+    return TemplateService::normalizeTemplateKeyForPageType( TemplateService::getActiveTemplateSlug(), $page_type );
+}
+
 function metis_website_ajax_normalize_structured_layout( $raw_layout, array $options = [] ): array {
     $normalized_options = $options;
     $requested_template = isset( $normalized_options['template_key'] ) ? metis_key_clean( (string) $normalized_options['template_key'] ) : '';
     if ( $requested_template === '' ) {
-        $normalized_options['template_key'] = TemplateService::getActiveTemplateSlug();
+        $decoded = metis_website_ajax_decode_json_array( $raw_layout );
+        $meta = $decoded !== [] ? StructuredWebsiteBuilderService::structuredMetaFromDecodedLayout( $decoded ) : [];
+        $layout_template = isset( $meta['template_key'] ) && is_scalar( $meta['template_key'] )
+            ? metis_key_clean( (string) $meta['template_key'] )
+            : '';
+        $page_type = isset( $normalized_options['page_type'] ) ? metis_key_clean( (string) $normalized_options['page_type'] ) : 'page';
+        $normalized_options['template_key'] = $layout_template !== '' && TemplateService::isValidTemplateKey( $layout_template )
+            ? TemplateService::normalizeTemplateKeyForPageType( $layout_template, $page_type )
+            : TemplateService::normalizeTemplateKeyForPageType( TemplateService::getActiveTemplateSlug(), $page_type );
+    } elseif ( ! TemplateService::isValidTemplateKey( $requested_template ) ) {
+        metis_runtime_send_json_error(
+            [
+                'message' => 'Selected template is not available.',
+                'code' => 'invalid_template_key',
+            ],
+            422
+        );
     }
 
     $normalized = StructuredWebsiteBuilderService::normalizeLayout( $raw_layout, $normalized_options );
@@ -1387,13 +1427,30 @@ metis_ajax_register_handler( 'metis_editor_render_preview', function (): void {
         );
     }
 
-    $normalized_layout = metis_website_ajax_normalize_structured_layout(
-        $raw_layout,
-        [
-            'is_post' => $context === 'post',
-            'page_type' => $context === 'post' ? 'post' : '',
-        ]
-    );
+    $preview_page_type = $context === 'post'
+        ? 'post'
+        : ( isset( $_POST['page_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['page_type'] ) ) : '' );
+    $normalize_options = [
+        'is_post' => $context === 'post',
+        'page_type' => $preview_page_type,
+    ];
+    $requested_template_key = isset( $_POST['template_key'] )
+        ? metis_key_clean( (string) metis_runtime_unslash( $_POST['template_key'] ) )
+        : '';
+    if ( $requested_template_key !== '' ) {
+        if ( ! TemplateService::isValidTemplateKey( $requested_template_key ) ) {
+            metis_runtime_send_json_error(
+                [
+                    'message' => 'Selected template is not available.',
+                    'code' => 'invalid_template_key',
+                ],
+                422
+            );
+        }
+        $normalize_options['template_key'] = TemplateService::normalizeTemplateKeyForPageType( $requested_template_key, $preview_page_type );
+    }
+
+    $normalized_layout = metis_website_ajax_normalize_structured_layout( $raw_layout, $normalize_options );
     metis_website_ajax_assert_layout_valid( $normalized_layout['layout_json'] );
     $page_title = isset( $_POST['page_title'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['page_title'] ) ) : '';
     $featured_image_id = isset( $_POST['featured_image_id'] ) ? (int) $_POST['featured_image_id'] : 0;
@@ -1606,6 +1663,9 @@ metis_ajax_register_handler( 'metis_website_editor_revision_restore', function (
         if ( isset( $payload['slug'] ) && (string) $payload['slug'] !== '' ) {
             $update_data['slug'] = metis_slug_clean( (string) $payload['slug'] );
         }
+        if ( isset( $payload['template_key'] ) && TemplateService::isValidTemplateKey( (string) $payload['template_key'] ) ) {
+            $update_data['template_key'] = TemplateService::normalizeTemplateKeyForPageType( (string) $payload['template_key'], 'post' );
+        }
         if ( ! PostService::update( $entity_id, $update_data ) ) {
             metis_runtime_send_json_error( 'Failed to restore post revision.', 500 );
         }
@@ -1629,6 +1689,17 @@ metis_ajax_register_handler( 'metis_website_editor_revision_restore', function (
         ];
         if ( isset( $payload['slug'] ) && (string) $payload['slug'] !== '' ) {
             $update_data['slug'] = metis_slug_clean( (string) $payload['slug'] );
+        }
+        if ( isset( $payload['template_key'] ) && TemplateService::isValidTemplateKey( (string) $payload['template_key'] ) ) {
+            $page_type = 'page';
+            if ( isset( $payload['layout_json'] ) ) {
+                $layout = metis_website_ajax_decode_json_array( (string) $payload['layout_json'] );
+                $meta = $layout !== [] ? StructuredWebsiteBuilderService::structuredMetaFromDecodedLayout( $layout ) : [];
+                $candidate_type = isset( $meta['page_type'] ) && is_scalar( $meta['page_type'] ) ? metis_key_clean( (string) $meta['page_type'] ) : '';
+                $page_type = $candidate_type === 'homepage' ? 'homepage' : 'page';
+                $update_data['page_type'] = $page_type;
+            }
+            $update_data['template_key'] = TemplateService::normalizeTemplateKeyForPageType( (string) $payload['template_key'], $page_type );
         }
         if ( ! PageService::update( $entity_id, $update_data ) ) {
             metis_runtime_send_json_error( 'Failed to restore page revision.', 500 );
@@ -1865,13 +1936,16 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
     }
 
     $raw_layout_json = metis_website_ajax_post_string( 'layout_json', false );
+    $requested_page_type = isset( $_POST['page_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['page_type'] ) ) : '';
+    $preliminary_page_type = $set_homepage ? 'homepage' : ( $requested_page_type === 'homepage' ? 'homepage' : 'page' );
+    $selected_template_key = metis_website_ajax_selected_template_key( $preliminary_page_type );
     $normalized_layout = metis_website_ajax_normalize_structured_layout(
         $raw_layout_json,
         [
             'is_post' => false,
             'set_as_homepage' => $set_homepage,
-            'template_key' => TemplateService::getActiveTemplateSlug(),
-            'page_type' => isset( $_POST['page_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['page_type'] ) ) : '',
+            'template_key' => $selected_template_key,
+            'page_type' => $requested_page_type,
         ]
     );
 
@@ -1881,7 +1955,7 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
         'status'            => $requested_status,
         'draft_layout_json' => $normalized_layout['layout_json'],
         'page_type'         => $normalized_layout['page_type'],
-        'template_key'      => TemplateService::getActiveTemplateSlug(),
+        'template_key'      => $normalized_layout['template_key'],
         'parent_id'         => $parent_id > 0 ? $parent_id : null,
     ];
     if ( $section_count < 1 ) {
@@ -1924,6 +1998,7 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
             'slug' => (string) ( $data['slug'] ?? '' ),
             'status' => $requested_status,
             'layout_json' => (string) ( $data['draft_layout_json'] ?? '' ),
+            'template_key' => (string) ( $data['template_key'] ?? '' ),
             'seo_meta_json' => (string) ( metis_website_ajax_post_string( 'seo_meta_json', false ) ?? '' ),
             'schedule_at' => (string) ( $schedule_at ?? '' ),
             'autosave' => $autosave,
@@ -1992,14 +2067,21 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         metis_runtime_send_json_error( 'Slug Title must include letters or numbers.', 400 );
     }
 
+    $existing_page = PageService::getById( $id );
     $raw_layout_json = metis_website_ajax_post_string( 'layout_json', false );
+    $requested_page_type = isset( $_POST['page_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['page_type'] ) ) : '';
+    $preliminary_page_type = $set_homepage ? 'homepage' : ( $requested_page_type === 'homepage' ? 'homepage' : 'page' );
+    $selected_template_key = metis_website_ajax_selected_template_key(
+        $preliminary_page_type,
+        $existing_page !== null ? (string) ( $existing_page->template_key ?? '' ) : ''
+    );
     $normalized_layout = metis_website_ajax_normalize_structured_layout(
         $raw_layout_json,
         [
             'is_post' => false,
             'set_as_homepage' => $set_homepage,
-            'template_key' => TemplateService::getActiveTemplateSlug(),
-            'page_type' => isset( $_POST['page_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( $_POST['page_type'] ) ) : '',
+            'template_key' => $selected_template_key,
+            'page_type' => $requested_page_type,
         ]
     );
 
@@ -2009,7 +2091,7 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         'seo_meta_json'     => metis_website_ajax_post_string( 'seo_meta_json', false ),
         'status'            => $requested_status,
         'page_type'         => $normalized_layout['page_type'],
-        'template_key'      => TemplateService::getActiveTemplateSlug(),
+        'template_key'      => $normalized_layout['template_key'],
         'parent_id'         => $parent_id > 0 ? $parent_id : null,
     ];
     if ( $section_count < 1 ) {
@@ -2035,7 +2117,6 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         $data['slug'] = $normalized_slug;
     }
 
-    $existing_page = PageService::getById( $id );
     $blocked_empty_layout_overwrite = false;
     $blocked_stale_layout_overwrite = false;
     if ( $existing_page !== null && array_key_exists( 'draft_layout_json', $data ) ) {
@@ -2109,6 +2190,7 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
             'slug' => isset( $data['slug'] ) ? (string) $data['slug'] : '',
             'status' => $requested_status,
             'layout_json' => $checkpoint_layout_json,
+            'template_key' => (string) ( $data['template_key'] ?? '' ),
             'seo_meta_json' => (string) ( $data['seo_meta_json'] ?? '' ),
             'schedule_at' => (string) ( $schedule_at ?? '' ),
             'autosave' => $autosave,
@@ -2405,11 +2487,12 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
         metis_runtime_send_json_error( 'Slug Title must include letters or numbers.', 400 );
     }
     $raw_content_json = metis_website_ajax_post_string( 'content_json', false );
+    $selected_template_key = metis_website_ajax_selected_template_key( 'post' );
     $normalized_layout = metis_website_ajax_normalize_structured_layout(
         $raw_content_json,
         [
             'is_post' => true,
-            'template_key' => TemplateService::getActiveTemplateSlug(),
+            'template_key' => $selected_template_key,
             'page_type' => 'post',
         ]
     );
@@ -2432,7 +2515,7 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
             : ( $requested_status === 'published' && $schedule_at !== null ? $schedule_at : null ),
         'page_type'          => $normalized_layout['page_type'],
         'content_format'     => $content_format,
-        'template_key'       => TemplateService::getActiveTemplateSlug(),
+        'template_key'       => $normalized_layout['template_key'],
         'post_category_id'   => $post_category_id > 0 ? $post_category_id : null,
         'post_category_ids'  => $post_category_ids,
         'parent_page_id'     => $parent_page_id > 0 ? $parent_page_id : null,
@@ -2461,6 +2544,7 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
             'slug' => (string) ( $post->slug ?? '' ),
             'status' => $requested_status,
             'content_json' => (string) $draft_content_json,
+            'template_key' => (string) ( $normalized_layout['template_key'] ?? '' ),
             'excerpt' => isset( $_POST['excerpt'] ) ? metis_textarea_clean( (string) metis_runtime_unslash( $_POST['excerpt'] ) ) : '',
             'content_format' => $content_format,
             'seo_meta_json' => (string) ( metis_website_ajax_post_string( 'seo_meta_json', false ) ?? '' ),
@@ -2546,16 +2630,20 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
     if ( trim( $raw_slug ) !== '' && $normalized_slug === '' ) {
         metis_runtime_send_json_error( 'Slug Title must include letters or numbers.', 400 );
     }
+    $existing_post = PostService::getById( $id );
     $raw_content_json = metis_website_ajax_post_string( 'content_json', false );
+    $selected_template_key = metis_website_ajax_selected_template_key(
+        'post',
+        $existing_post !== null ? (string) ( $existing_post->template_key ?? '' ) : ''
+    );
     $normalized_layout = metis_website_ajax_normalize_structured_layout(
         $raw_content_json,
         [
             'is_post' => true,
-            'template_key' => TemplateService::getActiveTemplateSlug(),
+            'template_key' => $selected_template_key,
             'page_type' => 'post',
         ]
     );
-    $existing_post = PostService::getById( $id );
 
     $data = [
         'title'              => $title,
@@ -2565,7 +2653,7 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
         'status'             => $requested_status,
         'page_type'          => $normalized_layout['page_type'],
         'content_format'     => $content_format,
-        'template_key'       => TemplateService::getActiveTemplateSlug(),
+        'template_key'       => $normalized_layout['template_key'],
         'post_category_id'   => $post_category_id > 0 ? $post_category_id : null,
         'post_category_ids'  => $post_category_ids,
         'parent_page_id'     => $parent_page_id > 0 ? $parent_page_id : null,
@@ -2662,6 +2750,7 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
             'slug' => isset( $data['slug'] ) ? (string) $data['slug'] : '',
             'status' => $requested_status,
             'content_json' => $checkpoint_content_json,
+            'template_key' => (string) ( $data['template_key'] ?? '' ),
             'excerpt' => (string) ( $data['excerpt'] ?? '' ),
             'content_format' => $content_format,
             'seo_meta_json' => (string) ( $data['seo_meta_json'] ?? '' ),

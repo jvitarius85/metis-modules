@@ -363,8 +363,8 @@ metis_on('metis_assets_enqueue', function () {
     if ( $view === 'editor' ) {
         $simple_style_handle = 'metis-editor-simple';
         $simple_script_handle = 'metis-editor-simple';
-        $editor_nonce_action = $domain === 'cms' ? 'metis_cms' : 'metis_website';
-        $editor_ajax_object = $domain === 'cms' ? 'metisCmsAjax' : 'metisWebsiteAjax';
+        $editor_nonce_action = 'metis_website';
+        $editor_ajax_object = 'metisWebsiteAjax';
 
         metis_runtime_enqueue_style(
             $simple_style_handle,

@@ -466,6 +466,7 @@
         },
         inlineImageTargetId: '',
         selectedTemplateKey: '',
+        blockLibrarySearch: '',
         pendingBlockType: 'text',
         slugManuallyEdited: false,
         loadingProperties: false,
@@ -516,9 +517,9 @@
     function isTemplateContext() { return state.context === 'template'; }
     function isNewsletterContext() { return state.context.indexOf('newsletter') === 0; }
     function isNewEntityRoute() { return !state.key && (!state.id || state.id < 1); }
-    function contentModuleSlug() { return isCmsContext() ? 'cms' : 'website'; }
-    function contentAction(suffix) { return 'metis_' + contentModuleSlug() + '_' + suffix; }
-    function contentLabel() { return isCmsContext() ? 'CMS' : 'Website'; }
+    function contentModuleSlug() { return 'website'; }
+    function contentAction(suffix) { return 'metis_website_' + suffix; }
+    function contentLabel() { return 'Website'; }
     function inferRefFromPath() {
         var pathname = s(window.location.pathname || '');
         if (!pathname) return { key: '', id: 0 };
@@ -599,11 +600,10 @@
 
     function defaultCsrfAction() {
         if (isNewsletterContext()) return 'metis_newsletter';
-        return isCmsContext() ? 'metis_cms' : 'metis_website';
+        return 'metis_website';
     }
 
     function editorModuleAjaxConfig() {
-        if (isCmsContext()) return window.metisCmsAjax || window.metisWebsiteAjax || {};
         return window.metisWebsiteAjax || {};
     }
 
@@ -2686,32 +2686,63 @@
         function defaultTemplateKeyForPageType(pageType) {
             var preferred = s(state.options && state.options.activeTemplate && state.options.activeTemplate.key || '').trim().toLowerCase();
             if (templateKeyExists(preferred)) return preferred;
+            if (!availableTemplateOptions().length && preferred) return preferred;
             preferred = s(state.options && state.options.defaultTemplateKey || '').trim().toLowerCase();
             if (templateKeyExists(preferred)) return preferred;
+            if (!availableTemplateOptions().length && preferred) return preferred;
             if (pageType === 'homepage') return 'hero_split_glass';
             if (pageType === 'post') return 'editorial_focus';
             return 'centered_stack_marketing';
         }
 
         function normalizeSelectedTemplateKey(raw, pageType) {
-            return defaultTemplateKeyForPageType(pageType || currentPageType());
+            var resolvedPageType = s(pageType || currentPageType() || 'page').trim().toLowerCase();
+            var candidate = s(raw || '').trim().toLowerCase();
+            if (templateKeyExists(candidate)) return candidate;
+            candidate = s(state.selectedTemplateKey || '').trim().toLowerCase();
+            if (templateKeyExists(candidate)) return candidate;
+            return defaultTemplateKeyForPageType(resolvedPageType);
         }
 
         function selectedTemplateKey(pageType) {
             var resolvedPageType = s(pageType || currentPageType() || 'page').trim().toLowerCase();
-            var normalized = normalizeSelectedTemplateKey('', resolvedPageType);
+            var select = document.getElementById('metis-v2-template-key');
+            var normalized = normalizeSelectedTemplateKey(select ? select.value : state.selectedTemplateKey, resolvedPageType);
             state.selectedTemplateKey = normalized;
+            if (select && select.value !== normalized) select.value = normalized;
             return normalized;
+        }
+
+        function templateLabelForKey(key) {
+            var needle = s(key || '').trim().toLowerCase();
+            var found = availableTemplateOptions().filter(function (row) {
+                return s(row && row.value || '').trim().toLowerCase() === needle;
+            })[0];
+            return s(found && found.label || needle || contentLabel() + ' default');
         }
 
         function templateSelectInnerHtml(selectedKey, pageType) {
             var value = normalizeSelectedTemplateKey(selectedKey, pageType);
-            return availableTemplateOptions().map(function (row) {
+            var html = availableTemplateOptions().map(function (row) {
                 var optionValue = s(row && row.value || '').trim().toLowerCase();
                 if (!optionValue) return '';
                 var optionLabel = s(row && row.label || optionValue);
                 return '<option value="' + esc(optionValue) + '"' + (optionValue === value ? ' selected' : '') + '>' + esc(optionLabel) + '</option>';
             }).join('');
+            return html || '<option value="' + esc(value) + '">' + esc(templateLabelForKey(value)) + '</option>';
+        }
+
+        function syncTemplateField() {
+            var pageType = currentPageType();
+            var select = document.getElementById('metis-v2-template-key');
+            var display = document.getElementById('metis-v2-template-display');
+            var selected = selectedTemplateKey(pageType);
+            if (select) {
+                var html = templateSelectInnerHtml(selected, pageType);
+                if (select.innerHTML !== html) select.innerHTML = html;
+                if (select.value !== selected) select.value = selected;
+            }
+            if (display) display.textContent = templateLabelForKey(selected);
         }
 
         function layoutJsonFromState() {
@@ -2751,6 +2782,42 @@
                 ? ['heading', 'text', 'image', 'button', 'columns', 'card_grid', 'html', 'transcript']
                 : ['heading', 'text', 'image', 'button', 'columns', 'hero', 'card_grid', 'posts_list', 'html'];
             return preferred.filter(function (type) { return allowed.indexOf(type) !== -1; });
+        }
+
+        function blockCategory(type) {
+            if (type === 'heading' || type === 'text' || type === 'button' || type === 'html' || type === 'transcript') return 'Content';
+            if (type === 'image' || type === 'hero') return 'Media';
+            if (type === 'columns' || type === 'card_grid') return 'Layout';
+            if (type === 'posts_list') return 'Dynamic';
+            return 'Blocks';
+        }
+
+        function filteredBlockLibraryTypes() {
+            var query = s(state.blockLibrarySearch || '').trim().toLowerCase();
+            return blockLibraryTypes().filter(function (type) {
+                if (!query) return true;
+                return (
+                    sectionTypeLabel(type).toLowerCase().indexOf(query) !== -1 ||
+                    sectionDescription(type).toLowerCase().indexOf(query) !== -1 ||
+                    blockCategory(type).toLowerCase().indexOf(query) !== -1
+                );
+            });
+        }
+
+        function insertSection(type, index) {
+            if (!state.canEdit && !(state.id < 1 && state.canCreate)) return;
+            if (!Array.isArray(state.sections)) state.sections = [];
+            var allowed = availableSectionTypes();
+            var blockType = allowed.indexOf(s(type || 'text')) === -1 ? 'text' : s(type || 'text');
+            var insertAt = typeof index === 'number'
+                ? index
+                : (state.activeSection >= 0 ? state.activeSection + 1 : state.sections.length);
+            insertAt = Math.max(0, Math.min(state.sections.length, insertAt));
+            state.sections.splice(insertAt, 0, defaultSectionByType(blockType));
+            state.activeSection = insertAt;
+            renderSectionList();
+            syncStepUi();
+            setDirtyAutosave();
         }
 
         function plainTextFromHtml(html) {
@@ -2852,11 +2919,16 @@
             var canvas = document.getElementById('metis-v2-canvas');
             if (!canvas) return;
             var sections = Array.isArray(state.sections) ? state.sections : [];
+            function dropZone(index) {
+                return '<div class="metis-builder-drop-zone" data-builder-drop-index="' + esc(String(index)) + '"><span>Add block here</span></div>';
+            }
             if (!sections.length) {
-                canvas.innerHTML = '<div class="metis-builder-empty"><strong>No blocks yet.</strong><span>Add a block from the left panel to start composing.</span></div>';
+                canvas.innerHTML = dropZone(0) + '<div class="metis-builder-empty"><strong>No blocks yet.</strong><span>Add a block from the left panel to start composing.</span></div>';
                 return;
             }
-            canvas.innerHTML = sections.map(function (sec, index) { return renderVisualBlock(sec, index); }).join('');
+            canvas.innerHTML = dropZone(0) + sections.map(function (sec, index) {
+                return renderVisualBlock(sec, index) + dropZone(index + 1);
+            }).join('');
             bindIconFallbacks(canvas);
         }
 
@@ -2877,9 +2949,46 @@
                 host.innerHTML = '<div class="metis-se-meta-value">View only.</div>';
                 return;
             }
-            host.innerHTML = blockLibraryTypes().map(function (type) {
-                return '<button type="button" class="metis-content-library-item" draggable="true" data-add-block-type="' + esc(type) + '"><strong>' + esc(sectionTypeLabel(type)) + '</strong><small>' + esc(sectionDescription(type)) + '</small></button>';
-            }).join('');
+            var grouped = {};
+            filteredBlockLibraryTypes().forEach(function (type) {
+                var group = blockCategory(type);
+                if (!grouped[group]) grouped[group] = [];
+                grouped[group].push(type);
+            });
+            var html = '<input id="metis-v2-block-search" class="metis-se-input metis-builder-block-search" type="search" aria-label="Search blocks" placeholder="Search blocks" value="' + esc(state.blockLibrarySearch || '') + '">';
+            Object.keys(grouped).forEach(function (group) {
+                html += '<div class="metis-builder-library-group"><div class="metis-builder-library-group-title">' + esc(group) + '</div>';
+                grouped[group].forEach(function (type) {
+                    html += '<button type="button" class="metis-content-library-item" draggable="true" data-add-block-type="' + esc(type) + '"><strong>' + esc(sectionTypeLabel(type)) + '</strong><small>' + esc(sectionDescription(type)) + '</small></button>';
+                });
+                html += '</div>';
+            });
+            if (Object.keys(grouped).length === 0) {
+                html += '<div class="metis-se-meta-value">No matching blocks.</div>';
+            }
+            host.innerHTML = html;
+        }
+
+        function clearCanvasDropTargets() {
+            var canvas = document.getElementById('metis-v2-canvas');
+            if (!canvas) return;
+            canvas.classList.remove('is-dragging');
+            canvas.querySelectorAll('.metis-builder-drop-zone.is-active').forEach(function (node) {
+                node.classList.remove('is-active');
+            });
+        }
+
+        function dropIndexFromEvent(event) {
+            var dropZone = event.target && event.target.closest ? event.target.closest('[data-builder-drop-index]') : null;
+            if (!dropZone) {
+                var block = event.target && event.target.closest ? event.target.closest('[data-builder-block-index]') : null;
+                if (block) {
+                    var blockIndex = parseInt(s(block.getAttribute('data-builder-block-index') || '-1'), 10);
+                    return Math.max(0, blockIndex + 1);
+                }
+                return state.sections.length;
+            }
+            return Math.max(0, Math.min(state.sections.length, parseInt(s(dropZone.getAttribute('data-builder-drop-index') || '0'), 10) || 0));
         }
 
         function renderBuilderSettings() {
@@ -3143,11 +3252,13 @@
             var layoutModel = layoutModelFromLayout(draft.layout_json, isPostContext());
             state.sections = normalizeSections(layoutModel.sections, isPostContext());
             state.hero = normalizeHeroState(layoutModel.hero, layoutModel.page_type === 'homepage' && isPageContext());
+            state.selectedTemplateKey = normalizeSelectedTemplateKey(layoutModel.template_key, layoutModel.page_type);
             var titleEl = document.getElementById('metis-v2-title');
             var slugEl = document.getElementById('metis-v2-slug');
             if (titleEl && draft.title) titleEl.value = s(draft.title);
             if (slugEl && draft.slug) slugEl.value = s(draft.slug);
             state.activeSection = -1;
+            syncTemplateField();
             renderSectionList();
             syncStepUi();
             setStatus('Recovered local draft', 'saving');
@@ -3181,7 +3292,7 @@
         function loadReusableBlocks() {
             if (!isManagedContentContext()) return Promise.resolve();
             return request(contentAction('reusable_blocks_list'), {
-                context: isPostContext() ? 'post' : (isCmsContext() ? 'cms' : 'website')
+                context: isPostContext() ? 'post' : 'website'
             }).then(function (resp) {
                 state.reusableBlocks = Array.isArray(resp.items) ? resp.items : [];
                 renderReusableBlocks();
@@ -3406,9 +3517,12 @@
             var featuredImageCaptionEl = document.getElementById('metis-v2-featured-image-caption');
             var layoutRaw = layoutJsonFromState();
             var layoutObj = j(layoutRaw, {});
+            var pageType = currentPageType();
             request('metis_editor_render_preview', {
-                context: isPostContext() ? 'post' : (isCmsContext() ? 'cms' : 'website'),
+                context: isPostContext() ? 'post' : 'website',
                 layout: layoutObj,
+                template_key: selectedTemplateKey(pageType),
+                page_type: pageType,
                 page_title: s(titleEl && titleEl.value || ''),
                 featured_image_id: parseInt(s(featuredImageEl && featuredImageEl.value || '0'), 10) || 0,
                 featured_image_caption: s(featuredImageCaptionEl && featuredImageCaptionEl.value || '')
@@ -3565,7 +3679,7 @@
                                         '<div class="metis-se-field-row"><label for="metis-v2-title">Title</label><input id="metis-v2-title" class="metis-se-input" type="text" placeholder="Title"></div>' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option>' + (state.canPublish ? '<option value="published">Published</option><option value="scheduled">Scheduled</option>' : '') + '</select></div>' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-slug">URL Path</label><input id="metis-v2-slug" class="metis-se-input" type="text" placeholder="' + (isPostContext() ? 'post-slug-title' : 'page-slug') + '">' + (isPostContext() ? '<div class="metis-se-field-help">Public path uses the primary category, optional child category, and original publish year automatically.</div><div id="metis-v2-post-path-preview" class="metis-se-meta-value metis-se-path-preview">Select a primary category to generate the public path.</div>' : '') + '</div>' +
-                                        '<div class="metis-se-field-row"><label>' + esc(contentLabel()) + ' Template</label><div id="metis-v2-template-display" class="metis-se-meta-value">Loading active template...</div></div>' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-template-key">' + esc(contentLabel()) + ' Template</label><select id="metis-v2-template-key" class="metis-se-select"><option value="">Loading templates...</option></select><div id="metis-v2-template-display" class="metis-se-meta-value">Default template</div></div>' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' +
                                         (isPostContext() ? '<div class="metis-se-field-row"><label>Categories</label><div id="metis-v2-category-chip-host">' + categoryChipField('metis-v2-category-ids', [], 'No categories available.') + '</div></div>' : '') +
                                         (isPostContext() ? '<div class="metis-se-field-row"><label>Featured Image</label><input id="metis-v2-featured-image-id" type="hidden" value=""><div class="metis-featured-image-actions"><button type="button" id="metis-v2-featured-image-open" class="metis-se-nav-btn">Choose Image</button><button type="button" id="metis-v2-featured-image-clear" class="metis-se-nav-btn">Remove</button></div><div id="metis-v2-featured-image-preview" class="metis-media-grid metis-featured-image-preview"></div></div>' : '') +
@@ -3619,7 +3733,6 @@
             var featuredImageEl = document.getElementById('metis-v2-featured-image-id');
             var featuredImageCaptionEl = document.getElementById('metis-v2-featured-image-caption');
             var excerptEl = document.getElementById('metis-v2-excerpt');
-            var templateDisplayEl = document.getElementById('metis-v2-template-display');
             var authorEl = document.getElementById('metis-v2-author-name');
             var lastEditEl = document.getElementById('metis-v2-last-edit');
             var lastEditRow = document.getElementById('metis-v2-last-edit-row');
@@ -3633,9 +3746,7 @@
                 s(data.template_key || state.selectedTemplateKey || ''),
                 currentPageType()
             );
-            if (templateDisplayEl) {
-                templateDisplayEl.textContent = s(state.options && state.options.activeTemplate && state.options.activeTemplate.label || '') || contentLabel() + ' default';
-            }
+            syncTemplateField();
             if (parentEl) parentEl.value = s(data.parent_page_id || data.parent_id || '');
             setSelectedCategoryIds('metis-v2-category-ids', data.post_category_ids || data.category_ids || (data.post_category_id ? [data.post_category_id] : []));
             if (featuredImageEl) featuredImageEl.value = s(data.featured_image_id || '');
@@ -3669,7 +3780,6 @@
                 : { key: '', label: '' };
             state.options.defaultTemplateKey = s(resp.default_template_key || '');
             var parentEl = document.getElementById('metis-v2-parent-id');
-            var templateDisplayEl = document.getElementById('metis-v2-template-display');
             if (parentEl) {
                 var pHtml = '<option value="">None</option>';
                 state.options.parentPages.forEach(function (row) {
@@ -3682,9 +3792,7 @@
                 categoryHost.innerHTML = categoryChipField('metis-v2-category-ids', state.entity && (state.entity.post_category_ids || state.entity.category_ids || []), 'No categories available.');
             }
             state.selectedTemplateKey = normalizeSelectedTemplateKey(state.selectedTemplateKey, currentPageType());
-            if (templateDisplayEl) {
-                templateDisplayEl.textContent = s(state.options.activeTemplate && state.options.activeTemplate.label || '') || contentLabel() + ' default';
-            }
+            syncTemplateField();
             applyInputsFromEntity(state.entity || {});
             if (isPostContext()) renderFeaturedImageField();
             renderPostPathPreview();
@@ -3818,11 +3926,7 @@
                 }
                 var addBlockType = e.target.closest('[data-add-block-type]');
                 if (addBlockType) {
-                    state.sections.push(defaultSectionByType(s(addBlockType.getAttribute('data-add-block-type') || 'text')));
-                    state.activeSection = state.sections.length - 1;
-                    renderSectionList();
-                    syncStepUi();
-                    setDirtyAutosave();
+                    insertSection(s(addBlockType.getAttribute('data-add-block-type') || 'text'));
                     return;
                 }
                 var recoverDraft = e.target.closest('#metis-v2-recover-draft');
@@ -3852,6 +3956,11 @@
                             var raw = isPostContext() ? s(entity.draft_content_json || entity.content_json || '') : s(entity.draft_layout_json || entity.layout_json || '');
                             var layoutModel = layoutModelFromLayout(raw, isPostContext());
                             state.sections = normalizeSections(layoutModel.sections, isPostContext());
+                            state.hero = normalizeHeroState(layoutModel.hero, layoutModel.page_type === 'homepage' && isPageContext());
+                            state.selectedTemplateKey = normalizeSelectedTemplateKey(
+                                s(entity.template_key || layoutModel.template_key || ''),
+                                layoutModel.page_type
+                            );
                             applyInputsFromEntity(entity);
                             renderSectionList();
                             syncStepUi();
@@ -3875,8 +3984,9 @@
                                 else if (sec.type === 'text' || sec.type === 'html') sec.content = sec.type === 'html' ? { html: s(block.data.content || block.data.html || '') } : { body: s(block.data.content || block.data.body || '<p></p>') };
                                 else sec.content = Object.assign({}, sec.content, block.data);
                             }
-                            state.sections.push(sec);
-                            state.activeSection = state.sections.length - 1;
+                            var insertAt = state.activeSection >= 0 ? state.activeSection + 1 : state.sections.length;
+                            state.sections.splice(insertAt, 0, sec);
+                            state.activeSection = insertAt;
                             renderSectionList();
                             syncStepUi();
                             setDirtyAutosave();
@@ -3892,7 +4002,7 @@
                     var name = sectionSummary(reusableSection);
                     var block = sectionToReusableBlock(reusableSection);
                     request(contentAction('reusable_block_save'), {
-                        context: isPostContext() ? 'post' : (isCmsContext() ? 'cms' : 'website'),
+                        context: isPostContext() ? 'post' : 'website',
                         name: name,
                         category: 'custom',
                         block_json: JSON.stringify(block)
@@ -3950,7 +4060,7 @@
                     if (act === 'up' && idx > 0) { var a = state.sections[idx - 1]; state.sections[idx - 1] = state.sections[idx]; state.sections[idx] = a; if (state.activeSection === idx) state.activeSection = idx - 1; }
                     if (act === 'down' && idx < state.sections.length - 1) { var b = state.sections[idx + 1]; state.sections[idx + 1] = state.sections[idx]; state.sections[idx] = b; if (state.activeSection === idx) state.activeSection = idx + 1; }
                     if (act === 'duplicate') { var copy = JSON.parse(JSON.stringify(state.sections[idx])); copy.id = uid(); copy.metadata = { created_at: (new Date()).toISOString() }; state.sections.splice(idx + 1, 0, copy); state.activeSection = idx + 1; }
-                    if (act === 'delete') { state.sections.splice(idx, 1); if (!state.sections.length) state.sections = [defaultSectionByType('text')]; if (state.activeSection >= state.sections.length) state.activeSection = state.sections.length - 1; }
+                    if (act === 'delete') { state.sections.splice(idx, 1); if (!state.sections.length) state.activeSection = -1; else if (state.activeSection >= state.sections.length) state.activeSection = state.sections.length - 1; }
                     renderSectionList();
                     syncStepUi();
                     setDirtyAutosave();
@@ -4132,6 +4242,18 @@
                     renderInlineImagePickerList();
                     return;
                 }
+                if (target.id === 'metis-v2-block-search') {
+                    state.blockLibrarySearch = s(target.value || '');
+                    renderBlockLibrary();
+                    var search = document.getElementById('metis-v2-block-search');
+                    if (search) {
+                        search.focus();
+                        try {
+                            search.setSelectionRange(search.value.length, search.value.length);
+                        } catch (_err) {}
+                    }
+                    return;
+                }
                 var inlineBlock = target.closest && target.closest('[data-v2-inline]');
                 if (inlineBlock) {
                     var inlineIndex = parseInt(s(inlineBlock.getAttribute('data-inline-index') || '-1'), 10);
@@ -4308,12 +4430,19 @@
                     }
                     state.hero = normalizeHeroState(state.hero, isHomepage);
                     state.selectedTemplateKey = normalizeSelectedTemplateKey(state.selectedTemplateKey, currentPageType());
+                    syncTemplateField();
                     if (isPageContext()) renderHeroEditor();
                     syncBuilderChrome();
                     setDirtyAutosave();
                     return;
                 }
                 if (target.id === 'metis-v2-status') { syncPublishedDateField(); renderPostPathPreview(); syncBuilderChrome(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-template-key') {
+                    state.selectedTemplateKey = normalizeSelectedTemplateKey(target.value, currentPageType());
+                    syncTemplateField();
+                    setDirtyAutosave();
+                    return;
+                }
                 if (target.id === 'metis-v2-parent-id' || target.id === 'metis-v2-featured-image-id' || target.id === 'metis-v2-published-date' || target.id === 'metis-v2-excerpt') { setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-enabled') { state.hero.enabled = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-style') { state.hero.style = HERO_STYLES.indexOf(s(target.value || 'split')) !== -1 ? s(target.value || 'split') : 'split'; setDirtyAutosave(); return; }
@@ -4344,6 +4473,8 @@
                 var block = e.target && e.target.closest ? e.target.closest('[data-add-block-type]') : null;
                 if (!block || (!state.canEdit && !(state.id < 1 && state.canCreate))) return;
                 state.dragBlockType = s(block.getAttribute('data-add-block-type') || 'text');
+                var canvas = document.getElementById('metis-v2-canvas');
+                if (canvas) canvas.classList.add('is-dragging');
                 if (e.dataTransfer) {
                     e.dataTransfer.effectAllowed = 'copy';
                     e.dataTransfer.setData('text/plain', state.dragBlockType);
@@ -4351,10 +4482,26 @@
             });
             root.addEventListener('dragover', function (e) {
                 if (!state.dragBlockType) return;
-                var zone = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
-                if (!zone) return;
+                var canvas = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
+                if (!canvas) return;
                 e.preventDefault();
+                canvas.classList.add('is-dragging');
+                var activeIndex = dropIndexFromEvent(e);
+                canvas.querySelectorAll('.metis-builder-drop-zone').forEach(function (node) {
+                    node.classList.toggle('is-active', parseInt(s(node.getAttribute('data-builder-drop-index') || '-1'), 10) === activeIndex);
+                });
                 if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            });
+            root.addEventListener('dragleave', function (e) {
+                var canvas = document.getElementById('metis-v2-canvas');
+                if (!canvas || !state.dragBlockType) return;
+                var related = e.relatedTarget;
+                if (related && canvas.contains(related)) return;
+                clearCanvasDropTargets();
+            });
+            root.addEventListener('dragend', function () {
+                state.dragBlockType = '';
+                clearCanvasDropTargets();
             });
             root.addEventListener('drop', function (e) {
                 var zone = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
@@ -4362,10 +4509,9 @@
                 state.dragBlockType = '';
                 if (!zone || !type || (!state.canEdit && !(state.id < 1 && state.canCreate))) return;
                 e.preventDefault();
-                state.sections.push(defaultSectionByType(type));
-                state.activeSection = state.sections.length - 1;
-                renderSectionList();
-                setDirtyAutosave();
+                var dropIndex = dropIndexFromEvent(e);
+                clearCanvasDropTargets();
+                insertSection(type, dropIndex);
             });
         }
 
