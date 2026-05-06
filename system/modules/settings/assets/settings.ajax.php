@@ -848,6 +848,10 @@ metis_ajax_register_handler( 'metis_release_apply_now', function () {
         'percent' => 1,
     ] );
 
+    if ( function_exists( 'session_status' ) && session_status() === PHP_SESSION_ACTIVE ) {
+        session_write_close();
+    }
+
     try {
         $result = metis_release_apply_with_progress( $tag, 'settings_direct', $write_progress );
     } catch ( Throwable $throwable ) {

@@ -1933,8 +1933,9 @@ document.addEventListener('DOMContentLoaded', function () {
         panel.classList.toggle('is-failed', String((progress && progress.stage) || '') === 'failed');
     }
 
-    const releaseProgressPollDelay = 2500;
-    const releaseProgressMaxFailures = 3;
+    const releaseProgressInitialDelay = 250;
+    const releaseProgressPollDelay = 1250;
+    const releaseProgressMaxDelay = 6000;
 
     function pollReleaseProgress(token, panel, stopWhenDone) {
         const action = 'metis_release_apply_progress';
@@ -1965,14 +1966,6 @@ document.addEventListener('DOMContentLoaded', function () {
             timer = window.setTimeout(run, delay);
         };
 
-        const pause = function () {
-            active = false;
-            window.clearTimeout(timer);
-            updateReleaseProgressPanel(panel, {
-                message: 'Progress polling paused. The release request is still running.'
-            });
-        };
-
         const run = function () {
             if (!active || inFlight) return;
             inFlight = true;
@@ -1989,17 +1982,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 failures += 1;
-                if (failures >= releaseProgressMaxFailures) {
-                    pause();
-                    return;
-                }
-                schedule(releaseProgressPollDelay * (failures + 1));
+                schedule(Math.min(releaseProgressMaxDelay, releaseProgressPollDelay * (failures + 1)));
             }).finally(function () {
                 inFlight = false;
             });
         };
 
-        schedule(900);
+        schedule(releaseProgressInitialDelay);
         return function () {
             active = false;
             window.clearTimeout(timer);
