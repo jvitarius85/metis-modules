@@ -34,9 +34,15 @@ final class ReleaseManager {
 
     /** @var null|callable(array<string,mixed>):void */
     private $progressReporter = null;
+    private int $lastProgressPercent = 0;
+    private string $lastProgressStage = '';
 
     public function setProgressReporter( ?callable $reporter ): self {
         $this->progressReporter = $reporter;
+        if ( $reporter !== null ) {
+            $this->lastProgressPercent = 0;
+            $this->lastProgressStage = '';
+        }
         return $this;
     }
 
@@ -1049,11 +1055,25 @@ final class ReleaseManager {
             return;
         }
 
+        $normalized_percent = max( 0, min( 100, $percent ) );
+        if (
+            $stage === 'failed'
+            && $normalized_percent >= 100
+            && $this->lastProgressStage !== 'complete'
+            && $this->lastProgressPercent > 0
+            && $this->lastProgressPercent < 100
+        ) {
+            $normalized_percent = $this->lastProgressPercent;
+        }
+
+        $this->lastProgressPercent = $normalized_percent;
+        $this->lastProgressStage = $stage;
+
         try {
             ( $this->progressReporter )( [
                 'stage' => $stage,
                 'message' => $message,
-                'percent' => max( 0, min( 100, $percent ) ),
+                'percent' => $normalized_percent,
                 'context' => $context,
                 'updated_at' => \function_exists( 'metis_current_time' ) ? \metis_current_time( 'mysql' ) : \gmdate( 'Y-m-d H:i:s' ),
             ] );

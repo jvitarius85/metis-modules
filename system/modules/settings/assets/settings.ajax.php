@@ -831,15 +831,18 @@ metis_ajax_register_handler( 'metis_release_apply_now', function () {
     @ignore_user_abort( true );
     @set_time_limit( 0 );
 
-    $write_progress = static function ( array $progress ) use ( $token, $tag ): void {
-        metis_settings_write_release_progress( $token, [
+    $last_progress = [];
+    $write_progress = static function ( array $progress ) use ( $token, $tag, &$last_progress ): void {
+        $payload = [
             'tag' => $tag,
             'stage' => (string) ( $progress['stage'] ?? 'running' ),
             'message' => (string) ( $progress['message'] ?? 'Running update.' ),
             'percent' => (int) ( $progress['percent'] ?? 0 ),
             'context' => is_array( $progress['context'] ?? null ) ? $progress['context'] : [],
             'done' => false,
-        ] );
+        ];
+        $last_progress = $payload;
+        metis_settings_write_release_progress( $token, $payload );
     };
 
     $write_progress( [
@@ -863,18 +866,25 @@ metis_ajax_register_handler( 'metis_release_apply_now', function () {
         ];
     }
 
-    metis_settings_write_release_progress( $token, [
+    $result_ok = ! empty( $result['ok'] );
+    $final_percent = $result_ok
+        ? 100
+        : max( 1, min( 99, (int) ( $last_progress['percent'] ?? 1 ) ) );
+    $final_progress = [
         'tag' => $tag,
-        'stage' => ! empty( $result['ok'] ) ? 'complete' : 'failed',
-        'message' => (string) ( $result['message'] ?? ( ! empty( $result['ok'] ) ? 'Release update completed.' : 'Release update failed.' ) ),
-        'percent' => 100,
+        'stage' => $result_ok ? 'complete' : 'failed',
+        'message' => (string) ( $result['message'] ?? ( $result_ok ? 'Release update completed.' : 'Release update failed.' ) ),
+        'percent' => $final_percent,
+        'context' => is_array( $last_progress['context'] ?? null ) ? $last_progress['context'] : [],
         'done' => true,
         'result' => $result,
-    ] );
+    ];
+    metis_settings_write_release_progress( $token, $final_progress );
 
     metis_runtime_send_json_success( [
-        'message' => (string) ( $result['message'] ?? ( ! empty( $result['ok'] ) ? 'Release update completed.' : 'Release update failed.' ) ),
+        'message' => (string) ( $result['message'] ?? ( $result_ok ? 'Release update completed.' : 'Release update failed.' ) ),
         'release_result' => $result,
+        'progress' => $final_progress,
         'progress_token' => $token,
     ] );
 }, [

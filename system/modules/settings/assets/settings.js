@@ -1933,6 +1933,13 @@ document.addEventListener('DOMContentLoaded', function () {
         panel.classList.toggle('is-failed', String((progress && progress.stage) || '') === 'failed');
     }
 
+    function currentReleaseProgressPercent(panel) {
+        if (!panel) return 1;
+        const percentEl = panel.querySelector('[data-release-progress-percent]');
+        const percent = parseInt(percentEl ? percentEl.textContent : '', 10);
+        return Number.isFinite(percent) ? Math.max(1, Math.min(99, percent)) : 1;
+    }
+
     const releaseProgressInitialDelay = 250;
     const releaseProgressPollDelay = 1250;
     const releaseProgressMaxDelay = 6000;
@@ -2023,11 +2030,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
                     const result = data && data.release_result ? data.release_result : {};
-                    updateReleaseProgressPanel(panel, {
+                    const progress = data && data.progress ? data.progress : {
                         stage: result.ok ? 'complete' : 'failed',
-                        percent: 100,
+                        percent: result.ok ? 100 : currentReleaseProgressPercent(panel),
                         message: String(data.message || (result.ok ? 'Release update completed.' : 'Release update failed.'))
-                    });
+                    };
+                    updateReleaseProgressPanel(panel, progress);
                     if (result.ok) {
                         showToast('success', String(data.message || 'Release update completed.'));
                         window.setTimeout(function () {
@@ -2037,7 +2045,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         showToast('error', String(data.message || result.message || 'Release update failed.'));
                     }
                 }).catch(function (error) {
-                    updateReleaseProgressPanel(panel, { stage: 'failed', percent: 100, message: error && error.message ? error.message : 'Release update failed.' });
+                    updateReleaseProgressPanel(panel, { stage: 'failed', percent: currentReleaseProgressPercent(panel), message: error && error.message ? error.message : 'Release update failed.' });
                     showToast('error', error && error.message ? error.message : 'Release update failed.');
                 }).finally(function () {
                     stopProgressPolling();
