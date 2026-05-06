@@ -11,10 +11,10 @@ final class StructuredWebsiteBuilderService {
     private const PAGE_TYPES = [ 'homepage', 'page' ];
 
     /** @var array<int,string> */
-    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'spacer', 'posts_list', 'html' ];
+    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list', 'html' ];
 
     /** @var array<int,string> */
-    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript' ];
+    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
 
     /** @var array<int,string> */
     private const TEMPLATE_KEYS = [
@@ -235,8 +235,11 @@ final class StructuredWebsiteBuilderService {
      * @return array<string,mixed>
      */
     private static function normalizeSectionSettings( array $settings ): array {
-        unset( $settings['background'], $settings['padding'] );
-        return is_array( $settings ) ? $settings : [];
+        $background = metis_key_clean( (string) ( $settings['background'] ?? 'default' ) );
+        if ( ! in_array( $background, [ 'default', 'surface', 'muted', 'primary_tint', 'accent_tint' ], true ) ) {
+            $background = 'default';
+        }
+        return $background === 'default' ? [] : [ 'background' => $background ];
     }
 
     /**
@@ -261,9 +264,19 @@ final class StructuredWebsiteBuilderService {
             if ( ! in_array( $level, [ 'h1', 'h2', 'h3', 'h4' ], true ) ) {
                 $level = 'h2';
             }
+            $align = metis_key_clean( (string) ( $content['align'] ?? 'left' ) );
+            if ( ! in_array( $align, [ 'left', 'center', 'right' ], true ) ) {
+                $align = 'left';
+            }
+            $vertical_align = metis_key_clean( (string) ( $content['vertical_align'] ?? 'top' ) );
+            if ( ! in_array( $vertical_align, [ 'top', 'middle', 'bottom' ], true ) ) {
+                $vertical_align = 'top';
+            }
             return [
                 'text' => self::sanitizeText( (string) ( $content['text'] ?? 'Heading' ) ),
                 'level' => $level,
+                'align' => $align,
+                'vertical_align' => $vertical_align,
             ];
         }
 
@@ -421,6 +434,58 @@ final class StructuredWebsiteBuilderService {
             $limit = (int) ( $content['limit'] ?? 5 );
             $limit = max( 1, min( 50, $limit ) );
             return [ 'source' => $source, 'limit' => $limit ];
+        }
+
+        if ( $type === 'form' ) {
+            return [
+                'form_id' => self::sanitizeText( (string) ( $content['form_id'] ?? '' ) ),
+                'submit_label' => self::sanitizeText( (string) ( $content['submit_label'] ?? 'Submit' ) ),
+            ];
+        }
+
+        if ( $type === 'donation_form' ) {
+            $mode = metis_key_clean( (string) ( $content['mode'] ?? 'both' ) );
+            if ( ! in_array( $mode, [ 'one_time', 'monthly', 'both' ], true ) ) {
+                $mode = 'both';
+            }
+            return [
+                'campaign_id' => self::sanitizeText( (string) ( $content['campaign_id'] ?? '' ) ),
+                'preset_amounts' => self::sanitizePresetAmounts( $content['preset_amounts'] ?? [] ),
+                'allow_custom_amount' => self::sanitizeBoolean( $content['allow_custom_amount'] ?? true ),
+                'mode' => $mode,
+                'show_name' => self::sanitizeBoolean( $content['show_name'] ?? true ),
+                'show_email' => self::sanitizeBoolean( $content['show_email'] ?? true ),
+                'show_phone' => self::sanitizeBoolean( $content['show_phone'] ?? false ),
+            ];
+        }
+
+        if ( $type === 'donation_progress' ) {
+            return [
+                'campaign_id' => self::sanitizeText( (string) ( $content['campaign_id'] ?? '' ) ),
+                'goal_amount' => self::sanitizeDecimalString( $content['goal_amount'] ?? '' ),
+                'raised_amount' => self::sanitizeDecimalString( $content['raised_amount'] ?? '' ),
+                'percent' => self::sanitizePercentString( $content['percent'] ?? '' ),
+            ];
+        }
+
+        if ( $type === 'campaign_summary' ) {
+            return [
+                'campaign_id' => self::sanitizeText( (string) ( $content['campaign_id'] ?? '' ) ),
+                'title' => self::sanitizeText( (string) ( $content['title'] ?? '' ) ),
+                'content' => self::sanitizeRichText( (string) ( $content['content'] ?? '' ) ),
+                'image' => self::normalizeOptionalUrl( (string) ( $content['image'] ?? '' ) ),
+            ];
+        }
+
+        if ( $type === 'divider' ) {
+            $style = metis_key_clean( (string) ( $content['style'] ?? 'solid' ) );
+            if ( ! in_array( $style, [ 'solid', 'dashed', 'dotted' ], true ) ) {
+                $style = 'solid';
+            }
+            return [
+                'label' => self::sanitizeText( (string) ( $content['label'] ?? '' ) ),
+                'style' => $style,
+            ];
         }
 
         if ( $type === 'spacer' ) {
@@ -899,12 +964,86 @@ final class StructuredWebsiteBuilderService {
             return $modules;
         }
 
+        if ( $type === 'form' ) {
+            $modules[] = [
+                'id' => $section_id . '_form',
+                'type' => 'form',
+                'data' => [
+                    'form_id' => (string) ( $content['form_id'] ?? '' ),
+                    'submit_label' => (string) ( $content['submit_label'] ?? 'Submit' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'donation_form' ) {
+            $modules[] = [
+                'id' => $section_id . '_donation_form',
+                'type' => 'donation_form_block',
+                'data' => [
+                    'campaign_id' => (string) ( $content['campaign_id'] ?? '' ),
+                    'preset_amounts' => self::sanitizePresetAmounts( $content['preset_amounts'] ?? [] ),
+                    'allow_custom_amount' => self::sanitizeBoolean( $content['allow_custom_amount'] ?? true ),
+                    'mode' => (string) ( $content['mode'] ?? 'both' ),
+                    'show_name' => self::sanitizeBoolean( $content['show_name'] ?? true ),
+                    'show_email' => self::sanitizeBoolean( $content['show_email'] ?? true ),
+                    'show_phone' => self::sanitizeBoolean( $content['show_phone'] ?? false ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'donation_progress' ) {
+            $modules[] = [
+                'id' => $section_id . '_donation_progress',
+                'type' => 'progress_bar_block',
+                'data' => [
+                    'campaign_id' => (string) ( $content['campaign_id'] ?? '' ),
+                    'goal_amount' => self::sanitizeDecimalString( $content['goal_amount'] ?? '' ),
+                    'raised_amount' => self::sanitizeDecimalString( $content['raised_amount'] ?? '' ),
+                    'percent' => self::sanitizePercentString( $content['percent'] ?? '' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'campaign_summary' ) {
+            $modules[] = [
+                'id' => $section_id . '_campaign_summary',
+                'type' => 'campaign_description_block',
+                'data' => [
+                    'campaign_id' => (string) ( $content['campaign_id'] ?? '' ),
+                    'title' => (string) ( $content['title'] ?? '' ),
+                    'content' => (string) ( $content['content'] ?? '' ),
+                    'image' => (string) ( $content['image'] ?? '' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'divider' ) {
+            $modules[] = [
+                'id' => $section_id . '_divider',
+                'type' => 'divider',
+                'data' => [
+                    'label' => (string) ( $content['label'] ?? '' ),
+                    'style' => (string) ( $content['style'] ?? 'solid' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
         $modules[] = [ 'id' => $section_id . '_fallback', 'type' => 'text', 'data' => [ 'content' => '<p></p>', 'tag' => 'div' ], 'style' => [] ];
         return $modules;
     }
 
     private static function sanitizeText( string $value ): string {
-        return metis_text_clean( trim( $value ) );
+        return metis_text_clean( trim( self::repairMojibakeText( $value ) ) );
     }
 
     private static function plainTextFromHtml( string $value ): string {
@@ -914,7 +1053,7 @@ final class StructuredWebsiteBuilderService {
         }
         $decoded = html_entity_decode( $raw, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         $text = trim( strip_tags( $decoded ) );
-        return metis_text_clean( $text );
+        return metis_text_clean( self::repairMojibakeText( $text ) );
     }
 
     private static function sanitizeRichText( string $value ): string {
@@ -923,9 +1062,25 @@ final class StructuredWebsiteBuilderService {
             return '';
         }
         if ( function_exists( 'metis_runtime_kses_post' ) ) {
-            return (string) metis_runtime_kses_post( $raw );
+            return self::repairPublicHtmlText( (string) metis_runtime_kses_post( $raw ) );
         }
-        return strip_tags( $raw, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div>' );
+        return self::repairPublicHtmlText( strip_tags( $raw, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div>' ) );
+    }
+
+    private static function repairPublicHtmlText( string $html ): string {
+        if ( $html === '' ) {
+            return '';
+        }
+        if ( strpos( $html, '<' ) === false ) {
+            return self::repairMojibakeText( $html );
+        }
+        return preg_replace_callback(
+            '/>([^<]+)</u',
+            static function ( array $matches ): string {
+                return '>' . self::repairMojibakeText( (string) ( $matches[1] ?? '' ) ) . '<';
+            },
+            $html
+        ) ?? self::repairMojibakeText( $html );
     }
 
     private static function sanitizeImageDimension( mixed $value ): string {
@@ -938,6 +1093,70 @@ final class StructuredWebsiteBuilderService {
             return '';
         }
         return (string) $number;
+    }
+
+    /**
+     * @return array<int,float|int>
+     */
+    private static function sanitizePresetAmounts( mixed $raw ): array {
+        $source = [];
+        if ( is_array( $raw ) ) {
+            $source = $raw;
+        } elseif ( is_scalar( $raw ) ) {
+            $source = preg_split( '/[,\s]+/', (string) $raw ) ?: [];
+        }
+
+        $amounts = [];
+        foreach ( $source as $value ) {
+            if ( ! is_scalar( $value ) || ! is_numeric( (string) $value ) ) {
+                continue;
+            }
+            $amount = round( (float) $value, 2 );
+            if ( $amount <= 0 || $amount > 1000000 ) {
+                continue;
+            }
+            $amounts[] = floor( $amount ) === $amount ? (int) $amount : $amount;
+            if ( count( $amounts ) >= 8 ) {
+                break;
+            }
+        }
+
+        return $amounts !== [] ? array_values( array_unique( $amounts, SORT_REGULAR ) ) : [ 25, 50, 100 ];
+    }
+
+    private static function sanitizeBoolean( mixed $value ): bool {
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+        if ( is_int( $value ) || is_float( $value ) ) {
+            return (int) $value === 1;
+        }
+        $raw = strtolower( trim( (string) $value ) );
+        return in_array( $raw, [ '1', 'true', 'yes', 'on' ], true );
+    }
+
+    private static function sanitizeDecimalString( mixed $value ): string {
+        if ( ! is_scalar( $value ) ) {
+            return '';
+        }
+        $raw = trim( (string) $value );
+        if ( $raw === '' || ! is_numeric( $raw ) ) {
+            return '';
+        }
+        $number = max( 0.0, min( 1000000000.0, (float) $raw ) );
+        return rtrim( rtrim( number_format( $number, 2, '.', '' ), '0' ), '.' );
+    }
+
+    private static function sanitizePercentString( mixed $value ): string {
+        if ( ! is_scalar( $value ) ) {
+            return '';
+        }
+        $raw = trim( (string) $value );
+        if ( $raw === '' || ! is_numeric( $raw ) ) {
+            return '';
+        }
+        $number = max( 0.0, min( 100.0, (float) $raw ) );
+        return rtrim( rtrim( number_format( $number, 2, '.', '' ), '0' ), '.' );
     }
 
     private static function sanitizeTranscriptSource( string $value ): string {
@@ -1114,8 +1333,8 @@ final class StructuredWebsiteBuilderService {
         return rtrim( $speaker, ':' );
     }
 
-    private static function repairMojibakeText( string $text ): string {
-        $current = str_replace(
+	    private static function repairMojibakeText( string $text ): string {
+	        $current = str_replace(
             [ 'Ã¢ÂÂ', 'Ã¢ÂÂ', 'Ã¢ÂÂ', 'Ã¢ÂÂ', 'Ã¢ÂÂ¦', 'Ã¢ÂÂ', 'Ã¢ÂÂ', 'â', 'â', 'â', 'â', 'â¦', 'â', 'â', 'ÃÂ ', 'Â ' ],
             [ '’', '‘', '“', '”', '…', '–', '—', '’', '‘', '“', '”', '…', '–', '—', ' ', ' ' ],
             $text
@@ -1124,7 +1343,7 @@ final class StructuredWebsiteBuilderService {
         $current = preg_replace( '/(^|[\s(\[{])\x{FFFD}\?\?([A-Za-z0-9])/u', '$1“$2', $current ) ?? $current;
         $current = preg_replace( '/([A-Za-z0-9?!.,])\x{FFFD}\?\?($|[\s)\]}.,;!?])/u', '$1”$2', $current ) ?? $current;
 
-        for ( $i = 0; $i < 3; $i++ ) {
+	        for ( $i = 0; $i < 3; $i++ ) {
             $candidate = function_exists( 'mb_convert_encoding' )
                 ? @mb_convert_encoding( $current, 'UTF-8', 'Windows-1252' )
                 : @iconv( 'Windows-1252', 'UTF-8//IGNORE', $current );
@@ -1135,10 +1354,16 @@ final class StructuredWebsiteBuilderService {
                 break;
             }
             $current = $candidate;
-        }
+	        }
 
-        return str_replace( [ "\xc2\xa0", "\xa0" ], ' ', $current );
-    }
+	        $current = str_replace( [ "\xc2\xa0", "\xa0" ], ' ', $current );
+	        $current = preg_replace( '/Ã+(?=\s|$)/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Ã(?=[A-Za-z0-9])/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Â+(?=\s|$)/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Â(?=[A-Za-z0-9])/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/\x{FFFD}+/u', '', $current ) ?? $current;
+	        return $current;
+	    }
 
     private static function normalizeUrl( string $value ): string {
         $url = trim( $value );

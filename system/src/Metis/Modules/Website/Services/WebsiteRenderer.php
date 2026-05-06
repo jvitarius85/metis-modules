@@ -17,7 +17,7 @@ use Metis\Modules\Website\Services\TemplateService;
  */
 final class WebsiteRenderer {
     /** @var array<int,string> */
-    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'spacer', 'posts_list', 'html', 'transcript' ];
+    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
 
     /**
      * Structured page/post preview that matches the production rendering pipeline.
@@ -3015,6 +3015,16 @@ final class WebsiteRenderer {
             $body = self::renderStructuredCtaSection( $content );
         } elseif ( $type === 'events' ) {
             $body = self::renderStructuredEventsSection( $content, $context );
+        } elseif ( $type === 'form' ) {
+            $body = self::renderStructuredFormSection( $content, $context );
+        } elseif ( $type === 'donation_form' ) {
+            $body = self::renderStructuredDonationFormSection( $content, $context );
+        } elseif ( $type === 'donation_progress' ) {
+            $body = self::renderStructuredDonationProgressSection( $content, $context );
+        } elseif ( $type === 'campaign_summary' ) {
+            $body = self::renderStructuredCampaignSummarySection( $content, $context );
+        } elseif ( $type === 'divider' ) {
+            $body = self::renderStructuredDividerSection( $content, $context );
         } elseif ( $type === 'spacer' ) {
             $body = self::renderStructuredSpacerSection( $content );
         } elseif ( $type === 'posts_list' ) {
@@ -3022,6 +3032,16 @@ final class WebsiteRenderer {
         }
         if ( trim( $body ) === '' ) {
             return '';
+        }
+
+        $settings = is_array( $section['settings'] ?? null ) ? $section['settings'] : [];
+        $background = metis_key_clean( (string) ( $settings['background'] ?? 'default' ) );
+        if ( ! in_array( $background, [ 'default', 'surface', 'muted', 'primary_tint', 'accent_tint' ], true ) ) {
+            $background = 'default';
+        }
+        $classes = [ 'metis-structured-section' ];
+        if ( $background !== 'default' ) {
+            $classes[] = 'is-bg-' . str_replace( '_', '-', $background );
         }
 
         $header = trim( self::repairMojibakeText( (string) ( $section['header'] ?? '' ) ) );
@@ -3038,7 +3058,7 @@ final class WebsiteRenderer {
             $header_html .= '</header>';
         }
 
-        return '<section class="metis-structured-section">'
+        return '<section class="' . metis_escape_attr( implode( ' ', $classes ) ) . '">'
             . $header_html
             . '<div class="metis-structured-section__inner">'
             . '<div class="metis-structured-section__content">' . $body . '</div>'
@@ -3057,10 +3077,18 @@ final class WebsiteRenderer {
         if ( ! in_array( $level, [ 'h1', 'h2', 'h3', 'h4' ], true ) ) {
             $level = 'h2';
         }
+        $align = metis_key_clean( (string) ( $content['align'] ?? 'left' ) );
+        if ( ! in_array( $align, [ 'left', 'center', 'right' ], true ) ) {
+            $align = 'left';
+        }
+        $vertical_align = metis_key_clean( (string) ( $content['vertical_align'] ?? 'top' ) );
+        if ( ! in_array( $vertical_align, [ 'top', 'middle', 'bottom' ], true ) ) {
+            $vertical_align = 'top';
+        }
 
-        return '<' . $level . ' class="metis-structured-heading metis-structured-heading--' . metis_escape_attr( $level ) . '">'
+        return '<div class="metis-structured-heading-wrap is-valign-' . metis_escape_attr( $vertical_align ) . '"><' . $level . ' class="metis-structured-heading metis-structured-heading--' . metis_escape_attr( $level ) . ' is-align-' . metis_escape_attr( $align ) . '">'
             . metis_escape_html( $text )
-            . '</' . $level . '>';
+            . '</' . $level . '></div>';
     }
 
     /**
@@ -3655,13 +3683,16 @@ final class WebsiteRenderer {
             $current = $candidate;
         }
 
-        $current = str_replace( [ "\xc2\xa0", "\u{00A0}", "\xa0" ], ' ', $current );
-        $current = str_replace( 'ï¿½', '', $current );
-        $current = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/u', '', $current ) ?? $current;
-        $current = preg_replace( '/\x{FFFD}+/u', '', $current ) ?? $current;
-        $current = preg_replace( '/Â+(?=\s|$)/u', '', $current ) ?? $current;
-        return $current;
-    }
+	        $current = str_replace( [ "\xc2\xa0", "\u{00A0}", "\xa0" ], ' ', $current );
+	        $current = str_replace( 'ï¿½', '', $current );
+	        $current = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/\x{FFFD}+/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Ã+(?=\s|$)/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Ã(?=[A-Za-z0-9])/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Â+(?=\s|$)/u', '', $current ) ?? $current;
+	        $current = preg_replace( '/Â(?=[A-Za-z0-9])/u', '', $current ) ?? $current;
+	        return $current;
+	    }
 
     private static function replaceCommonMojibakeSequences( string $text ): string {
         return str_replace(
@@ -4149,6 +4180,170 @@ final class WebsiteRenderer {
 
     /**
      * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredFormSection( array $content, array $context = [] ): string {
+        return self::renderStructuredBlockModule(
+            'form',
+            [
+                'form_id' => trim( (string) ( $content['form_id'] ?? '' ) ),
+                'submit_label' => trim( (string) ( $content['submit_label'] ?? 'Submit' ) ),
+            ],
+            $context
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredDonationFormSection( array $content, array $context = [] ): string {
+        $mode = metis_key_clean( (string) ( $content['mode'] ?? 'both' ) );
+        if ( ! in_array( $mode, [ 'one_time', 'monthly', 'both' ], true ) ) {
+            $mode = 'both';
+        }
+        return self::renderStructuredBlockModule(
+            'donation_form_block',
+            [
+                'campaign_id' => trim( (string) ( $content['campaign_id'] ?? '' ) ),
+                'preset_amounts' => self::structuredPresetAmounts( $content['preset_amounts'] ?? [] ),
+                'allow_custom_amount' => self::structuredBoolean( $content['allow_custom_amount'] ?? true ),
+                'mode' => $mode,
+                'show_name' => self::structuredBoolean( $content['show_name'] ?? true ),
+                'show_email' => self::structuredBoolean( $content['show_email'] ?? true ),
+                'show_phone' => self::structuredBoolean( $content['show_phone'] ?? false ),
+            ],
+            $context
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredDonationProgressSection( array $content, array $context = [] ): string {
+        return self::renderStructuredBlockModule(
+            'progress_bar_block',
+            [
+                'campaign_id' => trim( (string) ( $content['campaign_id'] ?? '' ) ),
+                'goal_amount' => self::structuredDecimal( $content['goal_amount'] ?? '' ),
+                'raised_amount' => self::structuredDecimal( $content['raised_amount'] ?? '' ),
+                'percent' => self::structuredPercent( $content['percent'] ?? '' ),
+            ],
+            $context
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredCampaignSummarySection( array $content, array $context = [] ): string {
+        return self::renderStructuredBlockModule(
+            'campaign_description_block',
+            [
+                'campaign_id' => trim( (string) ( $content['campaign_id'] ?? '' ) ),
+                'title' => trim( (string) ( $content['title'] ?? '' ) ),
+                'content' => (string) ( $content['content'] ?? '' ),
+                'image' => trim( (string) ( $content['image'] ?? '' ) ),
+            ],
+            $context
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredDividerSection( array $content, array $context = [] ): string {
+        $style = metis_key_clean( (string) ( $content['style'] ?? 'solid' ) );
+        if ( ! in_array( $style, [ 'solid', 'dashed', 'dotted' ], true ) ) {
+            $style = 'solid';
+        }
+        return self::renderStructuredBlockModule(
+            'divider',
+            [
+                'label' => trim( (string) ( $content['label'] ?? '' ) ),
+                'style' => $style,
+            ],
+            $context
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredBlockModule( string $type, array $data, array $context = [] ): string {
+        $id_source = $type . ':' . ( function_exists( 'metis_json_encode' ) ? metis_json_encode( $data ) : json_encode( $data ) );
+        return BlockRenderer::render(
+            [
+                'id' => 'structured_' . metis_key_clean( $type ) . '_' . substr( sha1( (string) $id_source ), 0, 8 ),
+                'type' => $type,
+                'data' => $data,
+                'style' => [],
+            ],
+            $context
+        );
+    }
+
+    /**
+     * @return array<int,float|int>
+     */
+    private static function structuredPresetAmounts( mixed $raw ): array {
+        $source = [];
+        if ( is_array( $raw ) ) {
+            $source = $raw;
+        } elseif ( is_scalar( $raw ) ) {
+            $source = preg_split( '/[,\s]+/', (string) $raw ) ?: [];
+        }
+
+        $amounts = [];
+        foreach ( $source as $value ) {
+            if ( ! is_scalar( $value ) || ! is_numeric( (string) $value ) ) {
+                continue;
+            }
+            $amount = round( (float) $value, 2 );
+            if ( $amount <= 0 || $amount > 1000000 ) {
+                continue;
+            }
+            $amounts[] = floor( $amount ) === $amount ? (int) $amount : $amount;
+            if ( count( $amounts ) >= 8 ) {
+                break;
+            }
+        }
+
+        return $amounts !== [] ? array_values( array_unique( $amounts, SORT_REGULAR ) ) : [ 25, 50, 100 ];
+    }
+
+    private static function structuredBoolean( mixed $value ): bool {
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+        if ( is_int( $value ) || is_float( $value ) ) {
+            return (int) $value === 1;
+        }
+        return in_array( strtolower( trim( (string) $value ) ), [ '1', 'true', 'yes', 'on' ], true );
+    }
+
+    private static function structuredDecimal( mixed $value ): string {
+        if ( ! is_scalar( $value ) || trim( (string) $value ) === '' || ! is_numeric( (string) $value ) ) {
+            return '';
+        }
+        $number = max( 0.0, min( 1000000000.0, (float) $value ) );
+        return rtrim( rtrim( number_format( $number, 2, '.', '' ), '0' ), '.' );
+    }
+
+    private static function structuredPercent( mixed $value ): string {
+        if ( ! is_scalar( $value ) || trim( (string) $value ) === '' || ! is_numeric( (string) $value ) ) {
+            return '';
+        }
+        $number = max( 0.0, min( 100.0, (float) $value ) );
+        return rtrim( rtrim( number_format( $number, 2, '.', '' ), '0' ), '.' );
+    }
+
+    /**
+     * @param array<string,mixed> $content
      */
     private static function renderStructuredSpacerSection( array $content ): string {
         $height = metis_key_clean( (string) ( $content['height'] ?? 'medium' ) );
@@ -4541,11 +4736,21 @@ final class WebsiteRenderer {
             '.metis-structured-cta__text{margin:0 0 12px;}',
             '.metis-structured-cta__button{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:var(--metis-color-primary,#485bc7);color:#fff;text-decoration:none;font-weight:600;}',
             '.metis-structured-section{display:grid;gap:0;}',
+            '.metis-structured-section.is-bg-surface{background:var(--metis-color-surface,#ffffff);}',
+            '.metis-structured-section.is-bg-muted{background:var(--metis-color-surface_alt,#f8fafc);}',
+            '.metis-structured-section.is-bg-primary-tint{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 8%,var(--metis-color-surface,#ffffff));}',
+            '.metis-structured-section.is-bg-accent-tint{background:color-mix(in srgb,var(--metis-color-accent,#ff7542) 8%,var(--metis-color-surface,#ffffff));}',
             '.metis-structured-section__inner{max-width:1200px;margin:0 auto;padding:34px 0 48px;}',
             '.metis-structured-section > .metis-structured-section__head{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;left:50%;width:100vw;max-width:none;min-height:120px;margin:0 0 10px -50vw;padding:35px 24px;border:0;border-radius:0;box-shadow:none;text-align:center;box-sizing:border-box;}',
             '.metis-structured-section__title{margin:0;font-size:clamp(1.9rem,2.5vw,2.9rem);line-height:1.08;}',
             '.metis-structured-section__subtext{margin:0 auto;max-width:70ch;color:var(--metis-color-muted,#64748b);font-size:1rem;line-height:1.65;}',
-            '.metis-structured-heading{margin:0 0 .7em;line-height:1.12;letter-spacing:0;color:var(--metis-color-text,#1a1f2b);}',
+            '.metis-structured-heading-wrap{min-height:56px;display:grid;align-items:start;}',
+            '.metis-structured-heading-wrap.is-valign-middle{align-items:center;}',
+            '.metis-structured-heading-wrap.is-valign-bottom{align-items:end;}',
+            '.metis-structured-heading{width:100%;margin:0 0 .7em;line-height:1.12;letter-spacing:0;color:var(--metis-color-text,#1a1f2b);}',
+            '.metis-structured-heading.is-align-left{text-align:left;}',
+            '.metis-structured-heading.is-align-center{text-align:center;}',
+            '.metis-structured-heading.is-align-right{text-align:right;}',
             '.metis-structured-image{display:grid;gap:10px;justify-items:center;margin:0;}',
             '.metis-structured-image img{display:block;width:100%;max-width:min(920px,100%);height:auto;border-radius:16px;border:1px solid var(--metis-color-border,#dbe3ef);}',
             '.metis-structured-image figcaption{max-width:72ch;text-align:center;color:var(--metis-color-muted,#64748b);}',
@@ -4597,6 +4802,9 @@ final class WebsiteRenderer {
             '.metis-structured-text .metis-text-color-metis_sidebar_bg{color:var(--metis-sidebar-bg,#16192b);}',
             '.metis-structured-text .metis-text-color-metis_sidebar_icon_color{color:var(--metis-sidebar-icon-color,#7a82a6);}',
             '.metis-structured-text .metis-text-color-metis_sidebar_active_color{color:var(--metis-sidebar-active-color,#a8b4ff);}',
+            '.metis-public-content .metis-text-align-left,.metis-structured-section__content .metis-text-align-left{text-align:left;}',
+            '.metis-public-content .metis-text-align-center,.metis-structured-section__content .metis-text-align-center{text-align:center;}',
+            '.metis-public-content .metis-text-align-right,.metis-structured-section__content .metis-text-align-right{text-align:right;}',
             '.metis-structured-events,.metis-structured-posts-list{display:grid;gap:18px;}',
             '.metis-structured-events{grid-template-columns:repeat(auto-fit,minmax(240px,320px));justify-content:center;align-items:stretch;overflow:visible;padding:6px 0 14px;}',
             '.metis-structured-posts-list--cards{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));align-items:stretch;padding:6px 0 14px;}',
