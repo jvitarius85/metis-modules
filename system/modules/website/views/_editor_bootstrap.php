@@ -16,6 +16,7 @@ if ( ! function_exists( 'metis_website_editor_required_nonce_actions' ) ) {
             'metis_website_editor_media_upload',
             'metis_website_editor_lock',
             'metis_website_editor_revisions_list',
+            'metis_website_editor_revision_compare',
             'metis_website_editor_revision_restore',
             'metis_website_reusable_blocks_list',
             'metis_website_reusable_block_get',

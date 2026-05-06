@@ -159,14 +159,18 @@ function metis_runtime_allowed_html_map(): array {
 }
 
 function metis_runtime_is_safe_url_value( string $value ): bool {
-    $trimmed = trim( $value );
+    $trimmed = trim( html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+    $scheme_probe = preg_replace( '/[\x00-\x20\x7f]+/', '', $trimmed ) ?? $trimmed;
+    if ( preg_match( '/^(?:javascript|vbscript|data)\s*:/i', $scheme_probe ) === 1 ) {
+        return false;
+    }
     if ( $trimmed === '' || str_starts_with( $trimmed, '#' ) || str_starts_with( $trimmed, '/' ) || str_starts_with( $trimmed, '?' ) ) {
         return true;
     }
     if ( str_starts_with( $trimmed, '//' ) ) {
         return true;
     }
-    $scheme = parse_url( $trimmed, PHP_URL_SCHEME );
+    $scheme = parse_url( $scheme_probe, PHP_URL_SCHEME );
     if ( ! is_string( $scheme ) || $scheme === '' ) {
         return true;
     }
@@ -177,10 +181,97 @@ function metis_runtime_is_safe_css_value( string $value ): bool {
     if ( $value === '' ) {
         return true;
     }
-    if ( preg_match( '/expression\s*\(|javascript\s*:|data\s*:\s*text\/html|behavior\s*:|@import/i', $value ) ) {
+    $decoded = html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+    if ( preg_match( '/expression\s*\(|javascript\s*:|data\s*:\s*text\/html|behavior\s*:|@import|-moz-binding|url\s*\(\s*[\'"]?\s*(?:javascript|data\s*:\s*text\/html)/i', $decoded ) ) {
         return false;
     }
     return true;
+}
+
+function metis_runtime_strip_unsafe_html_elements( string $html ): string {
+    if ( $html === '' ) {
+        return '';
+    }
+    return preg_replace(
+        '#<\s*(script|style|object|embed|iframe|link|meta|base|svg|math)\b[^>]*>.*?<\s*/\s*\1\s*>|<\s*(script|style|object|embed|iframe|link|meta|base|svg|math)\b[^>]*\/?>#is',
+        '',
+        $html
+    ) ?? '';
+}
+
+/**
+ * @param array<string,array<int,string>> $allowed_map
+ */
+function metis_runtime_sanitize_html_tag_fallback( string $tag, string $attrs, array $allowed_map ): string {
+    $tag = strtolower( $tag );
+    if ( ! isset( $allowed_map[ $tag ] ) ) {
+        return '';
+    }
+    $allowed_attrs = array_fill_keys( $allowed_map[ $tag ], true );
+    $safe_attrs = [];
+    if ( preg_match_all( '/([A-Za-z_:][A-Za-z0-9_:\\.-]*)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`]+)))?/', $attrs, $matches, PREG_SET_ORDER ) > 0 ) {
+        foreach ( $matches as $match ) {
+            $name = strtolower( (string) ( $match[1] ?? '' ) );
+            if ( $name === '' || str_starts_with( $name, 'on' ) || ! isset( $allowed_attrs[ $name ] ) ) {
+                continue;
+            }
+            $value = '';
+            if ( array_key_exists( 2, $match ) && $match[2] !== '' ) {
+                $value = (string) $match[2];
+            } elseif ( array_key_exists( 3, $match ) && $match[3] !== '' ) {
+                $value = (string) $match[3];
+            } elseif ( array_key_exists( 4, $match ) && $match[4] !== '' ) {
+                $value = (string) $match[4];
+            }
+            if ( in_array( $name, [ 'href', 'src', 'action' ], true ) && ! metis_runtime_is_safe_url_value( $value ) ) {
+                continue;
+            }
+            if ( $name === 'style' && ! metis_runtime_is_safe_css_value( $value ) ) {
+                continue;
+            }
+            if ( in_array( $name, [ 'disabled', 'checked', 'readonly', 'selected', 'multiple' ], true ) && $value === '' ) {
+                $safe_attrs[] = $name;
+                continue;
+            }
+            $safe_attrs[] = $name . '="' . htmlspecialchars( $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ) . '"';
+        }
+    }
+
+    return '<' . $tag . ( $safe_attrs !== [] ? ' ' . implode( ' ', $safe_attrs ) : '' ) . '>';
+}
+
+/**
+ * @param array<string,array<int,string>> $allowed_map
+ */
+function metis_runtime_sanitize_html_attributes_fallback( string $html, array $allowed_map ): string {
+    if ( $html === '' ) {
+        return '';
+    }
+    $html = preg_replace( '/<!--.*?-->/s', '', $html ) ?? '';
+    return preg_replace_callback(
+        '/<\s*(\/?)\s*([A-Za-z][A-Za-z0-9:-]*)([^>]*)>/',
+        static function ( array $match ) use ( $allowed_map ): string {
+            $closing = (string) ( $match[1] ?? '' );
+            $tag = strtolower( (string) ( $match[2] ?? '' ) );
+            if ( ! isset( $allowed_map[ $tag ] ) ) {
+                return '';
+            }
+            if ( $closing === '/' ) {
+                return '</' . $tag . '>';
+            }
+            $attrs = (string) ( $match[3] ?? '' );
+            $self_closing = str_ends_with( trim( $attrs ), '/' );
+            if ( $self_closing ) {
+                $attrs = preg_replace( '#/\s*$#', '', $attrs ) ?? $attrs;
+            }
+            $safe = metis_runtime_sanitize_html_tag_fallback( $tag, $attrs, $allowed_map );
+            if ( $safe === '' ) {
+                return '';
+            }
+            return $self_closing ? substr( $safe, 0, -1 ) . ' />' : $safe;
+        },
+        $html
+    ) ?? '';
 }
 
 if ( ! function_exists( 'metis_runtime_parse_url' ) ) {
@@ -196,7 +287,9 @@ function metis_runtime_kses_post( string $html ): string {
 
     $allowed_map = metis_runtime_allowed_html_map();
     $allowed_tags = array_keys( $allowed_map );
-    $stripped = strip_tags( $html, '<' . implode( '><', $allowed_tags ) . '>' );
+    $precleaned = metis_runtime_strip_unsafe_html_elements( $html );
+    $stripped = strip_tags( $precleaned, '<' . implode( '><', $allowed_tags ) . '>' );
+    $stripped = metis_runtime_sanitize_html_attributes_fallback( $stripped, $allowed_map );
 
     if ( ! class_exists( 'DOMDocument' ) ) {
         return $stripped;

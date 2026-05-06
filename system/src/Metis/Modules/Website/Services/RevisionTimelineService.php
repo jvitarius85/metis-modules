@@ -117,9 +117,224 @@ final class RevisionTimelineService {
         return $decoded['payload'];
     }
 
+    /**
+     * @param array<string,mixed> $before
+     * @param array<string,mixed> $after
+     * @return array<int,array{field:string,label:string,before:string,after:string,changed:bool,kind:string}>
+     */
+    public static function comparePayloads( string $entity_type, array $before, array $after ): array {
+        $normalized_type = self::normalizeEntityType( $entity_type );
+        if ( $normalized_type === '' ) {
+            return [];
+        }
+
+        $rows = [];
+        if ( $normalized_type === 'template' ) {
+            self::addScalarDiff( $rows, 'name', 'Name', $before, $after );
+            self::addScalarDiff( $rows, 'status', 'Status', $before, $after );
+            self::addScalarDiff( $rows, 'template_key', 'Template Key', $before, $after );
+            self::addLayoutDiff( $rows, 'structure_json', 'Template Structure', $before, $after, $normalized_type );
+            return $rows;
+        }
+
+        self::addScalarDiff( $rows, 'title', 'Title', $before, $after );
+        self::addScalarDiff( $rows, 'slug', 'Slug / Path', $before, $after );
+        self::addScalarDiff( $rows, 'status', 'Status', $before, $after );
+        self::addScalarDiff( $rows, 'template_key', 'Template', $before, $after );
+        if ( $normalized_type === 'post' ) {
+            self::addScalarDiff( $rows, 'excerpt', 'Excerpt', $before, $after );
+            self::addLayoutDiff( $rows, 'content_json', 'Structured Blocks', $before, $after, $normalized_type );
+        } else {
+            self::addLayoutDiff( $rows, 'layout_json', 'Structured Blocks', $before, $after, $normalized_type );
+        }
+        self::addSeoDiffs( $rows, $before, $after );
+
+        return $rows;
+    }
+
     private static function normalizeEntityType( string $entity_type ): string {
         $normalized = metis_key_clean( $entity_type );
         return in_array( $normalized, [ 'page', 'post', 'template' ], true ) ? $normalized : '';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @param array<string,mixed> $before
+     * @param array<string,mixed> $after
+     */
+    private static function addScalarDiff( array &$rows, string $field, string $label, array $before, array $after ): void {
+        $before_value = self::stringValue( $before[ $field ] ?? '' );
+        $after_value = self::stringValue( $after[ $field ] ?? '' );
+        if ( $before_value === '' && $after_value === '' ) {
+            return;
+        }
+        $rows[] = [
+            'field' => $field,
+            'label' => $label,
+            'before' => $before_value,
+            'after' => $after_value,
+            'changed' => $before_value !== $after_value,
+            'kind' => 'text',
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @param array<string,mixed> $before
+     * @param array<string,mixed> $after
+     */
+    private static function addLayoutDiff( array &$rows, string $field, string $label, array $before, array $after, string $entity_type ): void {
+        $before_raw = self::stringValue( $before[ $field ] ?? '' );
+        $after_raw = self::stringValue( $after[ $field ] ?? '' );
+        $before_summary = self::layoutSummary( $before_raw, $entity_type );
+        $after_summary = self::layoutSummary( $after_raw, $entity_type );
+        $before_hash = $before_raw !== '' ? sha1( $before_raw ) : '';
+        $after_hash = $after_raw !== '' ? sha1( $after_raw ) : '';
+        $rows[] = [
+            'field' => $field,
+            'label' => $label,
+            'before' => $before_summary,
+            'after' => $after_summary,
+            'changed' => $before_hash !== $after_hash,
+            'kind' => 'layout',
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @param array<string,mixed> $before
+     * @param array<string,mixed> $after
+     */
+    private static function addSeoDiffs( array &$rows, array $before, array $after ): void {
+        $before_seo = self::decodeJsonObject( self::stringValue( $before['seo_meta_json'] ?? '' ) );
+        $after_seo = self::decodeJsonObject( self::stringValue( $after['seo_meta_json'] ?? '' ) );
+        foreach ( [
+            'title' => 'SEO Title',
+            'description' => 'SEO Description',
+            'og_title' => 'Open Graph Title',
+            'og_description' => 'Open Graph Description',
+            'canonical_url' => 'Canonical URL',
+        ] as $field => $label ) {
+            $before_value = self::stringValue( $before_seo[ $field ] ?? '' );
+            $after_value = self::stringValue( $after_seo[ $field ] ?? '' );
+            if ( $before_value === '' && $after_value === '' ) {
+                continue;
+            }
+            $rows[] = [
+                'field' => 'seo.' . $field,
+                'label' => $label,
+                'before' => $before_value,
+                'after' => $after_value,
+                'changed' => $before_value !== $after_value,
+                'kind' => 'seo',
+            ];
+        }
+    }
+
+    private static function layoutSummary( string $raw, string $entity_type ): string {
+        $decoded = self::decodeJsonObject( $raw );
+        if ( $decoded === [] ) {
+            return 'No structured content';
+        }
+
+        $sections = [];
+        if ( $entity_type === 'template' ) {
+            $sections = is_array( $decoded['sections'] ?? null ) ? $decoded['sections'] : [];
+            if ( $sections === [] && is_array( $decoded['regions'] ?? null ) ) {
+                foreach ( $decoded['regions'] as $region ) {
+                    if ( is_array( $region ) && is_array( $region['blocks'] ?? null ) ) {
+                        foreach ( $region['blocks'] as $block ) {
+                            if ( is_array( $block ) ) {
+                                $sections[] = $block;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            $meta = StructuredWebsiteBuilderService::structuredMetaFromDecodedLayout( $decoded );
+            $sections = is_array( $meta['sections'] ?? null ) ? $meta['sections'] : [];
+        }
+
+        $counts = [];
+        $labels = [];
+        foreach ( $sections as $section ) {
+            if ( ! is_array( $section ) ) {
+                continue;
+            }
+            $type = metis_key_clean( (string) ( $section['type'] ?? 'block' ) );
+            if ( $type === '' ) {
+                $type = 'block';
+            }
+            $counts[ $type ] = ( $counts[ $type ] ?? 0 ) + 1;
+            if ( count( $labels ) < 8 ) {
+                $labels[] = self::blockSummaryLabel( $section, $type );
+            }
+        }
+        if ( $sections === [] ) {
+            return 'No blocks';
+        }
+
+        $count_parts = [];
+        foreach ( $counts as $type => $count ) {
+            $count_parts[] = str_replace( '_', ' ', $type ) . ': ' . (string) $count;
+        }
+
+        return count( $sections ) . ' block' . ( count( $sections ) === 1 ? '' : 's' )
+            . ' (' . implode( ', ', $count_parts ) . ')'
+            . ( $labels !== [] ? "\n" . implode( "\n", $labels ) : '' );
+    }
+
+    /**
+     * @param array<string,mixed> $section
+     */
+    private static function blockSummaryLabel( array $section, string $type ): string {
+        $content = is_array( $section['content'] ?? null ) ? $section['content'] : ( is_array( $section['data'] ?? null ) ? $section['data'] : [] );
+        $candidates = [
+            $section['header'] ?? null,
+            $content['title'] ?? null,
+            $content['text'] ?? null,
+            $content['label'] ?? null,
+            $content['headline'] ?? null,
+        ];
+        $label = '';
+        foreach ( $candidates as $candidate ) {
+            $value = self::stringValue( $candidate );
+            if ( $value !== '' ) {
+                $label = $value;
+                break;
+            }
+        }
+        if ( $label === '' ) {
+            $label = ucwords( str_replace( '_', ' ', $type ) );
+        }
+        if ( function_exists( 'mb_substr' ) ) {
+            $label = mb_substr( $label, 0, 80 );
+        } else {
+            $label = substr( $label, 0, 80 );
+        }
+        return '- ' . ucwords( str_replace( '_', ' ', $type ) ) . ': ' . $label;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function decodeJsonObject( string $raw ): array {
+        if ( trim( $raw ) === '' ) {
+            return [];
+        }
+        $decoded = json_decode( $raw, true );
+        return is_array( $decoded ) ? $decoded : [];
+    }
+
+    private static function stringValue( mixed $value ): string {
+        if ( is_scalar( $value ) ) {
+            return trim( (string) $value );
+        }
+        if ( $value === null ) {
+            return '';
+        }
+        return self::jsonEncode( $value, JSON_UNESCAPED_SLASHES );
     }
 
     /**

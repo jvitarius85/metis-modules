@@ -188,7 +188,85 @@ final class ReusableBlockService {
         if ( ! isset( $out['style'] ) || ! is_array( $out['style'] ) ) {
             $out['style'] = [];
         }
+        $out['data'] = self::sanitizeBlockDataForStorage( $out['data'] );
+        $out['style'] = self::sanitizeBlockStyleForStorage( $out['style'] );
         return $out;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private static function sanitizeBlockDataForStorage( array $data ): array {
+        $out = [];
+        foreach ( $data as $key => $value ) {
+            $clean_key = metis_key_clean( (string) $key );
+            if ( $clean_key === '' ) {
+                continue;
+            }
+            $out[ $clean_key ] = self::sanitizeBlockValueForStorage( $clean_key, $value );
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string,mixed> $style
+     * @return array<string,mixed>
+     */
+    private static function sanitizeBlockStyleForStorage( array $style ): array {
+        $out = [];
+        foreach ( $style as $key => $value ) {
+            $clean_key = metis_key_clean( (string) $key );
+            if ( $clean_key === '' ) {
+                continue;
+            }
+            if ( is_array( $value ) ) {
+                $out[ $clean_key ] = self::sanitizeBlockStyleForStorage( $value );
+                continue;
+            }
+            if ( ! is_scalar( $value ) ) {
+                continue;
+            }
+            $text = trim( (string) $value );
+            if ( function_exists( 'metis_runtime_is_safe_css_value' ) && ! metis_runtime_is_safe_css_value( $text ) ) {
+                continue;
+            }
+            $out[ $clean_key ] = metis_text_clean( $text );
+        }
+        return $out;
+    }
+
+    private static function sanitizeBlockValueForStorage( string $key, mixed $value ): mixed {
+        if ( is_array( $value ) ) {
+            $out = [];
+            foreach ( $value as $child_key => $child_value ) {
+                $child_clean_key = is_string( $child_key ) ? metis_key_clean( $child_key ) : $child_key;
+                if ( is_string( $child_clean_key ) && $child_clean_key === '' ) {
+                    continue;
+                }
+                $out[ $child_clean_key ] = self::sanitizeBlockValueForStorage( is_string( $child_clean_key ) ? $child_clean_key : $key, $child_value );
+            }
+            return $out;
+        }
+        if ( ! is_scalar( $value ) ) {
+            return '';
+        }
+
+        $text = trim( (string) $value );
+        $key = metis_key_clean( $key );
+        if ( in_array( $key, [ 'html', 'body', 'content', 'source' ], true ) && str_contains( $text, '<' ) ) {
+            return function_exists( 'metis_runtime_kses_post' )
+                ? (string) metis_runtime_kses_post( $text )
+                : strip_tags( $text, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div><figure><img>' );
+        }
+        if ( in_array( $key, [ 'url', 'href', 'src', 'link', 'cta_url', 'image_src', 'primary_cta_link' ], true ) ) {
+            return function_exists( 'metis_runtime_is_safe_url_value' ) && ! metis_runtime_is_safe_url_value( $text ) ? '' : $text;
+        }
+        if ( str_contains( $key, 'style' ) && function_exists( 'metis_runtime_is_safe_css_value' ) && ! metis_runtime_is_safe_css_value( $text ) ) {
+            return '';
+        }
+
+        return str_contains( $text, "\n" ) ? metis_textarea_clean( $text ) : metis_text_clean( $text );
     }
 
     private static function cleanCode( string $code ): string {

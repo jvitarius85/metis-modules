@@ -45,6 +45,35 @@ Official modules are defined by trusted repository metadata.
 Required modules cannot be disabled because they provide core platform access,
 identity, profile, and settings behavior.
 
+## Website CMS
+
+Website is the official CMS surface for Metis. CMS behavior lives in
+`system/modules/website` and `system/src/Metis/Modules/Website`; a separate CMS
+module is not required.
+
+The Website CMS supports pages, posts, templates, menus, media-backed content,
+reusable blocks, autosaved drafts, revisions, revision compare/restore, preview,
+publish/update states, scheduled content, redirects, banners, popups, theme
+controls, and public rendering. The editor uses the shared Metis admin UI with a
+block library, visual canvas, page/block settings panels, local draft recovery,
+and permission-gated controls.
+
+Website permissions remain granular. View, create, edit, publish, delete, media,
+menu, banner, popup, redirect, template, theme, reusable block/web part, launch,
+and import actions must be enforced on both the UI and server-side AJAX/action
+paths. Secure Enclave protected operations must continue to use Website action
+names and Website permissions.
+
+Rich text, HTML blocks, reusable blocks, templates, banners, popups, web parts,
+and public rendering share the core `metis_runtime_kses_post()` sanitization
+boundary. Unsafe tags, inline event handlers, unsafe URL schemes, and dangerous
+style values are stripped before storage/rendering. Trusted raw script or iframe
+embeds are not allowed by default.
+
+Preview should use the same structured layout contract as public rendering. If
+the canvas is approximate, the preview path should favor server-rendered output
+so draft and published pages stay consistent.
+
 ## Repository Layout
 
 ```text

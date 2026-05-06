@@ -448,6 +448,82 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     background: var(--metis-surface, #fff);
     padding: 10px 12px;
 }
+.metis-content-revision-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.metis-content-revision-compare {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 12px;
+    min-width: 0;
+}
+.metis-content-revision-compare[hidden] {
+    display: none !important;
+}
+.metis-content-compare-head,
+.metis-content-compare-row {
+    border: 1px solid var(--metis-border, #e0e2ea);
+    border-radius: 8px;
+    background: var(--metis-surface, #fff);
+    padding: 10px 12px;
+}
+.metis-content-compare-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.metis-content-compare-head span,
+.metis-content-compare-label span {
+    display: block;
+    margin-top: 2px;
+    color: var(--metis-text-muted, #6d7485);
+    font-size: 12px;
+}
+.metis-content-compare-row {
+    display: grid;
+    gap: 8px;
+}
+.metis-content-compare-row.is-changed {
+    border-color: var(--metis-primary, #485bc7);
+}
+.metis-content-compare-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.metis-content-compare-values div {
+    min-width: 0;
+}
+.metis-content-compare-values small {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--metis-text-muted, #6d7485);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.metis-content-compare-values pre {
+    min-height: 42px;
+    max-height: 170px;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--metis-border, #e0e2ea);
+    border-radius: 8px;
+    background: var(--metis-row-even-bg, #f8f9fd);
+    color: var(--metis-text, #1f2330);
+    padding: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+}
 .metis-content-code-field {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 13px;
@@ -920,6 +996,9 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     .metis-builder-settings-panel,
     .metis-builder-canvas {
         overflow: visible;
+    }
+    .metis-content-compare-values {
+        grid-template-columns: 1fr;
     }
     .metis-builder-canvas-inner {
         min-height: 180px;

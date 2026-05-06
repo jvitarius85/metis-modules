@@ -280,6 +280,8 @@ final class StructuredWebsiteBuilderService {
                 'src' => self::normalizeOptionalUrl( (string) ( $content['src'] ?? '' ) ),
                 'alt' => self::sanitizeText( (string) ( $content['alt'] ?? '' ) ),
                 'caption' => self::sanitizeText( (string) ( $content['caption'] ?? '' ) ),
+                'width' => self::sanitizeImageDimension( $content['width'] ?? '' ),
+                'height' => self::sanitizeImageDimension( $content['height'] ?? '' ),
             ];
         }
 
@@ -926,6 +928,18 @@ final class StructuredWebsiteBuilderService {
         return strip_tags( $raw, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div>' );
     }
 
+    private static function sanitizeImageDimension( mixed $value ): string {
+        $raw = is_scalar( $value ) ? trim( (string) $value ) : '';
+        if ( $raw === '' ) {
+            return '';
+        }
+        $number = (int) preg_replace( '/[^0-9]/', '', $raw );
+        if ( $number < 1 || $number > 4000 ) {
+            return '';
+        }
+        return (string) $number;
+    }
+
     private static function sanitizeTranscriptSource( string $value ): string {
         $value = self::repairMojibakeText( $value );
         $value = str_replace( [ "\r\n", "\r" ], "\n", $value );
@@ -1129,6 +1143,9 @@ final class StructuredWebsiteBuilderService {
     private static function normalizeUrl( string $value ): string {
         $url = trim( $value );
         if ( $url === '' ) {
+            return '#';
+        }
+        if ( function_exists( 'metis_runtime_is_safe_url_value' ) && ! metis_runtime_is_safe_url_value( $url ) ) {
             return '#';
         }
         if ( $url === '#' ) {

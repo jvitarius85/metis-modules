@@ -2404,6 +2404,9 @@ final class WebsiteRenderer {
         if ( $url === '' ) {
             return '#';
         }
+        if ( function_exists( 'metis_runtime_is_safe_url_value' ) && ! metis_runtime_is_safe_url_value( $url ) ) {
+            return '#';
+        }
         if ( $url === '#' ) {
             return '#';
         }
@@ -3092,12 +3095,46 @@ final class WebsiteRenderer {
         $caption = trim( self::repairMojibakeText( (string) ( $content['caption'] ?? '' ) ) );
 
         $html = '<figure class="metis-structured-image">';
-        $html .= '<img src="' . metis_escape_attr( self::normalizePublicUrl( $src ) ) . '" alt="' . metis_escape_attr( $alt ) . '" loading="lazy">';
+        $html .= '<img src="' . metis_escape_attr( self::normalizePublicUrl( $src ) ) . '" alt="' . metis_escape_attr( $alt ) . '" loading="lazy"' . self::renderImageDimensionAttributes( $content ) . '>';
         if ( $caption !== '' ) {
             $html .= '<figcaption>' . metis_escape_html( $caption ) . '</figcaption>';
         }
         $html .= '</figure>';
         return $html;
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     */
+    private static function renderImageDimensionAttributes( array $content ): string {
+        $width = self::imageDimensionValue( $content['width'] ?? '' );
+        $height = self::imageDimensionValue( $content['height'] ?? '' );
+        $attrs = '';
+        $style = [];
+        if ( $width !== '' ) {
+            $attrs .= ' width="' . metis_escape_attr( $width ) . '"';
+            $style[] = 'width:' . $width . 'px';
+        }
+        if ( $height !== '' ) {
+            $attrs .= ' height="' . metis_escape_attr( $height ) . '"';
+            $style[] = 'height:' . $height . 'px';
+        }
+        if ( $style !== [] ) {
+            $attrs .= ' style="' . metis_escape_attr( implode( ';', $style ) ) . '"';
+        }
+        return $attrs;
+    }
+
+    private static function imageDimensionValue( mixed $value ): string {
+        $raw = is_scalar( $value ) ? trim( (string) $value ) : '';
+        if ( $raw === '' ) {
+            return '';
+        }
+        $number = (int) preg_replace( '/[^0-9]/', '', $raw );
+        if ( $number < 1 || $number > 4000 ) {
+            return '';
+        }
+        return (string) $number;
     }
 
     /**

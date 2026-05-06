@@ -510,9 +510,8 @@
         state.actionNonces = {};
     }
 
-    function isCmsContext() { return state.context === 'cms' || state.context === 'cms_page' || state.context === 'cms_post'; }
-    function isPageContext() { return state.context === 'website' || state.context === 'website_page' || state.context === 'cms' || state.context === 'cms_page'; }
-    function isPostContext() { return state.context === 'post' || state.context === 'website_post' || state.context === 'cms_post'; }
+    function isPageContext() { return state.context === 'website' || state.context === 'website_page'; }
+    function isPostContext() { return state.context === 'post' || state.context === 'website_post'; }
     function isManagedContentContext() { return isPageContext() || isPostContext(); }
     function isTemplateContext() { return state.context === 'template'; }
     function isNewsletterContext() { return state.context.indexOf('newsletter') === 0; }
@@ -525,9 +524,9 @@
         if (!pathname) return { key: '', id: 0 };
         var match = null;
         if (isPostContext()) {
-            match = pathname.match(/\/(?:website|cms)\/posts\/editor\/([A-Za-z0-9_-]+)\/?$/i);
+            match = pathname.match(/\/website\/posts\/editor\/([A-Za-z0-9_-]+)\/?$/i);
         } else if (isPageContext()) {
-            match = pathname.match(/\/(?:website|cms)\/pages\/editor\/([A-Za-z0-9_-]+)\/?$/i);
+            match = pathname.match(/\/website\/pages\/editor\/([A-Za-z0-9_-]+)\/?$/i);
         }
         if (!match || !match[1]) return { key: '', id: 0 };
         var ref = s(match[1]).trim();
@@ -747,9 +746,6 @@
             if (p.indexOf('/template/') !== -1 || state.kind === 'template' || state.context === 'newsletter_template') return 'newsletter_template';
             return 'newsletter';
         }
-        if (p.indexOf('/cms/posts/editor/') !== -1 || state.context === 'cms_post') {
-            return 'cms_post';
-        }
         if (
             state.context === 'website_post' ||
             p.indexOf('/website/posts/editor/') !== -1 ||
@@ -757,9 +753,6 @@
             state.context === 'post'
         ) {
             return 'post';
-        }
-        if (p.indexOf('/cms/pages/editor/') !== -1 || state.context === 'cms' || state.context === 'cms_page') {
-            return 'cms_page';
         }
         if (
             state.context === 'website_page' ||
@@ -2374,7 +2367,7 @@
             };
             if (t === 'transcript') base.content = { source: '', rows: [] };
             else if (t === 'heading') base.content = { text: 'Heading', level: 'h2' };
-            else if (t === 'image') base.content = { src: '', alt: '', caption: '' };
+            else if (t === 'image') base.content = { src: '', alt: '', caption: '', width: '', height: '' };
             else if (t === 'button') base.content = { label: 'Learn more', url: '#', align: 'left' };
             else if (t === 'hero') base.content = { title: 'Hero Title', subtitle: '', cta_label: 'Learn More', cta_url: '#', image_src: '' };
             else if (t === 'html') base.content = { html: '<div></div>' };
@@ -2387,6 +2380,14 @@
             else if (t === 'posts_list') base.content = { source: 'this_page', specific_page: 0, category_ids: [], limit: 5, sort: 'latest' };
             else base.content = { body: '<p></p>' };
             return base;
+        }
+
+        function normalizeImageDimension(value) {
+            var raw = s(value || '').trim();
+            if (!raw) return '';
+            var number = parseInt(raw.replace(/[^0-9]/g, ''), 10) || 0;
+            if (number < 1 || number > 4000) return '';
+            return String(number);
         }
 
         function sanitizeTranscriptSource(value) {
@@ -2492,6 +2493,8 @@
                 out.content.src = s(content.src || '');
                 out.content.alt = s(content.alt || '');
                 out.content.caption = s(content.caption || '');
+                out.content.width = normalizeImageDimension(content.width || '');
+                out.content.height = normalizeImageDimension(content.height || '');
             } else if (out.type === 'button') {
                 out.content.label = s(content.label || 'Learn more');
                 out.content.url = s(content.url || '#') || '#';
@@ -2836,6 +2839,23 @@
             return ' contenteditable="true" spellcheck="true" data-v2-inline="' + esc(field) + '" data-inline-index="' + esc(String(index)) + '"' + (extra || '');
         }
 
+        function imageDimensionAttrs(content) {
+            var width = normalizeImageDimension(content && content.width || '');
+            var height = normalizeImageDimension(content && content.height || '');
+            var attrs = '';
+            var style = [];
+            if (width) {
+                attrs += ' width="' + esc(width) + '"';
+                style.push('width:' + width + 'px');
+            }
+            if (height) {
+                attrs += ' height="' + esc(height) + '"';
+                style.push('height:' + height + 'px');
+            }
+            if (style.length) attrs += ' style="' + esc(style.join(';')) + '"';
+            return attrs;
+        }
+
         function renderCanvasToolbar(index) {
             if (!state.canEdit && !(state.id < 1 && state.canCreate)) return '';
             return '<div class="metis-builder-block-tools" aria-label="Block controls">' +
@@ -2859,7 +2879,7 @@
                 body = '<div class="metis-builder-richtext metis-se-rich-editor" data-v2-rich="canvas_text" id="metis-v2-canvas-rich-' + esc(String(index)) + '"' + editableAttr(index, 'text_body') + '>' + s(content.body || '<p>Start typing...</p>') + '</div>';
             } else if (type === 'image') {
                 body = '<figure class="metis-builder-image">' +
-                    (content.src ? '<img src="' + esc(s(content.src || '')) + '" alt="' + esc(s(content.alt || '')) + '">' : '<div class="metis-builder-media-empty">Choose an image in settings.</div>') +
+                    (content.src ? '<img src="' + esc(s(content.src || '')) + '" alt="' + esc(s(content.alt || '')) + '"' + imageDimensionAttrs(content) + '>' : '<div class="metis-builder-media-empty">Choose an image in settings.</div>') +
                     '<figcaption' + editableAttr(index, 'image_caption') + '>' + esc(s(content.caption || '')) + '</figcaption>' +
                 '</figure>';
             } else if (type === 'button') {
@@ -3059,6 +3079,8 @@
                 html += '<div class="metis-se-field-row"><label>Image URL</label><input id="metis-v2-image-src" class="metis-se-input" value="' + esc(s(sec.content.src || '')) + '" placeholder="https://"></div>';
                 html += '<div class="metis-se-field-row"><label>Alt Text</label><input id="metis-v2-image-alt" class="metis-se-input" value="' + esc(s(sec.content.alt || '')) + '"></div>';
                 html += '<div class="metis-se-field-row"><label>Caption</label><input id="metis-v2-image-caption" class="metis-se-input" value="' + esc(s(sec.content.caption || '')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Width</label><input id="metis-v2-image-width" class="metis-se-input" inputmode="numeric" pattern="[0-9]*" value="' + esc(s(sec.content.width || '')) + '" placeholder="Auto"></div>';
+                html += '<div class="metis-se-field-row"><label>Height</label><input id="metis-v2-image-height" class="metis-se-input" inputmode="numeric" pattern="[0-9]*" value="' + esc(s(sec.content.height || '')) + '" placeholder="Auto"></div>';
             } else if (sec.type === 'button') {
                 html += '<div class="metis-se-field-row"><label>Label</label><input id="metis-v2-button-label" class="metis-se-input" value="' + esc(s(sec.content.label || '')) + '"></div>';
                 html += '<div class="metis-se-field-row"><label>URL</label><input id="metis-v2-button-url" class="metis-se-input" value="' + esc(s(sec.content.url || '#')) + '"></div>';
@@ -3282,11 +3304,96 @@
             if (!host) return;
             if (!state.revisions || !state.revisions.length) {
                 host.innerHTML = '<div class="metis-se-meta-value">No revisions yet.</div>';
+                renderRevisionCompare(null);
                 return;
             }
             host.innerHTML = state.revisions.map(function (row) {
-                return '<div class="metis-content-revision-row"><span>' + esc(s(row.note || 'Revision')) + '<small>' + esc(s(row.created_at || '')) + '</small></span><button type="button" class="metis-se-nav-btn" data-restore-revision="' + esc(s(row.id || '0')) + '">Restore</button></div>';
+                var revisionId = esc(s(row.id || '0'));
+                return '<div class="metis-content-revision-row"><span>' + esc(s(row.note || 'Revision')) + '<small>' + esc(s(row.created_at || '')) + '</small></span><div class="metis-content-revision-actions"><button type="button" class="metis-se-nav-btn" data-compare-revision="' + revisionId + '">Compare</button>' + (state.canEdit ? '<button type="button" class="metis-se-nav-btn" data-restore-revision="' + revisionId + '">Restore</button>' : '') + '</div></div>';
             }).join('');
+        }
+
+        function renderRevisionCompare(resp) {
+            var host = document.getElementById('metis-v2-revision-compare');
+            if (!host) return;
+            if (!resp) {
+                host.hidden = true;
+                host.innerHTML = '';
+                return;
+            }
+            var diffs = Array.isArray(resp.diffs) ? resp.diffs : [];
+            var changedCount = parseInt(s(resp.changed_count || '0'), 10) || 0;
+            var rows = diffs.length ? diffs.map(function (row) {
+                var changed = !!row.changed;
+                return '<div class="metis-content-compare-row' + (changed ? ' is-changed' : '') + '">' +
+                    '<div class="metis-content-compare-label"><strong>' + esc(s(row.label || row.field || 'Field')) + '</strong><span>' + (changed ? 'Changed' : 'No change') + '</span></div>' +
+                    '<div class="metis-content-compare-values"><div><small>' + esc(s(resp.before_label || 'Revision')) + '</small><pre>' + esc(s(row.before || '—')) + '</pre></div><div><small>' + esc(s(resp.after_label || 'Current draft')) + '</small><pre>' + esc(s(row.after || '—')) + '</pre></div></div>' +
+                '</div>';
+            }).join('') : '<div class="metis-se-meta-value">No comparable fields were found for this revision.</div>';
+            host.hidden = false;
+            host.innerHTML = '<div class="metis-content-compare-head"><div><strong>Revision Compare</strong><span>' + esc(String(changedCount)) + ' changed field' + (changedCount === 1 ? '' : 's') + '</span></div><button type="button" class="metis-se-nav-btn" data-clear-revision-compare="1">Clear</button></div>' + rows;
+        }
+
+        function loadRevisionCompare(revisionId) {
+            var host = document.getElementById('metis-v2-revision-compare');
+            if (host) {
+                host.hidden = false;
+                host.innerHTML = '<div class="metis-se-meta-value">Loading comparison...</div>';
+            }
+            return request(contentAction('editor_revision_compare'), {
+                context: isPostContext() ? 'post' : 'page',
+                id: state.id || 0,
+                key: state.key || '',
+                revision_id: revisionId
+            }).then(function (resp) {
+                renderRevisionCompare(resp || {});
+            }).catch(function (err) {
+                if (host) host.innerHTML = '<div class="metis-se-meta-value is-error">Compare failed: ' + esc(s(err && err.message || 'Request failed.')) + '</div>';
+                setStatus('Compare failed: ' + s(err && err.message || 'Request failed.'), 'error');
+            });
+        }
+
+        function requestEditorConfirmation(options) {
+            var modal = document.getElementById('metis-v2-confirm-modal');
+            if (!modal) return Promise.resolve(false);
+            var title = document.getElementById('metis-v2-confirm-title');
+            var message = document.getElementById('metis-v2-confirm-message');
+            var accept = document.getElementById('metis-v2-confirm-accept');
+            var cancel = document.getElementById('metis-v2-confirm-cancel');
+            if (title) title.textContent = s(options && options.title || 'Confirm action');
+            if (message) message.textContent = s(options && options.message || 'Continue?');
+            if (accept) accept.textContent = s(options && options.confirmLabel || 'Continue');
+            if (cancel) cancel.textContent = s(options && options.cancelLabel || 'Cancel');
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            return new Promise(function (resolve) {
+                var complete = function (ok) {
+                    modal.style.display = 'none';
+                    modal.setAttribute('aria-hidden', 'true');
+                    modal.onclick = null;
+                    document.removeEventListener('keydown', onKey, true);
+                    resolve(!!ok);
+                };
+                var onKey = function (event) {
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        complete(false);
+                    }
+                };
+                modal.onclick = function (event) {
+                    if (event.target === modal || event.target.closest('[data-confirm-cancel]')) {
+                        complete(false);
+                        return;
+                    }
+                    if (event.target.closest('[data-confirm-accept]')) {
+                        complete(true);
+                    }
+                };
+                document.addEventListener('keydown', onKey, true);
+                setTimeout(function () {
+                    if (accept && typeof accept.focus === 'function') accept.focus();
+                }, 0);
+            });
         }
 
         function loadReusableBlocks() {
@@ -3702,8 +3809,9 @@
                             '</aside>' +
                         '</section>' +
                     '</div>' +
-                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-label="Revisions"><div class="metis-builder-drawer-head"><div><strong>Revisions</strong><span>Restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
+                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-label="Revisions"><div class="metis-builder-drawer-head"><div><strong>Revisions</strong><span>Compare or restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revision-compare" class="metis-content-revision-compare" hidden></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
                     '<aside id="metis-v2-preview-drawer" class="metis-builder-drawer metis-builder-preview-drawer" hidden aria-label="Preview"><div class="metis-builder-drawer-head"><div><strong>Preview</strong><span>Rendered from current blocks.</span></div><button type="button" class="metis-modal-close" data-drawer-close="preview" aria-label="Close">&times;</button></div><div id="metis-v2-preview" class="metis-se-preview"></div></aside>' +
+                    '<div id="metis-v2-confirm-modal" class="metis-modal-overlay metis-v2-confirm-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="metis-v2-confirm-title" aria-describedby="metis-v2-confirm-message"><div class="metis-modal metis-v2-confirm-modal__dialog"><div class="metis-modal-header"><h2 id="metis-v2-confirm-title" class="metis-modal-title">Confirm action</h2><button type="button" class="metis-modal-close" data-confirm-cancel="1" aria-label="Close">&times;</button></div><div class="metis-modal-body"><p id="metis-v2-confirm-message" class="metis-v2-confirm-modal__message">Continue?</p></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-confirm-cancel" data-confirm-cancel="1">Cancel</button><button type="button" class="metis-btn metis-btn-primary" id="metis-v2-confirm-accept" data-confirm-accept="1">Continue</button></div></div></div>' +
                     (isPostContext() ? '<div id="metis-v2-featured-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Featured Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Choose Featured Image</h2><div id="metis-v2-featured-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-featured-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-featured-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-featured-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div><div id="metis-v2-featured-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-featured-image-cancel">Close</button></div></div></div>' : '') +
                     '<div id="metis-v2-inline-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Inline Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Insert Image</h2><div id="metis-v2-inline-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-inline-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-inline-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-inline-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div><div id="metis-v2-inline-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-inline-image-cancel">Close</button></div></div></div>' +
                 '</div>';
@@ -3941,32 +4049,50 @@
                     if (recoveryHost) recoveryHost.innerHTML = '';
                     return;
                 }
+                var clearRevisionCompare = e.target.closest('[data-clear-revision-compare]');
+                if (clearRevisionCompare) {
+                    renderRevisionCompare(null);
+                    return;
+                }
+                var compareRevision = e.target.closest('[data-compare-revision]');
+                if (compareRevision) {
+                    var compareRevisionId = parseInt(s(compareRevision.getAttribute('data-compare-revision') || '0'), 10) || 0;
+                    if (compareRevisionId > 0) loadRevisionCompare(compareRevisionId);
+                    return;
+                }
                 var restoreRevision = e.target.closest('[data-restore-revision]');
                 if (restoreRevision) {
                     var revisionId = parseInt(s(restoreRevision.getAttribute('data-restore-revision') || '0'), 10) || 0;
                     if (revisionId > 0) {
-                        request(contentAction('editor_revision_restore'), {
-                            context: isPostContext() ? 'post' : 'page',
-                            id: state.id || 0,
-                            key: state.key || '',
-                            revision_id: revisionId
-                        }).then(function (resp) {
-                            var entity = isPageContext() ? (resp.page || {}) : (resp.post || {});
-                            state.entity = entity;
-                            var raw = isPostContext() ? s(entity.draft_content_json || entity.content_json || '') : s(entity.draft_layout_json || entity.layout_json || '');
-                            var layoutModel = layoutModelFromLayout(raw, isPostContext());
-                            state.sections = normalizeSections(layoutModel.sections, isPostContext());
-                            state.hero = normalizeHeroState(layoutModel.hero, layoutModel.page_type === 'homepage' && isPageContext());
-                            state.selectedTemplateKey = normalizeSelectedTemplateKey(
-                                s(entity.template_key || layoutModel.template_key || ''),
-                                layoutModel.page_type
-                            );
-                            applyInputsFromEntity(entity);
-                            renderSectionList();
-                            syncStepUi();
-                            setStatus('Revision restored', 'ok');
-                        }).catch(function (err) {
-                            setStatus('Restore failed: ' + s(err && err.message || 'Request failed.'), 'error');
+                        requestEditorConfirmation({
+                            title: 'Restore revision',
+                            message: 'Restore this revision into the current draft? Published content will not change until you publish or update.',
+                            confirmLabel: 'Restore'
+                        }).then(function (confirmed) {
+                            if (!confirmed) return;
+                            request(contentAction('editor_revision_restore'), {
+                                context: isPostContext() ? 'post' : 'page',
+                                id: state.id || 0,
+                                key: state.key || '',
+                                revision_id: revisionId
+                            }).then(function (resp) {
+                                var entity = isPageContext() ? (resp.page || {}) : (resp.post || {});
+                                state.entity = entity;
+                                var raw = isPostContext() ? s(entity.draft_content_json || entity.content_json || '') : s(entity.draft_layout_json || entity.layout_json || '');
+                                var layoutModel = layoutModelFromLayout(raw, isPostContext());
+                                state.sections = normalizeSections(layoutModel.sections, isPostContext());
+                                state.hero = normalizeHeroState(layoutModel.hero, layoutModel.page_type === 'homepage' && isPageContext());
+                                state.selectedTemplateKey = normalizeSelectedTemplateKey(
+                                    s(entity.template_key || layoutModel.template_key || ''),
+                                    layoutModel.page_type
+                                );
+                                applyInputsFromEntity(entity);
+                                renderSectionList();
+                                syncStepUi();
+                                setStatus('Revision restored', 'ok');
+                            }).catch(function (err) {
+                                setStatus('Restore failed: ' + s(err && err.message || 'Request failed.'), 'error');
+                            });
                         });
                     }
                     return;
@@ -4330,6 +4456,8 @@
                 if (target.id === 'metis-v2-image-src') { sec.content.src = s(target.value || ''); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-image-alt') { sec.content.alt = s(target.value || ''); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-image-caption') { sec.content.caption = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-image-width') { sec.content.width = normalizeImageDimension(target.value || ''); target.value = sec.content.width; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-image-height') { sec.content.height = normalizeImageDimension(target.value || ''); target.value = sec.content.height; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-button-label') { sec.content.label = s(target.value || ''); renderSectionList(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-button-url') { sec.content.url = s(target.value || '#') || '#'; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-block-hero-title') { sec.content.title = s(target.value || ''); renderSectionList(); setDirtyAutosave(); return; }

@@ -84,6 +84,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_website_reusable_block_save' => 'edit',
         'metis_website_editor_lock' => 'edit',
         'metis_website_editor_revisions_list' => 'view',
+        'metis_website_editor_revision_compare' => 'view',
         'metis_website_editor_revision_restore' => 'edit',
         'metis_core_editor_config' => 'view',
     ];
@@ -1276,6 +1277,64 @@ function metis_website_ajax_resolve_entity_id( string $entity_type, int $fallbac
     return max( 0, $fallback_id );
 }
 
+/**
+ * @return array<string,mixed>|null
+ */
+function metis_website_ajax_current_revision_payload( string $entity_type, int $entity_id ): ?array {
+    if ( $entity_id < 1 ) {
+        return null;
+    }
+
+    if ( $entity_type === 'template' ) {
+        $template = TemplateService::getById( $entity_id );
+        if ( $template === null ) {
+            return null;
+        }
+        return [
+            'name' => (string) ( $template->name ?? '' ),
+            'status' => (string) ( $template->status ?? '' ),
+            'template_key' => (string) ( $template->template_key ?? '' ),
+            'structure_json' => (string) ( $template->structure_json ?? '' ),
+            'is_default' => ! empty( $template->is_default ) ? 1 : 0,
+        ];
+    }
+
+    if ( $entity_type === 'post' ) {
+        $post = PostService::getById( $entity_id );
+        if ( $post === null ) {
+            return null;
+        }
+        return [
+            'title' => (string) ( $post->title ?? '' ),
+            'slug' => (string) ( $post->slug ?? '' ),
+            'status' => (string) ( $post->status ?? '' ),
+            'template_key' => (string) ( $post->template_key ?? '' ),
+            'content_json' => (string) ( $post->draft_content_json ?? $post->content_json ?? '' ),
+            'excerpt' => (string) ( $post->excerpt ?? '' ),
+            'content_format' => (string) ( $post->content_format ?? 'standard' ),
+            'seo_meta_json' => (string) ( $post->seo_meta_json ?? '' ),
+            'schedule_at' => (string) ( $post->publish_date ?? '' ),
+        ];
+    }
+
+    $page = PageService::getById( $entity_id );
+    if ( $page === null ) {
+        return null;
+    }
+    $path = method_exists( PageService::class, 'publishedPathForPage' )
+        ? (string) PageService::publishedPathForPage( $page )
+        : ( '/' . ltrim( (string) ( $page->slug ?? '' ), '/' ) );
+    return [
+        'title' => (string) ( $page->title ?? '' ),
+        'slug' => (string) ( $page->slug ?? $path ),
+        'status' => (string) ( $page->status ?? '' ),
+        'template_key' => (string) ( $page->template_key ?? '' ),
+        'layout_json' => (string) ( $page->draft_layout_json ?? $page->layout_json ?? '' ),
+        'seo_meta_json' => (string) ( $page->seo_meta_json ?? '' ),
+        'schedule_at' => (string) ( $page->published_at ?? '' ),
+    ];
+}
+
 function metis_website_ajax_generate_lock_token(): string {
     if ( function_exists( 'metis_runtime_generate_uuid' ) ) {
         return (string) metis_runtime_generate_uuid();
@@ -1582,6 +1641,60 @@ metis_ajax_register_handler( 'metis_website_editor_revisions_list', function ():
     $limit = isset( $_POST['limit'] ) ? (int) $_POST['limit'] : 50;
     $items = RevisionTimelineService::list( $entity_type, $entity_id, $limit );
     metis_runtime_send_json_success( [ 'revisions' => $items ] );
+}, [
+    'module' => 'website',
+    'permission' => 'view',
+    'nonce_action' => 'metis_website',
+] );
+
+metis_ajax_register_handler( 'metis_website_editor_revision_compare', function (): void {
+    metis_website_ajax_verify_nonce();
+    metis_website_ajax_require_permission( 'website.view' );
+
+    $context = isset( $_POST['context'] ) ? metis_key_clean( (string) $_POST['context'] ) : 'website';
+    $entity_type = metis_website_ajax_entity_type_for_context( $context );
+    $requested_key = metis_website_ajax_requested_entity_key();
+    $fallback_id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+    $entity_id = metis_website_ajax_resolve_entity_id( $entity_type, $fallback_id );
+    $revision_id = isset( $_POST['revision_id'] ) ? (int) $_POST['revision_id'] : 0;
+    $against_revision_id = isset( $_POST['against_revision_id'] ) ? (int) $_POST['against_revision_id'] : 0;
+    if ( $entity_id < 1 || $revision_id < 1 ) {
+        if ( $entity_id < 1 && $requested_key !== '' ) {
+            metis_runtime_send_json_error( 'Entity not found.', 404 );
+        }
+        metis_runtime_send_json_error( 'Invalid compare request.', 400 );
+    }
+
+    $revision_payload = RevisionTimelineService::payloadForRevision( $entity_type, $entity_id, $revision_id );
+    if ( ! is_array( $revision_payload ) ) {
+        metis_runtime_send_json_error( 'Revision not found.', 404 );
+    }
+
+    $against_payload = null;
+    $against_label = 'Current draft';
+    if ( $against_revision_id > 0 ) {
+        $against_payload = RevisionTimelineService::payloadForRevision( $entity_type, $entity_id, $against_revision_id );
+        $against_label = 'Revision #' . $against_revision_id;
+    }
+    if ( ! is_array( $against_payload ) ) {
+        $against_payload = metis_website_ajax_current_revision_payload( $entity_type, $entity_id );
+        $against_label = 'Current draft';
+    }
+    if ( ! is_array( $against_payload ) ) {
+        metis_runtime_send_json_error( 'Current entity was not found.', 404 );
+    }
+
+    $diffs = RevisionTimelineService::comparePayloads( $entity_type, $revision_payload, $against_payload );
+    metis_runtime_send_json_success(
+        [
+            'revision_id' => $revision_id,
+            'against_revision_id' => $against_revision_id,
+            'before_label' => 'Revision #' . $revision_id,
+            'after_label' => $against_label,
+            'changed_count' => count( array_filter( $diffs, static fn( array $row ): bool => ! empty( $row['changed'] ) ) ),
+            'diffs' => $diffs,
+        ]
+    );
 }, [
     'module' => 'website',
     'permission' => 'view',
