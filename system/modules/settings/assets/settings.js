@@ -1933,6 +1933,9 @@ document.addEventListener('DOMContentLoaded', function () {
         panel.classList.toggle('is-failed', String((progress && progress.stage) || '') === 'failed');
     }
 
+    const releaseProgressPollDelay = 2500;
+    const releaseProgressMaxFailures = 3;
+
     function pollReleaseProgress(token, panel, stopWhenDone) {
         const action = 'metis_release_apply_progress';
         const body = new FormData();
@@ -1944,10 +1947,63 @@ document.addEventListener('DOMContentLoaded', function () {
         return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
             const progress = data && data.progress ? data.progress : {};
             updateReleaseProgressPanel(panel, progress);
-            return !!(stopWhenDone && progress && progress.done);
-        }).catch(function () {
-            return false;
+            return { ok: true, done: !!(stopWhenDone && progress && progress.done) };
+        }).catch(function (error) {
+            return { ok: false, done: false, message: error && error.message ? String(error.message) : 'Progress update failed.' };
         });
+    }
+
+    function startReleaseProgressPolling(token, panel) {
+        let active = true;
+        let timer = null;
+        let inFlight = false;
+        let failures = 0;
+
+        const schedule = function (delay) {
+            if (!active) return;
+            window.clearTimeout(timer);
+            timer = window.setTimeout(run, delay);
+        };
+
+        const pause = function () {
+            active = false;
+            window.clearTimeout(timer);
+            updateReleaseProgressPanel(panel, {
+                message: 'Progress polling paused. The release request is still running.'
+            });
+        };
+
+        const run = function () {
+            if (!active || inFlight) return;
+            inFlight = true;
+            pollReleaseProgress(token, panel, true).then(function (result) {
+                if (!active) return;
+                if (result && result.done) {
+                    active = false;
+                    window.clearTimeout(timer);
+                    return;
+                }
+                if (result && result.ok) {
+                    failures = 0;
+                    schedule(releaseProgressPollDelay);
+                    return;
+                }
+                failures += 1;
+                if (failures >= releaseProgressMaxFailures) {
+                    pause();
+                    return;
+                }
+                schedule(releaseProgressPollDelay * (failures + 1));
+            }).finally(function () {
+                inFlight = false;
+            });
+        };
+
+        schedule(900);
+        return function () {
+            active = false;
+            window.clearTimeout(timer);
+        };
     }
 
     document.querySelectorAll('[data-release-apply-tag]').forEach(function (button) {
@@ -1974,16 +2030,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 button.textContent = 'Applying...';
                 updateReleaseProgressPanel(panel, { percent: 1, message: 'Starting release update.' });
 
-                let polling = true;
-                const pollTimer = window.setInterval(function () {
-                    if (!polling) return;
-                    pollReleaseProgress(token, panel, true).then(function (done) {
-                        if (done) {
-                            polling = false;
-                            window.clearInterval(pollTimer);
-                        }
-                    });
-                }, 750);
+                const stopProgressPolling = startReleaseProgressPolling(token, panel);
 
                 Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
                     const result = data && data.release_result ? data.release_result : {};
@@ -2004,9 +2051,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     updateReleaseProgressPanel(panel, { stage: 'failed', percent: 100, message: error && error.message ? error.message : 'Release update failed.' });
                     showToast('error', error && error.message ? error.message : 'Release update failed.');
                 }).finally(function () {
-                    polling = false;
-                    window.clearInterval(pollTimer);
-                    pollReleaseProgress(token, panel, false);
+                    stopProgressPolling();
+                    window.setTimeout(function () {
+                        pollReleaseProgress(token, panel, false);
+                    }, 500);
                     button.disabled = false;
                     button.textContent = originalLabel;
                 });

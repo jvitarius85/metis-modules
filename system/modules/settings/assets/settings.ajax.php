@@ -901,6 +901,8 @@ metis_ajax_register_handler( 'metis_release_apply_progress', function () {
     'module' => 'settings',
     'permission' => 'edit',
     'nonce_action' => metis_ajax_nonce_action( 'metis_release_apply_progress' ),
+    'rate_limit' => 120,
+    'rate_window_seconds' => 60,
 ] );
 
 metis_ajax_register_handler( 'metis_release_rollback', function () {
