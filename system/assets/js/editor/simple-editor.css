@@ -920,6 +920,24 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
 .metis-builder-block.is-heading-section-header {
     padding: 12px;
 }
+.metis-builder-block.is-heading-section-header.is-bg-surface,
+.metis-builder-block.is-heading-section-header.is-bg-muted,
+.metis-builder-block.is-heading-section-header.is-bg-primary-tint,
+.metis-builder-block.is-heading-section-header.is-bg-accent-tint {
+    background: var(--metis-surface, #fff);
+}
+.metis-builder-block.is-heading-section-header.is-bg-surface .metis-builder-heading-wrap.is-section-header {
+    background: var(--metis-surface, #fff);
+}
+.metis-builder-block.is-heading-section-header.is-bg-muted .metis-builder-heading-wrap.is-section-header {
+    background: var(--metis-row-even-bg, #f8f9fd);
+}
+.metis-builder-block.is-heading-section-header.is-bg-primary-tint .metis-builder-heading-wrap.is-section-header {
+    background: color-mix(in srgb, var(--metis-primary, #485bc7) 8%, var(--metis-surface, #fff));
+}
+.metis-builder-block.is-heading-section-header.is-bg-accent-tint .metis-builder-heading-wrap.is-section-header {
+    background: color-mix(in srgb, var(--metis-accent, #ff7542) 8%, var(--metis-surface, #fff));
+}
 .metis-builder-heading-wrap.is-valign-middle { align-items: center; }
 .metis-builder-heading-wrap.is-valign-bottom { align-items: end; }
 .metis-builder-heading.is-align-left { text-align: left; }
