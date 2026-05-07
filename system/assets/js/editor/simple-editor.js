@@ -2248,6 +2248,39 @@
             }
         }
 
+        function normalizeEditorLinkUrl(url) {
+            var raw = s(url || '').trim();
+            if (!raw) return '';
+            if (/^(https?:|mailto:|tel:|\/|#)/i.test(raw)) return raw;
+            return 'https://' + raw;
+        }
+
+        function unwrapLinksFromHtml(html) {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = s(html || '');
+            wrap.querySelectorAll('a').forEach(function (node) {
+                while (node.firstChild) node.parentNode.insertBefore(node.firstChild, node);
+                node.parentNode.removeChild(node);
+            });
+            return wrap.innerHTML;
+        }
+
+        function applyLinkAtSelection(target, url) {
+            var linkUrl = normalizeEditorLinkUrl(url);
+            if (!target || !linkUrl) return false;
+            target.focus();
+            restoreRichSelection(target);
+            var sel = window.getSelection ? window.getSelection() : null;
+            if (!sel || !sel.rangeCount) return false;
+            var range = sel.getRangeAt(0);
+            if (!target.contains(range.commonAncestorContainer)) return false;
+            var selectedHtml = range.collapsed ? esc(linkUrl) : unwrapLinksFromHtml(selectedHtmlFromRange(range));
+            range.deleteContents();
+            document.execCommand('insertHTML', false, '<a href="' + esc(linkUrl) + '">' + selectedHtml + '</a>');
+            saveRichSelection(target);
+            return true;
+        }
+
         function applySpanPreset(target, prefix, value) {
             if (!target) return;
             target.focus();
@@ -5046,12 +5079,8 @@
                     if (cmd === 'createLink') {
                         if (target) saveRichSelection(target);
                         requestLinkUrl().then(function(url) {
-                            if (url) {
-                                if (target) {
-                                    target.focus();
-                                    restoreRichSelection(target);
-                                }
-                                document.execCommand('createLink', false, url);
+                            if (url && target) {
+                                applyLinkAtSelection(target, url);
                             }
                             if (target) {
                                 saveRichSelection(target);

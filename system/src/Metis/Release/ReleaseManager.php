@@ -535,28 +535,22 @@ final class ReleaseManager {
     }
 
     private function runPreUpdateBackup( string $trigger ): array {
-        if ( ! \function_exists( 'metis_backup_run_now' ) ) {
-            return $this->runLocalPreUpdateArchive( $trigger, [
-                'ok' => false,
-                'status' => 'managed_backup_unavailable',
-                'message' => 'Managed backup service is unavailable.',
-            ] );
-        }
-
-        $managed = \metis_backup_run_now( 'release_' . $trigger );
-        if ( ! empty( $managed['ok'] ) ) {
-            return $managed;
-        }
-
-        return $this->runLocalPreUpdateArchive( $trigger, $managed );
+        return $this->runLocalPreUpdateArchive( $trigger, [
+            'ok' => true,
+            'status' => 'managed_backup_skipped',
+            'message' => 'Release updates use a local rollback archive instead of blocking on a full managed backup.',
+        ] );
     }
 
     private function runLocalPreUpdateArchive( string $trigger, array $managed ): array {
+        $managed_skipped = (string) ( $managed['status'] ?? '' ) === 'managed_backup_skipped';
+        $failure_context = $managed_skipped ? 'Local release backup' : 'Managed backup failed and local release backup';
+
         if ( ! \class_exists( '\ZipArchive' ) ) {
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
-                'message' => 'Managed backup failed and PHP ZipArchive is unavailable for local release backup.',
+                'message' => $failure_context . ' requires PHP ZipArchive.',
                 'managed_backup' => $managed,
             ];
         }
@@ -566,7 +560,7 @@ final class ReleaseManager {
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
-                'message' => 'Managed backup failed and local release backup directory could not be created.',
+                'message' => $failure_context . ' directory could not be created.',
                 'managed_backup' => $managed,
             ];
         }
@@ -578,7 +572,7 @@ final class ReleaseManager {
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
-                'message' => 'Managed backup failed and local release backup archive could not be opened.',
+                'message' => $failure_context . ' archive could not be opened.',
                 'managed_backup' => $managed,
             ];
         }
@@ -624,15 +618,19 @@ final class ReleaseManager {
             return [
                 'ok' => false,
                 'status' => 'backup_failed',
-                'message' => 'Managed backup failed and local release backup archive is empty.',
+                'message' => $failure_context . ' archive is empty.',
                 'managed_backup' => $managed,
             ];
         }
 
+        $message = $managed_skipped
+            ? 'Created a local pre-update release archive.'
+            : 'Managed backup failed; created a local pre-update release archive instead.';
+
         return [
             'ok' => true,
             'status' => 'local_archive',
-            'message' => 'Managed backup failed; created a local pre-update release archive instead.',
+            'message' => $message,
             'archive_path' => $archive_path,
             'bytes' => (int) @filesize( $archive_path ),
             'sha256' => (string) @hash_file( 'sha256', $archive_path ),
