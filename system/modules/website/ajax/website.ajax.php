@@ -1952,9 +1952,17 @@ metis_ajax_register_handler( 'metis_website_editor_media_upload', function (): v
     if ( preg_match( '#/media/([A-Za-z0-9_-]+)$#', $url, $m ) === 1 ) {
         $token = (string) $m[1];
     }
+    $media_id = isset( $result['id'] ) ? (int) $result['id'] : 0;
+    if ( $media_id < 1 && $token !== '' && function_exists( 'metis_media_find_by_token' ) ) {
+        $media_row = metis_media_find_by_token( $token );
+        if ( is_array( $media_row ) ) {
+            $media_id = (int) ( $media_row['id'] ?? 0 );
+        }
+    }
+
     metis_runtime_send_json_success( [
         'media' => [
-            'id' => isset( $result['id'] ) ? (int) $result['id'] : 0,
+            'id' => $media_id,
             'value' => $token,
             'label' => (string) ( $result['file_name'] ?? basename( (string) ( $result['file'] ?? '' ) ) ),
             'url' => $url,

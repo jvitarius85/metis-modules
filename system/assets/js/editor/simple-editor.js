@@ -546,6 +546,8 @@
     function contentModuleSlug() { return 'website'; }
     function contentAction(suffix) { return 'metis_website_' + suffix; }
     function contentLabel() { return 'Website'; }
+    function contentTypeLabel() { return isPostContext() ? 'Post' : 'Page'; }
+    function contentSettingsLabel() { return contentTypeLabel() + ' Settings'; }
     function inferRefFromPath() {
         var pathname = s(window.location.pathname || '');
         if (!pathname) return { key: '', id: 0 };
@@ -4069,7 +4071,7 @@
             return '' +
                 '<div class="metis-editor-media-upload" data-editor-media-upload-panel="' + esc(cleanContext) + '">' +
                     '<div class="metis-editor-media-upload__main">' +
-                        '<div><strong>Upload image</strong><span data-editor-media-upload-status="' + esc(cleanContext) + '">Choose a JPG, PNG, GIF, WEBP, or SVG.</span></div>' +
+                        '<div><strong>Upload image</strong><span data-editor-media-upload-status="' + esc(cleanContext) + '">Choose an image or drop it here.</span></div>' +
                         '<button type="button" class="metis-se-nav-btn" data-editor-media-upload-btn="' + esc(cleanContext) + '">Upload</button>' +
                         '<input type="file" class="metis-editor-media-upload__input" data-editor-media-upload-input="' + esc(cleanContext) + '" accept="image/*" hidden>' +
                     '</div>' +
@@ -4096,6 +4098,32 @@
                 var bar = panel.querySelector('[data-editor-media-upload-progress]');
                 if (wrap) wrap.hidden = !(active && isCurrent);
                 if (bar && isCurrent) bar.style.width = pct + '%';
+            });
+        }
+
+        function editorMediaUploadPanelFromEvent(event) {
+            return event && event.target && event.target.closest
+                ? event.target.closest('[data-editor-media-upload-panel]')
+                : null;
+        }
+
+        function eventHasUploadFiles(event) {
+            if (!event || !event.dataTransfer) return false;
+            if (event.dataTransfer.files && event.dataTransfer.files.length) return true;
+            var types = event.dataTransfer.types || [];
+            for (var i = 0; i < types.length; i += 1) {
+                if (String(types[i]) === 'Files') return true;
+            }
+            return false;
+        }
+
+        function clearEditorMediaDropState(panel) {
+            if (panel) {
+                panel.classList.remove('is-drag-over');
+                return;
+            }
+            root.querySelectorAll('[data-editor-media-upload-panel].is-drag-over').forEach(function (node) {
+                node.classList.remove('is-drag-over');
             });
         }
 
@@ -4402,13 +4430,13 @@
                             '</main>' +
                             '<aside class="metis-builder-settings-panel" aria-label="Settings">' +
                                 '<div id="metis-builder-settings-page" class="metis-builder-settings-page">' +
-                                    '<div class="metis-content-panel-title">Page Settings</div>' +
+                                    '<div class="metis-content-panel-title">' + esc(contentSettingsLabel()) + '</div>' +
                                     '<div id="metis-v2-recovery"></div>' +
                                     '<div class="metis-builder-settings-card"><div class="metis-se-field-grid">' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-title">Title</label><input id="metis-v2-title" class="metis-se-input" type="text" placeholder="Title"></div>' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-status">Status</label><select id="metis-v2-status" class="metis-se-select"><option value="draft">Draft</option>' + (state.canPublish ? '<option value="published">Published</option><option value="scheduled">Scheduled</option>' : '') + '</select></div>' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-slug">URL Path</label><input id="metis-v2-slug" class="metis-se-input" type="text" placeholder="' + (isPostContext() ? 'post-slug-title' : 'page-slug') + '">' + (isPostContext() ? '<div class="metis-se-field-help">Public path uses the primary category, optional child category, and original publish year automatically.</div><div id="metis-v2-post-path-preview" class="metis-se-meta-value metis-se-path-preview">Select a primary category to generate the public path.</div>' : '') + '</div>' +
-                                        '<div class="metis-se-field-row"><label for="metis-v2-template-key">' + esc(contentLabel()) + ' Template</label><select id="metis-v2-template-key" class="metis-se-select"><option value="">Loading templates...</option></select><div id="metis-v2-template-display" class="metis-se-meta-value">Default template</div></div>' +
+                                        '<div class="metis-se-field-row"><label for="metis-v2-template-key">' + esc(contentTypeLabel()) + ' Template</label><select id="metis-v2-template-key" class="metis-se-select"><option value="">Loading templates...</option></select><div id="metis-v2-template-display" class="metis-se-meta-value">Default template</div></div>' +
                                         '<div class="metis-se-field-row"><label for="metis-v2-parent-id">Parent Page</label><select id="metis-v2-parent-id" class="metis-se-select"><option value="">None</option></select></div>' +
                                         (isPostContext() ? '<div class="metis-se-field-row"><label>Categories</label><div id="metis-v2-category-chip-host">' + categoryChipField('metis-v2-category-ids', [], 'No categories available.') + '</div></div>' : '') +
                                         (isPostContext() ? '<div class="metis-se-field-row"><label>Featured Image</label><input id="metis-v2-featured-image-id" type="hidden" value=""><div class="metis-featured-image-actions"><button type="button" id="metis-v2-featured-image-open" class="metis-se-nav-btn">Choose Image</button><button type="button" id="metis-v2-featured-image-clear" class="metis-se-nav-btn">Remove</button></div><div id="metis-v2-featured-image-preview" class="metis-media-grid metis-featured-image-preview"></div></div>' : '') +
@@ -4423,7 +4451,7 @@
                                 '</div>' +
                                 '<div id="metis-builder-settings-block" class="metis-builder-settings-block" hidden>' +
                                     '<div class="metis-content-panel-title">Block Settings</div>' +
-                                    '<button type="button" class="metis-se-nav-btn metis-builder-page-settings-return" data-panel-target="page">&larr; ' + esc(contentLabel()) + ' Settings</button>' +
+                                    '<button type="button" class="metis-se-nav-btn metis-builder-page-settings-return" data-panel-target="page">&larr; ' + esc(contentSettingsLabel()) + '</button>' +
                                     '<div class="metis-se-section-switch"><button id="metis-v2-section-prev" type="button" class="metis-se-nav-btn">&larr;</button><span id="metis-v2-section-label" class="metis-se-active-section-label"></span><button id="metis-v2-section-next" type="button" class="metis-se-nav-btn">&rarr;</button></div>' +
                                     '<div id="metis-v2-section-settings"></div>' +
 	                                    '<div id="metis-v2-section-content"></div>' +
@@ -5327,6 +5355,36 @@
                     return;
                 }
             });
+            root.addEventListener('dragenter', function (e) {
+                var panel = editorMediaUploadPanelFromEvent(e);
+                if (!panel || !eventHasUploadFiles(e)) return;
+                e.preventDefault();
+                if (!state.canManageMedia || state.mediaUpload.active) return;
+                panel.classList.add('is-drag-over');
+            });
+            root.addEventListener('dragover', function (e) {
+                var panel = editorMediaUploadPanelFromEvent(e);
+                if (!panel || !eventHasUploadFiles(e)) return;
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = state.mediaUpload.active ? 'none' : 'copy';
+                if (!state.canManageMedia || state.mediaUpload.active) return;
+                panel.classList.add('is-drag-over');
+            });
+            root.addEventListener('dragleave', function (e) {
+                var panel = editorMediaUploadPanelFromEvent(e);
+                if (!panel) return;
+                var related = e.relatedTarget;
+                if (related && panel.contains(related)) return;
+                clearEditorMediaDropState(panel);
+            });
+            root.addEventListener('drop', function (e) {
+                var panel = editorMediaUploadPanelFromEvent(e);
+                if (!panel || !eventHasUploadFiles(e)) return;
+                e.preventDefault();
+                clearEditorMediaDropState(panel);
+                var uploadContext = s(panel.getAttribute('data-editor-media-upload-panel') || 'inline');
+                uploadEditorImage(uploadContext, e.dataTransfer ? e.dataTransfer.files : null);
+            });
             root.addEventListener('mouseup', function (e) {
                 var target = e.target && e.target.closest ? e.target.closest('.metis-se-rich-editor') : null;
                 if (target) saveRichSelection(target);
@@ -5357,6 +5415,7 @@
                 }
             });
             root.addEventListener('dragover', function (e) {
+                if (editorMediaUploadPanelFromEvent(e)) return;
                 if (!state.dragBlockType) return;
                 var canvas = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
                 if (!canvas) return;
@@ -5381,6 +5440,7 @@
                 clearCanvasDropTargets();
             });
             root.addEventListener('drop', function (e) {
+                if (editorMediaUploadPanelFromEvent(e)) return;
                 var zone = e.target && e.target.closest ? e.target.closest('#metis-v2-canvas') : null;
                 var type = s((e.dataTransfer && e.dataTransfer.getData('text/plain')) || state.dragBlockType || '');
                 state.dragBlockType = '';

@@ -2124,6 +2124,12 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     border: 1px solid var(--metis-border, #e0e2ea);
     border-radius: 12px;
     background: color-mix(in srgb, var(--metis-row-even-bg, #f8f9fd) 84%, #fff);
+    transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+.metis-editor-media-upload.is-drag-over {
+    border-color: var(--metis-primary, #485bc7);
+    background: color-mix(in srgb, var(--metis-primary, #485bc7) 8%, var(--metis-surface, #fff));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--metis-primary, #485bc7) 14%, transparent);
 }
 .metis-editor-media-upload__main {
     display: flex;
