@@ -3038,6 +3038,9 @@ final class WebsiteRenderer {
         if ( $type === 'posts_list' ) {
             $classes[] = 'metis-structured-section--posts-list';
         }
+        if ( $type === 'heading' && metis_key_clean( (string) ( $content['variant'] ?? 'default' ) ) === 'section_header' ) {
+            $classes[] = 'metis-structured-section--heading-band';
+        }
         if ( $background !== 'default' ) {
             $classes[] = 'is-bg-' . str_replace( '_', '-', $background );
         }
@@ -3083,8 +3086,16 @@ final class WebsiteRenderer {
         if ( ! in_array( $vertical_align, [ 'top', 'middle', 'bottom' ], true ) ) {
             $vertical_align = 'top';
         }
+        $variant = metis_key_clean( (string) ( $content['variant'] ?? 'default' ) );
+        if ( $variant === 'section_header' ) {
+            $level = 'h1';
+            $align = 'center';
+            $vertical_align = 'middle';
+        } else {
+            $variant = 'default';
+        }
 
-        return '<div class="metis-structured-heading-wrap is-valign-' . metis_escape_attr( $vertical_align ) . '"><' . $level . ' class="metis-structured-heading metis-structured-heading--' . metis_escape_attr( $level ) . ' is-align-' . metis_escape_attr( $align ) . '">'
+        return '<div class="metis-structured-heading-wrap is-valign-' . metis_escape_attr( $vertical_align ) . ( $variant === 'section_header' ? ' is-section-header' : '' ) . '"><' . $level . ' class="metis-structured-heading metis-structured-heading--' . metis_escape_attr( $level ) . ' is-align-' . metis_escape_attr( $align ) . '">'
             . metis_escape_html( $text )
             . '</' . $level . '></div>';
     }
@@ -4747,6 +4758,10 @@ final class WebsiteRenderer {
             '.metis-structured-heading-wrap{min-height:56px;display:grid;align-items:start;}',
             '.metis-structured-heading-wrap.is-valign-middle{align-items:center;}',
             '.metis-structured-heading-wrap.is-valign-bottom{align-items:end;}',
+            '.metis-structured-section--heading-band > .metis-structured-section__inner{max-width:none;padding:0;}',
+            '.metis-structured-section--heading-band .metis-structured-section__content{width:100%;}',
+            '.metis-structured-heading-wrap.is-section-header{position:relative;left:50%;width:100vw;max-width:none;min-height:132px;margin:0 0 10px -50vw;padding:42px 24px;box-sizing:border-box;align-items:center;justify-items:center;background:var(--metis-color-surface_alt,#f1f2f5);}',
+            '.metis-structured-heading-wrap.is-section-header .metis-structured-heading{width:min(1200px,100%);margin:0;text-align:center;color:var(--metis-color-primary,#485bc7);font-size:clamp(2rem,3vw,3rem);}',
             '.metis-structured-heading{width:100%;margin:0 0 .7em;line-height:1.12;letter-spacing:0;color:var(--metis-color-text,#1a1f2b);}',
             '.metis-structured-heading.is-align-left{text-align:left;}',
             '.metis-structured-heading.is-align-center{text-align:center;}',

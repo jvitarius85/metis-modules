@@ -2457,6 +2457,7 @@
         }
 
         function sectionTypeLabel(type) {
+            if (type === 'section_header') return 'Section Header';
             if (type === 'feature_grid') return 'Feature Grid';
             if (type === 'card_grid') return 'Card Grid';
             if (type === 'posts_list') return 'Posts List';
@@ -2471,6 +2472,7 @@
 
         function sectionDescription(type) {
             var map = {
+                section_header: 'Full-width H1 section band',
                 heading: 'Page heading or section title',
                 text: 'Rich text content',
                 image: 'Single responsive image',
@@ -2567,6 +2569,23 @@
             else if (t === 'posts_list') base.content = { source: 'this_page', specific_page: 0, category_ids: [], limit: 5, sort: 'latest' };
             else base.content = { body: '<p></p>' };
             return base;
+        }
+
+        function defaultSectionFromLibraryType(type) {
+            var t = s(type || 'text');
+            if (t === 'section_header') {
+                var header = defaultSectionByType('heading');
+                header.content = {
+                    text: 'Section Header',
+                    level: 'h1',
+                    align: 'center',
+                    vertical_align: 'middle',
+                    variant: 'section_header'
+                };
+                header.settings = normalizeSectionSettings({ background: 'muted' });
+                return header;
+            }
+            return defaultSectionByType(t);
         }
 
         function normalizeImageDimension(value) {
@@ -2705,6 +2724,15 @@
             return settings.background === 'default' ? '' : ' is-bg-' + settings.background.replace('_', '-');
         }
 
+        function blockVariantClass(section) {
+            var type = s(section && section.type || '');
+            var content = section && section.content && typeof section.content === 'object' ? section.content : {};
+            if (type === 'heading' && s(content.variant || '') === 'section_header') {
+                return ' is-heading-section-header';
+            }
+            return '';
+        }
+
         function blockImageTargetFromId(raw) {
             var match = s(raw || '').match(/^block-image:(\d+):(src|image_src|image)$/);
             if (!match) return null;
@@ -2816,10 +2844,12 @@
                 var lvl = s(content.level || 'h2').toLowerCase();
                 var headingAlign = s(content.align || 'left');
                 var headingVertical = s(content.vertical_align || 'top');
+                var headingVariant = s(content.variant || 'default') === 'section_header' ? 'section_header' : 'default';
                 out.content.level = ['h1', 'h2', 'h3', 'h4'].indexOf(lvl) === -1 ? 'h2' : lvl;
                 out.content.text = repairMojibakeText(content.text || src.header || 'Heading');
                 out.content.align = ['left', 'center', 'right'].indexOf(headingAlign) === -1 ? 'left' : headingAlign;
                 out.content.vertical_align = ['top', 'middle', 'bottom'].indexOf(headingVertical) === -1 ? 'top' : headingVertical;
+                out.content.variant = headingVariant;
             } else if (out.type === 'text') {
                 out.content.body = repairMojibakeHtml(content.body || '<p></p>') || '<p></p>';
             } else if (out.type === 'image') {
@@ -3142,17 +3172,46 @@
         function blockLibraryTypes() {
             var allowed = availableSectionTypes();
             var preferred = isPostContext()
-                ? ['heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary']
-                : ['heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary'];
-            return preferred.filter(function (type) { return allowed.indexOf(type) !== -1; });
+                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary']
+                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary'];
+            return preferred.filter(function (type) {
+                if (type === 'section_header') return allowed.indexOf('heading') !== -1;
+                return allowed.indexOf(type) !== -1;
+            });
         }
 
         function blockCategory(type) {
-            if (type === 'heading' || type === 'text' || type === 'button' || type === 'html' || type === 'transcript') return 'Content';
+            if (type === 'section_header' || type === 'heading' || type === 'text' || type === 'button' || type === 'html' || type === 'transcript') return 'Content';
             if (type === 'image' || type === 'hero') return 'Media';
             if (type === 'columns' || type === 'card_grid' || type === 'feature_grid' || type === 'cta' || type === 'divider' || type === 'spacer') return 'Layout';
             if (type === 'posts_list' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary') return 'Dynamic';
             return 'Blocks';
+        }
+
+        function blockIconName(type) {
+            var map = {
+                section_header: 'h1',
+                heading: 'h1',
+                text: 'txt',
+                button: 'link',
+                html: 'code',
+                transcript: 'phrase-sentiment',
+                image: 'image',
+                hero: 'website',
+                columns: 'distribute-horizontal-center',
+                feature_grid: 'grid',
+                card_grid: 'cards',
+                cta: 'arrow-right',
+                divider: 'divider',
+                spacer: 'distribute-vertical-center',
+                posts_list: 'list',
+                events: 'event-schedule',
+                form: 'document',
+                donation_form: 'hand-donation',
+                donation_progress: 'progress-bar',
+                campaign_summary: 'report'
+            };
+            return map[s(type || '')] || 'box';
         }
 
         function filteredBlockLibraryTypes() {
@@ -3170,13 +3229,13 @@
         function insertSection(type, index) {
             if (!state.canEdit && !(state.id < 1 && state.canCreate)) return;
             if (!Array.isArray(state.sections)) state.sections = [];
-            var allowed = availableSectionTypes();
-            var blockType = allowed.indexOf(s(type || 'text')) === -1 ? 'text' : s(type || 'text');
+            var libraryTypes = blockLibraryTypes();
+            var blockType = libraryTypes.indexOf(s(type || 'text')) === -1 ? 'text' : s(type || 'text');
             var insertAt = typeof index === 'number'
                 ? index
                 : (state.activeSection >= 0 ? state.activeSection + 1 : state.sections.length);
             insertAt = Math.max(0, Math.min(state.sections.length, insertAt));
-            state.sections.splice(insertAt, 0, defaultSectionByType(blockType));
+            state.sections.splice(insertAt, 0, defaultSectionFromLibraryType(blockType));
             state.activeSection = insertAt;
             renderSectionList();
             syncStepUi();
@@ -3261,10 +3320,11 @@
             var selected = index === state.activeSection;
             var body = '';
             if (type === 'heading') {
-                var level = ['h1', 'h2', 'h3', 'h4'].indexOf(s(content.level || 'h2')) !== -1 ? s(content.level || 'h2') : 'h2';
+                var headingVariant = s(content.variant || '') === 'section_header' ? 'section_header' : 'default';
+                var level = headingVariant === 'section_header' ? 'h1' : (['h1', 'h2', 'h3', 'h4'].indexOf(s(content.level || 'h2')) !== -1 ? s(content.level || 'h2') : 'h2');
                 var headingAlign = ['left', 'center', 'right'].indexOf(s(content.align || 'left')) === -1 ? 'left' : s(content.align || 'left');
                 var headingVertical = ['top', 'middle', 'bottom'].indexOf(s(content.vertical_align || 'top')) === -1 ? 'top' : s(content.vertical_align || 'top');
-                body = '<div class="metis-builder-heading-wrap is-valign-' + esc(headingVertical) + '"><' + level + ' class="metis-builder-heading is-align-' + esc(headingAlign) + '"' + editableAttr(index, 'heading_text') + '>' + esc(s(content.text || 'Heading')) + '</' + level + '></div>';
+                body = '<div class="metis-builder-heading-wrap is-valign-' + esc(headingVertical) + (headingVariant === 'section_header' ? ' is-section-header' : '') + '"><' + level + ' class="metis-builder-heading is-align-' + esc(headingAlign) + '"' + editableAttr(index, 'heading_text') + '>' + esc(s(content.text || 'Heading')) + '</' + level + '></div>';
             } else if (type === 'text') {
                 body = '<div class="metis-builder-richtext metis-se-rich-editor" data-v2-rich="canvas_text" id="metis-v2-canvas-rich-' + esc(String(index)) + '"' + editableAttr(index, 'text_body') + '>' + s(content.body || '<p>Start typing...</p>') + '</div>';
             } else if (type === 'image') {
@@ -3335,7 +3395,7 @@
             } else {
                 body = '<div class="metis-builder-richtext">' + s(content.body || '<p>Content block</p>') + '</div>';
             }
-            return '<section class="metis-builder-block' + (selected ? ' is-selected' : '') + blockBackgroundClass(sec) + '" data-builder-block-index="' + esc(String(index)) + '" data-index="' + esc(String(index)) + '" tabindex="0" aria-label="' + esc(sectionTypeLabel(type)) + ' block">' +
+            return '<section class="metis-builder-block' + (selected ? ' is-selected' : '') + blockBackgroundClass(sec) + blockVariantClass(sec) + '" data-builder-block-index="' + esc(String(index)) + '" data-index="' + esc(String(index)) + '" tabindex="0" aria-label="' + esc(sectionTypeLabel(type)) + ' block">' +
                 '<div class="metis-builder-block-chrome"><span class="metis-builder-block-label">' + esc(sectionTypeLabel(type)) + '</span>' + renderCanvasToolbar(index) + '</div>' +
                 renderContextToolbar(sec, index) +
                 '<div class="metis-builder-block-body">' + body + '</div>' +
@@ -3387,16 +3447,21 @@
             });
             var html = '<input id="metis-v2-block-search" class="metis-se-input metis-builder-block-search" type="search" aria-label="Search blocks" placeholder="Search blocks" value="' + esc(state.blockLibrarySearch || '') + '">';
             Object.keys(grouped).forEach(function (group) {
-                html += '<div class="metis-builder-library-group"><div class="metis-builder-library-group-title">' + esc(group) + '</div>';
+                html += '<div class="metis-builder-library-group"><div class="metis-builder-library-group-title">' + esc(group) + '</div><div class="metis-builder-library-grid">';
                 grouped[group].forEach(function (type) {
-                    html += '<button type="button" class="metis-content-library-item" draggable="true" data-add-block-type="' + esc(type) + '"><strong>' + esc(sectionTypeLabel(type)) + '</strong><small>' + esc(sectionDescription(type)) + '</small></button>';
+                    html += '<button type="button" class="metis-content-library-item metis-builder-block-tile" draggable="true" data-add-block-type="' + esc(type) + '">' +
+                        '<span class="metis-builder-block-tile-icon" aria-hidden="true"><img src="' + esc(iconUrl(blockIconName(type))) + '" data-icon-fallback="' + esc(iconFallbackUrl(blockIconName(type))) + '" alt=""></span>' +
+                        '<strong>' + esc(sectionTypeLabel(type)) + '</strong>' +
+                        '<small>' + esc(sectionDescription(type)) + '</small>' +
+                    '</button>';
                 });
-                html += '</div>';
+                html += '</div></div>';
             });
             if (Object.keys(grouped).length === 0) {
                 html += '<div class="metis-se-meta-value">No matching blocks.</div>';
             }
             host.innerHTML = html;
+            bindIconFallbacks(host);
         }
 
         function insertTargetLabel(index) {
@@ -3517,6 +3582,8 @@
             var sec = activeSection();
             var html = '';
             if (sec.type === 'heading') {
+                var headingVariant = s(sec.content.variant || '') === 'section_header' ? 'section_header' : 'default';
+                html += '<div class="metis-se-field-row"><label>Heading Style</label><select id="metis-v2-heading-variant" class="metis-se-select"><option value="default"' + (headingVariant === 'default' ? ' selected' : '') + '>Inline heading</option><option value="section_header"' + (headingVariant === 'section_header' ? ' selected' : '') + '>Full-width section header</option></select></div>';
                 html += '<div class="metis-se-field-row"><label>Heading Level</label><select id="metis-v2-heading-level" class="metis-se-select"><option value="h1"' + (sec.content.level === 'h1' ? ' selected' : '') + '>H1</option><option value="h2"' + (sec.content.level === 'h2' ? ' selected' : '') + '>H2</option><option value="h3"' + (sec.content.level === 'h3' ? ' selected' : '') + '>H3</option><option value="h4"' + (sec.content.level === 'h4' ? ' selected' : '') + '>H4</option></select></div>';
                 html += '<div class="metis-se-field-row"><label>Horizontal Alignment</label><select id="metis-v2-heading-align" class="metis-se-select"><option value="left"' + (sec.content.align === 'left' ? ' selected' : '') + '>Left</option><option value="center"' + (sec.content.align === 'center' ? ' selected' : '') + '>Center</option><option value="right"' + (sec.content.align === 'right' ? ' selected' : '') + '>Right</option></select></div>';
                 html += '<div class="metis-se-field-row"><label>Vertical Alignment</label><select id="metis-v2-heading-vertical" class="metis-se-select"><option value="top"' + (sec.content.vertical_align === 'top' ? ' selected' : '') + '>Top</option><option value="middle"' + (sec.content.vertical_align === 'middle' ? ' selected' : '') + '>Middle</option><option value="bottom"' + (sec.content.vertical_align === 'bottom' ? ' selected' : '') + '>Bottom</option></select></div>';
@@ -3897,7 +3964,13 @@
             var sec = section && typeof section === 'object' ? section : defaultSectionByType('text');
             var type = s(sec.type || 'text');
             var data = {};
-            if (type === 'heading') data = { content: s(sec.content && sec.content.text || 'Heading'), level: s(sec.content && sec.content.level || 'h2') };
+            if (type === 'heading') data = {
+                content: s(sec.content && sec.content.text || 'Heading'),
+                level: s(sec.content && sec.content.level || 'h2'),
+                align: s(sec.content && sec.content.align || 'left'),
+                vertical_align: s(sec.content && sec.content.vertical_align || 'top'),
+                variant: s(sec.content && sec.content.variant || 'default')
+            };
             else if (type === 'text') data = { content: s(sec.content && sec.content.body || '<p></p>'), tag: 'div' };
             else if (type === 'image') data = { src: s(sec.content && sec.content.src || ''), alt: s(sec.content && sec.content.alt || '') };
             else if (type === 'button') data = { label: s(sec.content && sec.content.label || 'Learn more'), url: s(sec.content && sec.content.url || '#') };
@@ -4492,7 +4565,7 @@
 	                            '</aside>' +
 	                        '</section>' +
 	                    '</div>' +
-	                    '<aside id="metis-builder-block-overlay" class="metis-builder-left-panel" hidden aria-hidden="true" aria-label="Add blocks"><div class="metis-builder-drawer-head"><div><strong>Add Block</strong><span id="metis-builder-block-insert-target">Choose where to insert.</span></div><button type="button" class="metis-modal-close" data-block-inserter-close="1" aria-label="Close">&times;</button></div><div class="metis-content-panel-title">Blocks</div><div id="metis-v2-block-library" class="metis-content-library-list"></div><div class="metis-content-panel-title">Reusable</div><div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div></aside>' +
+	                    '<aside id="metis-builder-block-overlay" class="metis-builder-left-panel" hidden aria-hidden="true" aria-label="Add blocks"><div class="metis-builder-drawer-head"><div><strong>Add Block</strong><span id="metis-builder-block-insert-target">Choose where to insert.</span></div><button type="button" class="metis-modal-close" data-block-inserter-close="1" aria-label="Close">&times;</button></div><div class="metis-builder-block-overlay-scroll"><div class="metis-content-panel-title">Blocks</div><div id="metis-v2-block-library" class="metis-content-library-list"></div><div class="metis-content-panel-title">Reusable</div><div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div></div></aside>' +
 	                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-label="Revisions"><div class="metis-builder-drawer-head"><div><strong>Revisions</strong><span>Compare or restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revision-compare" class="metis-content-revision-compare" hidden></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
                     '<aside id="metis-v2-preview-drawer" class="metis-builder-drawer metis-builder-preview-drawer" hidden aria-label="Preview"><div class="metis-builder-drawer-head"><div><strong>Preview</strong><span>Rendered from current blocks.</span></div><button type="button" class="metis-modal-close" data-drawer-close="preview" aria-label="Close">&times;</button></div><div id="metis-v2-preview" class="metis-se-preview"></div></aside>' +
                     '<div id="metis-v2-confirm-modal" class="metis-modal-overlay metis-v2-confirm-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="metis-v2-confirm-title" aria-describedby="metis-v2-confirm-message"><div class="metis-modal metis-v2-confirm-modal__dialog"><div class="metis-modal-header"><h2 id="metis-v2-confirm-title" class="metis-modal-title">Confirm action</h2><button type="button" class="metis-modal-close" data-confirm-cancel="1" aria-label="Close">&times;</button></div><div class="metis-modal-body"><p id="metis-v2-confirm-message" class="metis-v2-confirm-modal__message">Continue?</p></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-confirm-cancel" data-confirm-cancel="1">Cancel</button><button type="button" class="metis-btn metis-btn-primary" id="metis-v2-confirm-accept" data-confirm-accept="1">Continue</button></div></div></div>' +
@@ -4820,7 +4893,13 @@
                             var block = item.block && typeof item.block === 'object' ? item.block : {};
                             var sec = defaultSectionByType(sectionTypeFromReusableBlockType(block.type || 'text'));
                             if (block.data && typeof block.data === 'object') {
-                                if (sec.type === 'heading') sec.content = { text: s(block.data.content || block.data.text || 'Heading'), level: s(block.data.level || 'h2') };
+                                if (sec.type === 'heading') sec.content = {
+                                    text: s(block.data.content || block.data.text || 'Heading'),
+                                    level: s(block.data.level || 'h2'),
+                                    align: ['left', 'center', 'right'].indexOf(s(block.data.align || 'left')) === -1 ? 'left' : s(block.data.align || 'left'),
+                                    vertical_align: ['top', 'middle', 'bottom'].indexOf(s(block.data.vertical_align || 'top')) === -1 ? 'top' : s(block.data.vertical_align || 'top'),
+                                    variant: s(block.data.variant || '') === 'section_header' ? 'section_header' : 'default'
+                                };
                                 else if (sec.type === 'text' || sec.type === 'html') sec.content = sec.type === 'html' ? { html: s(block.data.content || block.data.html || '') } : { body: s(block.data.content || block.data.body || '<p></p>') };
                                 else sec.content = Object.assign({}, sec.content, block.data);
                             }
@@ -5360,6 +5439,18 @@
                 if (target.id === 'metis-v2-parent-id' || target.id === 'metis-v2-featured-image-id' || target.id === 'metis-v2-published-date' || target.id === 'metis-v2-excerpt') { setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-enabled') { state.hero.enabled = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-hero-style') { state.hero.style = HERO_STYLES.indexOf(s(target.value || 'split')) !== -1 ? s(target.value || 'split') : 'split'; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-heading-variant') {
+                    sec.content.variant = s(target.value || '') === 'section_header' ? 'section_header' : 'default';
+                    if (sec.content.variant === 'section_header') {
+                        sec.content.level = 'h1';
+                        sec.content.align = 'center';
+                        sec.content.vertical_align = 'middle';
+                        sec.settings = normalizeSectionSettings(Object.assign({}, sec.settings || {}, { background: 'muted' }));
+                    }
+                    renderSectionList();
+                    setDirtyAutosave();
+                    return;
+                }
                 if (target.id === 'metis-v2-heading-level') { sec.content.level = ['h1', 'h2', 'h3', 'h4'].indexOf(s(target.value || 'h2')) === -1 ? 'h2' : s(target.value || 'h2'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-heading-align') { sec.content.align = ['left', 'center', 'right'].indexOf(s(target.value || 'left')) === -1 ? 'left' : s(target.value || 'left'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-heading-vertical') { sec.content.vertical_align = ['top', 'middle', 'bottom'].indexOf(s(target.value || 'top')) === -1 ? 'top' : s(target.value || 'top'); renderBuilderCanvas(); setDirtyAutosave(); return; }

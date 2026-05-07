@@ -272,11 +272,16 @@ final class StructuredWebsiteBuilderService {
             if ( ! in_array( $vertical_align, [ 'top', 'middle', 'bottom' ], true ) ) {
                 $vertical_align = 'top';
             }
+            $variant = metis_key_clean( (string) ( $content['variant'] ?? 'default' ) );
+            if ( ! in_array( $variant, [ 'default', 'section_header' ], true ) ) {
+                $variant = 'default';
+            }
             return [
                 'text' => self::sanitizeText( (string) ( $content['text'] ?? 'Heading' ) ),
-                'level' => $level,
-                'align' => $align,
-                'vertical_align' => $vertical_align,
+                'level' => $variant === 'section_header' ? 'h1' : $level,
+                'align' => $variant === 'section_header' ? 'center' : $align,
+                'vertical_align' => $variant === 'section_header' ? 'middle' : $vertical_align,
+                'variant' => $variant,
             ];
         }
 
@@ -672,6 +677,9 @@ final class StructuredWebsiteBuilderService {
                 'data' => [
                     'content' => (string) ( $content['text'] ?? 'Heading' ),
                     'level' => (string) ( $content['level'] ?? 'h2' ),
+                    'align' => (string) ( $content['align'] ?? 'left' ),
+                    'vertical_align' => (string) ( $content['vertical_align'] ?? 'top' ),
+                    'variant' => (string) ( $content['variant'] ?? 'default' ),
                 ],
                 'style' => [],
             ];
