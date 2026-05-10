@@ -1488,7 +1488,10 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             [ 'path' => defined( 'METIS_SRC_PATH' ) ? METIS_SRC_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/system/src' ), 'label' => 'system/src', 'type' => 'sensitive' ],
             [ 'path' => defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage' ), 'label' => 'storage', 'type' => 'runtime' ],
             [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'runtime', 'label' => 'storage/runtime', 'type' => 'runtime' ],
-            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'uploads', 'label' => 'storage/uploads', 'type' => 'runtime' ],
+            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'public-media', 'label' => 'storage/public-media', 'type' => 'runtime' ],
+            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'protected-media', 'label' => 'storage/protected-media', 'type' => 'runtime' ],
+            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'private-records', 'label' => 'storage/private-records', 'type' => 'runtime' ],
+            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'uploads', 'label' => 'storage/uploads (legacy)', 'type' => 'runtime' ],
         ];
 
         foreach ( $filesystem_targets as $entry ) {

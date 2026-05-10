@@ -253,13 +253,30 @@ metis_ajax_register_handler( 'metis_media_library_delete', function (): void {
     $db = metis_db();
     $table = function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : 'metis_media_files';
 
-    $row = $db->fetchOne( "SELECT id, storage_path FROM {$table} WHERE public_token = %s LIMIT 1", [ $token ] );
+    $row = $db->fetchOne( "SELECT id, storage_class, storage_path FROM {$table} WHERE public_token = %s LIMIT 1", [ $token ] );
     if ( ! is_array( $row ) ) {
         metis_runtime_send_json_error( 'Media item not found.', 404 );
     }
 
     $relative_path = ltrim( (string) ( $row['storage_path'] ?? '' ), '/' );
-    foreach ( [ METIS_PATH . 'storage/uploads', METIS_PATH . 'storage/media' ] as $root_path ) {
+    $storage_class = metis_key_clean( (string) ( $row['storage_class'] ?? 'legacy' ) );
+    $roots = function_exists( 'metis_media_storage_roots' ) ? metis_media_storage_roots( true ) : [
+        'public' => METIS_PATH . 'storage/public-media',
+        'protected' => METIS_PATH . 'storage/protected-media',
+        'private' => METIS_PATH . 'storage/private-records',
+        'legacy_uploads' => METIS_PATH . 'storage/uploads',
+        'legacy_media' => METIS_PATH . 'storage/media',
+    ];
+    $candidate_roots = match ( $storage_class ) {
+        'public' => [ $roots['public'] ?? '' ],
+        'protected' => [ $roots['protected'] ?? '' ],
+        'private' => [ $roots['private'] ?? '' ],
+        default => [ $roots['legacy_uploads'] ?? '', $roots['legacy_media'] ?? '' ],
+    };
+    foreach ( $candidate_roots as $root_path ) {
+        if ( ! is_string( $root_path ) || $root_path === '' ) {
+            continue;
+        }
         $base = realpath( $root_path );
         $target = $base && $relative_path !== '' ? realpath( $base . '/' . $relative_path ) : false;
         if ( is_string( $base ) && is_string( $target ) && str_starts_with( $target, $base ) && is_file( $target ) ) {

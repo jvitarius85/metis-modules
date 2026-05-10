@@ -11,7 +11,8 @@ if ( ! function_exists( 'metis_stripe_import_error_response' ) ) {
     function metis_stripe_import_error_response( string $message, int $status, string $error_code ): never {
         $request_id = function_exists( 'metis_audit_request_id' ) ? (string) metis_audit_request_id() : '';
         $endpoint = (string) ( parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '/api/ajax' ), PHP_URL_PATH ) ?? '/api/ajax' );
-        $action = metis_key_clean( (string) ( $_REQUEST['action'] ?? 'metis_import_stripe_transactions' ) );
+        $action_source = $_POST['action'] ?? $_GET['action'] ?? 'metis_import_stripe_transactions';
+        $action = metis_key_clean( is_string( $action_source ) ? $action_source : 'metis_import_stripe_transactions' );
         $code_key = metis_key_clean( $error_code );
 
         metis_audit_log_security( 'ajax_action_failed', [

@@ -2544,7 +2544,8 @@ metis_on( 'metis_admin_init', function () {
         return;
     }
 
-    $action = isset( $_REQUEST['action'] ) ? metis_key_clean( metis_runtime_unslash( $_REQUEST['action'] ) ) : '';
+    $action_source = $_POST['action'] ?? $_GET['action'] ?? '';
+    $action = is_string( $action_source ) ? metis_key_clean( metis_runtime_unslash( $action_source ) ) : '';
     if ( $action === '' || ! str_starts_with( $action, 'metis_' ) ) {
         return;
     }

@@ -13,6 +13,22 @@ function metis_runtime_doing_ajax(): bool {
     return defined( 'DOING_AJAX' ) && DOING_AJAX;
 }
 
+function metis_request_input_value( string $field, mixed $default = '' ): mixed {
+    if ( $field === '' ) {
+        return $default;
+    }
+
+    if ( array_key_exists( $field, $_POST ) ) {
+        return $_POST[ $field ];
+    }
+
+    if ( array_key_exists( $field, $_GET ) ) {
+        return $_GET[ $field ];
+    }
+
+    return $default;
+}
+
 function metis_request_nonce_candidates( string|bool $query_arg = false ): array {
     $fields = [];
     if ( is_string( $query_arg ) && $query_arg !== '' ) {
@@ -26,11 +42,11 @@ function metis_request_nonce_candidates( string|bool $query_arg = false ): array
 
     $candidates = [];
     foreach ( $fields as $field ) {
-        if ( ! is_string( $field ) || $field === '' || ! isset( $_REQUEST[ $field ] ) ) {
+        if ( ! is_string( $field ) || $field === '' ) {
             continue;
         }
 
-        $value = (string) $_REQUEST[ $field ];
+        $value = (string) metis_request_input_value( $field, '' );
         if ( $value !== '' ) {
             $candidates[] = $value;
         }
@@ -51,7 +67,7 @@ function metis_runtime_check_ajax_referer( string $action = '-1', string|bool $q
     }
 
     if ( ! $valid ) {
-        $request_action = metis_key_clean( (string) ( $_REQUEST['action'] ?? '' ) );
+        $request_action = metis_key_clean( (string) metis_request_input_value( 'action', '' ) );
         if ( $request_action !== '' ) {
             $ajax_nonce_action = function_exists( 'metis_ajax_nonce_action' )
                 ? metis_ajax_nonce_action( $request_action )

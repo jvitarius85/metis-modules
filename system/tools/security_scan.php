@@ -8,40 +8,8 @@ $root = dirname( __DIR__, 2 );
 $system = $root . '/system';
 $failures = [];
 
-$approved = [
-    'superglobals' => [
-        'system/assets/error-pages/',
-        'system/core/Profiler.php',
-        'system/enclave/',
-        'system/src/Metis/Core/',
-        'system/src/Metis/Auth/',
-        'system/src/Metis/Hermes/HermesGateway.php',
-        'system/src/Metis/Modules/',
-        'system/modules/',
-        'system/tests/',
-        'system/tools/security_scan.php',
-        'system/webhooks.php',
-        'index.php',
-    ],
-    'raw_sql' => [
-        'system/src/Metis/Core/',
-        'system/src/Metis/Hermes/',
-        'system/src/Metis/Services/DatabaseService.php',
-        'system/src/Metis/Modules/',
-        'system/modules/',
-        'system/tools/',
-        'system/tests/',
-    ],
-    'process' => [
-        'system/src/Metis/Core/IntegrityRuntime.php',
-        'system/src/Metis/Core/Runtime/StandaloneApplicationBootstrap.php',
-        'system/src/Metis/Core/Recovery/',
-        'system/src/Metis/Release/',
-        'system/src/Metis/Modules/Finance/FinanceV2Service.php',
-        'system/modules/settings/views/_settings_bootstrap.php',
-        'system/tools/',
-    ],
-];
+$governance = require $system . '/config/governance.php';
+$approved = is_array( $governance['approved_layers'] ?? null ) ? $governance['approved_layers'] : [];
 
 $iter = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS )
@@ -108,9 +76,10 @@ if ( $fallback_hits === [] ) {
 
 $media_source = (string) file_get_contents( $system . '/src/Metis/Core/Kernel/Bootstrap.php' );
 foreach ( [
-    'raw uploads only' => '$roots = $raw ? [ METIS_PATH . \'storage/uploads\' ]',
+    'raw public-media only' => "'public' => [ 'public' => \$all_roots['public'] ]",
     'deny storage direct' => 'metis_kernel_media_is_public_raw',
     'no symlink media' => '! is_link( $target_path )',
+    'protected token checks' => "in_array( \$storage_class, [ 'protected', 'private' ], true )",
 ] as $label => $needle ) {
     if ( str_contains( $media_source, $needle ) ) {
         echo 'PASS media-' . $label . "\n";
@@ -126,6 +95,41 @@ if ( str_contains( $htaccess, 'RewriteRule ^storage(?:/|$) - [F,L,NC]' ) ) {
 } else {
     echo "FAIL apache-storage-deny\n";
     $record( 'apache-storage-deny', '.htaccess must block direct storage access.' );
+}
+
+$eval_hits = [];
+$request_hits = [];
+$request_superglobal_pattern = '/\\$' . '_REQUEST\\b/';
+foreach ( $php_files as $path ) {
+    $relative = $rel( $path );
+    $contents = (string) file_get_contents( $path );
+    if ( preg_match_all( '/\\beval\\s*\\(/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+        foreach ( $matches[0] as $match ) {
+            $eval_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] );
+        }
+    }
+    if ( preg_match_all( $request_superglobal_pattern, $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+        foreach ( $matches[0] as $match ) {
+            $request_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] );
+        }
+    }
+}
+if ( $eval_hits === [] ) {
+    echo "PASS no-eval\n";
+} else {
+    echo "FAIL no-eval\n";
+    foreach ( $eval_hits as $hit ) {
+        $record( 'no-eval', $hit );
+    }
+}
+
+if ( $request_hits === [] ) {
+    echo "PASS no-request-superglobal\n";
+} else {
+    echo "FAIL no-request-superglobal\n";
+    foreach ( $request_hits as $hit ) {
+        $record( 'no-request-superglobal', $hit );
+    }
 }
 
 $tool_failures = [];
@@ -167,7 +171,7 @@ foreach ( $php_files as $path ) {
         }
     }
 
-    if ( ! $is_approved( $relative, 'process' ) && preg_match_all( '/(?:shell_exec|proc_open|passthru|popen|\\bexec\\s*\\(|\\bsystem\\s*\\()/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+    if ( ! $is_approved( $relative, 'process' ) && preg_match_all( '/(?:shell_exec\\s*\\(|proc_open\\s*\\(|passthru\\s*\\(|popen\\s*\\(|\\bexec\\s*\\(|\\bsystem\\s*\\()/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
         foreach ( $matches[0] as $match ) {
             $process_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] ) . ' ' . $match[0];
         }

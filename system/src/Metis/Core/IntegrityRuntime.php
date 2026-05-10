@@ -1195,34 +1195,7 @@ class Metis_Integrity_Manager {
     }
 
     private static function run_command( array $command, ?string $cwd = null ): array {
-        if ( ! function_exists( 'proc_open' ) ) {
-            return self::run_command_fallback( $command );
-        }
-
-        $descriptors = [
-            0 => [ 'pipe', 'r' ],
-            1 => [ 'pipe', 'w' ],
-            2 => [ 'pipe', 'w' ],
-        ];
-
-        $process = @proc_open( $command, $descriptors, $pipes, $cwd ?? METIS_PATH );
-        if ( ! is_resource( $process ) ) {
-            return self::run_command_fallback( $command );
-        }
-
-        fclose( $pipes[0] );
-        $stdout = stream_get_contents( $pipes[1] );
-        $stderr = stream_get_contents( $pipes[2] );
-        fclose( $pipes[1] );
-        fclose( $pipes[2] );
-
-        $exit_code = proc_close( $process );
-
-        return [
-            'exit_code' => is_int( $exit_code ) ? $exit_code : 1,
-            'stdout' => is_string( $stdout ) ? $stdout : '',
-            'stderr' => is_string( $stderr ) ? $stderr : '',
-        ];
+        return ( new \Metis\Core\Services\ProcessRunner() )->run( $command, $cwd ?? METIS_PATH, [ 'service' => 'integrity' ] );
     }
 
     private static function run_command_fallback( array $command ): array {

@@ -6,16 +6,20 @@ This pass tightened Metis around privileged runtime behavior without changing th
 
 - App keys and nonce signing now fail closed after installation. Runtime code must use `metis_runtime_require_app_key()` and must not fall back to predictable values such as `metis-local-key`.
 - The installer may generate an app key when the submitted value is missing or unsafe. Test/dev may use `METIS_TEST_APP_KEY` only when `METIS_APP_ENV` or `APP_ENV` is explicitly test/dev/local.
-- `/media/raw/...` is limited to public-safe image, video, and audio files under `storage/uploads`; it rejects traversal, symlinks, hidden/internal paths, documents, archives, logs, SQL/config-like files, and private/protected directories.
+- `/media/raw/...` is limited to public-safe image, video, and audio files under `storage/public-media`; it rejects traversal, symlinks, hidden/internal paths, documents, archives, logs, SQL/config-like files, and private/protected directories.
+- Media storage has explicit classes: `storage/public-media`, `storage/protected-media`, and `storage/private-records`. Legacy `storage/uploads` and `storage/media` are tokenized compatibility roots only.
 - Tokenized `/media/{token}` still uses the media registry, validates the token shape and DB row, resolves the path server-side, rejects traversal/symlinks/unsafe extensions, and serves SVG as an attachment.
 - Direct `storage/` access is blocked in Apache rules. Media must be served through the front controller.
 - Sensitive tool scripts now have runtime CLI guards, including backup, restore, docs generation, and repair utilities.
-- `system/tools/security_scan.php` provides a repo-local automated hardening scan with centralized approved legacy exceptions.
+- `$_REQUEST` has been removed from non-vendor PHP so cookies cannot be mixed into request action or nonce lookup paths.
+- `system/tools/security_scan.php` provides a repo-local automated hardening scan with centralized, file-specific approved legacy exceptions.
+- `system/tests/security_governance_test.php` asserts the app-key, media, process, scanner, and Hermes governance contracts.
+- Governance allowlists live in `system/config/governance.php`; scan changes must be reviewed as boundary changes and must not use broad module/tool/core prefixes.
 
 ## Approved Gateways
 
 - Nonce and signing key access: `metis_runtime_require_app_key()`.
-- Media/file serving: `metis_kernel_handle_public_storage_request()` and upload helpers in `UploadsRuntime.php`.
+- Media/file serving: `metis_kernel_handle_public_storage_request()`, media storage class helpers, and upload helpers in `UploadsRuntime.php`.
 - DB access: `DatabaseService`, `MetisRuntimeDbConnection`, core schema/migration/install code, and explicit module repository/service layers.
 - Process execution: release, recovery, integrity, finance import services, and CLI tools only.
 - Privileged AJAX and route writes: router request security, AJAX controller registry, Secure Enclave policies, permission checks, and audit logging.
@@ -46,6 +50,9 @@ Run:
 ```bash
 find . -name "*.php" -not -path "./system/vendor/*" -print0 | xargs -0 -n1 php -l
 php system/tools/security_scan.php
+php system/tests/security_governance_test.php
+php system/tests/system_audit_test.php
+php system/tools/test_suite.php
 ```
 
 Optional project checks:
@@ -61,3 +68,4 @@ system/vendor/bin/psalm || true
 
 - Direct superglobal usage still exists in legacy module AJAX/view code. New code should use the request abstraction, and the scan centralizes the approved legacy paths.
 - Some module SQL and process execution remains in established service/tool layers. New raw SQL or process calls must be added only through approved gateways or the scan should fail.
+- Protected/private media has token, expiration, permission, and audit hooks at the serving boundary. Existing modules still need to opt into protected/private storage where their domain data requires it.

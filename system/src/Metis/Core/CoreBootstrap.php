@@ -331,7 +331,9 @@ if ( ! function_exists( 'metis_check_ajax_referer' ) ) {
         }
 
         $field = is_string( $query_arg ) && $query_arg !== '' ? $query_arg : 'metis_action_nonce';
-        $nonce = isset( $_REQUEST[ $field ] ) ? (string) $_REQUEST[ $field ] : '';
+        $nonce = isset( $_POST[ $field ] )
+            ? (string) $_POST[ $field ]
+            : ( isset( $_GET[ $field ] ) ? (string) $_GET[ $field ] : '' );
         $valid = function_exists( 'metis_runtime_verify_nonce' )
             ? metis_runtime_verify_nonce( $nonce, $action )
             : $nonce !== '';

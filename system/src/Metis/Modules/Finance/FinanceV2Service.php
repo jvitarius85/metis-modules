@@ -4279,40 +4279,7 @@ PY;
     }
 
     private static function runProcess( array $command, ?string $cwd = null ): array {
-        if ( ! function_exists( 'proc_open' ) ) {
-            return [
-                'exit_code' => 1,
-                'stdout' => '',
-                'stderr' => 'proc_open unavailable',
-            ];
-        }
-
-        $descriptors = [
-            0 => [ 'pipe', 'r' ],
-            1 => [ 'pipe', 'w' ],
-            2 => [ 'pipe', 'w' ],
-        ];
-        $process = @proc_open( $command, $descriptors, $pipes, $cwd ?? null );
-        if ( ! is_resource( $process ) ) {
-            return [
-                'exit_code' => 1,
-                'stdout' => '',
-                'stderr' => 'proc_open failed',
-            ];
-        }
-
-        fclose( $pipes[0] );
-        $stdout = stream_get_contents( $pipes[1] );
-        $stderr = stream_get_contents( $pipes[2] );
-        fclose( $pipes[1] );
-        fclose( $pipes[2] );
-        $exitCode = proc_close( $process );
-
-        return [
-            'exit_code' => is_int( $exitCode ) ? $exitCode : 1,
-            'stdout' => is_string( $stdout ) ? $stdout : '',
-            'stderr' => is_string( $stderr ) ? $stderr : '',
-        ];
+        return ( new \Metis\Core\Services\ProcessRunner() )->run( $command, $cwd, [ 'service' => 'finance.reconciliation' ] );
     }
 
     private static function processExecutionAvailable(): bool {

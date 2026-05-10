@@ -4,7 +4,8 @@ declare(strict_types=1);
 namespace Metis\Core;
 
 final class AvatarService {
-    private const AVATAR_BASE_PATH = '/storage/uploads/avatars/';
+    private const AVATAR_BASE_PATH = '/media/raw/avatars/';
+    private const LEGACY_AVATAR_BASE_PATH = '/storage/uploads/avatars/';
 
     public static function storageKey( string $avatarKey ): string {
         $avatarKey = trim( $avatarKey );
@@ -107,7 +108,7 @@ final class AvatarService {
         }
 
         $root = defined( 'METIS_PATH' ) ? rtrim( (string) METIS_PATH, '/\\' ) : dirname( __DIR__, 3 );
-        return $root . '/storage/uploads/avatars/' . $avatarKey;
+        return $root . '/storage/public-media/avatars/' . $avatarKey;
     }
 
     public static function avatarStoragePath( string $avatarKey ): string {
@@ -149,27 +150,38 @@ final class AvatarService {
         }
 
         $path = parse_url( $avatarUrl, PHP_URL_PATH );
-        if ( ! is_string( $path ) || ! str_contains( $path, self::AVATAR_BASE_PATH ) ) {
+        if ( ! is_string( $path ) ) {
             return $avatarUrl;
         }
 
+        $root = rtrim( defined( 'METIS_PATH' ) ? (string) METIS_PATH : dirname( __DIR__, 3 ), '/\\' );
         $relative = strstr( $path, self::AVATAR_BASE_PATH );
+        $isLegacy = false;
+        if ( ! is_string( $relative ) || $relative === '' ) {
+            $relative = strstr( $path, self::LEGACY_AVATAR_BASE_PATH );
+            $isLegacy = is_string( $relative ) && $relative !== '';
+        }
         if ( ! is_string( $relative ) || $relative === '' ) {
             return $avatarUrl;
         }
 
-        $filesystemPath = rtrim( defined( 'METIS_PATH' ) ? (string) METIS_PATH : dirname( __DIR__, 3 ), '/\\' ) . $relative;
+        $filesystemPath = $isLegacy
+            ? $root . $relative
+            : $root . '/storage/public-media/avatars/' . ltrim( substr( $relative, strlen( self::AVATAR_BASE_PATH ) ), '/\\' );
         if ( ! is_file( $filesystemPath ) ) {
             return '';
         }
 
-        $migratedUrl = self::migrateLegacyAvatarToStorageKey( $filesystemPath, $avatarKey );
-        if ( $migratedUrl !== '' ) {
-            return $migratedUrl;
+        if ( $isLegacy ) {
+            $migratedUrl = self::migrateLegacyAvatarToStorageKey( $filesystemPath, $avatarKey );
+            if ( $migratedUrl !== '' ) {
+                return $migratedUrl;
+            }
+            return '';
         }
 
         $version = (int) @filemtime( $filesystemPath );
-        $normalized = self::baseUrl() . $relative;
+        $normalized = self::baseUrl() . self::AVATAR_BASE_PATH . ltrim( substr( $relative, strlen( self::AVATAR_BASE_PATH ) ), '/\\' );
         if ( $version > 0 ) {
             $normalized = metis_add_query_arg( [ 'v' => $version ], $normalized );
         }

@@ -32,6 +32,48 @@ function metis_media_type_from_mime( string $mime_type ): string {
     return 'files';
 }
 
+function metis_media_storage_roots( bool $include_legacy = true ): array {
+    $root = rtrim( (string) METIS_PATH, '/\\' );
+    $roots = [
+        'public' => $root . '/storage/public-media',
+        'protected' => $root . '/storage/protected-media',
+        'private' => $root . '/storage/private-records',
+    ];
+
+    if ( $include_legacy ) {
+        $roots['legacy_uploads'] = $root . '/storage/uploads';
+        $roots['legacy_media'] = $root . '/storage/media';
+    }
+
+    return $roots;
+}
+
+function metis_media_storage_class_for_path( string $absolute_path ): ?array {
+    $real_path = realpath( $absolute_path );
+    if ( ! is_string( $real_path ) ) {
+        return null;
+    }
+
+    foreach ( metis_media_storage_roots( true ) as $storage_class => $candidate_root ) {
+        $candidate_real = realpath( $candidate_root );
+        if ( ! is_string( $candidate_real ) ) {
+            continue;
+        }
+
+        $normalized_path = rtrim( str_replace( '\\', '/', $real_path ), '/' );
+        $normalized_root = rtrim( str_replace( '\\', '/', $candidate_real ), '/' ) . '/';
+        if ( str_starts_with( $normalized_path, $normalized_root ) ) {
+            return [
+                'class' => str_starts_with( $storage_class, 'legacy_' ) ? 'legacy' : $storage_class,
+                'root' => rtrim( $candidate_real, '/\\' ),
+                'path' => $real_path,
+            ];
+        }
+    }
+
+    return null;
+}
+
 function metis_media_table_name(): string {
     if ( class_exists( 'Metis_Tables' ) && method_exists( 'Metis_Tables', 'has' ) && \Metis_Tables::has( 'media_files' ) ) {
         return \Metis_Tables::get( 'media_files' );
@@ -63,7 +105,9 @@ function metis_media_ensure_schema(): void {
     metis_db_delta( "CREATE TABLE IF NOT EXISTS {$table} (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         public_token VARCHAR(64) NOT NULL,
+        storage_class VARCHAR(32) NOT NULL DEFAULT 'legacy',
         storage_path VARCHAR(512) NOT NULL,
+        access_expires_at DATETIME DEFAULT NULL,
         file_name VARCHAR(255) NOT NULL,
         mime_type VARCHAR(191) NOT NULL,
         size BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -73,6 +117,7 @@ function metis_media_ensure_schema(): void {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         UNIQUE KEY public_token (public_token),
+        KEY storage_class (storage_class),
         KEY created_at (created_at),
         KEY mime_type (mime_type),
         KEY folder_path (folder_path),
@@ -93,6 +138,15 @@ function metis_media_ensure_schema(): void {
         metis_db()->execute( "ALTER TABLE {$table} ADD KEY folder_path (folder_path)" );
     }
 
+    if ( ! in_array( 'storage_class', $existing, true ) ) {
+        metis_db()->execute( "ALTER TABLE {$table} ADD COLUMN storage_class VARCHAR(32) NOT NULL DEFAULT 'legacy' AFTER public_token" );
+        metis_db()->execute( "ALTER TABLE {$table} ADD KEY storage_class (storage_class)" );
+    }
+
+    if ( ! in_array( 'access_expires_at', $existing, true ) ) {
+        metis_db()->execute( "ALTER TABLE {$table} ADD COLUMN access_expires_at DATETIME DEFAULT NULL AFTER storage_path" );
+    }
+
     if ( ! in_array( 'category_key', $existing, true ) ) {
         metis_db()->execute( "ALTER TABLE {$table} ADD COLUMN category_key VARCHAR(80) NOT NULL DEFAULT '' AFTER folder_path" );
         metis_db()->execute( "ALTER TABLE {$table} ADD KEY category_key (category_key)" );
@@ -101,26 +155,25 @@ function metis_media_ensure_schema(): void {
     $ready = true;
 }
 
-function metis_media_register_file( string $absolute_path, string $file_name, string $mime_type, int $size, ?int $uploaded_by = null ): ?array {
+function metis_media_register_file( string $absolute_path, string $file_name, string $mime_type, int $size, ?int $uploaded_by = null, ?int $access_ttl_seconds = null ): ?array {
     if ( ! function_exists( 'metis_db' ) || ! is_file( $absolute_path ) ) {
         return null;
     }
 
-    $storage_root = null;
-    $real_path = realpath( $absolute_path );
-    foreach ( [ rtrim( (string) METIS_PATH, '/\\' ) . '/storage/uploads', rtrim( (string) METIS_PATH, '/\\' ) . '/storage/media' ] as $candidate_root ) {
-        $candidate_real = realpath( $candidate_root );
-        if ( is_string( $candidate_real ) && is_string( $real_path ) && str_starts_with( $real_path, $candidate_real ) ) {
-            $storage_root = $candidate_real;
-            break;
-        }
-    }
-    if ( ! is_string( $storage_root ) || ! is_string( $real_path ) || ! str_starts_with( $real_path, $storage_root ) ) {
+    $storage = metis_media_storage_class_for_path( $absolute_path );
+    if ( ! is_array( $storage ) ) {
         return null;
     }
 
+    $real_path = (string) $storage['path'];
+    $storage_root = (string) $storage['root'];
+    $storage_class = (string) $storage['class'];
     $relative_storage_path = ltrim( str_replace( '\\', '/', substr( $real_path, strlen( $storage_root ) ) ), '/' );
     $public_token = bin2hex( random_bytes( 16 ) );
+    $expires_at = null;
+    if ( in_array( $storage_class, [ 'protected', 'private' ], true ) && $access_ttl_seconds !== null ) {
+        $expires_at = gmdate( 'Y-m-d H:i:s', time() + max( 60, $access_ttl_seconds ) );
+    }
 
     metis_media_ensure_schema();
     $db = metis_db();
@@ -128,13 +181,15 @@ function metis_media_register_file( string $absolute_path, string $file_name, st
         metis_media_table_name(),
         [
             'public_token' => $public_token,
+            'storage_class' => $storage_class,
             'storage_path' => $relative_storage_path,
+            'access_expires_at' => $expires_at,
             'file_name' => metis_filename_clean( $file_name !== '' ? $file_name : basename( $real_path ) ),
             'mime_type' => strtolower( trim( $mime_type ) ),
             'size' => max( 0, $size ),
             'uploaded_by' => $uploaded_by,
         ],
-        [ '%s', '%s', '%s', '%s', '%d', '%d' ]
+        [ '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d' ]
     );
 
     if ( ! $inserted ) {
@@ -144,6 +199,7 @@ function metis_media_register_file( string $absolute_path, string $file_name, st
     return [
         'token' => $public_token,
         'url' => metis_home_url( '/media/' . $public_token ),
+        'storage_class' => $storage_class,
         'storage_path' => $relative_storage_path,
     ];
 }
@@ -159,8 +215,9 @@ function metis_media_find_by_token( string $token ): ?array {
     }
 
     try {
+        metis_media_ensure_schema();
         $row = metis_db()->fetchOne(
-            'SELECT id, public_token, storage_path, file_name, mime_type, size, folder_path, category_key, uploaded_by, created_at FROM ' . metis_media_table_name() . ' WHERE public_token = %s LIMIT 1',
+            'SELECT id, public_token, storage_class, storage_path, access_expires_at, file_name, mime_type, size, folder_path, category_key, uploaded_by, created_at FROM ' . metis_media_table_name() . ' WHERE public_token = %s LIMIT 1',
             [ $token ]
         );
     } catch ( Throwable ) {
@@ -329,7 +386,7 @@ function metis_generate_upload_filename( string $original_name = '', string $mim
 function metis_upload_dir( string $mime_type = '' ): array {
     $type = metis_media_type_from_mime( strtolower( trim( $mime_type ) ) );
     $subdir = '/' . $type . '/' . gmdate( 'Y' ) . '/' . gmdate( 'm' );
-    $basedir = rtrim( (string) METIS_PATH, '/\\' ) . '/storage/uploads';
+    $basedir = rtrim( (string) METIS_PATH, '/\\' ) . '/storage/public-media';
     $baseurl = metis_home_url( '/media/raw' );
     $path = $basedir . $subdir;
     $url = rtrim( $baseurl, '/' ) . $subdir;

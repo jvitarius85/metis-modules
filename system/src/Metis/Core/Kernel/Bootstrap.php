@@ -141,6 +141,21 @@ if ( ! function_exists( 'metis_kernel_request_path' ) ) {
 }
 
 if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
+    function metis_kernel_media_storage_roots( bool $include_legacy = true ): array {
+        $roots = [
+            'public' => METIS_PATH . 'storage/public-media',
+            'protected' => METIS_PATH . 'storage/protected-media',
+            'private' => METIS_PATH . 'storage/private-records',
+        ];
+
+        if ( $include_legacy ) {
+            $roots['legacy_uploads'] = METIS_PATH . 'storage/uploads';
+            $roots['legacy_media'] = METIS_PATH . 'storage/media';
+        }
+
+        return $roots;
+    }
+
     function metis_kernel_media_safe_extension( string $path ): bool {
         $extension = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
         if ( $extension === '' ) {
@@ -190,38 +205,50 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         $request_path   = metis_kernel_request_path();
         $script_dir     = rtrim( metis_kernel_public_base_path(), '/' );
         $prefix = ( $script_dir === '' || $script_dir === '/' ? '' : $script_dir );
-        $legacy_uploads_prefix = $prefix . '/storage/uploads/';
-        $legacy_media_prefix = $prefix . '/storage/media/';
+        $blocked_storage_prefix = $prefix . '/storage/';
         $media_prefix = $prefix . '/media/';
-        $resolve_public_storage = static function ( string $relative_path, bool $raw = false ): ?array {
+        $resolve_public_storage = static function ( string $relative_path, string $storage_class = 'legacy' ): ?array {
             $relative_path = ltrim( $relative_path, '/' );
             if ( $relative_path === '' || str_contains( $relative_path, '..' ) || str_contains( $relative_path, "\0" ) ) {
                 return null;
             }
 
-            $roots = $raw ? [ METIS_PATH . 'storage/uploads' ] : [ METIS_PATH . 'storage/uploads', METIS_PATH . 'storage/media' ];
-            foreach ( $roots as $root ) {
+            $all_roots = metis_kernel_media_storage_roots( true );
+            $roots = match ( $storage_class ) {
+                'public' => [ 'public' => $all_roots['public'] ],
+                'protected' => [ 'protected' => $all_roots['protected'] ],
+                'private' => [ 'private' => $all_roots['private'] ],
+                'legacy' => [
+                    'legacy_uploads' => $all_roots['legacy_uploads'],
+                    'legacy_media' => $all_roots['legacy_media'],
+                ],
+                default => [],
+            };
+            foreach ( $roots as $class => $root ) {
                 $base_storage = realpath( $root );
                 if ( ! is_string( $base_storage ) ) {
                     continue;
                 }
 
                 $target_path = realpath( $base_storage . '/' . $relative_path );
+                $normalized_base = rtrim( str_replace( '\\', '/', $base_storage ), '/' ) . '/';
+                $normalized_target = is_string( $target_path ) ? str_replace( '\\', '/', $target_path ) : '';
                 if (
                     is_string( $target_path )
-                    && str_starts_with( $target_path, $base_storage )
+                    && str_starts_with( $normalized_target, $normalized_base )
                     && is_file( $target_path )
                     && is_readable( $target_path )
                     && ! is_link( $target_path )
                     && metis_kernel_media_safe_extension( $target_path )
                 ) {
                     $mime = metis_kernel_media_mime_for_path( $target_path );
-                    if ( $raw && ! metis_kernel_media_is_public_raw( $base_storage, $target_path, $mime ) ) {
+                    if ( $storage_class === 'public' && ! metis_kernel_media_is_public_raw( $base_storage, $target_path, $mime ) ) {
                         continue;
                     }
 
                     return [
                         'base' => $base_storage,
+                        'storage_class' => $class,
                         'path' => $target_path,
                         'mime' => $mime,
                     ];
@@ -231,8 +258,7 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
             return null;
         };
 
-        // Legacy direct filesystem paths are intentionally blocked.
-        if ( str_starts_with( $request_path, $legacy_uploads_prefix ) || str_starts_with( $request_path, $legacy_media_prefix ) ) {
+        if ( str_starts_with( $request_path, $blocked_storage_prefix ) ) {
             http_response_code( 404 );
             exit;
         }
@@ -244,7 +270,7 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         $media_path = trim( substr( $request_path, strlen( $media_prefix ) ), '/' );
         if ( str_starts_with( $media_path, 'raw/' ) ) {
             $relative_path = ltrim( substr( $media_path, 4 ), '/' );
-            $resolved = $resolve_public_storage( $relative_path, true );
+            $resolved = $resolve_public_storage( $relative_path, 'public' );
             if ( ! is_array( $resolved ) ) {
                 http_response_code( 404 );
                 exit;
@@ -289,10 +315,53 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         }
 
         $relative_path = ltrim( (string) ( $media['storage_path'] ?? '' ), '/' );
-        $resolved = $resolve_public_storage( $relative_path, false );
+        $storage_class = metis_key_clean( (string) ( $media['storage_class'] ?? 'legacy' ) );
+        if ( ! in_array( $storage_class, [ 'public', 'protected', 'private', 'legacy' ], true ) ) {
+            http_response_code( 404 );
+            exit;
+        }
+
+        if ( in_array( $storage_class, [ 'protected', 'private' ], true ) ) {
+            $expires_at = trim( (string) ( $media['access_expires_at'] ?? '' ) );
+            if ( $expires_at === '' || strtotime( $expires_at . ' UTC' ) < time() ) {
+                if ( function_exists( 'metis_audit_log_security' ) ) {
+                    metis_audit_log_security( 'media_token_expired', [
+                        'module' => 'media',
+                        'resource' => [ 'type' => 'media', 'id' => $token ],
+                        'severity' => 'warning',
+                        'outcome' => 'blocked',
+                    ] );
+                }
+                http_response_code( 404 );
+                exit;
+            }
+
+            if ( ! function_exists( 'metis_user_logged_in' ) || ! metis_user_logged_in() || ! function_exists( 'metis_security_user_can' ) || ! metis_security_user_can( 'media.view' ) ) {
+                if ( function_exists( 'metis_audit_log_security' ) ) {
+                    metis_audit_log_security( 'media_access_denied', [
+                        'module' => 'media',
+                        'resource' => [ 'type' => 'media', 'id' => $token ],
+                        'severity' => 'warning',
+                        'outcome' => 'blocked',
+                    ] );
+                }
+                http_response_code( 404 );
+                exit;
+            }
+        }
+
+        $resolved = $resolve_public_storage( $relative_path, $storage_class );
         if ( ! is_array( $resolved ) ) {
             http_response_code( 404 );
             exit;
+        }
+
+        if ( in_array( $storage_class, [ 'protected', 'private' ], true ) && function_exists( 'metis_audit_log_activity' ) ) {
+            metis_audit_log_activity( 'media_access_granted', [
+                'module' => 'media',
+                'resource' => [ 'type' => 'media', 'id' => $token, 'label' => (string) ( $media['file_name'] ?? '' ) ],
+                'context' => [ 'storage_class' => $storage_class ],
+            ] );
         }
 
         $target_path = (string) $resolved['path'];

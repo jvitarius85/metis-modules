@@ -474,7 +474,7 @@ final class HermesGateway {
 
     private function requestNonce(): string {
         foreach ( [ 'metis_action_nonce', 'security', 'nonce' ] as $field ) {
-            $value = $_REQUEST[ $field ] ?? '';
+            $value = $_POST[ $field ] ?? $_GET[ $field ] ?? '';
             if ( is_string( $value ) ) {
                 $value = \trim( \metis_runtime_unslash( $value ) );
                 if ( $value !== '' ) {

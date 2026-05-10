@@ -476,7 +476,8 @@ function metis_security_enforce_ajax_request(): void {
         return;
     }
 
-    $ajax_action = isset( $_REQUEST['action'] ) ? metis_key_clean( metis_runtime_unslash( $_REQUEST['action'] ) ) : '';
+    $action_source = $_POST['action'] ?? $_GET['action'] ?? '';
+    $ajax_action = is_string( $action_source ) ? metis_key_clean( metis_runtime_unslash( $action_source ) ) : '';
     if ( $ajax_action === '' || strpos( $ajax_action, 'metis_' ) !== 0 ) {
         return;
     }

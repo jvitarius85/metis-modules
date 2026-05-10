@@ -618,7 +618,10 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
             $runtime_dirs = [
                 [ 'label' => 'storage', 'path' => $root_path . '/storage', 'mode' => 0775 ],
                 [ 'label' => 'storage/runtime', 'path' => $root_path . '/storage/runtime', 'mode' => 0775 ],
-                [ 'label' => 'storage/uploads', 'path' => $root_path . '/storage/uploads', 'mode' => 0775 ],
+                [ 'label' => 'storage/public-media', 'path' => $root_path . '/storage/public-media', 'mode' => 0775 ],
+                [ 'label' => 'storage/protected-media', 'path' => $root_path . '/storage/protected-media', 'mode' => 0775 ],
+                [ 'label' => 'storage/private-records', 'path' => $root_path . '/storage/private-records', 'mode' => 0775 ],
+                [ 'label' => 'storage/uploads (legacy)', 'path' => $root_path . '/storage/uploads', 'mode' => 0775 ],
             ];
 
             $normalized = [];

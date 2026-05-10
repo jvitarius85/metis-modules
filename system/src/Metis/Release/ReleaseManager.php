@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Metis\Release;
 
+use Metis\Core\Services\ProcessRunner;
 use Metis\Core\Version;
 
 final class ReleaseManager {
@@ -1782,32 +1783,7 @@ final class ReleaseManager {
     }
 
     private function runCommand( array $command ): array {
-        if ( ! \function_exists( 'proc_open' ) ) {
-            return $this->runCommandWithExec( $command );
-        }
-
-        $descriptors = [
-            0 => [ 'pipe', 'r' ],
-            1 => [ 'pipe', 'w' ],
-            2 => [ 'pipe', 'w' ],
-        ];
-
-        $process = @\proc_open( $command, $descriptors, $pipes, \METIS_PATH );
-        if ( ! \is_resource( $process ) ) {
-            return $this->runCommandWithExec( $command );
-        }
-
-        \fclose( $pipes[0] );
-        $stdout = \stream_get_contents( $pipes[1] );
-        $stderr = \stream_get_contents( $pipes[2] );
-        \fclose( $pipes[1] );
-        \fclose( $pipes[2] );
-
-        return [
-            'exit_code' => \proc_close( $process ),
-            'stdout' => \is_string( $stdout ) ? $stdout : '',
-            'stderr' => \is_string( $stderr ) ? $stderr : '',
-        ];
+        return ( new ProcessRunner() )->run( $command, \METIS_PATH, [ 'service' => 'release' ] );
     }
 
     private function runCommandWithExec( array $command ): array {

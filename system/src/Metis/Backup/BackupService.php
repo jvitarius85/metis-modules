@@ -103,6 +103,16 @@ final class BackupService {
             $this->zipDirectory( $this->metisPath( 'storage/media' ), $media_archive );
             $component_archives['media'] = $this->describeFile( 'media', $media_archive );
 
+            foreach ( [
+                'public_media' => 'storage/public-media',
+                'protected_media' => 'storage/protected-media',
+                'private_records' => 'storage/private-records',
+            ] as $component => $storage_path ) {
+                $archive = $payload_dir . '/' . $component . '.zip';
+                $this->zipDirectory( $this->metisPath( $storage_path ), $archive );
+                $component_archives[ $component ] = $this->describeFile( $component, $archive );
+            }
+
             $runtime_archive = $payload_dir . '/runtime.zip';
             $this->zipDirectory(
                 $this->metisPath( 'storage/runtime' ),
@@ -398,11 +408,14 @@ final class BackupService {
             }
             $zip->close();
 
-            $config_source  = $restore_dir . '/config';
-            $media_source   = $restore_dir . '/storage/media';
-            $uploads_source = $restore_dir . '/storage/uploads';
-            $runtime_source = $restore_dir . '/storage/runtime';
-            $database_file  = $restore_dir . '/database/database.sql.gz';
+            $config_source     = $restore_dir . '/config';
+            $media_source      = $restore_dir . '/storage/media';
+            $public_source     = $restore_dir . '/storage/public-media';
+            $protected_source  = $restore_dir . '/storage/protected-media';
+            $private_source    = $restore_dir . '/storage/private-records';
+            $uploads_source    = $restore_dir . '/storage/uploads';
+            $runtime_source    = $restore_dir . '/storage/runtime';
+            $database_file     = $restore_dir . '/database/database.sql.gz';
 
             if ( \is_dir( $config_source ) ) {
                 $this->mirrorDirectory( $config_source, $this->configPath() );
@@ -410,9 +423,18 @@ final class BackupService {
             if ( \is_dir( $media_source ) ) {
                 $this->mirrorDirectory( $media_source, $this->metisPath( 'storage/media' ) );
             }
+            if ( \is_dir( $public_source ) ) {
+                $this->mirrorDirectory( $public_source, $this->metisPath( 'storage/public-media' ) );
+            }
+            if ( \is_dir( $protected_source ) ) {
+                $this->mirrorDirectory( $protected_source, $this->metisPath( 'storage/protected-media' ) );
+            }
+            if ( \is_dir( $private_source ) ) {
+                $this->mirrorDirectory( $private_source, $this->metisPath( 'storage/private-records' ) );
+            }
             // Backward compatibility for older archives that used storage/uploads.
             if ( \is_dir( $uploads_source ) ) {
-                $this->mirrorDirectory( $uploads_source, $this->metisPath( 'storage/media' ) );
+                $this->mirrorDirectory( $uploads_source, $this->metisPath( 'storage/public-media' ) );
             }
             if ( \is_dir( $runtime_source ) ) {
                 $this->mirrorDirectory( $runtime_source, $this->metisPath( 'storage/runtime' ), [ 'backups' ] );
@@ -536,6 +558,9 @@ final class BackupService {
         $zip->addFile( $database_file, 'database/' . basename( $database_file ) );
         $this->addDirectoryToZip( $zip, $this->configPath(), 'config', [ 'index.php' ] );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/media' ), 'storage/media' );
+        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/public-media' ), 'storage/public-media' );
+        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/protected-media' ), 'storage/protected-media' );
+        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/private-records' ), 'storage/private-records' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/runtime' ), 'storage/runtime', [ 'backups' ] );
         $zip->close();
     }
