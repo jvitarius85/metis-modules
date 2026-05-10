@@ -997,6 +997,191 @@ if ( ! function_exists( 'metis_settings_humanize_slug' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_root_path' ) ) {
+    function metis_settings_root_path(): string {
+        $root = defined( 'METIS_ROOT' )
+            ? (string) METIS_ROOT
+            : ( defined( 'METIS_PATH' ) ? (string) METIS_PATH : dirname( __DIR__, 3 ) );
+
+        return rtrim( $root, '/\\' );
+    }
+}
+
+if ( ! function_exists( 'metis_settings_storage_root_path' ) ) {
+    function metis_settings_storage_root_path(): string {
+        $root = defined( 'METIS_STORAGE_PATH' )
+            ? (string) METIS_STORAGE_PATH
+            : metis_settings_root_path() . '/storage';
+
+        return rtrim( $root, '/\\' );
+    }
+}
+
+if ( ! function_exists( 'metis_settings_storage_child_path' ) ) {
+    function metis_settings_storage_child_path( string $child = '' ): string {
+        $root = metis_settings_storage_root_path();
+        $child = trim( $child, '/\\' );
+
+        return $child === '' ? $root : $root . '/' . $child;
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_filesystem_targets' ) ) {
+    function metis_settings_health_filesystem_targets(): array {
+        $root = metis_settings_root_path();
+        $media_roots = function_exists( 'metis_media_storage_roots' )
+            ? (array) metis_media_storage_roots( true )
+            : [];
+
+        return [
+            [ 'path' => defined( 'METIS_CONFIG_PATH' ) ? (string) METIS_CONFIG_PATH : $root . '/system/config', 'label' => 'system/config', 'type' => 'sensitive', 'required' => true, 'mode' => 0755 ],
+            [ 'path' => defined( 'METIS_MODULES_PATH' ) ? (string) METIS_MODULES_PATH : $root . '/system/modules', 'label' => 'system/modules', 'type' => 'sensitive', 'required' => true, 'mode' => 0755 ],
+            [ 'path' => defined( 'METIS_SRC_PATH' ) ? (string) METIS_SRC_PATH : $root . '/system/src', 'label' => 'system/src', 'type' => 'sensitive', 'required' => true, 'mode' => 0755 ],
+            [ 'path' => metis_settings_storage_child_path(), 'label' => 'storage', 'type' => 'runtime', 'required' => true, 'mode' => 0775 ],
+            [ 'path' => metis_settings_storage_child_path( 'runtime' ), 'label' => 'storage/runtime', 'type' => 'runtime', 'required' => true, 'mode' => 0775 ],
+            [ 'path' => (string) ( $media_roots['public'] ?? metis_settings_storage_child_path( 'public-media' ) ), 'label' => 'storage/public-media', 'type' => 'runtime', 'required' => true, 'mode' => 0775 ],
+            [ 'path' => (string) ( $media_roots['protected'] ?? metis_settings_storage_child_path( 'protected-media' ) ), 'label' => 'storage/protected-media', 'type' => 'runtime', 'required' => true, 'mode' => 0775 ],
+            [ 'path' => (string) ( $media_roots['private'] ?? metis_settings_storage_child_path( 'private-records' ) ), 'label' => 'storage/private-records', 'type' => 'runtime', 'required' => true, 'mode' => 0775 ],
+            [ 'path' => (string) ( $media_roots['legacy_uploads'] ?? metis_settings_storage_child_path( 'uploads' ) ), 'label' => 'storage/uploads (legacy)', 'type' => 'legacy_runtime', 'required' => false, 'mode' => 0775 ],
+        ];
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_security_offense_clause' ) ) {
+    function metis_settings_health_security_offense_clause(): string {
+        return "
+            (
+                LOWER(action_type) = 'login_failed'
+                OR LOWER(action_type) = 'invalid_cron_secret'
+                OR LOWER(action_type) = 'cron_secret_missing'
+                OR LOWER(action_type) LIKE '%brute%'
+                OR LOWER(action_type) LIKE '%credential%'
+                OR LOWER(action_type) LIKE '%lockout%'
+                OR LOWER(action_type) LIKE '%threat%'
+                OR LOWER(action_type) LIKE '%tamper%'
+                OR LOWER(action_type) LIKE '%intrusion%'
+            )
+        ";
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_security_offense_exclusion_clause' ) ) {
+    function metis_settings_health_security_offense_exclusion_clause(): string {
+        return "
+            NOT (
+                (LOWER(action_type) = 'route_action_failed' AND LOWER(resource_label) IN ('invalid_nonce', 'operation_not_registered'))
+                OR (LOWER(action_type) = 'ajax_action_failed' AND LOWER(resource_label) IN ('invalid_nonce', 'operation_not_registered'))
+                OR (LOWER(action_type) = 'system_cron_task_failed' AND LOWER(module_slug) = 'grandys_stash')
+            )
+        ";
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_status_counts' ) ) {
+    function metis_settings_health_status_counts( array $checks ): array {
+        $status_counts = [ 'pass' => 0, 'warn' => 0, 'fail' => 0 ];
+        foreach ( $checks as $check ) {
+            $status = (string) ( is_array( $check ) ? ( $check['status'] ?? 'warn' ) : 'warn' );
+            if ( isset( $status_counts[ $status ] ) ) {
+                $status_counts[ $status ]++;
+            }
+        }
+
+        return $status_counts;
+    }
+}
+
+if ( ! function_exists( 'metis_settings_latest_backup_artifact' ) ) {
+    function metis_settings_latest_backup_artifact(): array {
+        $root = metis_settings_storage_child_path( 'backups' );
+        if ( ! is_dir( $root ) ) {
+            return [ 'timestamp' => 0, 'raw' => '', 'source' => '', 'count' => 0 ];
+        }
+
+        $latest_ts = 0;
+        $latest_raw = '';
+        $latest_source = '';
+        $count = 0;
+        $entries = glob( $root . '/*' );
+        if ( ! is_array( $entries ) ) {
+            $entries = [];
+        }
+
+        foreach ( $entries as $entry ) {
+            $entry = (string) $entry;
+            $candidate_ts = 0;
+            $candidate_raw = '';
+            $candidate_source = '';
+
+            if ( is_dir( $entry ) ) {
+                foreach ( [ $entry . '/payload/metadata.json', $entry . '/metadata.json' ] as $metadata_path ) {
+                    if ( ! is_file( $metadata_path ) ) {
+                        continue;
+                    }
+
+                    $json = json_decode( (string) @file_get_contents( $metadata_path ), true );
+                    if ( ! is_array( $json ) ) {
+                        continue;
+                    }
+
+                    $raw = (string) ( $json['created_at_local'] ?? $json['completed_at'] ?? $json['created_at_utc'] ?? '' );
+                    $ts = $raw !== '' ? strtotime( $raw ) : false;
+                    if ( $ts === false || $ts < 1 ) {
+                        $mtime = @filemtime( $metadata_path );
+                        $ts = $mtime !== false ? (int) $mtime : 0;
+                    }
+
+                    if ( $ts > $candidate_ts ) {
+                        $candidate_ts = (int) $ts;
+                        $candidate_raw = $raw !== '' ? $raw : date( 'Y-m-d H:i:s', (int) $ts );
+                        $candidate_source = basename( $entry );
+                    }
+                }
+
+                foreach ( [ $entry . '/payload/*', $entry . '/*' ] as $pattern ) {
+                    $files = glob( $pattern );
+                    if ( ! is_array( $files ) ) {
+                        continue;
+                    }
+                    foreach ( $files as $file ) {
+                        if ( ! is_file( (string) $file ) || preg_match( '/\.(zip|tar|tgz|gz|sql|json)$/i', (string) $file ) !== 1 ) {
+                            continue;
+                        }
+                        $mtime = @filemtime( (string) $file );
+                        $ts = $mtime !== false ? (int) $mtime : 0;
+                        if ( $ts > $candidate_ts ) {
+                            $candidate_ts = $ts;
+                            $candidate_raw = date( 'Y-m-d H:i:s', $ts );
+                            $candidate_source = basename( $entry );
+                        }
+                    }
+                }
+            } elseif ( is_file( $entry ) && preg_match( '/\.(zip|tar|tgz|gz|sql|json)$/i', $entry ) === 1 ) {
+                $mtime = @filemtime( $entry );
+                $candidate_ts = $mtime !== false ? (int) $mtime : 0;
+                $candidate_raw = $candidate_ts > 0 ? date( 'Y-m-d H:i:s', $candidate_ts ) : '';
+                $candidate_source = basename( $entry );
+            }
+
+            if ( $candidate_ts > 0 ) {
+                $count++;
+            }
+            if ( $candidate_ts > $latest_ts ) {
+                $latest_ts = $candidate_ts;
+                $latest_raw = $candidate_raw;
+                $latest_source = $candidate_source;
+            }
+        }
+
+        return [
+            'timestamp' => $latest_ts,
+            'raw' => $latest_raw,
+            'source' => $latest_source,
+            'count' => $count,
+        ];
+    }
+}
+
 if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
     function metis_settings_build_scheduler_snapshot( string $timezone, string $date_format, string $time_format ): array {
         $timezone = metis_settings_normalize_timezone( $timezone );
@@ -1308,6 +1493,25 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $failed_status === 'pass' ? '' : 'Review failed operation and cron jobs, then replay or fix root causes.'
         );
 
+        if ( function_exists( 'metis_operations' ) ) {
+            metis_operations();
+        }
+        $registered_workers = function_exists( 'metis_job_queue' ) ? metis_job_queue()->registeredWorkers() : [];
+        $required_workers = [ 'system.cron.task', 'system.operation' ];
+        $missing_workers = array_values( array_filter( $required_workers, static function ( string $worker ) use ( $registered_workers ): bool {
+            return ! in_array( $worker, $registered_workers, true );
+        } ) );
+        $add_check(
+            'queue_worker_registration',
+            'Queue Worker Registration',
+            'performance',
+            empty( $missing_workers ) ? 'pass' : 'fail',
+            empty( $missing_workers )
+                ? 'Core cron and operation workers are registered for queue processing.'
+                : 'Missing queue workers: ' . implode( ', ', $missing_workers ) . '.',
+            empty( $missing_workers ) ? '' : 'Load core services before draining the queue so scheduled work has executable workers.'
+        );
+
         $system_cron_tasks = Metis_Cron_Manager::registered_tasks();
         $critical_tasks = [ 'background_job_processing', 'cache_cleanup', 'integrity_scan' ];
         $disabled_critical = [];
@@ -1482,31 +1686,24 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $cpu_load_status === 'pass' ? '' : 'Reduce synchronous workload and scale worker/host capacity.'
         );
 
-        $filesystem_targets = [
-            [ 'path' => defined( 'METIS_CONFIG_PATH' ) ? METIS_CONFIG_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/system/config' ), 'label' => 'system/config', 'type' => 'sensitive' ],
-            [ 'path' => defined( 'METIS_MODULES_PATH' ) ? METIS_MODULES_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/system/modules' ), 'label' => 'system/modules', 'type' => 'sensitive' ],
-            [ 'path' => defined( 'METIS_SRC_PATH' ) ? METIS_SRC_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/system/src' ), 'label' => 'system/src', 'type' => 'sensitive' ],
-            [ 'path' => defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage' ), 'label' => 'storage', 'type' => 'runtime' ],
-            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'runtime', 'label' => 'storage/runtime', 'type' => 'runtime' ],
-            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'public-media', 'label' => 'storage/public-media', 'type' => 'runtime' ],
-            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'protected-media', 'label' => 'storage/protected-media', 'type' => 'runtime' ],
-            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'private-records', 'label' => 'storage/private-records', 'type' => 'runtime' ],
-            [ 'path' => ( defined( 'METIS_STORAGE_PATH' ) ? METIS_STORAGE_PATH : ( ( defined( 'METIS_ROOT' ) ? METIS_ROOT : METIS_PATH ) . '/storage/' ) ) . 'uploads', 'label' => 'storage/uploads (legacy)', 'type' => 'runtime' ],
-        ];
+        $filesystem_targets = metis_settings_health_filesystem_targets();
 
         foreach ( $filesystem_targets as $entry ) {
             $path = (string) ( $entry['path'] ?? '' );
             $label = (string) ( $entry['label'] ?? $path );
             $type = (string) ( $entry['type'] ?? 'runtime' );
+            $required = ! array_key_exists( 'required', $entry ) || ! empty( $entry['required'] );
             $exists = is_dir( $path ) || is_file( $path );
             if ( ! $exists ) {
                 $add_check(
                     'fs_perm_' . metis_key_clean( str_replace( '/', '_', $label ) ),
                     'Filesystem Permissions: ' . $label,
                     'security',
-                    'warn',
-                    sprintf( '%s path is missing.', $label ),
-                    'Ensure this path exists with expected permissions.'
+                    $required ? 'warn' : 'pass',
+                    $required
+                        ? sprintf( '%s path is missing.', $label )
+                        : sprintf( '%s compatibility path is absent; no legacy root is currently active.', $label ),
+                    $required ? 'Ensure this path exists with expected permissions.' : 'Create this path only when importing or reading legacy upload data.'
                 );
                 continue;
             }
@@ -1639,31 +1836,8 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         $security_offense_breakdown = [];
         if ( class_exists( 'Metis_Tables' ) ) {
             $security_table = Metis_Tables::get( 'audit_security' );
-            $security_offense_clause = "
-                (
-                    LOWER(action_type) = 'login_failed'
-                    OR LOWER(action_type) = 'security_rate_limit_triggered'
-                    OR LOWER(action_type) = 'enclave.denied_rate_limit'
-                    OR LOWER(action_type) = 'rate_limited'
-                    OR LOWER(action_type) = 'invalid_cron_secret'
-                    OR LOWER(action_type) = 'cron_secret_missing'
-                    OR LOWER(action_type) LIKE '%denied%'
-                    OR LOWER(action_type) LIKE '%failed%'
-                    OR LOWER(action_type) LIKE '%blocked%'
-                    OR LOWER(action_type) LIKE '%lockout%'
-                    OR LOWER(action_type) LIKE '%threat%'
-                    OR LOWER(action_type) LIKE '%rate_limit%'
-                    OR LOWER(action_type) LIKE '%rate-lim%'
-                    OR LOWER(action_type) LIKE '%429%'
-                )
-            ";
-            $security_offense_exclusion_clause = "
-                NOT (
-                    (LOWER(action_type) = 'route_action_failed' AND LOWER(resource_label) IN ('invalid_nonce', 'operation_not_registered'))
-                    OR (LOWER(action_type) = 'ajax_action_failed' AND LOWER(resource_label) IN ('invalid_nonce', 'operation_not_registered'))
-                    OR (LOWER(action_type) = 'system_cron_task_failed' AND LOWER(module_slug) = 'grandys_stash')
-                )
-            ";
+            $security_offense_clause = metis_settings_health_security_offense_clause();
+            $security_offense_exclusion_clause = metis_settings_health_security_offense_exclusion_clause();
             $security_offense_total = (int) metis_db()->scalar(
                 "SELECT COUNT(*)
                  FROM {$security_table}
@@ -1721,15 +1895,15 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             'security',
             $security_offense_status,
             $security_offense_total < 1
-                ? 'No security offense events were recorded in audit data for the last 7 days.'
+                ? 'No high-signal security offense events were recorded in audit data for the last 7 days.'
                 : sprintf(
-                    '%d security offense events in audit data for 7 days. Top repeated offenders: %s.',
+                    '%d high-signal security offense events in audit data for 7 days. Top repeated indicators: %s.',
                     $security_offense_total,
                     ! empty( $security_offense_breakdown )
                         ? implode( '; ', $security_offense_breakdown )
                         : ( $security_offense_top !== '' ? $security_offense_top : 'none identified' )
                 ),
-            $security_offense_status === 'pass' ? '' : 'Review repeated blocked/failed security events and tighten the offending routes or actors.'
+            $security_offense_status === 'pass' ? '' : 'Investigate repeated login, credential, lockout, cron-secret, or threat indicators.'
         );
 
         $brute_force_total = 0;
@@ -1866,7 +2040,13 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
 
         $last_backup_completed_at = '';
         $last_backup_ts = 0;
-        $backup_runs = function_exists( 'metis_backup_list_runs' ) ? (array) metis_backup_list_runs( 20 ) : [];
+        $backup_history_error = '';
+        try {
+            $backup_runs = function_exists( 'metis_backup_list_runs' ) ? (array) metis_backup_list_runs( 20 ) : [];
+        } catch ( Throwable $exception ) {
+            $backup_runs = [];
+            $backup_history_error = 'Backup run history could not be inspected.';
+        }
         foreach ( $backup_runs as $run ) {
             if ( ! is_array( $run ) ) {
                 continue;
@@ -1882,12 +2062,23 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             }
         }
 
+        $backup_source = 'run_history';
+        if ( $last_backup_ts < 1 ) {
+            $artifact = metis_settings_latest_backup_artifact();
+            $artifact_ts = (int) ( $artifact['timestamp'] ?? 0 );
+            if ( $artifact_ts > 0 ) {
+                $last_backup_ts = $artifact_ts;
+                $last_backup_completed_at = (string) ( $artifact['raw'] ?? date( 'Y-m-d H:i:s', $artifact_ts ) );
+                $backup_source = 'local_artifact';
+            }
+        }
+
         $backup_age_hours = $last_backup_ts > 0 ? (int) floor( ( time() - $last_backup_ts ) / HOUR_IN_SECONDS ) : PHP_INT_MAX;
         $backup_warn_hours = $is_production_like ? 36 : ( 7 * 24 );
         $backup_fail_hours = $is_production_like ? 72 : ( 14 * 24 );
         $backup_status = $backup_age_hours >= $backup_fail_hours ? 'fail' : ( $backup_age_hours >= $backup_warn_hours ? 'warn' : 'pass' );
         if ( $last_backup_ts < 1 ) {
-            $backup_status = 'fail';
+            $backup_status = $backup_history_error !== '' ? 'warn' : 'fail';
         }
         $add_check(
             'backup_recency',
@@ -1895,12 +2086,20 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             'resilience',
             $backup_status,
             $last_backup_ts < 1
-                ? 'No successful backup run found.'
-                : sprintf( 'Last successful backup completed at %s (%d hours ago).', $display_datetime( $last_backup_completed_at ), $backup_age_hours ),
-            $backup_status === 'pass' ? '' : 'Run a backup now and verify the scheduled backup cadence.'
+                ? ( $backup_history_error !== '' ? $backup_history_error : 'No successful backup run found.' )
+                : (
+                    $backup_source === 'local_artifact'
+                        ? sprintf( 'Last backup artifact found at %s (%d hours ago).', $display_datetime( $last_backup_completed_at ), $backup_age_hours )
+                        : sprintf( 'Last successful backup completed at %s (%d hours ago).', $display_datetime( $last_backup_completed_at ), $backup_age_hours )
+                ),
+            $backup_status === 'pass'
+                ? ( $backup_source === 'local_artifact' ? 'Backup history was empty; verify scheduled runs continue recording history.' : '' )
+                : 'Run a backup now and verify the scheduled backup cadence.'
         );
 
         $stale_cron_tasks = [];
+        $pending_initial_cron_tasks = [];
+        $failed_cron_tasks = [];
         foreach ( Metis_Cron_Manager::registered_tasks() as $task_slug => $task_config ) {
             if ( empty( $task_config['enabled'] ) ) {
                 continue;
@@ -1908,24 +2107,55 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $state = metis_get_option( 'metis_cron_task_state_' . $task_slug, [] );
             $state = is_array( $state ) ? $state : [];
             $last_finished = (string) ( $state['last_finished_at'] ?? '' );
+            $last_started = (string) ( $state['last_started_at'] ?? '' );
+            $last_status = metis_key_clean( (string) ( $state['last_status'] ?? '' ) );
             $last_ts = $parse_datetime( $last_finished );
+            $last_started_ts = $parse_datetime( $last_started );
             $interval = max( 60, (int) ( $task_config['interval'] ?? 300 ) );
-            $stale_threshold = max( 3600, $interval * 4 );
+            $lock_ttl = max( 60, (int) ( $task_config['lock_ttl'] ?? 900 ) );
+            $stale_threshold = max( 2 * HOUR_IN_SECONDS, $interval * 6 );
+            $running_threshold = max( 30 * MINUTE_IN_SECONDS, $lock_ttl * 2 );
 
-            if ( $last_ts < 1 || ( $current_ts - $last_ts ) > $stale_threshold ) {
+            if ( $last_status === 'failed' ) {
+                $failed_cron_tasks[] = $task_slug;
+                continue;
+            }
+
+            if ( ! empty( $state['running'] ) && $last_started_ts > 0 && ( $current_ts - $last_started_ts ) > $running_threshold ) {
+                $stale_cron_tasks[] = $task_slug;
+                continue;
+            }
+
+            if ( $last_ts < 1 ) {
+                $pending_initial_cron_tasks[] = $task_slug;
+                continue;
+            }
+
+            if ( ( $current_ts - $last_ts ) > $stale_threshold ) {
                 $stale_cron_tasks[] = $task_slug;
             }
         }
-        $cron_health_status = empty( $stale_cron_tasks ) ? 'pass' : ( count( $stale_cron_tasks ) > 2 ? 'fail' : 'warn' );
+        $cron_problem_count = count( $stale_cron_tasks ) + count( $failed_cron_tasks );
+        $cron_health_status = $cron_problem_count < 1 ? 'pass' : ( $cron_problem_count > 2 ? 'fail' : 'warn' );
+        $cron_health_message = 'Enabled cron tasks with execution history are within expected windows.';
+        if ( ! empty( $pending_initial_cron_tasks ) ) {
+            $cron_health_message .= ' Pending first completion: ' . implode( ', ', $pending_initial_cron_tasks ) . '.';
+        }
+        if ( ! empty( $failed_cron_tasks ) ) {
+            $cron_health_message = 'Cron tasks with last failed status: ' . implode( ', ', $failed_cron_tasks ) . '.';
+            if ( ! empty( $stale_cron_tasks ) ) {
+                $cron_health_message .= ' Stale tasks: ' . implode( ', ', $stale_cron_tasks ) . '.';
+            }
+        } elseif ( ! empty( $stale_cron_tasks ) ) {
+            $cron_health_message = 'Stale cron tasks: ' . implode( ', ', $stale_cron_tasks ) . '.';
+        }
         $add_check(
             'cron_execution_health',
             'Cron Execution Health',
             'performance',
             $cron_health_status,
-            empty( $stale_cron_tasks )
-                ? 'Enabled cron tasks are executing within expected windows.'
-                : 'Stale or never-finished cron tasks: ' . implode( ', ', $stale_cron_tasks ) . '.',
-            empty( $stale_cron_tasks ) ? '' : 'Verify scheduler trigger frequency and run stale tasks manually.'
+            $cron_health_message,
+            $cron_health_status === 'pass' ? '' : 'Verify scheduler trigger frequency and rerun failed or stale tasks manually.'
         );
 
         $webhook_processed_7d = 0;
@@ -2008,7 +2238,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         $add_kpi( 'kpi_brute_force', 'Brute Force (7d)', (string) $brute_force_total, ! empty( $brute_force_top ) ? 'Top: ' . (string) $brute_force_top[0] : 'Login failure indicators', $brute_force_status === 'pass' ? 'good' : ( $brute_force_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_rate_limit', 'Rate Limited (7d)', (string) $rate_limit_total, ! empty( $rate_limit_top ) ? 'Top: ' . (string) $rate_limit_top[0] : 'Burst/abuse control triggers', $rate_limit_status === 'pass' ? 'good' : ( $rate_limit_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_backup_age', 'Backup Age', $last_backup_ts < 1 ? 'Never' : (string) $backup_age_hours . 'h', 'Last successful backup', $backup_status === 'pass' ? 'good' : ( $backup_status === 'fail' ? 'bad' : 'warn' ) );
-        $add_kpi( 'kpi_cron_stale', 'Stale Cron Tasks', (string) count( $stale_cron_tasks ), 'Enabled tasks outside expected window', $cron_health_status === 'pass' ? 'good' : ( $cron_health_status === 'fail' ? 'bad' : 'warn' ) );
+        $add_kpi( 'kpi_cron_stale', 'Cron Issues', (string) $cron_problem_count, 'Stale or failed enabled tasks', $cron_health_status === 'pass' ? 'good' : ( $cron_health_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_webhook', 'Webhook Failures (7d)', (string) $webhook_failed_7d, 'Processed ' . $webhook_processed_7d, $webhook_status === 'pass' ? 'good' : ( $webhook_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi(
             'kpi_disk_free',
@@ -2019,13 +2249,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         );
 
         $check_count = count( $checks );
-        $status_counts = [ 'pass' => 0, 'warn' => 0, 'fail' => 0 ];
-        foreach ( $checks as $check ) {
-            $status = (string) ( $check['status'] ?? 'warn' );
-            if ( isset( $status_counts[ $status ] ) ) {
-                $status_counts[ $status ]++;
-            }
-        }
+        $status_counts = metis_settings_health_status_counts( $checks );
 
         $score = 100;
         if ( $check_count > 0 ) {

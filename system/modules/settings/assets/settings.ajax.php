@@ -74,31 +74,8 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
             [ 'production', 'prod', 'live' ],
             true
         );
-        $security_offense_clause = "
-            (
-                LOWER(action_type) = 'login_failed'
-                OR LOWER(action_type) = 'security_rate_limit_triggered'
-                OR LOWER(action_type) = 'enclave.denied_rate_limit'
-                OR LOWER(action_type) = 'rate_limited'
-                OR LOWER(action_type) = 'invalid_cron_secret'
-                OR LOWER(action_type) = 'cron_secret_missing'
-                OR LOWER(action_type) LIKE '%denied%'
-                OR LOWER(action_type) LIKE '%failed%'
-                OR LOWER(action_type) LIKE '%blocked%'
-                OR LOWER(action_type) LIKE '%lockout%'
-                OR LOWER(action_type) LIKE '%threat%'
-                OR LOWER(action_type) LIKE '%rate_limit%'
-                OR LOWER(action_type) LIKE '%rate-lim%'
-                OR LOWER(action_type) LIKE '%429%'
-            )
-        ";
-        $security_offense_exclusion_clause = "
-            NOT (
-                (LOWER(action_type) = 'route_action_failed' AND LOWER(resource_label) IN ('invalid_nonce', 'operation_not_registered'))
-                OR (LOWER(action_type) = 'ajax_action_failed' AND LOWER(resource_label) IN ('invalid_nonce', 'operation_not_registered'))
-                OR (LOWER(action_type) = 'system_cron_task_failed' AND LOWER(module_slug) = 'grandys_stash')
-            )
-        ";
+        $security_offense_clause = metis_settings_health_security_offense_clause();
+        $security_offense_exclusion_clause = metis_settings_health_security_offense_exclusion_clause();
 
         $offense_total = (int) metis_db()->scalar(
             "SELECT COUNT(*)
@@ -152,9 +129,9 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
             ? 'fail'
             : ( $offense_total > ( $is_production_like ? 20 : 50 ) ? 'warn' : 'pass' );
         $offense_message = $offense_total < 1
-            ? 'No security offense events were recorded in audit data for the last 7 days.'
+            ? 'No high-signal security offense events were recorded in audit data for the last 7 days.'
             : sprintf(
-                '%d security offense events in audit data for 7 days. Top repeated offenders: %s.',
+                '%d high-signal security offense events in audit data for 7 days. Top repeated indicators: %s.',
                 $offense_total,
                 ! empty( $offense_breakdown ) ? implode( '; ', $offense_breakdown ) : ( $offense_top !== '' ? $offense_top : 'none identified' )
             );
@@ -167,7 +144,7 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
             }
             $check['status'] = $offense_status;
             $check['message'] = $offense_message;
-            $check['recommendation'] = $offense_status === 'pass' ? '' : 'Review repeated blocked/failed security events and tighten the offending routes or actors.';
+            $check['recommendation'] = $offense_status === 'pass' ? '' : 'Investigate repeated login, credential, lockout, cron-secret, or threat indicators.';
             $found_check = true;
             break;
         }
@@ -179,7 +156,7 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
                 'category' => 'security',
                 'status' => $offense_status,
                 'message' => $offense_message,
-                'recommendation' => $offense_status === 'pass' ? '' : 'Review repeated blocked/failed security events and tighten the offending routes or actors.',
+                'recommendation' => $offense_status === 'pass' ? '' : 'Investigate repeated login, credential, lockout, cron-secret, or threat indicators.',
             ];
         }
         $report['checks'] = $checks;
@@ -197,13 +174,7 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
         unset( $kpi );
         $report['kpis'] = $kpis;
 
-        $status_counts = [ 'pass' => 0, 'warn' => 0, 'fail' => 0 ];
-        foreach ( $checks as $check ) {
-            $status = (string) ( $check['status'] ?? 'warn' );
-            if ( isset( $status_counts[ $status ] ) ) {
-                $status_counts[ $status ]++;
-            }
-        }
+        $status_counts = metis_settings_health_status_counts( $checks );
         $report['status_counts'] = $status_counts;
         $check_count = count( $checks );
         $computed_penalty = ( (int) $status_counts['warn'] * 10 ) + ( (int) $status_counts['fail'] * 25 );
@@ -476,7 +447,6 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         return isset( $check_index[ $id ] ) && $check_index[ $id ] !== 'pass';
     };
 
-    $root_path = defined( 'METIS_ROOT' ) ? (string) METIS_ROOT : ( defined( 'METIS_PATH' ) ? (string) METIS_PATH : dirname( __DIR__, 3 ) );
     $parse_datetime = static function ( string $raw ): int {
         $raw = trim( $raw );
         if ( $raw === '' ) {
@@ -549,10 +519,17 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
                     $state = metis_get_option( 'metis_cron_task_state_' . $task_slug, [] );
                     $state = is_array( $state ) ? $state : [];
                     $last_finished = (string) ( $state['last_finished_at'] ?? '' );
+                    $last_started = (string) ( $state['last_started_at'] ?? '' );
+                    $last_status = metis_key_clean( (string) ( $state['last_status'] ?? '' ) );
                     $last_ts = $parse_datetime( $last_finished );
+                    $last_started_ts = $parse_datetime( $last_started );
                     $interval = max( 60, (int) ( $task_config['interval'] ?? 300 ) );
-                    $stale_threshold = max( 3600, $interval * 4 );
-                    $is_stale = $last_ts < 1 || ( time() - $last_ts ) > $stale_threshold;
+                    $lock_ttl = max( 60, (int) ( $task_config['lock_ttl'] ?? 900 ) );
+                    $stale_threshold = max( 2 * HOUR_IN_SECONDS, $interval * 6 );
+                    $running_threshold = max( 30 * MINUTE_IN_SECONDS, $lock_ttl * 2 );
+                    $is_stale = $last_status === 'failed'
+                        || ( ! empty( $state['running'] ) && $last_started_ts > 0 && ( time() - $last_started_ts ) > $running_threshold )
+                        || ( $last_ts > 0 && ( time() - $last_ts ) > $stale_threshold );
                     if ( ! $is_stale ) {
                         continue;
                     }
@@ -604,6 +581,9 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         $runtime_permission_checks = [
             'fs_perm_storage',
             'fs_perm_storage_runtime',
+            'fs_perm_storage_public_media',
+            'fs_perm_storage_protected_media',
+            'fs_perm_storage_private_records',
             'fs_perm_storage_uploads',
         ];
         $needs_permission_fix = false;
@@ -615,14 +595,11 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         }
 
         if ( $needs_permission_fix ) {
-            $runtime_dirs = [
-                [ 'label' => 'storage', 'path' => $root_path . '/storage', 'mode' => 0775 ],
-                [ 'label' => 'storage/runtime', 'path' => $root_path . '/storage/runtime', 'mode' => 0775 ],
-                [ 'label' => 'storage/public-media', 'path' => $root_path . '/storage/public-media', 'mode' => 0775 ],
-                [ 'label' => 'storage/protected-media', 'path' => $root_path . '/storage/protected-media', 'mode' => 0775 ],
-                [ 'label' => 'storage/private-records', 'path' => $root_path . '/storage/private-records', 'mode' => 0775 ],
-                [ 'label' => 'storage/uploads (legacy)', 'path' => $root_path . '/storage/uploads', 'mode' => 0775 ],
-            ];
+            $runtime_dirs = array_values( array_filter( metis_settings_health_filesystem_targets(), static function ( array $target ): bool {
+                $type = (string) ( $target['type'] ?? '' );
+                $required = ! array_key_exists( 'required', $target ) || ! empty( $target['required'] );
+                return $required && $type === 'runtime';
+            } ) );
 
             $normalized = [];
             foreach ( $runtime_dirs as $dir ) {
@@ -690,12 +667,8 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_settings_checker_permission_plan', function () {
-    $root_path = defined( 'METIS_ROOT' ) ? (string) METIS_ROOT : ( defined( 'METIS_PATH' ) ? (string) METIS_PATH : dirname( __DIR__, 3 ) );
-    $targets = [
-        [ 'label' => 'config', 'path' => $root_path . '/config' ],
-        [ 'label' => 'modules', 'path' => $root_path . '/modules' ],
-        [ 'label' => 'src', 'path' => $root_path . '/src' ],
-    ];
+    $root_path = metis_settings_root_path();
+    $targets = metis_settings_health_filesystem_targets();
 
     $target_states = [];
     foreach ( $targets as $target ) {
@@ -716,7 +689,7 @@ metis_ajax_register_handler( 'metis_settings_checker_permission_plan', function 
             'path' => $path,
             'exists' => $exists,
             'current_mode' => $mode,
-            'recommended_mode' => '0755 (directories), 0644 (files)',
+            'recommended_mode' => (string) ( ( (string) ( $target['type'] ?? '' ) === 'sensitive' ) ? '0755 (directories), 0644 (files)' : '0775 (runtime directories)' ),
             'is_world_writable' => $world_writable,
         ];
     }
@@ -731,8 +704,13 @@ metis_ajax_register_handler( 'metis_settings_checker_permission_plan', function 
             continue;
         }
         $qp = $quote( $path );
-        $commands[] = 'find ' . $qp . ' -type d -exec chmod 0755 {} +';
-        $commands[] = 'find ' . $qp . ' -type f -exec chmod 0644 {} +';
+        if ( (string) ( $target['type'] ?? '' ) === 'sensitive' ) {
+            $commands[] = 'find ' . $qp . ' -type d -exec chmod 0755 {} +';
+            $commands[] = 'find ' . $qp . ' -type f -exec chmod 0644 {} +';
+        } else {
+            $commands[] = 'mkdir -p ' . $qp;
+            $commands[] = 'chmod 0775 ' . $qp;
+        }
         $commands[] = 'chmod -R o-w ' . $qp;
     }
 
@@ -762,7 +740,7 @@ metis_ajax_register_handler( 'metis_settings_checker_permission_plan', function 
     }
 
     metis_runtime_send_json_success( [
-        'message' => 'Generated manual permission plan for sensitive directories.',
+        'message' => 'Generated manual permission plan for governed filesystem paths.',
         'generated_at' => metis_current_time( 'mysql' ),
         'targets' => $target_states,
         'commands' => $commands,

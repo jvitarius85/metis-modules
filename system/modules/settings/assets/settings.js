@@ -2125,11 +2125,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 return [
                     '<tr class="metis-premium-row is-' + escapeHtml(status) + '" data-checker-status="' + escapeHtml(status) + '">',
-                    '  <td class="metis-premium-cell"><strong class="metis-checker-status metis-checker-status-' + escapeHtml(status) + '">' + escapeHtml(status.toUpperCase()) + '</strong></td>',
-                    '  <td class="metis-premium-cell">' + escapeHtml(ucfirst(category)) + '</td>',
-                    '  <td class="metis-premium-cell">' + escapeHtml(title) + '</td>',
-                    '  <td class="metis-premium-cell">' + escapeHtml(message) + '</td>',
-                    '  <td class="metis-premium-cell">' + escapeHtml(recommendation || '-') + '</td>',
+                    '  <td class="metis-premium-cell metis-checker-status-cell"><strong class="metis-checker-status metis-checker-status-' + escapeHtml(status) + '">' + escapeHtml(status.toUpperCase()) + '</strong></td>',
+                    '  <td class="metis-premium-cell metis-checker-category-cell">' + escapeHtml(ucfirst(category)) + '</td>',
+                    '  <td class="metis-premium-cell metis-checker-check-cell">' + escapeHtml(title) + '</td>',
+                    '  <td class="metis-premium-cell metis-checker-finding-cell">' + escapeHtml(message) + '</td>',
+                    '  <td class="metis-premium-cell metis-checker-recommendation-cell">' + escapeHtml(recommendation || '-') + '</td>',
                     '</tr>'
                 ].join('');
             }).join('');

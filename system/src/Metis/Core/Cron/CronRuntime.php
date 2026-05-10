@@ -379,15 +379,6 @@ final class Metis_Cron_Manager {
         $now = time();
 
         foreach ( $task_slugs as $slug ) {
-            if ( $slug === 'background_job_processing' ) {
-                $summary['skipped'][] = $slug;
-                $results[ $slug ] = [
-                    'status'  => 'skipped',
-                    'message' => 'Queue processing is handled by the async drain.',
-                ];
-                continue;
-            }
-
             if ( ! isset( self::$tasks[ $slug ] ) ) {
                 $summary['skipped'][] = $slug;
                 $results[ $slug ] = [
@@ -579,8 +570,12 @@ final class Metis_Cron_Manager {
     public static function drain_job_queue( string $worker_name = 'system_cron_async' ): array {
         self::init();
 
-        if ( class_exists( 'Metis' ) ) {
-            Metis::service( 'operations' );
+        if ( function_exists( 'metis_register_core_services' ) ) {
+            metis_register_core_services();
+        }
+
+        if ( class_exists( \Metis\Core\Application::class ) && \Metis\Core\Application::has_service( 'operations' ) ) {
+            \Metis\Core\Application::service( 'operations' );
         }
 
         $summary = [

@@ -28,6 +28,11 @@ $releaseManager = $read( 'src/Metis/Release/ReleaseManager.php' );
 $communicationsAttachments = $read( 'src/Metis/Modules/CommunicationsInbound/AttachmentStorageService.php' );
 $finance = $read( 'src/Metis/Modules/Finance/FinanceV2Service.php' );
 $scanner = $read( 'tools/security_scan.php' );
+$settingsBootstrap = $read( 'modules/settings/views/_settings_bootstrap.php' );
+$settingsAjax = $read( 'modules/settings/assets/settings.ajax.php' );
+$settingsCss = $read( 'modules/settings/assets/settings.css' );
+$settingsJs = $read( 'modules/settings/assets/settings.js' );
+$cronRuntime = $read( 'src/Metis/Core/Cron/CronRuntime.php' );
 $governance = require $root . '/config/governance.php';
 
 $superglobalApprovals = (array) ( $governance['approved_layers']['superglobals'] ?? [] );
@@ -76,6 +81,26 @@ foreach ( [ 'sensitive-media-storage', 'process-context', 'route-middleware-gove
 }
 foreach ( [ 'request-boundary', 'native-db-access', 'serialization-boundary' ] as $scanRule ) {
     $assert( str_contains( $scanner, $scanRule ), 'Security scanner missing hardening rule: ' . $scanRule . '.' );
+}
+
+$assert( str_contains( $settingsBootstrap, 'function metis_settings_health_filesystem_targets' ), 'System health must use canonical filesystem target metadata.' );
+$assert( str_contains( $settingsBootstrap, 'metis_media_storage_roots( true )' ), 'System health media checks must use canonical media storage roots.' );
+$assert( str_contains( $settingsBootstrap, 'function metis_settings_latest_backup_artifact' ), 'System health backup recency must inspect local backup artifacts when run history is empty.' );
+$assert( str_contains( $settingsBootstrap, 'queue_worker_registration' ), 'System health must report missing queue worker registration.' );
+$assert( str_contains( $settingsAjax, 'metis_settings_health_filesystem_targets()' ), 'System health remediation must reuse canonical filesystem target metadata.' );
+$assert( str_contains( $settingsCss, '.metis-checker-finding-cell' ) && str_contains( $settingsCss, 'overflow-wrap: anywhere' ), 'System health report cells must wrap long findings and recommendations.' );
+$assert( str_contains( $settingsJs, 'metis-checker-finding-cell' ) && str_contains( $settingsJs, 'metis-checker-recommendation-cell' ), 'System health rows must expose semantic cells for wrapping.' );
+$assert( str_contains( $cronRuntime, "'background_job_processing'" ), 'Background job processor task must stay registered.' );
+$assert( ! str_contains( $cronRuntime, 'Queue processing is handled by the async drain.' ), 'Background job processor must be queueable instead of skipped.' );
+$assert( str_contains( $cronRuntime, 'metis_register_core_services();' ) && str_contains( $cronRuntime, "\\Metis\\Core\\Application::service( 'operations' )" ), 'Queue drain must register core operation workers before processing jobs.' );
+
+if ( preg_match( '/function metis_settings_health_security_offense_clause\\(\\): string \\{(?P<body>.*?)\\n\\}/s', $settingsBootstrap, $match ) === 1 ) {
+    $offenseClause = strtolower( (string) ( $match['body'] ?? '' ) );
+    foreach ( [ "%denied%", "%failed%", "%blocked%", "%rate_limit%", "%rate-lim%", "%429%" ] as $broadPattern ) {
+        $assert( ! str_contains( $offenseClause, $broadPattern ), 'Repeated security offense health check must not count broad expected-control patterns: ' . $broadPattern );
+    }
+} else {
+    $assert( false, 'System health security offense clause helper is missing.' );
 }
 
 $deploymentDocs = [

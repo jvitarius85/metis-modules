@@ -62,11 +62,11 @@ extract( $ctx, EXTR_SKIP );
         <table class="metis-premium-table metis-checker-results-table">
             <thead>
                 <tr class="metis-premium-row metis-premium-header">
-                    <th class="metis-premium-cell" scope="col">Status</th>
-                    <th class="metis-premium-cell" scope="col">Category</th>
-                    <th class="metis-premium-cell" scope="col">Check</th>
-                    <th class="metis-premium-cell" scope="col">Finding</th>
-                    <th class="metis-premium-cell" scope="col">Recommendation</th>
+                    <th class="metis-premium-cell metis-checker-status-cell" scope="col">Status</th>
+                    <th class="metis-premium-cell metis-checker-category-cell" scope="col">Category</th>
+                    <th class="metis-premium-cell metis-checker-check-cell" scope="col">Check</th>
+                    <th class="metis-premium-cell metis-checker-finding-cell" scope="col">Finding</th>
+                    <th class="metis-premium-cell metis-checker-recommendation-cell" scope="col">Recommendation</th>
                 </tr>
             </thead>
             <tbody data-settings-checker-results>
