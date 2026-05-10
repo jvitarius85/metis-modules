@@ -613,7 +613,7 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         try {
             if ( $check_failing( 'critical_cron_tasks' ) ) {
                 $registered_tasks = Metis_Cron_Manager::registered_tasks();
-                $critical_tasks = [ 'background_job_processing', 'cache_cleanup', 'integrity_scan' ];
+                $critical_tasks = [ 'background_job_processing', 'cache_cleanup', 'data_retention_cleanup', 'integrity_scan' ];
                 $disabled_tasks = Core_Settings_Service::get( 'system_cron_disabled_tasks', [] );
                 $disabled_tasks = is_array( $disabled_tasks ) ? array_values( array_unique( array_map( 'metis_key_clean', $disabled_tasks ) ) ) : [];
                 $before_count = count( $disabled_tasks );
@@ -679,6 +679,19 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         }
 
         try {
+            if ( isset( $check_index['data_retention_cleanup'] ) && $check_index['data_retention_cleanup'] !== 'pass' ) {
+                $queued = metis_operations()->queueOperation( 'cron.task.run', [ 'task_slug' => 'data_retention_cleanup' ], [ 'created_by' => $user_id ] );
+                if ( ! empty( $queued['ok'] ) ) {
+                    $actions[] = [ 'action' => 'data_retention.cleanup', 'result' => $queued ];
+                } else {
+                    $add_failure( 'data_retention.cleanup', 'Data retention cleanup could not be queued.' );
+                }
+            }
+        } catch ( Throwable $e ) {
+            $add_failure( 'data_retention.cleanup', 'Data-retention remediation failed: ' . $e->getMessage() );
+        }
+
+        try {
             if ( isset( $check_index['backup_recency'] ) && $check_index['backup_recency'] !== 'pass' ) {
                 $queued = metis_operations()->queueOperation( 'backup.run', [], [ 'created_by' => $user_id ] );
                 if ( ! empty( $queued['ok'] ) ) {
@@ -702,6 +715,19 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
             }
         } catch ( Throwable $e ) {
             $add_failure( 'release.check', 'Release-check remediation failed: ' . $e->getMessage() );
+        }
+
+        try {
+            if ( isset( $check_index['release_auto_update_policy'] ) && $check_index['release_auto_update_policy'] !== 'pass' ) {
+                Core_Settings_Service::set( 'release_auto_update_enabled', true, false );
+                $disabled_tasks = Core_Settings_Service::get( 'system_cron_disabled_tasks', [] );
+                $disabled_tasks = is_array( $disabled_tasks ) ? array_values( array_unique( array_map( 'metis_key_clean', $disabled_tasks ) ) ) : [];
+                $disabled_tasks = array_values( array_filter( $disabled_tasks, static fn ( string $slug ): bool => $slug !== 'release_auto_update' ) );
+                Core_Settings_Service::set( 'system_cron_disabled_tasks', $disabled_tasks, false );
+                $actions[] = [ 'action' => 'release.auto_update.enable', 'result' => 'ok' ];
+            }
+        } catch ( Throwable $e ) {
+            $add_failure( 'release.auto_update.enable', 'Release auto-update remediation failed: ' . $e->getMessage() );
         }
     }
 

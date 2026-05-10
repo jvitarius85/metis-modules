@@ -64,6 +64,11 @@ function metis_operations(): \Metis\Core\Services\OperationsService {
     return \Metis\Core\Application::service( 'operations' );
 }
 
+function metis_data_retention(): \Metis\Core\Services\DataRetentionService {
+    metis_register_core_services();
+    return \Metis\Core\Application::service( 'data_retention' );
+}
+
 function metis_entity_id_service(): \Metis\Core\EntityId {
     metis_register_core_services();
     return \Metis\Core\Application::service( 'entity_ids' );
@@ -496,6 +501,15 @@ function metis_register_core_services(): void {
                 \Metis\Core\Application::service( 'db' ),
                 \Metis\Core\Application::service( 'jobs' ),
                 \Metis\Core\Application::service( 'job_workers' )
+            )
+        );
+    }
+
+    if ( ! $registry->has( 'data_retention' ) ) {
+        $registry->singleton(
+            'data_retention',
+            static fn (): \Metis\Core\Services\DataRetentionService => new \Metis\Core\Services\DataRetentionService(
+                \Metis\Core\Application::service( 'db' )
             )
         );
     }

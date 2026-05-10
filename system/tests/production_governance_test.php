@@ -42,10 +42,13 @@ $contactsSupport = $read( 'src/Metis/Modules/Contacts/Support.php' );
 $newsletterSupport = $read( 'src/Metis/Modules/Newsletter/Support.php' );
 $calendarJs = $read( 'modules/calendar/assets/calendar.js' );
 $cronRuntime = $read( 'src/Metis/Core/Cron/CronRuntime.php' );
+$releaseRuntime = $read( 'src/Metis/Core/ReleaseRuntime.php' );
 $backupService = $read( 'src/Metis/Backup/BackupService.php' );
 $backupRuntime = $read( 'src/Metis/Core/BackupRuntime.php' );
 $jobQueue = $read( 'src/Metis/Core/Jobs/JobQueue.php' );
 $operationsService = $read( 'src/Metis/Core/Services/OperationsService.php' );
+$dataRetentionService = $read( 'src/Metis/Core/Services/DataRetentionService.php' );
+$standaloneApplicationBootstrap = $read( 'src/Metis/Core/Runtime/StandaloneApplicationBootstrap.php' );
 $routerRuntime = $read( 'src/Metis/Core/Routing/RouterRuntime.php' );
 $governance = require $root . '/config/governance.php';
 
@@ -132,8 +135,24 @@ $assert( str_contains( $settingsJs, 'metis-checker-finding-cell' ) && str_contai
 $assert( str_contains( $routerRuntime, 'function metis_request_path_strip_legacy_system_prefix' ) && str_contains( $routerRuntime, "'/admin'" ), 'Router must normalize legacy /system/admin app-route prefixes before manifest matching.' );
 $assert( str_contains( $cronRuntime, "'background_job_processing'" ), 'Background job processor task must stay registered.' );
 $assert( ! str_contains( $cronRuntime, 'Queue processing is handled by the async drain.' ), 'Background job processor must be queueable instead of skipped.' );
+$assert( str_contains( $cronRuntime, "return self::drain_job_queue( 'system_cron' );" ), 'Background job processor must drain bounded batches so staged jobs can advance without waiting for another poll.' );
 $assert( str_contains( $cronRuntime, 'metis_register_core_services();' ) && str_contains( $cronRuntime, "\\Metis\\Core\\Application::service( 'operations' )" ), 'Queue drain must register core operation workers before processing jobs.' );
 $assert( str_contains( $cronRuntime, "metis_release_check_for_updates( true, 'system_cron' )" ), 'Scheduled release update checks must force-refresh trusted release metadata.' );
+$assert( str_contains( $cronRuntime, "'data_retention_cleanup'" ) && str_contains( $cronRuntime, 'metis_data_retention()->run' ), 'Scheduler must run governed data retention cleanup.' );
+$assert( str_contains( $cronRuntime, "'release_auto_update'" ) && str_contains( $cronRuntime, "metis_release_auto_update( 'system_cron' )" ), 'Scheduler must run guarded release auto-update checks.' );
+$assert( str_contains( $dataRetentionService, 'final class DataRetentionService' ), 'Data retention service must be present.' );
+foreach ( [ 'job_queue_completed', 'job_queue_failed', 'webhook_events_processed', 'email_send_events', 'audit_activity', 'audit_security', 'hermes_command_logs', 'backup_runs_failed' ] as $retentionPolicy ) {
+    $assert( str_contains( $dataRetentionService, "'key' => '" . $retentionPolicy . "'" ), 'Data retention policy missing: ' . $retentionPolicy . '.' );
+}
+$assert( str_contains( $dataRetentionService, 'DEFAULT_BATCH_LIMIT' ) && str_contains( $dataRetentionService, 'LIMIT %d' ), 'Data retention cleanup must delete in bounded batches.' );
+$assert( str_contains( $dataRetentionService, 'validIdentifier' ) && str_contains( $dataRetentionService, 'information_schema.TABLES' ), 'Data retention cleanup must validate table identifiers before dynamic SQL.' );
+$assert( str_contains( $settingsBootstrap, 'data_retention_cleanup' ) && str_contains( $settingsBootstrap, 'kpi_retention_expired' ), 'System health must expose data-retention status and expired-row pressure.' );
+$assert( str_contains( $settingsAjax, 'data_retention.cleanup' ), 'Auto-remediate must queue data-retention cleanup when health detects drift.' );
+$assert( str_contains( $releaseRuntime, 'function metis_release_auto_update' ), 'Release runtime must expose guarded auto-update.' );
+$assert( str_contains( $releaseRuntime, 'release_auto_update_enabled' ) && str_contains( $releaseRuntime, 'release_auto_update_max_level' ), 'Release auto-update must be policy controlled.' );
+$assert( str_contains( $releaseRuntime, "'release.apply'" ) && str_contains( $releaseRuntime, "'operation:release.apply:auto:'" ), 'Release auto-update must queue the existing governed release apply operation.' );
+$assert( str_contains( $operationsService, "'release.auto_update'" ) && str_contains( $operationsService, 'runReleaseAutoUpdateOperation' ), 'Operations service must expose governed release auto-update execution.' );
+$assert( str_contains( $standaloneApplicationBootstrap, "'release_auto_update_enabled', true" ) && str_contains( $standaloneApplicationBootstrap, "'release_auto_update_max_level', 'patch'" ), 'Install defaults must enable patch-only trusted auto-update.' );
 $assert( str_contains( $backupService, 'ensureBackupSourceDirectories' ), 'Backup service must normalize required source directories before creating artifacts.' );
 $assert( str_contains( $backupService, 'backupSourceDirectories' ) && str_contains( $backupService, 'storage/public-media' ) && str_contains( $backupService, 'storage/protected-media' ) && str_contains( $backupService, 'storage/private-records' ), 'Backup service must cover canonical media storage roots.' );
 $assert( str_contains( $backupService, 'addEmptyDir( $base_in_zip )' ), 'Backup service must create deterministic empty directory archives.' );

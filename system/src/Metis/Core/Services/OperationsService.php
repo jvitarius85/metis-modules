@@ -83,6 +83,7 @@ final class OperationsService {
             [ 'command' => 'backup run', 'description' => 'Queue an immediate system backup.' ],
             [ 'command' => 'backup restore <run-uuid>', 'description' => 'Queue a restore from a specific backup run.' ],
             [ 'command' => 'release check', 'description' => 'Refresh trusted release metadata.' ],
+            [ 'command' => 'release auto-update', 'description' => 'Queue trusted release auto-update within policy.' ],
             [ 'command' => 'release apply <tag>', 'description' => 'Queue application of a trusted release.' ],
             [ 'command' => 'release rollback', 'description' => 'Queue rollback to the previous trusted release.' ],
             [ 'command' => 'integrity baseline', 'description' => 'Rebuild the integrity baseline.' ],
@@ -200,6 +201,7 @@ final class OperationsService {
             'backup.stage' => $this->runBackupStageOperation( $operation, $payload ),
             'backup.restore' => $this->runBackupRestoreOperation( $operation, $payload ),
             'release.check' => $this->runReleaseCheckOperation( $operation ),
+            'release.auto_update' => $this->runReleaseAutoUpdateOperation( $operation ),
             'release.apply' => $this->runReleaseApplyOperation( $operation, $payload ),
             'release.rollback' => $this->runReleaseRollbackOperation( $operation ),
             'integrity.baseline' => $this->runIntegrityBaselineOperation( $operation ),
@@ -278,6 +280,10 @@ final class OperationsService {
             return [ 'ok' => true, 'operation' => 'release.check', 'payload' => [], 'dedupe_key' => 'operation:release.check', 'normalized_command' => 'release check' ];
         }
 
+        if ( in_array( $lower, [ 'release auto-update', 'release autoupdate', 'release auto update' ], true ) ) {
+            return [ 'ok' => true, 'operation' => 'release.auto_update', 'payload' => [], 'dedupe_key' => 'operation:release.auto_update', 'normalized_command' => 'release auto-update' ];
+        }
+
         if ( preg_match( '/^release apply ([a-z0-9._-]+)$/', $command, $matches ) ) {
             $tag = trim( (string) $matches[1] );
             return [
@@ -326,6 +332,7 @@ final class OperationsService {
             'backup.stage'       => [ 'label' => 'Run Backup Stage', 'priority' => 11, 'max_attempts' => 1 ],
             'backup.restore'     => [ 'label' => 'Restore Backup', 'priority' => 6, 'max_attempts' => 1 ],
             'release.check'      => [ 'label' => 'Check Releases', 'priority' => 16, 'max_attempts' => 2 ],
+            'release.auto_update' => [ 'label' => 'Auto Update Release', 'priority' => 7, 'max_attempts' => 1 ],
             'release.apply'      => [ 'label' => 'Apply Release', 'priority' => 7, 'max_attempts' => 1 ],
             'release.rollback'   => [ 'label' => 'Rollback Release', 'priority' => 7, 'max_attempts' => 1 ],
             'integrity.baseline' => [ 'label' => 'Build Integrity Baseline', 'priority' => 14, 'max_attempts' => 1 ],
@@ -473,6 +480,20 @@ final class OperationsService {
         }
 
         return [ 'operation' => $operation, 'result' => \metis_release_check_for_updates( true, 'settings_operations' ) ];
+    }
+
+    private function runReleaseAutoUpdateOperation( string $operation ): array {
+        if ( ! \function_exists( 'metis_release_auto_update' ) ) {
+            return [
+                'operation' => $operation,
+                'result' => [
+                    'status' => 'skipped',
+                    'message' => 'Release auto-update service is not available.',
+                ],
+            ];
+        }
+
+        return [ 'operation' => $operation, 'result' => \metis_release_auto_update( 'settings_operations' ) ];
     }
 
     private function runReleaseApplyOperation( string $operation, array $payload ): array {

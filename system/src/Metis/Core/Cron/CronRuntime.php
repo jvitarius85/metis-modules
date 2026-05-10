@@ -78,6 +78,30 @@ final class Metis_Cron_Manager {
         );
 
         self::register_task(
+            'data_retention_cleanup',
+            static function (): array {
+                if ( ! \Metis\Core\Application::has_service( 'data_retention' ) ) {
+                    \metis_register_core_services();
+                }
+
+                if ( ! \function_exists( 'metis_data_retention' ) ) {
+                    return [
+                        'status'  => 'skipped',
+                        'message' => 'Data retention service is not available.',
+                    ];
+                }
+
+                return \metis_data_retention()->run( [ 'batch_limit' => 1000 ] );
+            },
+            [
+                'label'    => 'Data Retention Cleanup',
+                'interval' => DAY_IN_SECONDS,
+                'lock_ttl' => 10 * MINUTE_IN_SECONDS,
+                'module'   => 'core',
+            ]
+        );
+
+        self::register_task(
             'security_audit_digest',
             [ self::class, 'run_security_audit_digest' ],
             [
@@ -102,6 +126,26 @@ final class Metis_Cron_Manager {
             },
             [
                 'label'    => 'Release Update Check',
+                'interval' => 6 * HOUR_IN_SECONDS,
+                'lock_ttl' => 30 * MINUTE_IN_SECONDS,
+                'module'   => 'core',
+            ]
+        );
+
+        self::register_task(
+            'release_auto_update',
+            static function (): array {
+                if ( ! function_exists( 'metis_release_auto_update' ) ) {
+                    return [
+                        'status'  => 'skipped',
+                        'message' => 'Release auto-update service is not available.',
+                    ];
+                }
+
+                return metis_release_auto_update( 'system_cron' );
+            },
+            [
+                'label'    => 'Release Auto Update',
                 'interval' => 6 * HOUR_IN_SECONDS,
                 'lock_ttl' => 30 * MINUTE_IN_SECONDS,
                 'module'   => 'core',
@@ -205,7 +249,7 @@ final class Metis_Cron_Manager {
                     \metis_register_core_services();
                 }
 
-                return \metis_job_queue()->process( 25, 'system_cron' );
+                return self::drain_job_queue( 'system_cron' );
             },
             [
                 'label'    => 'Background Job Processing',

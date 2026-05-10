@@ -642,6 +642,9 @@ function metis_standalone_install_complete_defaults(): void {
     metis_standalone_install_set_default( 'auth_login_lock_threshold_ip', 30, false );
     metis_standalone_install_set_default( 'webhook_rate_limit_per_minute', 120, false );
     metis_standalone_install_set_default( 'release_manager_enabled', true, false );
+    metis_standalone_install_set_default( 'release_auto_update_enabled', true, false );
+    metis_standalone_install_set_default( 'release_auto_update_max_level', 'patch', false );
+    metis_standalone_install_set_default( 'data_retention_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_git_restore_enabled', true, false );
@@ -688,11 +691,17 @@ function metis_standalone_enable_recovery_defaults(): void {
         'integrity_quarantine_enabled',
         'integrity_git_restore_enabled',
         'release_manager_enabled',
+        'release_auto_update_enabled',
+        'data_retention_enabled',
         'recovery_preboot_enabled',
         'recovery_runtime_enabled',
         'recovery_file_mutation_enabled',
     ] as $setting ) {
         Core_Settings_Service::set( $setting, true, false );
+    }
+
+    if ( trim( (string) Core_Settings_Service::get( 'release_auto_update_max_level', '' ) ) === '' ) {
+        Core_Settings_Service::set( 'release_auto_update_max_level', 'patch', false );
     }
 
     Core_Settings_Service::set( $activation_key, true, false );

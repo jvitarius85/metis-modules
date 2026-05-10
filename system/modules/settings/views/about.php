@@ -22,6 +22,12 @@ $release_can_apply_latest = $is_system_admin
 $release_can_rollback = $is_system_admin
     && is_array( $release_status['state'] ?? null )
     && (string) ( $release_status['state']['previous_tag'] ?? '' ) !== '';
+$release_auto_update_enabled = function_exists( 'metis_release_auto_update_enabled' )
+    ? metis_release_auto_update_enabled()
+    : (bool) Core_Settings_Service::get( 'release_auto_update_enabled', true );
+$release_auto_update_max_level = function_exists( 'metis_release_auto_update_max_level' )
+    ? metis_release_auto_update_max_level()
+    : (string) Core_Settings_Service::get( 'release_auto_update_max_level', 'patch' );
 $module_count = is_array( $system_version['modules'] ?? null ) ? count( $system_version['modules'] ) : 0;
 $repository_head = (string) ( $release_repository['head'] ?? '' );
 $module_versions = is_array( $system_version['modules'] ?? null ) ? $system_version['modules'] : [];
@@ -186,11 +192,13 @@ usort( $module_details, static function ( array $a, array $b ): int {
                     ?></code></div>
                     <div class="metis-help">Last check: <?php echo metis_escape_html( (string) ( $release_status['last_checked_at'] ?? 'never' ) ); ?></div>
                 </div>
+                <div>
+                    <div><strong>Auto Update</strong>: <code><?php echo metis_escape_html( $release_auto_update_enabled ? 'enabled' : 'disabled' ); ?></code></div>
+                    <div class="metis-help"><?php echo metis_escape_html( ucfirst( $release_auto_update_max_level ) ); ?> releases</div>
+                </div>
             </div>
             <?php if ( ! empty( $release_status['remote_error'] ) ) : ?>
                 <p class="metis-help" style="color:#b91c1c;"><?php echo metis_escape_html( (string) $release_status['remote_error'] ); ?></p>
-            <?php else : ?>
-                <p class="metis-help">Release checks trust the configured release manifest first, then verified semantic Git tags when available.</p>
             <?php endif; ?>
         </div>
         <div class="metis-field">
@@ -209,7 +217,6 @@ usort( $module_details, static function ( array $a, array $b ): int {
                     ?>
                 </code>
             </div>
-            <p class="metis-help">Release checks prefer `meta/releases.json` so production can trust official releases without relying only on local Git state.</p>
         </div>
     </div>
 </div>

@@ -958,7 +958,9 @@ if ( ! function_exists( 'metis_settings_scheduler_task_association' ) ) {
         $fallback = [
             'integrity_scan' => 'Run integrity scan and heal pass',
             'cache_cleanup' => 'Clean expired cache and transients',
+            'data_retention_cleanup' => 'Purge expired operational history',
             'release_update_check' => 'Check trusted release updates',
+            'release_auto_update' => 'Apply trusted release updates within policy',
             'drive_listing_sync' => 'Queue operation: drive.sync',
             'background_job_processing' => 'Drain async job queue',
         ];
@@ -1774,7 +1776,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         );
 
         $system_cron_tasks = Metis_Cron_Manager::registered_tasks();
-        $critical_tasks = [ 'background_job_processing', 'cache_cleanup', 'integrity_scan' ];
+        $critical_tasks = [ 'background_job_processing', 'cache_cleanup', 'data_retention_cleanup', 'integrity_scan' ];
         $disabled_critical = [];
         foreach ( $critical_tasks as $task_slug ) {
             if ( isset( $system_cron_tasks[ $task_slug ] ) && empty( $system_cron_tasks[ $task_slug ]['enabled'] ) ) {
@@ -1791,6 +1793,56 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                 ? 'Critical maintenance tasks are enabled.'
                 : 'Disabled critical tasks: ' . implode( ', ', $disabled_critical ) . '.',
             empty( $disabled_critical ) ? '' : 'Re-enable critical tasks in Scheduler settings.'
+        );
+
+        $retention_snapshot = [];
+        $retention_total_rows = 0;
+        $retention_expired_rows = 0;
+        $retention_largest_label = '';
+        $retention_largest_rows = 0;
+        $retention_status = 'warn';
+        $retention_message = 'Data retention service could not be inspected.';
+        $retention_recommendation = 'Verify the data retention service registration and run auto-remediate.';
+        if ( function_exists( 'metis_data_retention' ) ) {
+            try {
+                $retention_snapshot = (array) metis_data_retention()->snapshot();
+                $retention_total_rows = (int) ( $retention_snapshot['total_rows'] ?? 0 );
+                $retention_expired_rows = (int) ( $retention_snapshot['total_expired_rows'] ?? 0 );
+                $largest_policy = is_array( $retention_snapshot['largest_policy'] ?? null ) ? (array) $retention_snapshot['largest_policy'] : [];
+                $retention_largest_label = (string) ( $largest_policy['label'] ?? '' );
+                $retention_largest_rows = (int) ( $largest_policy['rows'] ?? 0 );
+                $retention_enabled = ! empty( $retention_snapshot['enabled'] );
+                if ( ! $retention_enabled ) {
+                    $retention_status = 'warn';
+                    $retention_message = 'Data retention cleanup is disabled.';
+                    $retention_recommendation = 'Enable data retention cleanup to keep operational tables bounded.';
+                } else {
+                    $retention_status = $retention_expired_rows > 50000 ? 'fail' : ( $retention_expired_rows > 10000 ? 'warn' : 'pass' );
+                    $retention_message = sprintf(
+                        'Retention tracks %s governed rows; %s rows are beyond policy windows.',
+                        number_format( $retention_total_rows ),
+                        number_format( $retention_expired_rows )
+                    );
+                    if ( $retention_largest_label !== '' ) {
+                        $retention_message .= sprintf( ' Largest tracked set: %s (%s rows).', $retention_largest_label, number_format( $retention_largest_rows ) );
+                    }
+                    $retention_recommendation = $retention_status === 'pass'
+                        ? ''
+                        : 'Run the Data Retention Cleanup scheduler task and review policies if expired rows continue to grow.';
+                }
+            } catch ( Throwable $exception ) {
+                $retention_status = 'fail';
+                $retention_message = 'Data retention inspection failed: ' . $exception->getMessage();
+                $retention_recommendation = 'Review database connectivity and retention policy table mappings.';
+            }
+        }
+        $add_check(
+            'data_retention_cleanup',
+            'Data Retention Cleanup',
+            'performance',
+            $retention_status,
+            $retention_message,
+            $retention_recommendation
         );
 
         $compiled_config_cached = class_exists( '\Metis\Core\Cache\CacheService' )
@@ -2502,6 +2554,28 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $release_check_status === 'pass' ? '' : 'Run release check and verify GitHub/update connectivity.'
         );
 
+        $release_auto_update_enabled = function_exists( 'metis_release_auto_update_enabled' )
+            ? metis_release_auto_update_enabled()
+            : (bool) Core_Settings_Service::get( 'release_auto_update_enabled', true );
+        $release_auto_update_max_level = function_exists( 'metis_release_auto_update_max_level' )
+            ? metis_release_auto_update_max_level()
+            : 'patch';
+        $release_auto_update_task_enabled = isset( $system_cron_tasks['release_auto_update'] )
+            && ! empty( $system_cron_tasks['release_auto_update']['enabled'] );
+        $release_auto_update_status = ! $release_auto_update_enabled
+            ? 'warn'
+            : ( $release_auto_update_task_enabled ? 'pass' : 'fail' );
+        $add_check(
+            'release_auto_update_policy',
+            'Release Auto Update Policy',
+            'release',
+            $release_auto_update_status,
+            $release_auto_update_enabled
+                ? sprintf( 'Trusted release auto-update is enabled for %s releases.', $release_auto_update_max_level )
+                : 'Trusted release auto-update is disabled.',
+            $release_auto_update_status === 'pass' ? '' : 'Enable release auto-update and its scheduler task if production should self-apply trusted patch releases.'
+        );
+
         $add_kpi( 'kpi_environment', 'Environment', strtoupper( $environment ), 'Threshold profile', $is_production_like ? 'good' : 'neutral' );
         $add_kpi( 'kpi_queue_backlog', 'Queue Backlog', (string) $queue_backlog, 'Queued + processing', $backlog_status === 'pass' ? 'good' : ( $backlog_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_security_offenses', 'Security Offenses (7d)', (string) $security_offense_total, $security_offense_top !== '' ? 'Top: ' . $security_offense_top : '', $security_offense_status === 'pass' ? 'good' : ( $security_offense_status === 'fail' ? 'bad' : 'warn' ) );
@@ -2509,6 +2583,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         $add_kpi( 'kpi_rate_limit', 'Rate Limited (7d)', (string) $rate_limit_total, ! empty( $rate_limit_top ) ? 'Top: ' . (string) $rate_limit_top[0] : 'Burst/abuse control triggers', $rate_limit_status === 'pass' ? 'good' : ( $rate_limit_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_backup_age', 'Backup Age', $last_backup_ts < 1 ? 'Never' : (string) $backup_age_hours . 'h', 'Last successful backup', $backup_status === 'pass' ? 'good' : ( $backup_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_cron_stale', 'Cron Issues', (string) $cron_problem_count, 'Stale or failed enabled tasks', $cron_health_status === 'pass' ? 'good' : ( $cron_health_status === 'fail' ? 'bad' : 'warn' ) );
+        $add_kpi( 'kpi_retention_expired', 'Expired Rows', number_format( $retention_expired_rows ), 'Retention-governed history', $retention_status === 'pass' ? 'good' : ( $retention_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi( 'kpi_webhook', 'Webhook Failures (7d)', (string) $webhook_failed_7d, 'Processed ' . $webhook_processed_7d, $webhook_status === 'pass' ? 'good' : ( $webhook_status === 'fail' ? 'bad' : 'warn' ) );
         $add_kpi(
             'kpi_disk_free',
