@@ -37,7 +37,11 @@ final class RequestFingerprint {
     }
 
     private function secretKeyBytes(): string {
-        return hash('sha256', (string) metis_runtime_config_get('app_key', 'metis-local-key'), true);
+        if (!\function_exists('metis_runtime_require_app_key')) {
+            throw new \RuntimeException('Metis security configuration is missing app_key support.');
+        }
+
+        return hash('sha256', metis_runtime_require_app_key('session fingerprinting'), true);
     }
 
     private function encode(array $payload): string {

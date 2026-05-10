@@ -33,7 +33,7 @@ RewriteRule ^api/ajax/?$ index.php?metis_api_ajax=1 [L,QSA,NC]
 # Block direct requests into application internals and non-public storage.
 RewriteRule (^|/)\.(?!well-known/) - [F,L]
 RewriteRule ^(?:includes|logs|\.metis-integrity|system/(?:config|docs|modules|src|tests|tools|cloudflare|vendor))(?:/|$) - [F,L,NC]
-RewriteRule ^storage/(?!uploads/).*$ - [F,L,NC]
+RewriteRule ^storage(?:/|$) - [F,L,NC]
 RewriteRule ^(?:vendor)(?:/|$) - [F,L,NC]
 
 # Route unknown requests through the front controller.

@@ -790,6 +790,11 @@ function metis_standalone_install_validate_database_config( array $config ): voi
 
 function metis_standalone_install_boot_database_context( array $db ): void {
     $basePath = rtrim( dirname( $_SERVER['SCRIPT_NAME'] ?? '' ), '/' );
+    $app_key = trim( (string) ( $db['app_key'] ?? '' ) );
+    if ( $app_key === '' || in_array( strtolower( $app_key ), metis_runtime_insecure_app_key_values(), true ) || strlen( $app_key ) < 32 ) {
+        $app_key = bin2hex( random_bytes( 32 ) );
+        $db['app_key'] = $app_key;
+    }
     $GLOBALS['metis_runtime_config'] = [
         'db_charset' => (string) ( $db['charset'] ?? 'utf8mb4' ),
         'db_collation' => (string) ( $db['collation'] ?? 'utf8mb4_unicode_ci' ),
@@ -798,7 +803,7 @@ function metis_standalone_install_boot_database_context( array $db ): void {
         'db_port' => (int) ( $db['port'] ?? 3306 ),
         'db_name' => (string) ( $db['database'] ?? '' ),
         'base_path' => $basePath === '/' ? '' : $basePath,
-        'app_key' => (string) ( $db['app_key'] ?? 'metis-local-key' ),
+        'app_key' => $app_key,
         'base_url' => trim( (string) ( $db['base_url'] ?? '' ) ),
     ];
 
@@ -936,6 +941,11 @@ function metis_standalone_install_ensure_all_schema(): array {
 }
 
 function metis_standalone_install_config_from_request( array $source ): array {
+    $app_key = metis_text_clean( (string) ( $source['app_key'] ?? '' ) );
+    if ( $app_key === '' || in_array( strtolower( $app_key ), metis_runtime_insecure_app_key_values(), true ) || strlen( $app_key ) < 32 ) {
+        $app_key = bin2hex( random_bytes( 32 ) );
+    }
+
     return [
         'host' => metis_text_clean( (string) ( $source['db_host'] ?? '' ) ),
         'port' => (int) metis_text_clean( (string) ( $source['db_port'] ?? '3306' ) ),
@@ -946,7 +956,7 @@ function metis_standalone_install_config_from_request( array $source ): array {
         'prefix' => metis_key_clean( (string) ( $source['db_prefix'] ?? '' ) ),
         'charset' => 'utf8mb4',
         'collation' => 'utf8mb4_unicode_ci',
-        'app_key' => metis_text_clean( (string) ( $source['app_key'] ?? '' ) ),
+        'app_key' => $app_key,
         'base_url' => trim( filter_var( (string) ( $source['base_url'] ?? '' ), FILTER_SANITIZE_URL ) ?: '' ),
         'install_site_name' => metis_text_clean( (string) ( $source['site_name'] ?? 'Metis Portal' ) ),
         'install_tagline' => metis_text_clean( (string) ( $source['site_tagline'] ?? '' ) ),
@@ -1784,6 +1794,10 @@ function metis_standalone_boot(): void {
         }
 
         $db = metis_standalone_database_config();
+        $app_key = trim( (string) ( $db['app_key'] ?? '' ) );
+        if ( in_array( strtolower( $app_key ), metis_runtime_insecure_app_key_values(), true ) || strlen( $app_key ) < 32 ) {
+            throw new RuntimeException( 'Metis security configuration is missing a strong app_key after installation.' );
+        }
         $basePath = rtrim( dirname( $_SERVER['SCRIPT_NAME'] ?? '' ), '/' );
         $GLOBALS['metis_runtime_config'] = [
             'db_charset' => (string) ( $db['charset'] ?? 'utf8mb4' ),
@@ -1793,7 +1807,7 @@ function metis_standalone_boot(): void {
             'db_port' => (int) ( $db['port'] ?? 3306 ),
             'db_name' => (string) ( $db['database'] ?? '' ),
             'base_path' => $basePath === '/' ? '' : $basePath,
-            'app_key' => (string) ( $db['app_key'] ?? 'metis-local-key' ),
+            'app_key' => $app_key,
             'base_url' => trim( (string) ( $db['base_url'] ?? '' ) ),
         ];
         if ( class_exists( 'Profiler', false ) ) {

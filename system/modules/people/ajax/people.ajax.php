@@ -132,7 +132,7 @@ function metis_people_encrypt_secret(string $plain): string {
     if (function_exists('metis_auth_secret_key_bytes')) {
         $key = metis_auth_secret_key_bytes();
     } else {
-        $auth_key = defined('AUTH_KEY') ? (string) AUTH_KEY : (string) metis_runtime_config_get('app_key', 'metis-local-key');
+        $auth_key = defined('AUTH_KEY') ? (string) AUTH_KEY : metis_runtime_require_app_key('people MFA secret encryption');
         $secure_auth_key = defined('SECURE_AUTH_KEY') ? (string) SECURE_AUTH_KEY : $auth_key;
         $key = hash('sha256', $auth_key . $secure_auth_key, true);
     }

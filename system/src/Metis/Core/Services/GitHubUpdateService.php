@@ -426,11 +426,18 @@ final class GitHubUpdateService {
 
     private function runtimeAppKey(): string {
         if (\function_exists('metis_runtime_config_get')) {
-            return (string) \metis_runtime_config_get('app_key', 'metis-local-key');
+            return \function_exists('metis_runtime_require_app_key')
+                ? \metis_runtime_require_app_key('GitHub update token encryption')
+                : (string) \metis_runtime_config_get('app_key', '');
         }
 
         $databaseConfig = $this->config->loadFile('config/database.php', []);
-        return (string) ($databaseConfig['app_key'] ?? 'metis-local-key');
+        $appKey = trim((string) ($databaseConfig['app_key'] ?? ''));
+        if ($appKey === '' || \in_array(\strtolower($appKey), [ 'metis-local-key', 'changeme', 'change-me', 'default' ], true) || \strlen($appKey) < 32) {
+            throw new \RuntimeException('Metis security configuration is missing a strong app_key for GitHub update token encryption.');
+        }
+
+        return $appKey;
     }
 
     private function normalizePayload(string $currentVersion, array $payload): array {

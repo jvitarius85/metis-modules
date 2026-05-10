@@ -612,11 +612,11 @@ function metis_auth_upsert_user_from_person( array $person, ?array $auth_user = 
 }
 
 function metis_auth_secret_key_bytes(): string {
-    return hash( 'sha256', (string) metis_runtime_config_get( 'app_key', 'metis-local-key' ), true );
+    return hash( 'sha256', metis_runtime_require_app_key( 'auth secret encryption' ), true );
 }
 
 function metis_auth_legacy_secret_key_bytes(): string {
-    $auth_key = defined( 'AUTH_KEY' ) ? (string) AUTH_KEY : (string) metis_runtime_config_get( 'app_key', 'metis-local-key' );
+    $auth_key = defined( 'AUTH_KEY' ) ? (string) AUTH_KEY : metis_runtime_require_app_key( 'legacy auth secret encryption' );
     $secure_auth_key = defined( 'SECURE_AUTH_KEY' ) ? (string) SECURE_AUTH_KEY : $auth_key;
     return hash( 'sha256', $auth_key . $secure_auth_key, true );
 }

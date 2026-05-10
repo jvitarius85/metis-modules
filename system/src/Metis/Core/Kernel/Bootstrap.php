@@ -141,6 +141,51 @@ if ( ! function_exists( 'metis_kernel_request_path' ) ) {
 }
 
 if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
+    function metis_kernel_media_safe_extension( string $path ): bool {
+        $extension = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+        if ( $extension === '' ) {
+            return false;
+        }
+
+        $blocked = [
+            'bak', 'backup', 'conf', 'config', 'env', 'gz', 'ini', 'log', 'old', 'phar', 'php', 'phtml',
+            'sql', 'sqlite', 'sqlite3', 'tar', 'tmp', 'yaml', 'yml', 'zip',
+        ];
+
+        return ! in_array( $extension, $blocked, true );
+    }
+
+    function metis_kernel_media_mime_for_path( string $path ): string {
+        if ( function_exists( 'finfo_open' ) ) {
+            $finfo = finfo_open( FILEINFO_MIME_TYPE );
+            if ( $finfo ) {
+                $mime = finfo_file( $finfo, $path );
+                finfo_close( $finfo );
+                if ( is_string( $mime ) && $mime !== '' ) {
+                    return strtolower( $mime );
+                }
+            }
+        }
+
+        $mime = function_exists( 'mime_content_type' ) ? mime_content_type( $path ) : '';
+        return is_string( $mime ) && $mime !== '' ? strtolower( $mime ) : 'application/octet-stream';
+    }
+
+    function metis_kernel_media_is_public_raw( string $base_storage, string $target_path, string $mime ): bool {
+        $base_storage = rtrim( str_replace( '\\', '/', $base_storage ), '/' ) . '/';
+        $target_path = str_replace( '\\', '/', $target_path );
+        if ( ! str_starts_with( $target_path, $base_storage ) || is_link( $target_path ) || ! metis_kernel_media_safe_extension( $target_path ) ) {
+            return false;
+        }
+
+        $relative = ltrim( substr( $target_path, strlen( $base_storage ) ), '/' );
+        if ( $relative === '' || str_starts_with( $relative, '.' ) || preg_match( '#(^|/)(private|protected|documents|docs|files|backups|logs|tmp|temp|runtime|config|database)(/|$)#i', $relative ) === 1 ) {
+            return false;
+        }
+
+        return str_starts_with( $mime, 'image/' ) || str_starts_with( $mime, 'video/' ) || str_starts_with( $mime, 'audio/' );
+    }
+
     function metis_kernel_handle_public_storage_request(): void {
         $request_path   = metis_kernel_request_path();
         $script_dir     = rtrim( metis_kernel_public_base_path(), '/' );
@@ -148,13 +193,14 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         $legacy_uploads_prefix = $prefix . '/storage/uploads/';
         $legacy_media_prefix = $prefix . '/storage/media/';
         $media_prefix = $prefix . '/media/';
-        $resolve_public_storage = static function ( string $relative_path ): ?array {
+        $resolve_public_storage = static function ( string $relative_path, bool $raw = false ): ?array {
             $relative_path = ltrim( $relative_path, '/' );
-            if ( $relative_path === '' || str_contains( $relative_path, '..' ) ) {
+            if ( $relative_path === '' || str_contains( $relative_path, '..' ) || str_contains( $relative_path, "\0" ) ) {
                 return null;
             }
 
-            foreach ( [ METIS_PATH . 'storage/uploads', METIS_PATH . 'storage/media' ] as $root ) {
+            $roots = $raw ? [ METIS_PATH . 'storage/uploads' ] : [ METIS_PATH . 'storage/uploads', METIS_PATH . 'storage/media' ];
+            foreach ( $roots as $root ) {
                 $base_storage = realpath( $root );
                 if ( ! is_string( $base_storage ) ) {
                     continue;
@@ -166,10 +212,18 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
                     && str_starts_with( $target_path, $base_storage )
                     && is_file( $target_path )
                     && is_readable( $target_path )
+                    && ! is_link( $target_path )
+                    && metis_kernel_media_safe_extension( $target_path )
                 ) {
+                    $mime = metis_kernel_media_mime_for_path( $target_path );
+                    if ( $raw && ! metis_kernel_media_is_public_raw( $base_storage, $target_path, $mime ) ) {
+                        continue;
+                    }
+
                     return [
                         'base' => $base_storage,
                         'path' => $target_path,
+                        'mime' => $mime,
                     ];
                 }
             }
@@ -190,17 +244,14 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         $media_path = trim( substr( $request_path, strlen( $media_prefix ) ), '/' );
         if ( str_starts_with( $media_path, 'raw/' ) ) {
             $relative_path = ltrim( substr( $media_path, 4 ), '/' );
-            $resolved = $resolve_public_storage( $relative_path );
+            $resolved = $resolve_public_storage( $relative_path, true );
             if ( ! is_array( $resolved ) ) {
                 http_response_code( 404 );
                 exit;
             }
 
             $target_path = (string) $resolved['path'];
-            $mime = function_exists( 'mime_content_type' ) ? (string) mime_content_type( $target_path ) : '';
-            if ( $mime === '' ) {
-                $mime = 'application/octet-stream';
-            }
+            $mime = (string) ( $resolved['mime'] ?? metis_kernel_media_mime_for_path( $target_path ) );
 
             $is_svg = strtolower( trim( $mime ) ) === 'image/svg+xml';
             header( 'Content-Type: ' . $mime );
@@ -238,7 +289,7 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         }
 
         $relative_path = ltrim( (string) ( $media['storage_path'] ?? '' ), '/' );
-        $resolved = $resolve_public_storage( $relative_path );
+        $resolved = $resolve_public_storage( $relative_path, false );
         if ( ! is_array( $resolved ) ) {
             http_response_code( 404 );
             exit;
@@ -246,11 +297,9 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
 
         $target_path = (string) $resolved['path'];
         $mime = strtolower( trim( (string) ( $media['mime_type'] ?? '' ) ) );
-        if ( $mime === '' ) {
-            $mime = function_exists( 'mime_content_type' ) ? (string) mime_content_type( $target_path ) : '';
-        }
-        if ( $mime === '' ) {
-            $mime = 'application/octet-stream';
+        $detected_mime = (string) ( $resolved['mime'] ?? metis_kernel_media_mime_for_path( $target_path ) );
+        if ( $mime === '' || $mime === 'application/octet-stream' ) {
+            $mime = $detected_mime;
         }
 
         $file_name = metis_filename_clean( (string) ( $media['file_name'] ?? basename( $target_path ) ) );

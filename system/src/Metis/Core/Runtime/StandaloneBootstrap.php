@@ -117,8 +117,63 @@ function metis_runtime_config_get( string $key, mixed $default = null ): mixed {
     return $GLOBALS['metis_runtime_config'][ $key ] ?? $default;
 }
 
+function metis_runtime_insecure_app_key_values(): array {
+    return [ '', 'metis-local-key', 'changeme', 'change-me', 'default', 'local-key' ];
+}
+
+function metis_runtime_is_installer_context(): bool {
+    if ( defined( 'METIS_INSTALLER_CONTEXT' ) && METIS_INSTALLER_CONTEXT ) {
+        return true;
+    }
+
+    if ( ! defined( 'METIS_PATH' ) ) {
+        return false;
+    }
+
+    $config_path = defined( 'METIS_CONFIG_PATH' )
+        ? rtrim( (string) METIS_CONFIG_PATH, '/\\' ) . '/database.php'
+        : rtrim( (string) METIS_PATH, '/\\' ) . '/system/config/database.php';
+
+    return ! is_file( rtrim( (string) METIS_PATH, '/\\' ) . '/storage/install.lock' )
+        && ! is_file( $config_path );
+}
+
+function metis_runtime_is_test_context(): bool {
+    $env = strtolower( trim( (string) ( getenv( 'METIS_APP_ENV' ) ?: getenv( 'APP_ENV' ) ?: '' ) ) );
+    return in_array( $env, [ 'test', 'testing', 'dev', 'development', 'local' ], true )
+        && trim( (string) getenv( 'METIS_TEST_APP_KEY' ) ) !== '';
+}
+
+function metis_runtime_configured_app_key(): string {
+    $key = trim( (string) metis_runtime_config_get( 'app_key', '' ) );
+    if ( $key === '' && metis_runtime_is_test_context() ) {
+        $key = trim( (string) getenv( 'METIS_TEST_APP_KEY' ) );
+    }
+
+    return $key;
+}
+
+function metis_runtime_require_app_key( string $purpose = 'security' ): string {
+    $key = metis_runtime_configured_app_key();
+    if ( ! in_array( strtolower( $key ), metis_runtime_insecure_app_key_values(), true ) && strlen( $key ) >= 32 ) {
+        return $key;
+    }
+
+    if ( metis_runtime_is_installer_context() ) {
+        if ( session_status() !== PHP_SESSION_ACTIVE ) {
+            @session_start();
+        }
+        if ( empty( $_SESSION['metis_installer_app_key'] ) || ! is_string( $_SESSION['metis_installer_app_key'] ) ) {
+            $_SESSION['metis_installer_app_key'] = bin2hex( random_bytes( 32 ) );
+        }
+        return (string) $_SESSION['metis_installer_app_key'];
+    }
+
+    throw new RuntimeException( 'Metis security configuration is missing a strong app_key for ' . $purpose . '.' );
+}
+
 function metis_runtime_create_nonce( string $action = '' ): string {
-    $secret = (string) metis_runtime_config_get( 'app_key', 'metis-local-key' );
+    $secret = metis_runtime_require_app_key( 'nonce generation' );
     $ttl = max( 60, (int) metis_runtime_config_get( 'csrf_ttl', 2 * HOUR_IN_SECONDS ) );
     $issued_at = (int) floor( time() / $ttl ) * $ttl;
     $mac = hash_hmac( 'sha256', $action . '|' . metis_runtime_session_token() . '|' . $issued_at, $secret );
@@ -132,7 +187,7 @@ function metis_runtime_verify_nonce( string $nonce, string $action = '' ): bool 
         return false;
     }
 
-    $secret = (string) metis_runtime_config_get( 'app_key', 'metis-local-key' );
+    $secret = metis_runtime_require_app_key( 'nonce verification' );
     $ttl = max( 60, (int) metis_runtime_config_get( 'csrf_ttl', 2 * HOUR_IN_SECONDS ) );
 
     if ( ! str_contains( $nonce, ':' ) ) {

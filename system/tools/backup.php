@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname( __DIR__ ) . '/src/Metis/Core/Runtime/CliToolGuard.php';
+metis_require_cli_tool();
+
 define( 'METIS_STANDALONE', true );
 define( 'METIS_PATH', dirname( __DIR__, 2 ) . '/' );
 

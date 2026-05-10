@@ -1,4 +1,9 @@
 <?php
+declare(strict_types=1);
+
+require_once dirname( __DIR__ ) . '/src/Metis/Core/Runtime/CliToolGuard.php';
+metis_require_cli_tool();
+
 $root = dirname(__DIR__);
 $config = require $root . '/config/database.php';
 $args = $argv;
