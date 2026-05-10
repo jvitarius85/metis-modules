@@ -119,6 +119,7 @@ $assert( str_contains( $backupService, 'Could not finalize archive' ), 'Backup s
 $assert( str_contains( $backupService, 'STAGE_HEALTH_CHECK' ) && str_contains( $backupService, 'STAGE_LOCAL_GENERATION' ) && str_contains( $backupService, 'STAGE_VERIFY' ) && str_contains( $backupService, 'STAGE_UPLOAD' ), 'Backup service must run through deterministic staged backup phases.' );
 $assert( str_contains( $backupService, 'runBackupStage' ) && str_contains( $backupService, 'enqueueStage' ) && str_contains( $backupService, "queueOperation(\n            'backup.stage'" ), 'Backup stages must be queued through the governed operations service.' );
 $assert( str_contains( $backupService, 'verifyLocalBackupArtifacts' ) && str_contains( $backupService, 'checksum did not match' ), 'Backup service must verify local artifacts before upload.' );
+$assert( str_contains( $backupService, 'uploadFileToDriveResumable' ) && str_contains( $backupService, 'uploadType=resumable' ) && str_contains( $backupService, 'Content-Range' ), 'Backup service must use resumable Drive uploads for large backup artifacts.' );
 $assert( str_contains( $backupService, 'pauseScheduledBackups' ) && str_contains( $backupService, 'backup_paused_until_fix' ), 'Backup service must pause scheduled backups after non-remediable failures.' );
 $assert( str_contains( $backupService, 'updated_at' ) && str_contains( $backupService, 'progress' ) && str_contains( $backupService, 'LOCAL_ARTIFACT_STALE_SECONDS' ), 'Backup watchdog must use run progress heartbeats and local-artifact stale detection instead of only start time.' );
 $assert( str_contains( $backupRuntime, 'function metis_backup_run_stage' ) && str_contains( $backupRuntime, 'function metis_backup_pause_status' ), 'Backup runtime must expose stage execution and pause status helpers.' );
@@ -126,7 +127,10 @@ $assert( str_contains( $operationsService, "'backup.stage'" ) && str_contains( $
 $assert( str_contains( $jobQueue, 'LONG_RUNNING_LEASE_TTL' ) && str_contains( $jobQueue, "'backup.stage'" ), 'Job queue must provide long-running leases for backup stage jobs.' );
 $assert( str_contains( $settingsAjax, 'pause_status' ) && str_contains( $settingsAjax, 'local_artifact_available' ), 'Backup history API must expose pause status and retained local artifacts.' );
 $assert( str_contains( $settingsJs, 'renderBackupStatusAlert' ) && str_contains( $settingsJs, 'Scheduled backups are paused because:' ), 'Backup UI must show explicit backup failure and pause reasons.' );
-$assert( str_contains( $settingsCss, '.metis-backup-alert' ), 'Backup UI must style backup failure alerts.' );
+$assert( str_contains( $settingsJs, 'renderBackupLiveStatus' ) && str_contains( $settingsJs, 'backupProgressPercent' ) && str_contains( $settingsJs, 'role="progressbar"' ), 'Backup UI must render live progress for staged backups.' );
+$assert( str_contains( $settingsJs, 'metis-status-chip is-' ) && str_contains( $settingsJs, 'metis-backup-archive-link' ), 'Backup history rows must use Metis status chips and action styling.' );
+$assert( str_contains( $settingsCss, '.metis-backup-alert' ) && str_contains( $settingsCss, '.metis-backup-progress' ), 'Backup UI must style backup failure alerts and live progress.' );
+$assert( str_contains( $settingsCss, '.metis-backup-history-table' ) && str_contains( $settingsCss, '.metis-backup-run-id' ), 'Backup history table must use compact Metis table styling.' );
 
 if ( preg_match( '/function metis_settings_health_security_offense_clause\\(\\): string \\{(?P<body>.*?)\\n\\}/s', $settingsBootstrap, $match ) === 1 ) {
     $offenseClause = strtolower( (string) ( $match['body'] ?? '' ) );

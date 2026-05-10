@@ -76,6 +76,187 @@
     color: #92400e;
 }
 
+.metis-backup-live {
+    border: 1px solid var(--metis-border);
+    background: #f8faff;
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.metis-backup-live-header,
+.metis-backup-live-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.metis-backup-live-header strong {
+    font-size: 14px;
+    color: var(--metis-text);
+}
+
+.metis-backup-progress {
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    overflow: hidden;
+}
+
+.metis-backup-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: #2563eb;
+    transition: width .25s ease;
+}
+
+.metis-backup-progress-fill.is-success {
+    background: #16a34a;
+}
+
+.metis-backup-progress-fill.is-failed {
+    background: #dc2626;
+}
+
+.metis-backup-progress-fill.is-paused {
+    background: #d97706;
+}
+
+.metis-backup-live-meta {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--metis-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.metis-backup-history-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.metis-backup-history-table th {
+    color: var(--metis-text-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.metis-backup-history-table td,
+.metis-backup-history-table th {
+    padding: 11px 12px;
+    vertical-align: top;
+}
+
+.metis-backup-history-table td {
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.metis-backup-history-col-run {
+    width: 31%;
+}
+
+.metis-backup-history-col-status {
+    width: 12%;
+}
+
+.metis-backup-history-col-env {
+    width: 13%;
+}
+
+.metis-backup-history-col-activity {
+    width: 20%;
+}
+
+.metis-backup-history-col-archive {
+    width: 14%;
+}
+
+.metis-backup-history-col-actions {
+    width: 10%;
+}
+
+.metis-backup-run-id {
+    display: inline-block;
+    max-width: 100%;
+    color: var(--metis-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.metis-backup-row-detail {
+    margin-top: 5px;
+    color: var(--metis-text-muted);
+    font-size: 12px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.metis-backup-row-detail.is-error {
+    color: #b91c1c;
+}
+
+.metis-backup-stage-code,
+.metis-backup-drive-code {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.metis-backup-env-chip,
+.metis-backup-archive-state {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #eef2fb;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.metis-backup-archive-state {
+    background: #f1f5f9;
+}
+
+.metis-backup-activity {
+    display: inline-block;
+    color: var(--metis-text);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.metis-backup-history-actions {
+    text-align: right;
+}
+
+.metis-backup-archive-link {
+    text-decoration: none;
+}
+
+.metis-backup-archive-link:hover {
+    text-decoration: none;
+}
+
+@media (max-width: 980px) {
+    .metis-backup-history-table {
+        min-width: 860px;
+    }
+}
+
 /* ── Settings field rows ─────────────────────────────────── */
 
 .metis-field {
@@ -1169,7 +1350,17 @@
     color: #166534;
 }
 
+.metis-status-chip.is-success {
+    background: #dcfce7;
+    color: #166534;
+}
+
 .metis-status-chip.is-processing {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.metis-status-chip.is-running {
     background: #dbeafe;
     color: #1d4ed8;
 }
@@ -1185,6 +1376,12 @@
 }
 
 .metis-status-chip.is-skipped {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.metis-status-chip.is-paused,
+.metis-status-chip.is-unknown {
     background: #fef3c7;
     color: #92400e;
 }

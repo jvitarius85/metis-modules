@@ -1192,6 +1192,119 @@ document.addEventListener('DOMContentLoaded', function () {
     const backupHistoryStatusEl = document.querySelector('[data-backup-history-status]');
     const backupHistoryBody = document.querySelector('[data-backup-history-body]');
     const backupStatusAlert = document.querySelector('[data-backup-status-alert]');
+    const backupLiveStatus = document.querySelector('[data-backup-live-status]');
+    let backupPollTimer = null;
+    let backupPollInFlight = false;
+
+    function backupStageLabel(stage) {
+        const normalized = String(stage || '').trim().toLowerCase();
+        const labels = {
+            initializing: 'Initializing',
+            health_check: 'Health check',
+            health_check_passed: 'Health check complete',
+            database_snapshot: 'Database snapshot',
+            component_archives: 'Archiving files',
+            metadata: 'Writing metadata',
+            full_archive: 'Building full archive',
+            local_generation: 'Generating local archive',
+            local_generation_complete: 'Local archive complete',
+            drive_upload_pending: 'Preparing upload',
+            verify: 'Verifying archive',
+            verification_passed: 'Verification complete',
+            drive_folder: 'Preparing Drive folder',
+            drive_upload_metadata: 'Uploading metadata',
+            drive_upload_full: 'Uploading archive',
+            completed: 'Complete',
+            failed_after_local_artifact: 'Failed after local archive',
+            stale_after_local_artifact: 'Stale after local archive',
+            health_check_failed: 'Health check failed',
+            local_generation_failed: 'Local generation failed',
+            verification_failed: 'Verification failed',
+            upload_failed: 'Upload failed'
+        };
+        return labels[normalized] || ucfirst(normalized.replace(/_/g, ' ') || 'Pending');
+    }
+
+    function backupProgressPercent(run) {
+        const status = String((run && run.status) || '').trim().toLowerCase();
+        if (status === 'success') return 100;
+        if (status === 'failed') return 100;
+
+        const stage = String((run && run.progress_stage) || '').trim().toLowerCase();
+        const progress = {
+            initializing: 5,
+            health_check: 10,
+            health_check_passed: 20,
+            database_snapshot: 30,
+            component_archives: 45,
+            metadata: 55,
+            full_archive: 65,
+            local_generation: 40,
+            local_generation_complete: 70,
+            drive_upload_pending: 72,
+            verify: 78,
+            verification_passed: 84,
+            drive_folder: 88,
+            drive_upload_metadata: 91,
+            drive_upload_full: 96
+        };
+        return Math.max(0, Math.min(100, progress[stage] || (status === 'running' ? 8 : 0)));
+    }
+
+    function backupHasActiveRun(runs) {
+        return Array.isArray(runs) && runs.some(function (run) {
+            const status = String((run && run.status) || '').trim().toLowerCase();
+            return status === 'running' || status === 'queued';
+        });
+    }
+
+    function renderBackupLiveStatus(runs, pauseStatus) {
+        if (!backupLiveStatus) return;
+
+        const list = Array.isArray(runs) ? runs : [];
+        const activeRun = list.find(function (run) {
+            const status = String((run && run.status) || '').trim().toLowerCase();
+            return status === 'running' || status === 'queued';
+        });
+        const latestRun = activeRun || list[0] || null;
+        const paused = !!(pauseStatus && pauseStatus.paused);
+
+        if (!latestRun && !paused) {
+            backupLiveStatus.hidden = true;
+            backupLiveStatus.innerHTML = '';
+            return;
+        }
+
+        const status = paused ? 'paused' : String((latestRun && latestRun.status) || 'unknown').trim().toLowerCase();
+        const runUuid = String((latestRun && latestRun.run_uuid) || '').trim();
+        const stage = paused ? 'paused' : String((latestRun && latestRun.progress_stage) || '').trim();
+        const message = paused
+            ? 'Scheduled backups are paused.'
+            : String((latestRun && (latestRun.progress_message || latestRun.last_error)) || '').trim();
+        const updatedAt = String((latestRun && (latestRun.progress_updated_at || latestRun.updated_at || latestRun.started_at)) || '').trim();
+        const percent = paused ? 0 : backupProgressPercent(latestRun);
+        const safeStatus = status.replace(/[^a-z0-9_-]/g, '') || 'unknown';
+
+        backupLiveStatus.hidden = false;
+        backupLiveStatus.innerHTML = [
+            '<div class="metis-backup-live-header">',
+            '  <div>',
+            '    <strong>' + escapeHtml(activeRun ? 'Current Backup' : (paused ? 'Backup Paused' : 'Latest Backup')) + '</strong>',
+            '    <div class="metis-help">' + escapeHtml(runUuid || '-') + '</div>',
+            '  </div>',
+            '  <span class="metis-status-chip is-' + escapeHtml(safeStatus) + '">' + escapeHtml(ucfirst(status || 'unknown')) + '</span>',
+            '</div>',
+            '<div class="metis-backup-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + escapeHtml(String(percent)) + '">',
+            '  <div class="metis-backup-progress-fill is-' + escapeHtml(safeStatus) + '" style="width:' + escapeHtml(String(percent)) + '%;"></div>',
+            '</div>',
+            '<div class="metis-backup-live-meta">',
+            '  <span>' + escapeHtml(backupStageLabel(stage)) + '</span>',
+            '  <span>' + escapeHtml(String(percent)) + '%</span>',
+            '</div>',
+            message ? '<div class="metis-help">' + escapeHtml(message) + '</div>' : '',
+            updatedAt ? '<div class="metis-help">Last activity ' + escapeHtml(updatedAt) + '</div>' : ''
+        ].join('');
+    }
 
     function bindBackupRestoreButtons(scope) {
         const root = scope || document;
@@ -1254,27 +1367,28 @@ document.addEventListener('DOMContentLoaded', function () {
             const canRestore = status === 'success' && runUuid !== '';
 
             const driveCell = fullLink
-                ? '<a href="' + escapeHtml(fullLink) + '" target="_blank" rel="noopener noreferrer">Open archive</a>'
-                : (driveFolderId ? '<code>' + escapeHtml(driveFolderId) + '</code>' : '<span class="metis-help">' + (localArtifactAvailable ? 'Local only' : 'Not uploaded') + '</span>');
+                ? '<a class="metis-btn metis-btn-xs metis-btn-ghost metis-backup-archive-link" href="' + escapeHtml(fullLink) + '" target="_blank" rel="noopener noreferrer">Open</a>'
+                : (driveFolderId ? '<code class="metis-backup-drive-code">' + escapeHtml(driveFolderId) + '</code>' : '<span class="metis-backup-archive-state">' + (localArtifactAvailable ? 'Local only' : 'Not uploaded') + '</span>');
 
             const restoreButton = canRestore
                 ? '<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-backup-restore-run="' + escapeHtml(runUuid) + '">Restore</button>'
                 : '<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" disabled>Restore</button>';
 
-            const errorNote = lastError ? '<div class="metis-help" style="margin-top:6px;color:#b91c1c;">' + escapeHtml(lastError) + '</div>' : '';
+            const errorNote = lastError ? '<div class="metis-backup-row-detail is-error">' + escapeHtml(lastError) + '</div>' : '';
             const progressNote = progressMessage && !lastError
-                ? '<div class="metis-help" style="margin-top:6px;">' + escapeHtml(progressMessage) + (progressStage ? ' <code>' + escapeHtml(progressStage) + '</code>' : '') + '</div>'
+                ? '<div class="metis-backup-row-detail">' + escapeHtml(progressMessage) + (progressStage ? ' <code class="metis-backup-stage-code">' + escapeHtml(progressStage) + '</code>' : '') + '</div>'
                 : '';
             const completedCell = completedAt || (updatedAt ? 'Last activity ' + updatedAt : 'In progress');
+            const safeStatus = status.replace(/[^a-z0-9_-]/g, '') || 'unknown';
 
             return [
-                '<tr>',
-                '  <td><strong>' + escapeHtml(runUuid || '-') + '</strong>' + errorNote + progressNote + '</td>',
-                '  <td>' + escapeHtml(ucfirst(status || 'unknown')) + '</td>',
-                '  <td>' + escapeHtml(environment || '-') + '</td>',
-                '  <td>' + escapeHtml(completedCell) + '</td>',
-                '  <td>' + driveCell + '</td>',
-                '  <td>' + restoreButton + '</td>',
+                '<tr class="metis-backup-history-row is-' + escapeHtml(safeStatus) + '">',
+                '  <td class="metis-backup-history-cell metis-backup-run-cell"><span class="metis-backup-run-id">' + escapeHtml(runUuid || '-') + '</span>' + errorNote + progressNote + '</td>',
+                '  <td class="metis-backup-history-cell"><span class="metis-status-chip is-' + escapeHtml(safeStatus) + '">' + escapeHtml(ucfirst(status || 'unknown')) + '</span></td>',
+                '  <td class="metis-backup-history-cell"><span class="metis-backup-env-chip">' + escapeHtml(environment || '-') + '</span></td>',
+                '  <td class="metis-backup-history-cell"><span class="metis-backup-activity">' + escapeHtml(completedCell) + '</span></td>',
+                '  <td class="metis-backup-history-cell">' + driveCell + '</td>',
+                '  <td class="metis-backup-history-cell metis-backup-history-actions">' + restoreButton + '</td>',
                 '</tr>'
             ].join('');
         }).join('');
@@ -1303,10 +1417,11 @@ document.addEventListener('DOMContentLoaded', function () {
         backupStatusAlert.textContent = message;
     }
 
-    function loadBackupHistory() {
+    function loadBackupHistory(options) {
         if (!backupHistoryBody) {
             return Promise.resolve(null);
         }
+        const silent = !!(options && options.silent);
 
         const action = 'metis_backup_history_snapshot';
         const body = new FormData();
@@ -1314,32 +1429,54 @@ document.addEventListener('DOMContentLoaded', function () {
         body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
         body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
 
-        if (backupHistoryRefreshBtn) {
+        if (backupHistoryRefreshBtn && !silent) {
             backupHistoryRefreshBtn.disabled = true;
         }
-        if (backupHistoryStatusEl) {
+        if (backupHistoryStatusEl && !silent) {
             backupHistoryStatusEl.textContent = 'Loading history...';
         }
 
         return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
             const runs = Array.isArray(data && data.runs ? data.runs : []) ? data.runs : [];
             renderBackupStatusAlert(runs, data && data.pause_status ? data.pause_status : null);
+            renderBackupLiveStatus(runs, data && data.pause_status ? data.pause_status : null);
             backupHistoryBody.innerHTML = renderBackupHistoryRows(runs);
             bindBackupRestoreButtons(backupHistoryRoot || document);
             if (backupHistoryStatusEl) {
                 backupHistoryStatusEl.textContent = String(data && data.message ? data.message : 'Backup history loaded.');
             }
+            scheduleBackupLivePoll(backupHasActiveRun(runs) ? 5000 : 30000);
+            return data;
         }).catch(function (error) {
             const message = error && error.message ? error.message : 'Backup history load failed.';
-            backupHistoryBody.innerHTML = '<tr><td colspan="6"><span class="metis-help" style="color:#b91c1c;">' + escapeHtml(message) + '</span></td></tr>';
-            if (backupHistoryStatusEl) {
+            if (!silent) {
+                backupHistoryBody.innerHTML = '<tr><td colspan="6"><span class="metis-help" style="color:#b91c1c;">' + escapeHtml(message) + '</span></td></tr>';
+            }
+            if (backupHistoryStatusEl && !silent) {
                 backupHistoryStatusEl.textContent = message;
             }
         }).finally(function () {
-            if (backupHistoryRefreshBtn) {
+            if (backupHistoryRefreshBtn && !silent) {
                 backupHistoryRefreshBtn.disabled = false;
             }
         });
+    }
+
+    function scheduleBackupLivePoll(delay) {
+        if (!backupHistoryRoot) return;
+        if (backupPollTimer) {
+            window.clearTimeout(backupPollTimer);
+        }
+        backupPollTimer = window.setTimeout(function () {
+            if (backupPollInFlight) {
+                scheduleBackupLivePoll(5000);
+                return;
+            }
+            backupPollInFlight = true;
+            loadBackupHistory({ silent: true }).finally(function () {
+                backupPollInFlight = false;
+            });
+        }, Math.max(3000, Number(delay) || 10000));
     }
 
     if (backupRunBtn) {
@@ -1360,7 +1497,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const message = String(data.message || 'Backup queued.');
                 showToast('success', message);
                 if (statusEl) statusEl.textContent = message;
-                window.setTimeout(loadBackupHistory, 350);
+                window.setTimeout(function () {
+                    loadBackupHistory();
+                    scheduleBackupLivePoll(3000);
+                }, 350);
             }).catch(function (error) {
                 const message = error && error.message ? error.message : 'Backup failed.';
                 showToast('error', message);

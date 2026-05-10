@@ -10,6 +10,8 @@ final class BackupService {
     private const RUN_TIMEOUT_SECONDS = 3 * 60 * 60;
     private const LOCAL_ARTIFACT_STALE_SECONDS = 30 * 60;
     private const BACKUP_EXECUTION_REFRESH_SECONDS = 10 * 60;
+    private const DRIVE_RESUMABLE_UPLOAD_THRESHOLD_BYTES = 8 * 1024 * 1024;
+    private const DRIVE_RESUMABLE_CHUNK_BYTES = 8 * 1024 * 1024;
     private const LOCAL_ARTIFACT_RETAINED_ERROR = 'Backup local artifacts were created, but Drive upload/finalization did not complete. Local artifact retained for review.';
     private const STAGE_HEALTH_CHECK = 'health_check';
     private const STAGE_LOCAL_GENERATION = 'local_generation';
@@ -373,7 +375,17 @@ final class BackupService {
                 $root_folder_id,
                 (string) ( $components['full']['local_path'] ?? '' ),
                 (string) ( $components['full']['archive_name'] ?? 'full.zip' ),
-                'application/zip'
+                'application/zip',
+                function ( int $uploaded_bytes, int $total_bytes ) use ( $run_id, &$metadata, &$components ): void {
+                    $percent = $total_bytes > 0 ? min( 99, max( 0, (int) floor( ( $uploaded_bytes / $total_bytes ) * 100 ) ) ) : 0;
+                    $this->updateRunProgress(
+                        $run_id,
+                        $metadata,
+                        $components,
+                        'drive_upload_full',
+                        sprintf( 'Uploading full backup archive to Drive (%d%%).', $percent )
+                    );
+                }
             );
             if ( empty( $upload['ok'] ) ) {
                 throw new \RuntimeException( 'Backup failed because the full archive could not be uploaded to Drive.' );
@@ -1199,9 +1211,14 @@ final class BackupService {
         return $result;
     }
 
-    private function uploadFileToDrive( array $cfg, string $parent_id, string $path, string $name, string $mime ): array {
+    private function uploadFileToDrive( array $cfg, string $parent_id, string $path, string $name, string $mime, ?callable $progress = null ): array {
         if ( ! \is_file( $path ) ) {
             return [ 'ok' => false, 'error' => 'Backup artifact is missing: ' . $name ];
+        }
+
+        $file_size = (int) @filesize( $path );
+        if ( $file_size >= self::DRIVE_RESUMABLE_UPLOAD_THRESHOLD_BYTES ) {
+            return $this->uploadFileToDriveResumable( $cfg, $parent_id, $path, $name, $mime, $progress );
         }
 
         $bytes = \file_get_contents( $path );
@@ -1254,6 +1271,204 @@ final class BackupService {
         }
 
         return [ 'ok' => true ] + $decoded;
+    }
+
+    private function uploadFileToDriveResumable( array $cfg, string $parent_id, string $path, string $name, string $mime, ?callable $progress = null ): array {
+        if ( ! \function_exists( 'curl_init' ) ) {
+            return [ 'ok' => false, 'error' => 'Resumable backup upload requires cURL.' ];
+        }
+
+        $file_size = (int) @filesize( $path );
+        if ( $file_size < 1 ) {
+            return [ 'ok' => false, 'error' => 'Backup artifact is empty: ' . $name ];
+        }
+
+        $token = \metis_drive_google_access_token( $cfg );
+        if ( empty( $token['ok'] ) ) {
+            return [ 'ok' => false, 'error' => 'Workspace token error.' ];
+        }
+
+        $meta = [
+            'name'    => $name,
+            'parents' => [ $parent_id ],
+            'driveId' => (string) ( $cfg['shared_drive_id'] ?? '' ),
+        ];
+        $upload_url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&includeItemsFromAllDrives=true&useDomainAdminAccess=true&fields=id,name,mimeType,size,webViewLink,parents,driveId';
+        $session = $this->driveCurlRequest(
+            'POST',
+            $upload_url,
+            [
+                'Authorization' => 'Bearer ' . (string) $token['access_token'],
+                'Content-Type' => 'application/json; charset=UTF-8',
+                'X-Upload-Content-Type' => $mime,
+                'X-Upload-Content-Length' => (string) $file_size,
+            ],
+            $this->encode( $meta ),
+            120
+        );
+        $session_status = (int) ( $session['status'] ?? 0 );
+        $session_headers = (array) ( $session['headers'] ?? [] );
+        $session_uri = trim( (string) ( $session_headers['location'] ?? '' ) );
+        if ( $session_status < 200 || $session_status >= 300 || $session_uri === '' ) {
+            return [ 'ok' => false, 'error' => 'Could not start resumable backup upload session.' ];
+        }
+
+        $handle = \fopen( $path, 'rb' );
+        if ( ! \is_resource( $handle ) ) {
+            return [ 'ok' => false, 'error' => 'Could not read backup artifact: ' . $name ];
+        }
+
+        $uploaded = 0;
+        $chunk_size = self::DRIVE_RESUMABLE_CHUNK_BYTES;
+        $final_response = [];
+        try {
+            while ( $uploaded < $file_size ) {
+                $this->refreshExecutionBudget();
+                $remaining = $file_size - $uploaded;
+                $length = min( $chunk_size, $remaining );
+                $chunk = \fread( $handle, $length );
+                if ( ! \is_string( $chunk ) || $chunk === '' ) {
+                    throw new \RuntimeException( 'Could not read backup upload chunk.' );
+                }
+
+                $actual_length = strlen( $chunk );
+                $start = $uploaded;
+                $end = $uploaded + $actual_length - 1;
+                $response = $this->driveCurlRequest(
+                    'PUT',
+                    $session_uri,
+                    [
+                        'Authorization' => 'Bearer ' . (string) $token['access_token'],
+                        'Content-Type' => $mime,
+                        'Content-Length' => (string) $actual_length,
+                        'Content-Range' => sprintf( 'bytes %d-%d/%d', $start, $end, $file_size ),
+                    ],
+                    $chunk,
+                    180
+                );
+
+                $status = (int) ( $response['status'] ?? 0 );
+                if ( $status === 308 ) {
+                    $uploaded = $this->uploadedBytesFromRangeHeader( (string) ( $response['headers']['range'] ?? '' ), $end + 1 );
+                    \fseek( $handle, $uploaded );
+                    if ( $progress !== null ) {
+                        $progress( $uploaded, $file_size );
+                    }
+                    continue;
+                }
+
+                if ( $status >= 200 && $status < 300 ) {
+                    $uploaded = $file_size;
+                    $final_response = $response;
+                    if ( $progress !== null ) {
+                        $progress( $uploaded, $file_size );
+                    }
+                    break;
+                }
+
+                throw new \RuntimeException( 'Backup upload chunk failed.' );
+            }
+        } catch ( \Throwable ) {
+            \fclose( $handle );
+            return [ 'ok' => false, 'error' => 'Resumable backup artifact upload failed.' ];
+        }
+
+        \fclose( $handle );
+        $decoded = \json_decode( (string) ( $final_response['body'] ?? '' ), true );
+        if ( ! \is_array( $decoded ) || empty( $decoded['id'] ) ) {
+            return [ 'ok' => false, 'error' => 'Resumable backup upload did not return a Drive file.' ];
+        }
+
+        return [ 'ok' => true ] + $decoded;
+    }
+
+    private function driveCurlRequest( string $method, string $url, array $headers, string $body, int $timeout ): array {
+        if ( \function_exists( 'metis_runtime_validate_remote_url' ) ) {
+            $validated = \metis_runtime_validate_remote_url( $url );
+            if ( \metis_runtime_is_error( $validated ) ) {
+                return [ 'status' => 0, 'headers' => [], 'body' => '' ];
+            }
+        }
+
+        $header_lines = [ 'Expect:' ];
+        foreach ( $headers as $name => $value ) {
+            $header_lines[] = $name . ': ' . $value;
+        }
+
+        $ch = \curl_init( $url );
+        if ( $ch === false ) {
+            return [ 'status' => 0, 'headers' => [], 'body' => '' ];
+        }
+
+        \curl_setopt_array( $ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_TIMEOUT => max( 20, $timeout ),
+            CURLOPT_CUSTOMREQUEST => strtoupper( $method ),
+            CURLOPT_HTTPHEADER => $header_lines,
+            CURLOPT_HEADER => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_MAXREDIRS => 0,
+            CURLOPT_POSTFIELDS => $body,
+        ] );
+        if ( \defined( 'CURLOPT_PROTOCOLS' ) && \defined( 'CURLPROTO_HTTP' ) && \defined( 'CURLPROTO_HTTPS' ) ) {
+            \curl_setopt( $ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS );
+        }
+        if ( \defined( 'CURLOPT_REDIR_PROTOCOLS' ) && \defined( 'CURLPROTO_HTTP' ) && \defined( 'CURLPROTO_HTTPS' ) ) {
+            \curl_setopt( $ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS );
+        }
+
+        $response = \curl_exec( $ch );
+        if ( $response === false ) {
+            \curl_close( $ch );
+            return [ 'status' => 0, 'headers' => [], 'body' => '' ];
+        }
+
+        $status = (int) \curl_getinfo( $ch, CURLINFO_RESPONSE_CODE );
+        $header_size = (int) \curl_getinfo( $ch, CURLINFO_HEADER_SIZE );
+        \curl_close( $ch );
+
+        $raw_headers = substr( (string) $response, 0, $header_size );
+        $response_body = substr( (string) $response, $header_size );
+
+        return [
+            'status' => $status,
+            'headers' => $this->parseCurlHeaders( $raw_headers ),
+            'body' => $response_body,
+        ];
+    }
+
+    private function parseCurlHeaders( string $raw_headers ): array {
+        $blocks = preg_split( "/\\r\\n\\r\\n/", trim( $raw_headers ) ) ?: [];
+        $block = '';
+        for ( $i = count( $blocks ) - 1; $i >= 0; $i-- ) {
+            if ( trim( (string) $blocks[ $i ] ) !== '' ) {
+                $block = (string) $blocks[ $i ];
+                break;
+            }
+        }
+
+        $headers = [];
+        foreach ( preg_split( "/\\r\\n/", $block ) ?: [] as $line ) {
+            if ( ! str_contains( $line, ':' ) ) {
+                continue;
+            }
+            [ $name, $value ] = array_map( 'trim', explode( ':', $line, 2 ) );
+            if ( $name !== '' ) {
+                $headers[ strtolower( $name ) ] = $value;
+            }
+        }
+
+        return $headers;
+    }
+
+    private function uploadedBytesFromRangeHeader( string $range, int $fallback ): int {
+        if ( preg_match( '/bytes=0-(\\d+)/', $range, $matches ) === 1 ) {
+            return (int) $matches[1] + 1;
+        }
+
+        return $fallback;
     }
 
     private function ensureDriveFolderPath( array $cfg, array $segments ): array {
