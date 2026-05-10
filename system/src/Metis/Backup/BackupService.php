@@ -92,6 +92,8 @@ final class BackupService {
             $checksums          = [];
             $timestamp_utc      = \gmdate( 'c' );
 
+            $this->ensureBackupSourceDirectories();
+
             $database_file = $this->buildDatabaseSnapshot( $payload_dir . '/database', $run_uuid );
             $component_archives['database'] = $this->describeFile( 'database', $database_file );
 
@@ -562,7 +564,9 @@ final class BackupService {
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/protected-media' ), 'storage/protected-media' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/private-records' ), 'storage/private-records' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/runtime' ), 'storage/runtime', [ 'backups' ] );
-        $zip->close();
+        if ( ! $zip->close() ) {
+            throw new \RuntimeException( 'Could not finalize archive: ' . basename( $archive_path ) );
+        }
     }
 
     private function zipDirectory( string $source, string $archive_path, array $exclude_dirs = [], array $exclude_files = [] ): void {
@@ -573,18 +577,31 @@ final class BackupService {
 
         $root_name = pathinfo( basename( $archive_path ), PATHINFO_FILENAME );
         $this->addDirectoryToZip( $zip, $source, $root_name, $exclude_dirs, $exclude_files );
-        $zip->close();
+        if ( ! $zip->close() ) {
+            throw new \RuntimeException( 'Could not finalize archive: ' . basename( $archive_path ) );
+        }
     }
 
     private function addDirectoryToZip( \ZipArchive $zip, string $source, string $base_in_zip, array $exclude_dirs = [], array $exclude_files = [] ): void {
+        $base_in_zip = trim( $base_in_zip, '/\\' );
         if ( ! \is_dir( $source ) ) {
+            if ( $base_in_zip !== '' ) {
+                $zip->addEmptyDir( $base_in_zip );
+            }
             return;
         }
 
         $source = rtrim( $source, '/\\' );
         $root   = realpath( $source );
         if ( ! \is_string( $root ) || $root === '' ) {
+            if ( $base_in_zip !== '' ) {
+                $zip->addEmptyDir( $base_in_zip );
+            }
             return;
+        }
+
+        if ( $base_in_zip !== '' ) {
+            $zip->addEmptyDir( $base_in_zip );
         }
 
         $iterator = new \RecursiveIteratorIterator(
@@ -623,6 +640,39 @@ final class BackupService {
 
             $zip->addFile( $path, $zip_path );
         }
+    }
+
+    private function ensureBackupSourceDirectories(): void {
+        foreach ( $this->backupSourceDirectories() as $label => $path ) {
+            if ( ! \is_dir( $path ) && ! \metis_runtime_make_dir( $path ) ) {
+                throw new \RuntimeException( 'Could not create backup source directory: ' . $label );
+            }
+
+            @chmod( $path, 0775 );
+            clearstatcache( true, $path );
+
+            if ( ! \is_dir( $path ) ) {
+                throw new \RuntimeException( 'Backup source path is not a directory: ' . $label );
+            }
+
+            if ( ! \is_readable( $path ) ) {
+                throw new \RuntimeException( 'Backup source directory is not readable: ' . $label );
+            }
+        }
+    }
+
+    private function backupSourceDirectories(): array {
+        $media_roots = \function_exists( 'metis_media_storage_roots' )
+            ? (array) \metis_media_storage_roots( true )
+            : [];
+
+        return [
+            'storage/media' => (string) ( $media_roots['legacy_media'] ?? $this->metisPath( 'storage/media' ) ),
+            'storage/public-media' => (string) ( $media_roots['public'] ?? $this->metisPath( 'storage/public-media' ) ),
+            'storage/protected-media' => (string) ( $media_roots['protected'] ?? $this->metisPath( 'storage/protected-media' ) ),
+            'storage/private-records' => (string) ( $media_roots['private'] ?? $this->metisPath( 'storage/private-records' ) ),
+            'storage/runtime' => $this->metisPath( 'storage/runtime' ),
+        ];
     }
 
     private function uploadJsonArtifact( array $cfg, string $parent_id, string $name, array $payload ): array {

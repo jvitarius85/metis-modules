@@ -1047,6 +1047,12 @@ if ( ! function_exists( 'metis_settings_health_filesystem_targets' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_health_filesystem_check_id' ) ) {
+    function metis_settings_health_filesystem_check_id( string $label ): string {
+        return 'fs_perm_' . metis_key_clean( str_replace( '/', '_', $label ) );
+    }
+}
+
 if ( ! function_exists( 'metis_settings_health_security_offense_clause' ) ) {
     function metis_settings_health_security_offense_clause(): string {
         return "
@@ -1696,7 +1702,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $exists = is_dir( $path ) || is_file( $path );
             if ( ! $exists ) {
                 $add_check(
-                    'fs_perm_' . metis_key_clean( str_replace( '/', '_', $label ) ),
+                    metis_settings_health_filesystem_check_id( $label ),
                     'Filesystem Permissions: ' . $label,
                     'security',
                     $required ? 'warn' : 'pass',
@@ -1715,7 +1721,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             if ( $type === 'sensitive' ) {
                 $status = $is_world_writable ? ( $is_production_like ? 'fail' : 'warn' ) : 'pass';
                 $add_check(
-                    'fs_perm_' . metis_key_clean( str_replace( '/', '_', $label ) ),
+                    metis_settings_health_filesystem_check_id( $label ),
                     'Filesystem Permissions: ' . $label,
                     'security',
                     $status,
@@ -1727,7 +1733,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
 
             if ( ! $is_writable ) {
                 $add_check(
-                    'fs_perm_' . metis_key_clean( str_replace( '/', '_', $label ) ),
+                    metis_settings_health_filesystem_check_id( $label ),
                     'Filesystem Permissions: ' . $label,
                     'security',
                     'fail',
@@ -1739,7 +1745,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
 
             $runtime_status = $is_world_writable ? ( $is_production_like ? 'warn' : 'warn' ) : 'pass';
             $add_check(
-                'fs_perm_' . metis_key_clean( str_replace( '/', '_', $label ) ),
+                metis_settings_health_filesystem_check_id( $label ),
                 'Filesystem Permissions: ' . $label,
                 'security',
                 $runtime_status,

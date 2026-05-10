@@ -578,14 +578,20 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
     }
 
     try {
-        $runtime_permission_checks = [
-            'fs_perm_storage',
-            'fs_perm_storage_runtime',
-            'fs_perm_storage_public_media',
-            'fs_perm_storage_protected_media',
-            'fs_perm_storage_private_records',
-            'fs_perm_storage_uploads',
-        ];
+        $filesystem_targets = metis_settings_health_filesystem_targets();
+        $runtime_permission_checks = [];
+        foreach ( $filesystem_targets as $target ) {
+            $type = (string) ( $target['type'] ?? '' );
+            if ( ! in_array( $type, [ 'runtime', 'legacy_runtime' ], true ) ) {
+                continue;
+            }
+
+            $label = (string) ( $target['label'] ?? ( $target['path'] ?? '' ) );
+            if ( $label !== '' ) {
+                $runtime_permission_checks[] = metis_settings_health_filesystem_check_id( $label );
+            }
+        }
+
         $needs_permission_fix = false;
         foreach ( $runtime_permission_checks as $check_id ) {
             if ( $check_failing( $check_id ) ) {
@@ -595,10 +601,22 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         }
 
         if ( $needs_permission_fix ) {
-            $runtime_dirs = array_values( array_filter( metis_settings_health_filesystem_targets(), static function ( array $target ): bool {
+            $runtime_dirs = array_values( array_filter( $filesystem_targets, static function ( array $target ) use ( $check_failing ): bool {
                 $type = (string) ( $target['type'] ?? '' );
+                if ( ! in_array( $type, [ 'runtime', 'legacy_runtime' ], true ) ) {
+                    return false;
+                }
+
                 $required = ! array_key_exists( 'required', $target ) || ! empty( $target['required'] );
-                return $required && $type === 'runtime';
+                if ( $required ) {
+                    return true;
+                }
+
+                $path = (string) ( $target['path'] ?? '' );
+                $label = (string) ( $target['label'] ?? $path );
+                $exists = $path !== '' && ( is_dir( $path ) || is_file( $path ) );
+
+                return $exists && $label !== '' && $check_failing( metis_settings_health_filesystem_check_id( $label ) );
             } ) );
 
             $normalized = [];
@@ -703,6 +721,11 @@ metis_ajax_register_handler( 'metis_settings_checker_permission_plan', function 
         if ( $path === '' ) {
             continue;
         }
+        $required = ! array_key_exists( 'required', $target ) || ! empty( $target['required'] );
+        if ( ! $required && ! is_dir( $path ) && ! is_file( $path ) ) {
+            continue;
+        }
+
         $qp = $quote( $path );
         if ( (string) ( $target['type'] ?? '' ) === 'sensitive' ) {
             $commands[] = 'find ' . $qp . ' -type d -exec chmod 0755 {} +';

@@ -33,6 +33,7 @@ $settingsAjax = $read( 'modules/settings/assets/settings.ajax.php' );
 $settingsCss = $read( 'modules/settings/assets/settings.css' );
 $settingsJs = $read( 'modules/settings/assets/settings.js' );
 $cronRuntime = $read( 'src/Metis/Core/Cron/CronRuntime.php' );
+$backupService = $read( 'src/Metis/Backup/BackupService.php' );
 $governance = require $root . '/config/governance.php';
 
 $superglobalApprovals = (array) ( $governance['approved_layers']['superglobals'] ?? [] );
@@ -84,15 +85,24 @@ foreach ( [ 'request-boundary', 'native-db-access', 'serialization-boundary' ] a
 }
 
 $assert( str_contains( $settingsBootstrap, 'function metis_settings_health_filesystem_targets' ), 'System health must use canonical filesystem target metadata.' );
+$assert( str_contains( $settingsBootstrap, 'function metis_settings_health_filesystem_check_id' ), 'System health filesystem check IDs must be centralized.' );
 $assert( str_contains( $settingsBootstrap, 'metis_media_storage_roots( true )' ), 'System health media checks must use canonical media storage roots.' );
 $assert( str_contains( $settingsBootstrap, 'function metis_settings_latest_backup_artifact' ), 'System health backup recency must inspect local backup artifacts when run history is empty.' );
 $assert( str_contains( $settingsBootstrap, 'queue_worker_registration' ), 'System health must report missing queue worker registration.' );
 $assert( str_contains( $settingsAjax, 'metis_settings_health_filesystem_targets()' ), 'System health remediation must reuse canonical filesystem target metadata.' );
+$assert( str_contains( $settingsAjax, 'metis_settings_health_filesystem_check_id( $label )' ), 'System health remediation must derive filesystem check IDs from canonical labels.' );
+$assert( ! str_contains( $settingsAjax, "'fs_perm_storage_uploads'" ), 'System health remediation must not use stale legacy-upload filesystem check IDs.' );
+$assert( str_contains( $settingsAjax, "in_array( \$type, [ 'runtime', 'legacy_runtime' ], true )" ), 'System health remediation must cover runtime and existing legacy runtime paths.' );
+$assert( str_contains( $settingsAjax, '! $required && ! is_dir( $path ) && ! is_file( $path )' ), 'Manual permission plan must not create absent optional legacy paths.' );
 $assert( str_contains( $settingsCss, '.metis-checker-finding-cell' ) && str_contains( $settingsCss, 'overflow-wrap: anywhere' ), 'System health report cells must wrap long findings and recommendations.' );
 $assert( str_contains( $settingsJs, 'metis-checker-finding-cell' ) && str_contains( $settingsJs, 'metis-checker-recommendation-cell' ), 'System health rows must expose semantic cells for wrapping.' );
 $assert( str_contains( $cronRuntime, "'background_job_processing'" ), 'Background job processor task must stay registered.' );
 $assert( ! str_contains( $cronRuntime, 'Queue processing is handled by the async drain.' ), 'Background job processor must be queueable instead of skipped.' );
 $assert( str_contains( $cronRuntime, 'metis_register_core_services();' ) && str_contains( $cronRuntime, "\\Metis\\Core\\Application::service( 'operations' )" ), 'Queue drain must register core operation workers before processing jobs.' );
+$assert( str_contains( $backupService, 'ensureBackupSourceDirectories' ), 'Backup service must normalize required source directories before creating artifacts.' );
+$assert( str_contains( $backupService, 'backupSourceDirectories' ) && str_contains( $backupService, 'storage/public-media' ) && str_contains( $backupService, 'storage/protected-media' ) && str_contains( $backupService, 'storage/private-records' ), 'Backup service must cover canonical media storage roots.' );
+$assert( str_contains( $backupService, 'addEmptyDir( $base_in_zip )' ), 'Backup service must create deterministic empty directory archives.' );
+$assert( str_contains( $backupService, 'Could not finalize archive' ), 'Backup service must fail loudly when zip finalization fails.' );
 
 if ( preg_match( '/function metis_settings_health_security_offense_clause\\(\\): string \\{(?P<body>.*?)\\n\\}/s', $settingsBootstrap, $match ) === 1 ) {
     $offenseClause = strtolower( (string) ( $match['body'] ?? '' ) );
