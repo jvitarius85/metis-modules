@@ -228,7 +228,7 @@ if ( $is_editor_route ) {
                         <td class="metis-premium-cell"><code class="metis-inline-code-muted">/<?php echo metis_escape_html( $page->slug ); ?></code></td>
                         <td class="metis-premium-cell"><span class="metis-status metis-status-<?php echo metis_escape_attr( $page->status ); ?>"><?php echo metis_escape_html( ucfirst( $page->status ) ); ?></span></td>
                         <td class="metis-premium-cell"><code class="metis-inline-code"><?php echo metis_escape_html( $page->page_code ?? '—' ); ?></code></td>
-                        <td class="metis-premium-cell metis-table-updated"><?php echo metis_escape_html( $page->updated_at ? date( 'M j, Y', strtotime( $page->updated_at ) ) : '—' ); ?></td>
+                        <td class="metis-premium-cell metis-table-updated"><?php echo metis_escape_html( $page->updated_at ? metis_runtime_format_date( (string) $page->updated_at, null, null, null, '—' ) : '—' ); ?></td>
                         <?php if ( $can_edit || $can_publish || $can_delete ) : ?>
                         <td class="metis-premium-cell metis-col-right">
                             <div class="metis-table-actions">

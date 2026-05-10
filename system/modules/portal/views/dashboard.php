@@ -615,8 +615,8 @@ $system_watch = $dashboard_view['system_watch'];
                                 <?php foreach ( $my_board_actions as $action ) : ?>
                                     <?php
                                     $due_raw = (string) ( $action['due_date'] ?? '' );
-                                    $due_display = $due_raw !== '' ? date( 'M j, Y', strtotime( $due_raw ) ) : 'No due date';
-                                    $is_overdue = $due_raw !== '' && $due_raw < date( 'Y-m-d' );
+                                    $due_display = $due_raw !== '' ? metis_runtime_format_date( $due_raw, null, null, null, 'No due date' ) : 'No due date';
+                                    $is_overdue = $due_raw !== '' && $due_raw < metis_current_time( 'Y-m-d' );
                                     $meeting_title = trim( (string) ( $action['meeting_title'] ?? '' ) );
                                     $meeting_label = $meeting_title !== '' ? $meeting_title : 'Board meeting';
                                     $meeting_id = (int) ( $action['meeting_id'] ?? 0 );

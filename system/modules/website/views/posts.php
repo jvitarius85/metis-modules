@@ -165,8 +165,8 @@ if ( $is_editor_route ) {
                     if ( ! empty( $post->publish_date ) ) {
                         $timestamp = strtotime( (string) $post->publish_date );
                         if ( $timestamp !== false && $timestamp > 0 ) {
-                            $published_label = function_exists( 'metis_runtime_date' )
-                                ? (string) metis_runtime_date( $date_format, (int) $timestamp )
+                            $published_label = function_exists( 'metis_runtime_format_date' )
+                                ? (string) metis_runtime_format_date( (string) $post->publish_date, $date_format, null, null, '—' )
                                 : gmdate( 'M j, Y', (int) $timestamp );
                         }
                     }

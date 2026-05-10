@@ -527,25 +527,8 @@ class Metis_Logger {
             return '';
         }
 
-        $date_format = 'm/d/y';
-        $time_format = 'g:i:s a';
-        $timezone_name = 'UTC';
-
-        if ( self::settings_service_available() ) {
-            $configured_date = (string) Core_Settings_Service::get( 'date_format', $date_format );
-            if ( $configured_date !== '' && strlen( $configured_date ) <= 64 ) {
-                $date_format = $configured_date;
-            }
-
-            $configured_time = (string) Core_Settings_Service::get( 'time_format', $time_format );
-            if ( $configured_time !== '' && strlen( $configured_time ) <= 64 ) {
-                $time_format = $configured_time;
-            }
-
-            $configured_tz = (string) Core_Settings_Service::get( 'timezone', Core_Settings_Service::get( 'site_timezone', $timezone_name ) );
-            if ( $configured_tz !== '' && in_array( $configured_tz, timezone_identifiers_list(), true ) ) {
-                $timezone_name = $configured_tz;
-            }
+        if ( function_exists( 'metis_runtime_format_datetime' ) ) {
+            return metis_runtime_format_datetime( $timestamp, null, null, 'UTC', $timestamp );
         }
 
         try {
@@ -558,7 +541,7 @@ class Metis_Logger {
                 $dt = new DateTimeImmutable( $normalized, new DateTimeZone( 'UTC' ) );
             }
 
-            return $dt->setTimezone( new DateTimeZone( $timezone_name ) )->format( $date_format . ' ' . $time_format );
+            return $dt->setTimezone( new DateTimeZone( self::configured_timezone_name() ) )->format( 'm/d/y g:i:s a' );
         } catch ( Throwable ) {
             return $timestamp;
         }
@@ -702,14 +685,11 @@ class Metis_Logger {
     }
 
     private static function configured_timezone_name(): string {
-        $timezone_name = 'UTC';
-        if ( self::settings_service_available() ) {
-            $configured_tz = (string) Core_Settings_Service::get( 'timezone', Core_Settings_Service::get( 'site_timezone', '' ) );
-            if ( $configured_tz !== '' && in_array( $configured_tz, timezone_identifiers_list(), true ) ) {
-                $timezone_name = $configured_tz;
-            }
+        if ( function_exists( 'metis_runtime_timezone_name' ) ) {
+            return metis_runtime_timezone_name();
         }
-        return $timezone_name;
+
+        return 'UTC';
     }
 
     private static function should_write_level( string $level ): bool {

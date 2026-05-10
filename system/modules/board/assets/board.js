@@ -89,6 +89,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function formatDateTimeLabel(value) {
         const raw = String(value || '').trim();
         if (raw === '') return '—';
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(raw, { empty: raw }) || raw;
+        }
         const parsed = new Date(raw.replace(' ', 'T'));
         if (Number.isNaN(parsed.getTime())) return raw;
         return parsed.toLocaleString(undefined, {
@@ -103,6 +106,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function formatDateLabel(value) {
         const raw = String(value || '').trim();
         if (raw === '') return '—';
+        if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') {
+            return Metis.time.formatDate(raw, { empty: raw }) || raw;
+        }
         const parsed = new Date(raw.length > 10 ? raw.replace(' ', 'T') : (raw + 'T00:00:00'));
         if (Number.isNaN(parsed.getTime())) return raw;
         return parsed.toLocaleDateString(undefined, {
@@ -2562,6 +2568,9 @@ document.addEventListener('DOMContentLoaded', function () {
         function fmtDate(value) {
             const raw = String(value || '').trim();
             if (!raw) return '—';
+            if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+                return Metis.time.format(raw, { empty: '—' }) || '—';
+            }
             const d = new Date(raw);
             if (isNaN(d.getTime())) return '—';
             return d.toLocaleString();

@@ -76,23 +76,26 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
         );
         $security_offense_clause = metis_settings_health_security_offense_clause();
         $security_offense_exclusion_clause = metis_settings_health_security_offense_exclusion_clause();
+        $security_cutoff = metis_settings_recent_cutoff( 7 );
 
         $offense_total = (int) metis_db()->scalar(
             "SELECT COUNT(*)
              FROM {$security_table}
-             WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+             WHERE occurred_at >= %s
                AND {$security_offense_clause}
-               AND {$security_offense_exclusion_clause}"
+               AND {$security_offense_exclusion_clause}",
+            [ $security_cutoff ]
         );
         $offense_top_rows = metis_db()->fetchAll(
             "SELECT action_type, COUNT(*) AS total
              FROM {$security_table}
-             WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+             WHERE occurred_at >= %s
                AND {$security_offense_clause}
                AND {$security_offense_exclusion_clause}
              GROUP BY action_type
              ORDER BY total DESC
-             LIMIT 1"
+             LIMIT 1",
+            [ $security_cutoff ]
         );
         $offense_top = '';
         if ( is_array( $offense_top_rows ) && ! empty( $offense_top_rows[0]['action_type'] ) ) {
@@ -102,12 +105,13 @@ if ( ! function_exists( 'metis_settings_checker_recompute_security_offenses' ) )
         $offense_rows = metis_db()->fetchAll(
             "SELECT module_slug, action_type, resource_label, COUNT(*) AS total
              FROM {$security_table}
-             WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+             WHERE occurred_at >= %s
                AND {$security_offense_clause}
                AND {$security_offense_exclusion_clause}
              GROUP BY module_slug, action_type, resource_label
              ORDER BY total DESC
-             LIMIT 3"
+             LIMIT 3",
+            [ $security_cutoff ]
         ) ?: [];
         $offense_breakdown = [];
         foreach ( $offense_rows as $row ) {
@@ -336,6 +340,11 @@ metis_ajax_register_handler( 'metis_backup_restore_run', function () {
 metis_ajax_register_handler( 'metis_backup_history_snapshot', function () {
     $runs = function_exists( 'metis_backup_list_runs' ) ? (array) metis_backup_list_runs( 12 ) : [];
     $pause_status = function_exists( 'metis_backup_pause_status' ) ? (array) metis_backup_pause_status() : [ 'paused' => false ];
+    $display_datetime = static function ( string $value ): string {
+        return function_exists( 'metis_runtime_format_datetime' )
+            ? metis_runtime_format_datetime( $value, null, null, null, '' )
+            : $value;
+    };
     $rows = [];
     foreach ( $runs as $run ) {
         if ( ! is_array( $run ) ) {
@@ -349,14 +358,18 @@ metis_ajax_register_handler( 'metis_backup_history_snapshot', function () {
             'status' => (string) ( $run['status'] ?? 'unknown' ),
             'environment' => (string) ( $run['environment'] ?? '' ),
             'started_at' => (string) ( $run['started_at'] ?? '' ),
+            'started_at_display' => $display_datetime( (string) ( $run['started_at'] ?? '' ) ),
             'completed_at' => (string) ( $run['completed_at'] ?? '' ),
+            'completed_at_display' => $display_datetime( (string) ( $run['completed_at'] ?? '' ) ),
             'updated_at' => (string) ( $run['updated_at'] ?? '' ),
+            'updated_at_display' => $display_datetime( (string) ( $run['updated_at'] ?? '' ) ),
             'drive_folder_id' => (string) ( $run['drive_run_folder_id'] ?? '' ),
             'full_link' => (string) ( $components['full']['drive_web_view_link'] ?? '' ),
             'local_artifact_available' => ! empty( $run['local_artifact_available'] ),
             'progress_stage' => (string) ( $progress['stage'] ?? '' ),
             'progress_message' => (string) ( $progress['message'] ?? '' ),
             'progress_updated_at' => (string) ( $progress['updated_at'] ?? '' ),
+            'progress_updated_at_display' => $display_datetime( (string) ( $progress['updated_at'] ?? '' ) ),
             'last_error' => (string) ( $run['last_error'] ?? '' ),
         ];
     }

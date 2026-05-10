@@ -2411,7 +2411,7 @@ $('#metis-theme-save-btn').on('click', function() {
                     syncFormFromState();
                 }
                 saveVersionSnapshot({
-                    label: 'Saved ' + new Date().toLocaleString(),
+                    label: 'Saved ' + ((window.Metis && Metis.time && typeof Metis.time.format === 'function') ? Metis.time.format(new Date(), { empty: '' }) : new Date().toLocaleString()),
                     data: deepClone(state)
                 });
                 themeToast('Theme saved and activated.', 'success');

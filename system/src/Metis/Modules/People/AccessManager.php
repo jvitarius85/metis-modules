@@ -455,6 +455,7 @@ final class AccessManager {
             $user_roles_table = \Metis_Tables::get( 'people_user_roles' );
             $role_perms_table = \Metis_Tables::get( 'people_role_perms' );
 
+            $now = \function_exists( 'metis_current_time' ) ? \metis_current_time( 'mysql' ) : gmdate( 'Y-m-d H:i:s' );
             $rows = $db->fetchAll(
                 "SELECT DISTINCT p.permission_key, r.role_key
                  FROM {$user_roles_table} ur
@@ -462,9 +463,9 @@ final class AccessManager {
                  INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
                  INNER JOIN {$perms_table} p ON p.id = rp.permission_id
                  WHERE ur.person_id = %d
-                   AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-                   AND (ur.end_at IS NULL OR ur.end_at >= NOW())",
-                [ $person_id ]
+                   AND (ur.start_at IS NULL OR ur.start_at <= %s)
+                   AND (ur.end_at IS NULL OR ur.end_at >= %s)",
+                [ $person_id, $now, $now ]
             );
 
             $permissions = [];

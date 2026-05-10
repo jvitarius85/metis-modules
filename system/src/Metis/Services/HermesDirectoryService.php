@@ -145,6 +145,7 @@ final class HermesDirectoryService {
             $permsTable = \Metis_Tables::get( 'people_permissions' );
 
             $boardClause = $boardOnly ? ' AND p.is_board = 1' : '';
+            $now = \function_exists( 'metis_current_time' ) ? \metis_current_time( 'mysql' ) : gmdate( 'Y-m-d H:i:s' );
             $rows = $this->database()->fetchAll(
                 "SELECT
                         p.id,
@@ -163,10 +164,10 @@ final class HermesDirectoryService {
                      WHERE perms.permission_key = %s
                        AND p.status = 'active'
                        {$boardClause}
-                       AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-                       AND (ur.end_at IS NULL OR ur.end_at >= NOW())
+                       AND (ur.start_at IS NULL OR ur.start_at <= %s)
+                       AND (ur.end_at IS NULL OR ur.end_at >= %s)
                      ORDER BY p.last_name ASC, p.first_name ASC, p.display_name ASC",
-                [ $permissionKey ]
+                [ $permissionKey, $now, $now ]
             ) ?: [];
 
             $actors = [];

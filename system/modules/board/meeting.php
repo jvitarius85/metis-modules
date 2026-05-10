@@ -41,7 +41,7 @@ if (!$meeting) {
     return;
 }
 
-$meeting_date_label = ! empty( $meeting['meeting_date'] ) ? date( 'M j, Y', strtotime( $meeting['meeting_date'] ) ) : $meeting_code;
+$meeting_date_label = ! empty( $meeting['meeting_date'] ) ? metis_runtime_format_date( (string) $meeting['meeting_date'], null, null, null, $meeting_code ) : $meeting_code;
 metis_set_page_title( $meeting_date_label );
 
 $meeting_id = (int) ($meeting['id'] ?? 0);
@@ -787,7 +787,7 @@ if (!is_string($agenda_snapshot_json)) {
                         <tr class="metis-premium-row">
                             <td class="metis-premium-cell"><strong><?php echo metis_escape_html((string) ($action['title'] ?? '')); ?></strong></td>
                             <td class="metis-premium-cell"><?php echo metis_escape_html((string) ($action['owner_name'] ?? 'Unassigned')); ?></td>
-                            <td class="metis-premium-cell"><?php echo metis_escape_html(!empty($action['due_date']) ? metis_runtime_date('M j, Y', strtotime((string) $action['due_date'])) : '—'); ?></td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html(!empty($action['due_date']) ? metis_runtime_format_date((string) $action['due_date'], null, null, null, '—') : '—'); ?></td>
                             <td class="metis-premium-cell"><span class="metis-chip"><?php echo metis_escape_html((string) ($action['status'] ?? 'open')); ?></span></td>
                             <td class="metis-premium-cell metis-board-actions-cell"><span class="metis-muted">—</span></td>
                         </tr>

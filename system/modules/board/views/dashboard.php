@@ -174,7 +174,7 @@ $decision_count = (int) ( $kpis['decision_count'] ?? 0 );
                     data-owner-person-id="<?php echo metis_escape_attr((string) ((int) ($action['owner_person_id'] ?? 0))); ?>">
                     <td class="metis-premium-cell"><strong><?php echo metis_escape_html((string) ($action['title'] ?? '')); ?></strong><div class="metis-muted"><?php echo metis_escape_html((string) ($action['meeting_code'] ?? '')); ?></div></td>
                     <td class="metis-premium-cell"><?php echo metis_escape_html((string) ($action['owner_name'] ?? 'Unassigned')); ?></td>
-                    <td class="metis-premium-cell"><?php echo metis_escape_html(!empty($action['due_date']) ? metis_runtime_date('M j, Y', strtotime((string) $action['due_date'])) : '—'); ?></td>
+                    <td class="metis-premium-cell"><?php echo metis_escape_html(!empty($action['due_date']) ? metis_runtime_format_date((string) $action['due_date'], null, null, null, '—') : '—'); ?></td>
                     <td class="metis-premium-cell"><span class="metis-chip"><?php echo metis_escape_html((string) ($action['status'] ?? 'open')); ?></span></td>
                     <td class="metis-premium-cell metis-board-actions-cell">
                         <?php if ($can_resolve_action) : ?>

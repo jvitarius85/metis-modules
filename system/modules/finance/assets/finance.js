@@ -213,6 +213,9 @@ function initMetisFinanceApp(context) {
     function formatDateTime(value) {
         var raw = String(value || '').trim();
         if (!raw) return '-';
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(raw, { empty: raw }) || raw;
+        }
         var parsed = new Date(raw.replace(' ', 'T'));
         if (Number.isNaN(parsed.getTime())) return raw;
         return parsed.toLocaleString();
@@ -677,6 +680,9 @@ function initMetisFinanceApp(context) {
             if (parts.length < 2) return raw;
             var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
             if (Number.isNaN(dt.getTime())) return raw;
+            if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') {
+                return Metis.time.formatDate(dt, { format: 'F Y', empty: raw }) || raw;
+            }
             return dt.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
         }
         function statusLabel(value) {

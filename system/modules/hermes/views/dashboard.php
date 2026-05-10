@@ -52,8 +52,8 @@ $format_date = static function ( string $value ): string {
         return $value;
     }
 
-    if ( function_exists( 'metis_date' ) ) {
-        return metis_runtime_date( 'M j, Y g:i a', $timestamp );
+    if ( function_exists( 'metis_runtime_format_datetime' ) ) {
+        return metis_runtime_format_datetime( $value, null, null, null, $value );
     }
 
     return date( 'M j, Y g:i a', $timestamp );

@@ -35,16 +35,17 @@ metis_ajax_register_handler( 'metis_people_simulate_permission', function () {
     if ($permission_id < 1) {
         metis_runtime_send_json_error('Permission key not found.', 404);
     }
+    $now = metis_current_time( 'mysql' );
     $source_roles = $db->fetchAll(
         "SELECT DISTINCT r.role_key, r.role_name, ur.start_at, ur.end_at
          FROM {$user_roles_table} ur
          INNER JOIN {$roles_table} r ON r.id = ur.role_id
          INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.permission_id = %d AND rp.allow_access = 1
          WHERE ur.person_id = %d
-           AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-           AND (ur.end_at IS NULL OR ur.end_at >= NOW())
+           AND (ur.start_at IS NULL OR ur.start_at <= %s)
+           AND (ur.end_at IS NULL OR ur.end_at >= %s)
          ORDER BY r.role_name ASC",
-        [ $permission_id, $person_id ]
+        [ $permission_id, $person_id, $now, $now ]
     ) ?: [];
     metis_runtime_send_json_success([
         'permission_key' => $permission_key,

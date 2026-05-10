@@ -107,6 +107,26 @@ function initMetisCalendar(context) {
     const escHtml = Metis.util.escapeHtml;
 
     const showAlert = Metis.util.notify;
+    const timeZone = window.Metis && Metis.time && typeof Metis.time.timezone === 'function' ? Metis.time.timezone() : undefined;
+
+    function calendarIntlOptions(options) {
+        return Object.assign(timeZone ? { timeZone: timeZone } : {}, options || {});
+    }
+
+    function calendarFormatDate(date, options) {
+        return new Intl.DateTimeFormat(undefined, calendarIntlOptions(options || { year: 'numeric', month: 'numeric', day: 'numeric' })).format(date);
+    }
+
+    function calendarFormatTime(date, options) {
+        return new Intl.DateTimeFormat(undefined, calendarIntlOptions(options || { hour: 'numeric', minute: '2-digit' })).format(date);
+    }
+
+    function calendarFormatDateTime(date) {
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(date, { empty: '' });
+        }
+        return new Intl.DateTimeFormat(undefined, calendarIntlOptions({ year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })).format(date);
+    }
 
     function renderLoadWarnings(data) {
         const errors = Array.isArray(data && data.errors) ? data.errors : [];
@@ -303,15 +323,15 @@ function initMetisCalendar(context) {
 
     function formatMonthLabel() {
         if (currentView === 'month') {
-            return currentMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            return calendarFormatDate(currentMonth, { month: 'long', year: 'numeric' });
         }
         if (currentView === 'week') {
             const range = weekRange(selectedDay);
-            const a = range.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-            const b = range.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            const a = calendarFormatDate(range.start, { month: 'short', day: 'numeric' });
+            const b = calendarFormatDate(range.end, { month: 'short', day: 'numeric', year: 'numeric' });
             return a + ' - ' + b;
         }
-        return selectedDay.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        return calendarFormatDate(selectedDay, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     }
 
     function setView(nextView) {
@@ -372,11 +392,11 @@ function initMetisCalendar(context) {
         const dateOptions = { month: 'short', day: 'numeric', year: 'numeric' };
         const same = ed && sameDay(sd, ed);
         if (!ed || !same) {
-            const sTxt = sd.toLocaleString();
-            const eTxt = ed ? ed.toLocaleString() : '';
+            const sTxt = calendarFormatDateTime(sd);
+            const eTxt = ed ? calendarFormatDateTime(ed) : '';
             return eTxt ? (sTxt + ' - ' + eTxt) : sTxt;
         }
-        return sd.toLocaleDateString(undefined, dateOptions) + ' · ' + sd.toLocaleTimeString(undefined, timeOptions) + ' - ' + ed.toLocaleTimeString(undefined, timeOptions);
+        return calendarFormatDate(sd, dateOptions) + ' · ' + calendarFormatTime(sd, timeOptions) + ' - ' + calendarFormatTime(ed, timeOptions);
     }
 
     function calendarLabel(item) {
@@ -446,7 +466,7 @@ function initMetisCalendar(context) {
         });
 
         if (selectedLabelEl) {
-            selectedLabelEl.textContent = selectedDay.toLocaleDateString(undefined, {
+            selectedLabelEl.textContent = calendarFormatDate(selectedDay, {
                 weekday: 'long',
                 month: 'long',
                 day: 'numeric',
@@ -512,7 +532,7 @@ function initMetisCalendar(context) {
 
         const preview = items.slice(0, 3).map(function (item) {
             const start = eventStartDate(item);
-            const time = start ? start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+            const time = start ? calendarFormatTime(start, { hour: 'numeric', minute: '2-digit' }) : '';
             return '<button type="button" class="metis-calendar-pill" data-event-id="' + escHtml(item.id || '') + '" style="border-left:3px solid ' + escHtml(itemColor(item)) + ';">' +
                 '<span class="metis-calendar-pill-time">' + escHtml(time) + '</span>' +
                 '<span class="metis-calendar-pill-text">' + escHtml(item.summary || '(untitled)') + '</span>' +
@@ -520,7 +540,7 @@ function initMetisCalendar(context) {
         }).join('');
 
         const overflow = items.length > 3 ? ('<div class="metis-calendar-more">+' + (items.length - 3) + ' more</div>') : '';
-        return '<div class="' + classes.join(' ') + '" data-day="' + escHtml(toDayKey(day)) + '" role="gridcell" tabindex="0" aria-selected="' + (sameDay(day, selectedDay) ? 'true' : 'false') + '" aria-label="View events for ' + escHtml(day.toLocaleDateString()) + '">' +
+        return '<div class="' + classes.join(' ') + '" data-day="' + escHtml(toDayKey(day)) + '" role="gridcell" tabindex="0" aria-selected="' + (sameDay(day, selectedDay) ? 'true' : 'false') + '" aria-label="View events for ' + escHtml(calendarFormatDate(day)) + '">' +
             '<div class="metis-calendar-cell-top"><span class="metis-calendar-day-number">' + day.getDate() + '</span><span class="metis-calendar-day-count">' + (items.length ? (items.length + ' evt') : '') + '</span></div>' +
             '<div class="metis-calendar-cell-events">' + preview + overflow + '</div>' +
         '</div>';
@@ -613,7 +633,7 @@ function initMetisCalendar(context) {
 
         const slots = [];
         for (let hour = START_HOUR; hour < END_HOUR; hour += 1) {
-            slots.push('<div class="metis-calendar-hour-label">' + new Date(2000, 0, 1, hour).toLocaleTimeString(undefined, { hour: 'numeric' }) + '</div>');
+            slots.push('<div class="metis-calendar-hour-label">' + calendarFormatTime(new Date(2000, 0, 1, hour), { hour: 'numeric' }) + '</div>');
         }
 
         timeViewEl.innerHTML =
@@ -639,7 +659,7 @@ function initMetisCalendar(context) {
                             '</div>';
                         }).join('');
                         return '<div class="metis-calendar-time-column" data-day="' + escHtml(toDayKey(day)) + '">' +
-                            '<div class="metis-calendar-time-column-header">' + escHtml(day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })) + '</div>' +
+                            '<div class="metis-calendar-time-column-header">' + escHtml(calendarFormatDate(day, { weekday: 'short', month: 'short', day: 'numeric' })) + '</div>' +
                             '<div class="metis-calendar-time-column-body">' + allSlots.join('') + events + '</div>' +
                         '</div>';
                     }).join('') +

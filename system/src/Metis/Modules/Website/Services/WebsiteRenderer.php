@@ -1335,18 +1335,15 @@ final class WebsiteRenderer {
     }
 
     private static function systemDateFormat(): string {
-        $format = class_exists( 'Core_Settings_Service' )
-            ? trim( (string) \Core_Settings_Service::get( 'date_format', 'M j, Y' ) )
-            : 'M j, Y';
-        return $format !== '' ? $format : 'M j, Y';
+        return function_exists( 'metis_runtime_date_format' ) ? metis_runtime_date_format() : 'M j, Y';
     }
 
     private static function formatSystemDate( int $timestamp ): string {
         if ( $timestamp < 1 ) {
             return '';
         }
-        return function_exists( 'metis_runtime_date' )
-            ? (string) metis_runtime_date( self::systemDateFormat(), $timestamp )
+        return function_exists( 'metis_runtime_format_date' )
+            ? (string) metis_runtime_format_date( $timestamp, self::systemDateFormat() )
             : gmdate( 'M j, Y', $timestamp );
     }
 

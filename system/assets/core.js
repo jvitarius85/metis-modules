@@ -220,6 +220,145 @@ Metis.ajax = {
     }
 };
 
+/* ============================================================
+   TIME HELPERS
+   ============================================================ */
+
+Metis.time = {
+    settings: (window.metisAjax && window.metisAjax.time && typeof window.metisAjax.time === 'object')
+        ? window.metisAjax.time
+        : {},
+
+    timezone() {
+        return String(this.settings.timezone || 'UTC').trim() || 'UTC';
+    },
+
+    dateFormat() {
+        return String(this.settings.date_format || 'm/d/y').trim() || 'm/d/y';
+    },
+
+    timeFormat() {
+        return String(this.settings.time_format || 'g:i:s a').trim() || 'g:i:s a';
+    },
+
+    datetimeFormat() {
+        return String(this.settings.datetime_format || (this.dateFormat() + ' ' + this.timeFormat())).trim();
+    },
+
+    zoneOffsetMs(date) {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: this.timezone(),
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hourCycle: 'h23'
+        });
+        const parts = formatter.formatToParts(date).reduce(function (carry, part) {
+            if (part.type !== 'literal') carry[part.type] = part.value;
+            return carry;
+        }, {});
+        const asUtc = Date.UTC(
+            Number(parts.year || '1970'),
+            Math.max(0, Number(parts.month || '1') - 1),
+            Number(parts.day || '1'),
+            Number(parts.hour || '0'),
+            Number(parts.minute || '0'),
+            Number(parts.second || '0')
+        );
+        return asUtc - date.getTime();
+    },
+
+    parseNaive(value) {
+        const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+        if (!match) return null;
+
+        const wallClockUtc = Date.UTC(
+            Number(match[1]),
+            Math.max(0, Number(match[2]) - 1),
+            Number(match[3]),
+            Number(match[4] || '0'),
+            Number(match[5] || '0'),
+            Number(match[6] || '0')
+        );
+        const firstPass = wallClockUtc - this.zoneOffsetMs(new Date(wallClockUtc));
+        const secondPass = wallClockUtc - this.zoneOffsetMs(new Date(firstPass));
+        const date = new Date(secondPass);
+        return Number.isNaN(date.getTime()) ? null : date;
+    },
+
+    parse(value) {
+        if (value instanceof Date) return value;
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        if (/^\d+$/.test(raw) && raw.length >= 10) {
+            const date = new Date(Number(raw) * (raw.length === 10 ? 1000 : 1));
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+        if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)) {
+            const naive = this.parseNaive(raw);
+            if (naive) return naive;
+        }
+        const normalized = raw.indexOf('T') >= 0 ? raw : raw.replace(' ', 'T');
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? null : date;
+    },
+
+    intlOptions(format, fallback) {
+        const fmt = String(format || '').trim();
+        const has = function (token) { return fmt.indexOf(token) >= 0; };
+        const options = Object.assign({ timeZone: this.timezone() }, fallback || {});
+
+        if (has('l')) options.weekday = 'long';
+        else if (has('D')) options.weekday = 'short';
+
+        if (has('Y')) options.year = 'numeric';
+        else if (has('y')) options.year = '2-digit';
+
+        if (has('F')) options.month = 'long';
+        else if (has('M')) options.month = 'short';
+        else if (has('m')) options.month = '2-digit';
+        else if (has('n')) options.month = 'numeric';
+
+        if (has('d')) options.day = '2-digit';
+        else if (has('j')) options.day = 'numeric';
+
+        if (has('H') || has('h')) options.hour = '2-digit';
+        else if (has('G') || has('g')) options.hour = 'numeric';
+
+        if (has('i')) options.minute = '2-digit';
+        if (has('s')) options.second = '2-digit';
+
+        if (has('a') || has('A') || has('g') || has('h')) options.hour12 = true;
+        if (has('G') || has('H')) options.hour12 = false;
+
+        return options;
+    },
+
+    format(value, options) {
+        const date = this.parse(value);
+        if (!date) return String((options && options.empty) || '');
+        const format = options && options.format ? String(options.format) : this.datetimeFormat();
+        return new Intl.DateTimeFormat(undefined, this.intlOptions(format)).format(date);
+    },
+
+    formatDate(value, options) {
+        const date = this.parse(value);
+        if (!date) return String((options && options.empty) || '');
+        const format = options && options.format ? String(options.format) : this.dateFormat();
+        return new Intl.DateTimeFormat(undefined, this.intlOptions(format, { year: 'numeric', month: 'numeric', day: 'numeric' })).format(date);
+    },
+
+    formatTime(value, options) {
+        const date = this.parse(value);
+        if (!date) return String((options && options.empty) || '');
+        const format = options && options.format ? String(options.format) : this.timeFormat();
+        return new Intl.DateTimeFormat(undefined, this.intlOptions(format, { hour: 'numeric', minute: '2-digit' })).format(date);
+    }
+};
+
 if (window.fetch && !window.fetch._metisWrapped) {
     const metisFetch = window.fetch.bind(window);
     const wrappedFetch = function(input, init) {

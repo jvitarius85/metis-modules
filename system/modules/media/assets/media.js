@@ -63,6 +63,9 @@
     }
 
     function formatDate(raw) {
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(raw, { empty: '' });
+        }
         var date = raw ? new Date(raw) : null;
         if (!date || Number.isNaN(date.getTime())) {
             return '';

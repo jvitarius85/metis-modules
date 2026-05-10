@@ -194,6 +194,9 @@ window.MetisContactsModules.initList = function (context) {
 
         function formatUpdated(ts) {
             if (!ts) return '—';
+            if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+                return Metis.time.format(String(ts), { empty: '—' }) || '—';
+            }
             const date = new Date(ts * 1000);
             return date.toLocaleString();
         }

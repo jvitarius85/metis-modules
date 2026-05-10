@@ -921,49 +921,30 @@ if ( ! function_exists( 'metis_settings_format_interval' ) ) {
 
 if ( ! function_exists( 'metis_settings_normalize_timezone' ) ) {
     function metis_settings_normalize_timezone( string $timezone ): string {
-        $timezone = trim( $timezone );
-        if ( $timezone === '' || ! in_array( $timezone, timezone_identifiers_list(), true ) ) {
-            return 'UTC';
+        if ( function_exists( 'metis_runtime_timezone_name' ) ) {
+            return metis_runtime_timezone_name( $timezone );
         }
 
-        return $timezone;
+        $timezone = trim( $timezone );
+        return $timezone !== '' && in_array( $timezone, timezone_identifiers_list(), true ) ? $timezone : 'UTC';
     }
 }
 
 if ( ! function_exists( 'metis_settings_format_datetime_display' ) ) {
     function metis_settings_format_datetime_display( string $value, string $date_format, string $time_format, string $timezone ): string {
-        $value = trim( $value );
-        if ( $value === '' ) {
-            return '';
-        }
-
-        $timezone = metis_settings_normalize_timezone( $timezone );
         $format = trim( $date_format . ' ' . $time_format );
-        if ( $format === '' ) {
-            $format = 'm/d/y g:i:s a';
-        }
+        return function_exists( 'metis_runtime_format_datetime' )
+            ? metis_runtime_format_datetime( $value, $format !== '' ? $format : null, $timezone, null, trim( $value ) )
+            : trim( $value );
+    }
+}
 
-        try {
-            $target = new DateTimeZone( $timezone );
-            $source_name = metis_settings_normalize_timezone(
-                (string) Core_Settings_Service::get( 'timezone', Core_Settings_Service::get( 'site_timezone', 'UTC' ) )
-            );
-            $source = new DateTimeZone( $source_name );
-            $has_timezone = (bool) preg_match( '/([zZ]|[+\-]\d{2}:?\d{2})$/', $value );
-
-            if ( $has_timezone ) {
-                $dt = new DateTimeImmutable( $value );
-            } else {
-                $dt = DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $value, $source );
-                if ( ! ( $dt instanceof DateTimeImmutable ) ) {
-                    $dt = new DateTimeImmutable( $value, $source );
-                }
-            }
-
-            return $dt->setTimezone( $target )->format( $format );
-        } catch ( Throwable $exception ) {
-            return $value;
-        }
+if ( ! function_exists( 'metis_settings_recent_cutoff' ) ) {
+    function metis_settings_recent_cutoff( int $days ): string {
+        $seconds = max( 1, $days ) * DAY_IN_SECONDS;
+        return function_exists( 'metis_runtime_date' )
+            ? metis_runtime_date( 'Y-m-d H:i:s', (int) metis_current_time( 'timestamp' ) - $seconds )
+            : date( 'Y-m-d H:i:s', time() - $seconds );
     }
 }
 
@@ -2114,6 +2095,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         $security_offense_total = 0;
         $security_offense_top = '';
         $security_offense_breakdown = [];
+        $security_cutoff = metis_settings_recent_cutoff( 7 );
         if ( class_exists( 'Metis_Tables' ) ) {
             $security_table = Metis_Tables::get( 'audit_security' );
             $security_offense_clause = metis_settings_health_security_offense_clause();
@@ -2121,19 +2103,21 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $security_offense_total = (int) metis_db()->scalar(
                 "SELECT COUNT(*)
                  FROM {$security_table}
-                 WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                 WHERE occurred_at >= %s
                    AND {$security_offense_clause}
-                   AND {$security_offense_exclusion_clause}"
+                   AND {$security_offense_exclusion_clause}",
+                [ $security_cutoff ]
             );
             $security_top_rows = metis_db()->fetchAll(
                 "SELECT action_type, COUNT(*) AS total
                  FROM {$security_table}
-                 WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                 WHERE occurred_at >= %s
                    AND {$security_offense_clause}
                    AND {$security_offense_exclusion_clause}
                  GROUP BY action_type
                  ORDER BY total DESC
-                 LIMIT 1"
+                 LIMIT 1",
+                [ $security_cutoff ]
             );
             if ( is_array( $security_top_rows ) && ! empty( $security_top_rows[0]['action_type'] ) ) {
                 $security_offense_top = (string) $security_top_rows[0]['action_type'];
@@ -2142,12 +2126,13 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $security_offense_rows = metis_db()->fetchAll(
                 "SELECT module_slug, action_type, resource_label, COUNT(*) AS total
                  FROM {$security_table}
-                 WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                 WHERE occurred_at >= %s
                    AND {$security_offense_clause}
                    AND {$security_offense_exclusion_clause}
                  GROUP BY module_slug, action_type, resource_label
                  ORDER BY total DESC
-                 LIMIT 3"
+                 LIMIT 3",
+                [ $security_cutoff ]
             ) ?: [];
 
             foreach ( $security_offense_rows as $offense_row ) {
@@ -2212,9 +2197,10 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                                 OR LOWER(action_type) LIKE '%429%'
                             THEN 1 ELSE 0
                         END
-                    ) AS rate_total
+                     ) AS rate_total
                  FROM {$security_table}
-                 WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+                 WHERE occurred_at >= %s",
+                [ $security_cutoff ]
             );
             $security_totals_row = is_array( $security_totals ) && isset( $security_totals[0] ) && is_array( $security_totals[0] )
                 ? $security_totals[0]
@@ -2225,7 +2211,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $brute_force_top_rows = metis_db()->fetchAll(
                 "SELECT module_slug, action_type, resource_label, COUNT(*) AS total
                  FROM {$security_table}
-                 WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                 WHERE occurred_at >= %s
                    AND (
                         LOWER(action_type) = 'login_failed'
                         OR LOWER(action_type) LIKE '%brute%'
@@ -2233,7 +2219,8 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                    )
                  GROUP BY module_slug, action_type, resource_label
                  ORDER BY total DESC
-                 LIMIT 3"
+                 LIMIT 3",
+                [ $security_cutoff ]
             ) ?: [];
             foreach ( $brute_force_top_rows as $offense_row ) {
                 $module = trim( (string) ( $offense_row['module_slug'] ?? '' ) );
@@ -2253,7 +2240,7 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             $rate_limit_top_rows = metis_db()->fetchAll(
                 "SELECT module_slug, action_type, resource_label, COUNT(*) AS total
                  FROM {$security_table}
-                 WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                 WHERE occurred_at >= %s
                    AND (
                         LOWER(action_type) = 'security_rate_limit_triggered'
                         OR LOWER(action_type) = 'enclave.denied_rate_limit'
@@ -2264,7 +2251,8 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                    )
                  GROUP BY module_slug, action_type, resource_label
                  ORDER BY total DESC
-                 LIMIT 3"
+                 LIMIT 3",
+                [ $security_cutoff ]
             ) ?: [];
             foreach ( $rate_limit_top_rows as $offense_row ) {
                 $module = trim( (string) ( $offense_row['module_slug'] ?? '' ) );
@@ -2444,11 +2432,13 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
         if ( function_exists( 'metis_webhook_ensure_schema' ) && class_exists( 'Metis_Tables' ) ) {
             metis_webhook_ensure_schema();
             $webhook_table = Metis_Tables::get( 'webhook_events' );
+            $webhook_cutoff = metis_settings_recent_cutoff( 7 );
             $webhook_summary_rows = metis_db()->fetchAll(
                 "SELECT status, COUNT(*) AS total
                  FROM {$webhook_table}
-                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-                 GROUP BY status"
+                 WHERE created_at >= %s
+                 GROUP BY status",
+                [ $webhook_cutoff ]
             );
             foreach ( $webhook_summary_rows as $summary_row ) {
                 $status = strtolower( (string) ( $summary_row['status'] ?? '' ) );

@@ -18,12 +18,13 @@ final class Support {
             return '—';
         }
 
-        $ts = strtotime( $mysql_datetime );
-        if ( ! $ts ) {
-            return '—';
+        if ( \function_exists( 'metis_runtime_format_datetime' ) ) {
+            $display_format = in_array( $format, [ '', 'M j, Y g:i a', 'm/d/y g:ia' ], true ) ? null : $format;
+            return \metis_runtime_format_datetime( $mysql_datetime, $display_format, null, null, '—' );
         }
 
-        return \metis_runtime_date( $format, $ts, \metis_runtime_timezone() );
+        $ts = strtotime( $mysql_datetime );
+        return $ts ? \metis_runtime_date( $format, $ts, \metis_runtime_timezone() ) : '—';
     }
 
     public static function currentPersonId(): int {

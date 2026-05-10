@@ -15,6 +15,20 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+    function formatConfiguredDateTime(value, fallback) {
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(value, { empty: fallback || '' }) || fallback || '';
+        }
+        var raw = value instanceof Date ? value : new Date(s(value).replace(' ', 'T'));
+        return raw && !isNaN(raw.getTime()) ? raw.toLocaleString() : (fallback || '');
+    }
+    function formatConfiguredTime(value, fallback) {
+        if (window.Metis && Metis.time && typeof Metis.time.formatTime === 'function') {
+            return Metis.time.formatTime(value, { empty: fallback || '' }) || fallback || '';
+        }
+        var raw = value instanceof Date ? value : new Date(s(value).replace(' ', 'T'));
+        return raw && !isNaN(raw.getTime()) ? raw.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : (fallback || '');
+    }
     function uid() { return 'sec_' + Date.now() + '_' + Math.floor(Math.random() * 10000); }
     function slugifyValue(value) {
         return s(value)
@@ -1438,7 +1452,7 @@
             return saveNewsletter().then(function (resp) {
                 applyNewsletterSaveResponse(resp || {});
                 state.dirty = false;
-                setStatus('Saved at ' + (new Date()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), 'ok');
+                setStatus('Saved at ' + formatConfiguredTime(new Date(), ''), 'ok');
                 return resp;
             }).catch(function (err) {
                 setStatus('Save failed: ' + s(err && err.message || 'Request failed.'), 'error');
@@ -2119,7 +2133,7 @@
             var normalized = raw.replace(' ', 'T');
             var dt = new Date(normalized);
             if (isNaN(dt.getTime())) return raw;
-            return dt.toLocaleString();
+            return formatConfiguredDateTime(dt, raw);
         }
 
         var EMOJI_SHORTCODES = {
@@ -3791,7 +3805,7 @@
         function renderRecoveryBanner(draft) {
             var host = document.getElementById('metis-v2-recovery');
             if (!host) return;
-            var label = draft && draft.saved_at ? (new Date(draft.saved_at)).toLocaleString() : 'recently';
+            var label = draft && draft.saved_at ? formatConfiguredDateTime(draft.saved_at, 'recently') : 'recently';
             host.innerHTML = '<div class="metis-content-recovery"><span>Recovered local draft from ' + esc(label) + '.</span><button type="button" class="metis-se-nav-btn" id="metis-v2-recover-draft">Restore</button><button type="button" class="metis-se-nav-btn" id="metis-v2-discard-recovery">Discard</button></div>';
         }
 
@@ -4490,7 +4504,7 @@
                 state.id = parseInt(s(entity.id || state.id || '0'), 10) || state.id;
                 state.key = isPageContext() ? s(entity.page_code || state.key) : s(entity.post_code || state.key);
                 applyInputsFromEntity(entity);
-                var savedMessage = 'Saved at ' + (new Date()).toLocaleTimeString();
+                var savedMessage = 'Saved at ' + formatConfiguredTime(new Date(), '');
                 var savedKind = 'ok';
                 if (resp.public_routes_auto_enabled) {
                     savedMessage = 'Published and public routes enabled.';

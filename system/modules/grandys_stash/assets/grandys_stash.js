@@ -433,7 +433,7 @@
   }
   function formToObject(f) { const d = {}; Array.from(new FormData(f).entries()).forEach(([k,v]) => d[k]=v); return d; }
   function setField(f, n, v) { const el = f?.elements?.namedItem(n); if (el) el.value = v || ''; }
-  function shortDate(v) { if (!v) return ''; const d = new Date(String(v).replace(' ','T')+'Z'); if (isNaN(d.getTime())) return String(v); return d.toLocaleString('default',{month:'short'})+' '+d.getDate()+', '+d.getFullYear(); }
+  function shortDate(v) { if (!v) return ''; if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') return Metis.time.formatDate(v, { empty: String(v) }) || String(v); const d = new Date(String(v).replace(' ','T')+'Z'); if (isNaN(d.getTime())) return String(v); return d.toLocaleString('default',{month:'short'})+' '+d.getDate()+', '+d.getFullYear(); }
   function labelize(v) { return String(v||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
   function showAlert(m,t) { if(!ui.alert)return; ui.alert.className='metis-alert '+(t==='error'?'metis-alert-error':'metis-alert-success'); ui.alert.textContent=m; ui.alert.style.display='block'; setTimeout(()=>{ui.alert.style.display='none';},4000); }
   function parseJson(r,f) { try{return JSON.parse(r||'');}catch(e){return f;} }

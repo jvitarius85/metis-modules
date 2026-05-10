@@ -308,11 +308,16 @@ if ( ! function_exists( 'metis_current_time' ) ) {
             return metis_runtime_current_time( $type );
         }
 
-        if ( $type === 'timestamp' ) {
+        $type = trim( $type );
+        if ( in_array( $type, [ 'timestamp', 'U' ], true ) ) {
             return time();
         }
 
-        return gmdate( 'Y-m-d H:i:s' );
+        if ( $type === '' || $type === 'mysql' ) {
+            return gmdate( 'Y-m-d H:i:s' );
+        }
+
+        return gmdate( $type );
     }
 }
 

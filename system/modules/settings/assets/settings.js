@@ -1281,7 +1281,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const message = paused
             ? 'Scheduled backups are paused.'
             : String((latestRun && (latestRun.progress_message || latestRun.last_error)) || '').trim();
-        const updatedAt = String((latestRun && (latestRun.progress_updated_at || latestRun.updated_at || latestRun.started_at)) || '').trim();
+        const updatedAt = String((latestRun && (latestRun.progress_updated_at_display || latestRun.updated_at_display || latestRun.started_at_display || latestRun.progress_updated_at || latestRun.updated_at || latestRun.started_at)) || '').trim();
         const percent = paused ? 0 : backupProgressPercent(latestRun);
         const safeStatus = status.replace(/[^a-z0-9_-]/g, '') || 'unknown';
 
@@ -1356,8 +1356,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const runUuid = String((run && run.run_uuid) || '').trim();
             const status = String((run && run.status) || 'unknown').trim().toLowerCase();
             const environment = String((run && run.environment) || '').trim();
-            const completedAt = String((run && run.completed_at) || '').trim();
-            const updatedAt = String((run && (run.progress_updated_at || run.updated_at)) || '').trim();
+            const completedAt = String((run && (run.completed_at_display || run.completed_at)) || '').trim();
+            const updatedAt = String((run && (run.progress_updated_at_display || run.updated_at_display || run.progress_updated_at || run.updated_at)) || '').trim();
             const driveFolderId = String((run && run.drive_folder_id) || '').trim();
             const fullLink = String((run && run.full_link) || '').trim();
             const localArtifactAvailable = !!(run && run.local_artifact_available);
@@ -1669,6 +1669,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function formatFinanceDate(value) {
         const raw = String(value || '').trim();
         if (!raw) return '-';
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(raw, { empty: raw }) || raw;
+        }
         const parsed = new Date(raw.replace(' ', 'T'));
         if (Number.isNaN(parsed.getTime())) return raw;
         return parsed.toLocaleString();

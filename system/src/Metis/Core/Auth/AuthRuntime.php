@@ -397,14 +397,15 @@ function metis_auth_person_roles( int $person_id ): array {
 
     $roles_table = Metis_Tables::get( 'people_roles' );
     $user_roles_table = Metis_Tables::get( 'people_user_roles' );
+    $now = metis_current_time( 'mysql' );
     $rows = metis_auth_db()->column(
         "SELECT DISTINCT r.role_key
              FROM {$user_roles_table} ur
              INNER JOIN {$roles_table} r ON r.id = ur.role_id
              WHERE ur.person_id = %d
-               AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-               AND (ur.end_at IS NULL OR ur.end_at >= NOW())",
-        [ $person_id ]
+               AND (ur.start_at IS NULL OR ur.start_at <= %s)
+               AND (ur.end_at IS NULL OR ur.end_at >= %s)",
+        [ $person_id, $now, $now ]
     ) ?: [];
 
     $roles = [];

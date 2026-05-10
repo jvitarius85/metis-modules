@@ -94,7 +94,7 @@ $summary = $report['summary'] ?? [];
             <tbody>
             <?php foreach ( ($report['monthly'] ?? []) as $m ) : ?>
             <tr class="metis-premium-row">
-                <td class="metis-premium-cell"><?php echo metis_escape_html( date( 'M Y', strtotime( (string)($m['month'] ?? '') . '-01' ) ) ); ?></td>
+                <td class="metis-premium-cell"><?php echo metis_escape_html( metis_runtime_format_date( (string)($m['month'] ?? '') . '-01', 'M Y' ) ); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($m['tickets'] ?? 0); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($m['requests'] ?? 0); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($m['donations'] ?? 0); ?></td>

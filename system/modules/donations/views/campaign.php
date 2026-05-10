@@ -273,11 +273,11 @@ metis_set_page_title( $campaign->cname );
             <?php endif; ?>
             <div class="metis-info-row">
                 <div class="small-label">First Gift</div>
-                <div><?php echo $agg->first_gift ? metis_escape_html( date( 'M j, Y', strtotime( $agg->first_gift ) ) ) : '—'; ?></div>
+                <div><?php echo $agg->first_gift ? metis_escape_html( metis_runtime_format_date( (string) $agg->first_gift, null, null, null, '—' ) ) : '—'; ?></div>
             </div>
             <div class="metis-info-row">
                 <div class="small-label">Last Gift</div>
-                <div><?php echo $agg->last_gift ? metis_escape_html( date( 'M j, Y', strtotime( $agg->last_gift ) ) ) : '—'; ?></div>
+                <div><?php echo $agg->last_gift ? metis_escape_html( metis_runtime_format_date( (string) $agg->last_gift, null, null, null, '—' ) ) : '—'; ?></div>
             </div>
         </div>
 

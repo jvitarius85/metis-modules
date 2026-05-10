@@ -232,7 +232,7 @@ $duplicate_count = count( $duplicate_groups );
                         </td>
 
                         <td class="metis-premium-cell"><?php echo metis_escape_html( (string) $row->email ); ?></td>
-                        <td class="metis-premium-cell"><?php echo metis_escape_html( $updated_ts ? metis_runtime_date( 'M j, Y g:i a', $updated_ts ) : '—' ); ?></td>
+                        <td class="metis-premium-cell"><?php echo metis_escape_html( $updated_ts ? metis_runtime_format_datetime( (string) $row->updated_at, null, null, null, '—' ) : '—' ); ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php else : ?>

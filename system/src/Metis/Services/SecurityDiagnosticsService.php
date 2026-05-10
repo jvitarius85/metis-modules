@@ -218,6 +218,7 @@ final class SecurityDiagnosticsService {
         $rolePermsTable = \Metis_Tables::get( 'people_role_perms' );
         $permsTable = \Metis_Tables::get( 'people_permissions' );
 
+        $now = \function_exists( 'metis_current_time' ) ? \metis_current_time( 'mysql' ) : gmdate( 'Y-m-d H:i:s' );
         $rows = $this->database()->fetchAll(
             "SELECT DISTINCT
                     p.permission_key,
@@ -229,10 +230,10 @@ final class SecurityDiagnosticsService {
                  INNER JOIN {$rolePermsTable} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
                  INNER JOIN {$permsTable} p ON p.id = rp.permission_id
                  WHERE ur.person_id = %d
-                   AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-                   AND (ur.end_at IS NULL OR ur.end_at >= NOW())
+                   AND (ur.start_at IS NULL OR ur.start_at <= %s)
+                   AND (ur.end_at IS NULL OR ur.end_at >= %s)
                  ORDER BY p.module_slug ASC, p.action_key ASC, p.permission_name ASC",
-            [ $personId ]
+            [ $personId, $now, $now ]
         ) ?: [];
 
         return array_values( array_map(

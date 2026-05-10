@@ -498,7 +498,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
                         $donor_name  = trim( (string) ( $tx->first_name ?? '' ) . ' ' . (string) ( $tx->last_name ?? '' ) );
                         $donor_name  = $donor_name !== '' ? $donor_name : ( $tx->email ?: ( $tx->did ?: 'Unknown donor' ) );
                         $campaign    = $tx->campaign_name ?: 'Unassigned campaign';
-                        $date_label  = $tx->tran_date ? metis_runtime_date( 'M j, Y', strtotime( $tx->tran_date ) ) : 'No date';
+                        $date_label  = $tx->tran_date ? metis_runtime_format_date( (string) $tx->tran_date, null, null, null, 'No date' ) : 'No date';
                     ?>
                         <a class="metis-donations-activity-row" href="<?php echo metis_escape_url( $tx_url ); ?>">
                             <div class="metis-donations-activity-main">
@@ -574,7 +574,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
                 <?php if ( ! empty( $top_donors ) ) : ?>
                     <?php foreach ( $top_donors as $donor ) :
                         $donor_url = $base_url . '/donor/?id=' . urlencode( $donor->did );
-                        $last_gift = $donor->last_gift_date ? metis_runtime_date( 'M j, Y', strtotime( $donor->last_gift_date ) ) : 'No gifts yet';
+                        $last_gift = $donor->last_gift_date ? metis_runtime_format_date( (string) $donor->last_gift_date, null, null, null, 'No gifts yet' ) : 'No gifts yet';
                     ?>
                         <a class="metis-donations-metric-row" href="<?php echo metis_escape_url( $donor_url ); ?>">
                             <div class="metis-donations-metric-main">
@@ -661,7 +661,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
             <?php if ( ! empty( $recent_deposits ) ) : ?>
                 <?php foreach ( $recent_deposits as $deposit ) :
                     $deposit_url = $base_url . '/deposit/?id=' . urlencode( $deposit->provider_ref );
-                    $deposit_date = $deposit->deposit_date ? metis_runtime_date( 'M j, Y', strtotime( $deposit->deposit_date ) ) : 'No date';
+                    $deposit_date = $deposit->deposit_date ? metis_runtime_format_date( (string) $deposit->deposit_date, null, null, null, 'No date' ) : 'No date';
                 ?>
                     <tr class="metis-premium-row metis-donations-deposit-row metis-clickable-row" data-href="<?php echo metis_escape_url( $deposit_url ); ?>">
                         <td class="metis-premium-cell">

@@ -292,16 +292,17 @@ if ( $person && ! empty( $person['id'] ) && function_exists( 'metis_drive_worksp
 if ( $person && ! empty( $person['id'] ) ) {
     $perms_table = Metis_Tables::get( 'people_permissions' );
     $role_perms_table = Metis_Tables::get( 'people_role_perms' );
+    $now = metis_current_time( 'mysql' );
     $effective_permissions = $db->fetchAll(
         "SELECT DISTINCT p.permission_key
          FROM {$user_roles_table} ur
          INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
          INNER JOIN {$perms_table} p ON p.id = rp.permission_id
          WHERE ur.person_id = %d
-           AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-           AND (ur.end_at IS NULL OR ur.end_at >= NOW())
+           AND (ur.start_at IS NULL OR ur.start_at <= %s)
+           AND (ur.end_at IS NULL OR ur.end_at >= %s)
          ORDER BY p.permission_key ASC",
-        [ (int) $person['id'] ]
+        [ (int) $person['id'], $now, $now ]
     ) ?: [];
 
     $activity_table = Metis_Tables::get( 'people_activity' );

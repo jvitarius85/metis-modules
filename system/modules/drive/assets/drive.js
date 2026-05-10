@@ -443,6 +443,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function fmtDate(value) {
+        if (window.Metis && Metis.time && typeof Metis.time.format === 'function') {
+            return Metis.time.format(value, { empty: '—' }) || '—';
+        }
         const date = new Date(String(value || ''));
         if (isNaN(date.getTime())) return '—';
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +

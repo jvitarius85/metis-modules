@@ -217,6 +217,12 @@ metis_on('metis_assets_enqueue', function () {
         'action_nonces' => metis_ajax_action_nonces(),
         'site_url'      => function_exists( 'metis_home_url' ) ? rtrim( (string) metis_home_url( '/' ), '/' ) : rtrim( (string) metis_home_url(), '/' ),
         'module_boot_failures' => function_exists( 'metis_module_boot_failures' ) ? metis_module_boot_failures() : [],
+        'time' => [
+            'timezone' => function_exists( 'metis_runtime_timezone_name' ) ? metis_runtime_timezone_name() : 'UTC',
+            'date_format' => function_exists( 'metis_runtime_date_format' ) ? metis_runtime_date_format() : 'm/d/y',
+            'time_format' => function_exists( 'metis_runtime_time_format' ) ? metis_runtime_time_format() : 'g:i:s a',
+            'datetime_format' => function_exists( 'metis_runtime_datetime_format' ) ? metis_runtime_datetime_format() : 'm/d/y g:i:s a',
+        ],
         'session' => $session_data,
     ] );
     $asset_mark( 'ASSETS_CORE_LOCALIZE_DONE' );

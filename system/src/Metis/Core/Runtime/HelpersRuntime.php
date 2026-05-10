@@ -19,22 +19,105 @@ function metis_runtime_parse_args( mixed $args, array $defaults = [] ): array {
 function metis_runtime_current_time( string $type = 'mysql' ): string|int {
     $tz = metis_runtime_timezone();
     $now = new DateTimeImmutable( 'now', $tz );
-    return $type === 'mysql' ? $now->format( 'Y-m-d H:i:s' ) : $now->getTimestamp();
+
+    $type = trim( $type );
+    if ( $type === '' || $type === 'mysql' ) {
+        return $now->format( 'Y-m-d H:i:s' );
+    }
+
+    if ( in_array( $type, [ 'timestamp', 'U' ], true ) ) {
+        return $now->getTimestamp();
+    }
+
+    if ( in_array( $type, [ 'mysql_utc', 'mysql_gmt', 'utc' ], true ) ) {
+        return $now->setTimezone( new DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
+    }
+
+    return $now->format( $type );
 }
 
-function metis_runtime_timezone(): DateTimeZone {
-    $tz = '';
+function metis_runtime_timezone_name( ?string $candidate = null ): string {
+    $candidates = [];
+    if ( is_string( $candidate ) && trim( $candidate ) !== '' ) {
+        $candidates[] = trim( $candidate );
+    }
+
     if ( class_exists( 'Core_Settings_Service' ) ) {
-        $tz = (string) Core_Settings_Service::get( 'timezone', Core_Settings_Service::get( 'site_timezone', '' ) );
+        $configured = Core_Settings_Service::get( 'timezone', null );
+        $site = Core_Settings_Service::get( 'site_timezone', null );
+        if ( is_string( $configured ) && trim( $configured ) !== '' ) {
+            $candidates[] = trim( $configured );
+        }
+        if ( is_string( $site ) && trim( $site ) !== '' ) {
+            $candidates[] = trim( $site );
+        }
     }
-    if ( $tz === '' ) {
-        $tz = (string) metis_runtime_get_option( 'timezone_string', 'UTC' );
+
+    $option_tz = metis_runtime_get_option( 'timezone_string', '' );
+    if ( is_string( $option_tz ) && trim( $option_tz ) !== '' ) {
+        $candidates[] = trim( $option_tz );
     }
+
+    $php_tz = date_default_timezone_get();
+    if ( is_string( $php_tz ) && trim( $php_tz ) !== '' ) {
+        $candidates[] = trim( $php_tz );
+    }
+
+    foreach ( $candidates as $tz ) {
+        if ( in_array( $tz, timezone_identifiers_list(), true ) ) {
+            return $tz;
+        }
+    }
+
+    return 'UTC';
+}
+
+function metis_runtime_timezone( ?string $timezone = null ): DateTimeZone {
     try {
-        return new DateTimeZone( $tz !== '' ? $tz : 'UTC' );
+        return new DateTimeZone( metis_runtime_timezone_name( $timezone ) );
     } catch ( Throwable ) {
         return new DateTimeZone( 'UTC' );
     }
+}
+
+function metis_runtime_sanitize_date_time_format( mixed $format, string $fallback ): string {
+    $format = is_string( $format ) ? trim( $format ) : '';
+    if ( $format === '' || strlen( $format ) > 64 || preg_match( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $format ) ) {
+        return $fallback;
+    }
+
+    return $format;
+}
+
+function metis_runtime_date_format(): string {
+    $default = 'm/d/y';
+    if ( class_exists( 'Core_Settings_Service' ) ) {
+        return metis_runtime_sanitize_date_time_format( Core_Settings_Service::get( 'date_format', $default ), $default );
+    }
+
+    return $default;
+}
+
+function metis_runtime_time_format(): string {
+    $default = 'g:i:s a';
+    if ( class_exists( 'Core_Settings_Service' ) ) {
+        return metis_runtime_sanitize_date_time_format( Core_Settings_Service::get( 'time_format', $default ), $default );
+    }
+
+    return $default;
+}
+
+function metis_runtime_datetime_format(): string {
+    return trim( metis_runtime_date_format() . ' ' . metis_runtime_time_format() );
+}
+
+function metis_runtime_display_format( string $scope = 'datetime' ): string {
+    $scope = strtolower( preg_replace( '/[^a-z0-9_-]+/', '_', trim( $scope ) ) ?: 'datetime' );
+    return match ( $scope ) {
+        'date' => metis_runtime_date_format(),
+        'time' => metis_runtime_time_format(),
+        default => metis_runtime_datetime_format(),
+    };
 }
 
 function metis_runtime_date( string $format, ?int $timestamp = null, ?DateTimeZone $timezone = null ): string {
@@ -45,6 +128,88 @@ function metis_runtime_date( string $format, ?int $timestamp = null, ?DateTimeZo
 
 function metis_runtime_current_datetime(): DateTimeImmutable {
     return new DateTimeImmutable( 'now', metis_runtime_timezone() );
+}
+
+function metis_runtime_datetime_has_timezone_hint( string $value ): bool {
+    return preg_match( '/(?:Z|[+\-]\d{2}:?\d{2}|[A-Za-z_]+\/[A-Za-z_]+)$/', trim( $value ) ) === 1;
+}
+
+function metis_runtime_datetime_from_value( mixed $value, DateTimeZone|string|null $source_timezone = null ): ?DateTimeImmutable {
+    if ( $value instanceof DateTimeImmutable ) {
+        return $value;
+    }
+
+    if ( $value instanceof DateTimeInterface ) {
+        return DateTimeImmutable::createFromInterface( $value );
+    }
+
+    if ( is_int( $value ) || is_float( $value ) ) {
+        return ( new DateTimeImmutable( '@' . (int) $value ) )->setTimezone( metis_runtime_timezone() );
+    }
+
+    $raw = is_string( $value ) ? trim( $value ) : '';
+    if ( $raw === '' ) {
+        return null;
+    }
+
+    if ( ctype_digit( $raw ) && strlen( $raw ) >= 10 ) {
+        return ( new DateTimeImmutable( '@' . (int) $raw ) )->setTimezone( metis_runtime_timezone() );
+    }
+
+    $source = $source_timezone instanceof DateTimeZone
+        ? $source_timezone
+        : metis_runtime_timezone( is_string( $source_timezone ) ? $source_timezone : null );
+
+    try {
+        if ( metis_runtime_datetime_has_timezone_hint( $raw ) ) {
+            return new DateTimeImmutable( $raw );
+        }
+
+        foreach ( [ '!Y-m-d H:i:s', '!Y-m-d H:i', '!Y-m-d' ] as $format ) {
+            $dt = DateTimeImmutable::createFromFormat( $format, $raw, $source );
+            if ( $dt instanceof DateTimeImmutable ) {
+                return $dt;
+            }
+        }
+
+        return new DateTimeImmutable( $raw, $source );
+    } catch ( Throwable ) {
+        return null;
+    }
+}
+
+function metis_runtime_format_datetime( mixed $value, ?string $format = null, DateTimeZone|string|null $timezone = null, DateTimeZone|string|null $source_timezone = null, string $empty = '' ): string {
+    $dt = metis_runtime_datetime_from_value( $value, $source_timezone );
+    if ( ! $dt instanceof DateTimeImmutable ) {
+        return $empty;
+    }
+
+    $target = $timezone instanceof DateTimeZone
+        ? $timezone
+        : metis_runtime_timezone( is_string( $timezone ) ? $timezone : null );
+    $format = metis_runtime_sanitize_date_time_format( $format ?? metis_runtime_datetime_format(), metis_runtime_datetime_format() );
+
+    return $dt->setTimezone( $target )->format( $format );
+}
+
+function metis_runtime_format_date( mixed $value, ?string $format = null, DateTimeZone|string|null $timezone = null, DateTimeZone|string|null $source_timezone = null, string $empty = '' ): string {
+    return metis_runtime_format_datetime( $value, $format ?? metis_runtime_date_format(), $timezone, $source_timezone, $empty );
+}
+
+function metis_runtime_format_time( mixed $value, ?string $format = null, DateTimeZone|string|null $timezone = null, DateTimeZone|string|null $source_timezone = null, string $empty = '' ): string {
+    return metis_runtime_format_datetime( $value, $format ?? metis_runtime_time_format(), $timezone, $source_timezone, $empty );
+}
+
+function metis_runtime_format_datetime_local_value( mixed $value, DateTimeZone|string|null $source_timezone = null ): string {
+    return metis_runtime_format_datetime( $value, 'Y-m-d\TH:i', metis_runtime_timezone(), $source_timezone, '' );
+}
+
+function metis_runtime_sync_default_timezone(): void {
+    @date_default_timezone_set( metis_runtime_timezone_name() );
+}
+
+if ( function_exists( 'metis_on' ) ) {
+    metis_on( 'metis_runtime_loaded', 'metis_runtime_sync_default_timezone', 20, 0 );
 }
 
 if ( ! function_exists( 'metis_runtime_generate_uuid' ) ) {

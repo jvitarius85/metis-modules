@@ -45,6 +45,10 @@ final class Support {
     }
 
     public static function resolvedTimezone(): \DateTimeZone {
+        if ( \function_exists( 'metis_runtime_timezone' ) ) {
+            return \metis_runtime_timezone();
+        }
+
         $candidates = [];
 
         if ( class_exists( 'Core_Settings_Service' ) ) {
@@ -80,6 +84,15 @@ final class Support {
         $mysql_datetime = trim( $mysql_datetime );
         if ( $mysql_datetime === '' ) {
             return '';
+        }
+
+        if ( \function_exists( 'metis_runtime_format_datetime' ) ) {
+            $display_format = match ( $format ) {
+                '', 'm/d/y g:ia', 'm/d/y g:i a', 'M j, Y g:i a' => null,
+                'm/d/y', 'M j, Y' => \metis_runtime_date_format(),
+                default => $format,
+            };
+            return \metis_runtime_format_datetime( $mysql_datetime, $display_format, null, null, '' );
         }
 
         $tz = self::resolvedTimezone();

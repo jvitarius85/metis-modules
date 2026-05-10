@@ -287,6 +287,9 @@ var MetisWebsite = {
         if (Number.isNaN(parsed.getTime())) {
             return value;
         }
+        if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') {
+            return Metis.time.formatDate(parsed, { empty: value }) || value;
+        }
         return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     },
 

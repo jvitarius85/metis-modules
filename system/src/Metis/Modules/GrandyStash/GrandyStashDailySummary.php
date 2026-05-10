@@ -16,7 +16,7 @@ final class GrandyStashDailySummary {
             return [ 'status' => 'skipped', 'message' => 'Nothing to report.' ];
         }
 
-        $subject = "Grandy's Stash Daily Summary — " . date( 'M j, Y' );
+        $subject = "Grandy's Stash Daily Summary — " . \metis_runtime_format_date( \metis_current_time( 'mysql' ) );
         $body    = self::buildBody( $data );
         $fromEmail = 'noreply@' . ( $_SERVER['SERVER_NAME'] ?? 'vitarius.org' );
 
@@ -186,10 +186,10 @@ final class GrandyStashDailySummary {
                 $html .= '<td style="padding:8px;border-bottom:1px solid #d7e1e8;">' . htmlspecialchars( (string) $row['status'] ) . '</td>';
             }
             if ( isset( $row['earliest_waitlist'] ) ) {
-                $html .= '<td style="padding:8px;border-bottom:1px solid #d7e1e8;">' . htmlspecialchars( date( 'M j, Y', strtotime( (string) $row['earliest_waitlist'] ) ) ) . '</td>';
+                $html .= '<td style="padding:8px;border-bottom:1px solid #d7e1e8;">' . htmlspecialchars( \metis_runtime_format_date( (string) $row['earliest_waitlist'] ) ) . '</td>';
             }
             if ( isset( $row['submitted_at'] ) ) {
-                $html .= '<td style="padding:8px;border-bottom:1px solid #d7e1e8;">' . htmlspecialchars( date( 'M j, Y', strtotime( (string) $row['submitted_at'] ) ) ) . '</td>';
+                $html .= '<td style="padding:8px;border-bottom:1px solid #d7e1e8;">' . htmlspecialchars( \metis_runtime_format_date( (string) $row['submitted_at'] ) ) . '</td>';
             }
             $html .= '</tr>';
         }

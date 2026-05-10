@@ -380,6 +380,7 @@ function metis_people_active_permission_keys_for_person(int $person_id): array {
     $user_roles_table = Metis_Tables::get('people_user_roles');
     $role_perms_table = Metis_Tables::get('people_role_perms');
     $perms_table = Metis_Tables::get('people_permissions');
+    $now = metis_current_time( 'mysql' );
     $rows = metis_db()->column(
         "SELECT DISTINCT p.permission_key
          FROM {$user_roles_table} ur
@@ -387,9 +388,9 @@ function metis_people_active_permission_keys_for_person(int $person_id): array {
          INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
          INNER JOIN {$perms_table} p ON p.id = rp.permission_id
          WHERE ur.person_id = %d
-           AND (ur.start_at IS NULL OR ur.start_at <= NOW())
-           AND (ur.end_at IS NULL OR ur.end_at >= NOW())",
-        [ $person_id ]
+           AND (ur.start_at IS NULL OR ur.start_at <= %s)
+           AND (ur.end_at IS NULL OR ur.end_at >= %s)",
+        [ $person_id, $now, $now ]
     );
     $out = [];
     foreach ($rows as $permission_key) {
@@ -1212,14 +1213,17 @@ function metis_people_workspace_execute_job(array $job, array $cfg, bool $dry_ru
         } else {
             return ['ok' => false, 'error' => 'Unsupported security action type: ' . $action_type];
         }
+        $completed_at = metis_current_time( 'mysql' );
         $db->execute($db->prepare(
             "UPDATE {$actions_table}
-             SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+             SET status = 'completed', completed_at = %s, updated_at = %s
              WHERE workspace_user_id = %d
                AND action_type = %s
                AND status IN ('pending','queued')
              ORDER BY id DESC
              LIMIT 1",
+            $completed_at,
+            $completed_at,
             $entity_id,
             $action_type
         ));
@@ -1258,10 +1262,12 @@ function metis_people_workspace_process_jobs(int $limit = 10, bool $dry_run = fa
     foreach ($rows as $job) {
         $job_id = (int) ($job['id'] ?? 0);
         if ($job_id < 1) continue;
+        $claimed_at = metis_current_time( 'mysql' );
         $claimed = (int) $db->execute($db->prepare(
             "UPDATE {$jobs_table}
-             SET status = 'processing', updated_at = NOW()
+             SET status = 'processing', updated_at = %s
              WHERE id = %d AND status IN ('queued','failed')",
+            $claimed_at,
             $job_id
         ));
         if ($claimed < 1) continue;

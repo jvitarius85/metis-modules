@@ -439,7 +439,7 @@ class JobQueue {
     }
 
     private function formatTimestamp( int $timestamp ): string {
-        return \function_exists( 'metis_date' )
+        return \function_exists( 'metis_runtime_date' )
             ? \metis_runtime_date( 'Y-m-d H:i:s', $timestamp )
             : date( 'Y-m-d H:i:s', $timestamp );
     }

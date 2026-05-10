@@ -571,8 +571,8 @@ final class BlockRenderer {
             if ( $startRaw !== '' ) {
                 $ts = strtotime( $startRaw );
                 if ( $ts ) {
-                    $when = function_exists( 'metis_runtime_date' )
-                        ? metis_runtime_date( 'M j, Y g:i A', (int) $ts )
+                    $when = function_exists( 'metis_runtime_format_datetime' )
+                        ? metis_runtime_format_datetime( $startRaw )
                         : date( 'M j, Y g:i A', (int) $ts );
                 }
             }
@@ -1296,7 +1296,9 @@ final class BlockRenderer {
                             $resolved_campaign = trim( (string) $cid );
                         }
                     }
-                    $now         = new \DateTimeImmutable( 'now', new \DateTimeZone( date_default_timezone_get() ?: 'UTC' ) );
+                    $now         = \function_exists( 'metis_runtime_current_datetime' )
+                        ? \metis_runtime_current_datetime()
+                        : new \DateTimeImmutable( 'now', new \DateTimeZone( date_default_timezone_get() ?: 'UTC' ) );
                     $startOfYear = $now->setDate( (int) $now->format( 'Y' ), 1, 1 )->setTime( 0, 0, 0 );
                     $startNext   = $startOfYear->modify( '+1 year' );
                     $campaign_row = $db->fetchOne( "SELECT * FROM {$campaigns_table} WHERE cid = %s LIMIT 1", [ $resolved_campaign ] );
@@ -1307,7 +1309,7 @@ final class BlockRenderer {
                             $goal_amount = (float) $campaign_row['goal_amount'];
                         } elseif ( ! empty( $campaign_row['goals'] ) && function_exists( 'metis_parse_goals' ) ) {
                             $year_goals = metis_parse_goals( (string) $campaign_row['goals'] );
-                            $year_key = (int) gmdate( 'Y' );
+                            $year_key = (int) $now->format( 'Y' );
                             if ( is_array( $year_goals ) && isset( $year_goals[ $year_key ] ) ) {
                                 $goal_amount = (float) $year_goals[ $year_key ];
                             }
@@ -1332,7 +1334,9 @@ final class BlockRenderer {
         }
 
         $percent = $goal_amount > 0 ? min( 100, max( 0, ( $raised_total / $goal_amount ) * 100 ) ) : max( 0, min( 100, (float) ( $data['percent'] ?? 0 ) ) );
-        $year = ( new \DateTimeImmutable( 'now', new \DateTimeZone( date_default_timezone_get() ?: 'UTC' ) ) )->format( 'Y' );
+        $year = \function_exists( 'metis_runtime_current_datetime' )
+            ? \metis_runtime_current_datetime()->format( 'Y' )
+            : ( new \DateTimeImmutable( 'now', new \DateTimeZone( date_default_timezone_get() ?: 'UTC' ) ) )->format( 'Y' );
         $percent_display = number_format( $percent, 2, '.', '' );
         $track_width = $percent_display . '%';
         $raised_text = self::formatUsdFixed( $raised_total );
@@ -1521,7 +1525,7 @@ final class BlockRenderer {
         if ( $end_at === '' ) {
             return '';
         }
-        $timezone = trim( (string) ( $data['timezone'] ?? (string) date_default_timezone_get() ) );
+        $timezone = trim( (string) ( $data['timezone'] ?? ( \function_exists( 'metis_runtime_timezone_name' ) ? \metis_runtime_timezone_name() : (string) date_default_timezone_get() ) ) );
         return sprintf(
             '<div class="metis-block-countdown" data-start-at="%s" data-end-at="%s" data-timezone="%s"%s></div>',
             metis_escape_attr( $start_at ),

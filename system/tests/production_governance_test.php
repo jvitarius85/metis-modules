@@ -32,6 +32,15 @@ $settingsBootstrap = $read( 'modules/settings/views/_settings_bootstrap.php' );
 $settingsAjax = $read( 'modules/settings/assets/settings.ajax.php' );
 $settingsCss = $read( 'modules/settings/assets/settings.css' );
 $settingsJs = $read( 'modules/settings/assets/settings.js' );
+$helpersRuntime = $read( 'src/Metis/Core/Runtime/HelpersRuntime.php' );
+$coreBootstrap = $read( 'src/Metis/Core/CoreBootstrap.php' );
+$assetsRuntime = $read( 'src/Metis/Core/AssetsRuntime.php' );
+$coreJs = $read( 'assets/core.js' );
+$loggerRuntime = $read( 'src/Metis/Core/LoggerRuntime.php' );
+$boardSupport = $read( 'src/Metis/Modules/Board/Support.php' );
+$contactsSupport = $read( 'src/Metis/Modules/Contacts/Support.php' );
+$newsletterSupport = $read( 'src/Metis/Modules/Newsletter/Support.php' );
+$calendarJs = $read( 'modules/calendar/assets/calendar.js' );
 $cronRuntime = $read( 'src/Metis/Core/Cron/CronRuntime.php' );
 $backupService = $read( 'src/Metis/Backup/BackupService.php' );
 $backupRuntime = $read( 'src/Metis/Core/BackupRuntime.php' );
@@ -87,6 +96,19 @@ foreach ( [ 'sensitive-media-storage', 'process-context', 'route-middleware-gove
 foreach ( [ 'request-boundary', 'native-db-access', 'serialization-boundary' ] as $scanRule ) {
     $assert( str_contains( $scanner, $scanRule ), 'Security scanner missing hardening rule: ' . $scanRule . '.' );
 }
+
+$assert( str_contains( $helpersRuntime, 'function metis_runtime_timezone_name' ), 'Runtime must centralize timezone setting resolution.' );
+$assert( str_contains( $helpersRuntime, 'function metis_runtime_date_format' ) && str_contains( $helpersRuntime, 'function metis_runtime_time_format' ), 'Runtime must centralize date and time format setting resolution.' );
+$assert( str_contains( $helpersRuntime, 'function metis_runtime_format_datetime' ) && str_contains( $helpersRuntime, 'function metis_runtime_format_date' ) && str_contains( $helpersRuntime, 'function metis_runtime_format_time' ), 'Runtime must expose canonical display date/time helpers.' );
+$assert( str_contains( $helpersRuntime, 'metis_runtime_sync_default_timezone' ) && str_contains( $helpersRuntime, "metis_on( 'metis_runtime_loaded'" ), 'Runtime must sync PHP default timezone after settings preload.' );
+$assert( str_contains( $coreBootstrap, "return gmdate( \$type )" ), 'metis_current_time fallback must support custom date formats instead of returning timestamps for unknown types.' );
+$assert( str_contains( $assetsRuntime, "'time' => [" ) && str_contains( $assetsRuntime, 'metis_runtime_timezone_name()' ) && str_contains( $coreJs, 'Metis.time' ), 'Core assets must expose configured timezone/date/time formats to JavaScript.' );
+$assert( str_contains( $coreJs, 'parseNaive(value)' ) && str_contains( $coreJs, 'zoneOffsetMs(date)' ), 'JavaScript time parsing must interpret naive Metis timestamps in the configured timezone before display.' );
+$assert( str_contains( $settingsBootstrap, 'metis_runtime_format_datetime' ), 'Settings display timestamps must use canonical runtime datetime formatting.' );
+$assert( str_contains( $settingsAjax, 'started_at_display' ) && str_contains( $settingsAjax, 'progress_updated_at_display' ), 'Backup history API must send preformatted configured-timezone timestamps.' );
+$assert( str_contains( $loggerRuntime, "metis_runtime_format_datetime( \$timestamp, null, null, 'UTC'" ), 'Log viewer must render UTC log timestamps through configured display settings.' );
+$assert( str_contains( $boardSupport, 'metis_runtime_format_datetime' ) && str_contains( $contactsSupport, 'metis_runtime_format_datetime' ) && str_contains( $newsletterSupport, 'metis_runtime_format_datetime' ), 'Module date helpers must delegate to canonical runtime datetime formatting.' );
+$assert( str_contains( $calendarJs, 'calendarFormatDateTime' ) && str_contains( $calendarJs, 'Metis.time' ), 'Calendar UI must use configured timezone/date/time formatting instead of browser-only locale formatting.' );
 
 $assert( str_contains( $settingsBootstrap, 'function metis_settings_health_filesystem_targets' ), 'System health must use canonical filesystem target metadata.' );
 $assert( str_contains( $settingsBootstrap, 'function metis_settings_health_filesystem_check_id' ), 'System health filesystem check IDs must be centralized.' );
