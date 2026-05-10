@@ -23,5 +23,12 @@
     "settings",
     "profile",
      "help"
+  ],
+   "hidden_modules": [
+    "portal",
+    "people",
+    "settings",
+    "profile",
+     "help"
   ]
 }
