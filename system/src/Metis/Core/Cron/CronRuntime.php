@@ -98,7 +98,7 @@ final class Metis_Cron_Manager {
                     ];
                 }
 
-                return metis_release_check_for_updates( false, 'system_cron' );
+                return metis_release_check_for_updates( true, 'system_cron' );
             },
             [
                 'label'    => 'Release Update Check',

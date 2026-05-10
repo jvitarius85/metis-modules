@@ -20,8 +20,16 @@ function metis_backup_run_now( string $trigger = 'manual' ): array {
     return metis_backup_service()->runBackup( $trigger );
 }
 
+function metis_backup_run_stage( string $run_uuid, string $stage ): array {
+    return metis_backup_service()->runBackupStage( $run_uuid, $stage );
+}
+
 function metis_backup_list_runs( int $limit = 20 ): array {
     return metis_backup_service()->listRuns( $limit );
+}
+
+function metis_backup_pause_status(): array {
+    return metis_backup_service()->pauseStatus();
 }
 
 function metis_backup_restore_run( string $run_uuid ): array {

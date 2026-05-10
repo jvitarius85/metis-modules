@@ -1476,6 +1476,7 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
         $system_cron_recent_jobs = array_map( static function ( array $job_row ) use ( $date_format, $time_format, $timezone, $task_association_map, $system_cron_tasks ): array {
             $started_raw = (string) ( $job_row['started_at'] ?: $job_row['available_at'] ?: '' );
             $finished_raw = (string) ( $job_row['completed_at'] ?: $job_row['failed_at'] ?: '' );
+            $reserved_until_raw = (string) ( $job_row['reserved_until'] ?? '' );
             $task_slug = metis_key_clean( (string) ( $job_row['task'] ?? '' ) );
             $task_label = '';
             if ( $task_slug !== '' && isset( $system_cron_tasks[ $task_slug ] ) ) {
@@ -1493,6 +1494,9 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
             $job_row['finished_at_display'] = $finished_raw !== ''
                 ? metis_settings_format_datetime_display( $finished_raw, $date_format, $time_format, $timezone )
                 : '-';
+            $job_row['reserved_until_display'] = $reserved_until_raw !== ''
+                ? metis_settings_format_datetime_display( $reserved_until_raw, $date_format, $time_format, $timezone )
+                : '';
             $job_row['task_label'] = $task_label;
             $job_row['association'] = (string) ( $task_association_map[ $task_slug ] ?? 'Scheduled cron callback' );
             return $job_row;

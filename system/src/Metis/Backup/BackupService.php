@@ -8,7 +8,16 @@ final class BackupService {
     private const SUCCESS = 'success';
     private const FAILED = 'failed';
     private const RUN_TIMEOUT_SECONDS = 3 * 60 * 60;
+    private const LOCAL_ARTIFACT_STALE_SECONDS = 30 * 60;
     private const BACKUP_EXECUTION_REFRESH_SECONDS = 10 * 60;
+    private const LOCAL_ARTIFACT_RETAINED_ERROR = 'Backup local artifacts were created, but Drive upload/finalization did not complete. Local artifact retained for review.';
+    private const STAGE_HEALTH_CHECK = 'health_check';
+    private const STAGE_LOCAL_GENERATION = 'local_generation';
+    private const STAGE_VERIFY = 'verify';
+    private const STAGE_UPLOAD = 'upload';
+    private const PAUSED_SETTING = 'backup_paused_until_fix';
+    private const PAUSED_REASON_SETTING = 'backup_paused_reason';
+    private const PAUSED_AT_SETTING = 'backup_paused_at';
 
     private function database(): \Metis\Services\DatabaseService {
         return \function_exists( 'metis_db' ) ? \metis_db() : new \Metis\Services\DatabaseService();
@@ -61,14 +70,31 @@ final class BackupService {
             return [ 'ok' => false, 'error' => 'Backup prerequisites are not loaded.' ];
         }
 
-        $drive_cfg = $this->resolveDriveConfig();
-        if ( empty( $drive_cfg['ok'] ) ) {
-            return [ 'ok' => false, 'error' => 'Backup Drive is not configured.' ];
+        $pause = $this->backupPauseStatus();
+        if ( $this->isScheduledTrigger( $trigger ) && ! empty( $pause['paused'] ) ) {
+            return [
+                'ok'      => false,
+                'status'  => 'paused',
+                'paused'  => true,
+                'error'   => 'Scheduled backups are paused: ' . (string) ( $pause['reason'] ?? 'manual repair is required.' ),
+            ];
+        }
+
+        $active = $this->activeRunningRun();
+        if ( $active !== null ) {
+            return [
+                'ok'        => true,
+                'status'    => self::RUNNING,
+                'duplicate' => true,
+                'run_uuid'  => (string) ( $active['run_uuid'] ?? '' ),
+                'message'   => 'A backup run is already active.',
+            ];
         }
 
         $run_uuid    = $this->buildRunUuid();
         $environment = $this->environmentLabel();
         $started_at  = \metis_current_time( 'mysql' );
+        $timestamp_utc = \gmdate( 'c' );
         $local_dir   = $this->runDirectory( $run_uuid );
         $payload_dir = $local_dir . '/payload';
 
@@ -84,193 +110,88 @@ final class BackupService {
             'version'        => $this->version(),
             'started_at'     => $started_at,
             'local_path'     => $local_dir,
-            'drive_id'       => (string) ( $drive_cfg['shared_drive_id'] ?? '' ),
+            'drive_id'       => '',
         ] );
 
-        try {
-            $component_archives = [];
-            $checksums          = [];
-            $timestamp_utc      = \gmdate( 'c' );
+        $component_archives = [];
+        $metadata = [
+            'run_uuid'           => $run_uuid,
+            'created_at_utc'     => $timestamp_utc,
+            'created_at_local'   => $started_at,
+            'environment'        => $environment,
+            'site_url'           => \metis_home_url( '/' ),
+            'version'            => $this->version(),
+            'trigger_source'     => $trigger,
+            'directory_layout'   => [
+                'database' => 'database/',
+                'config'   => 'config/',
+                'media'    => 'media/',
+                'runtime'  => 'runtime/',
+                'full'     => 'full/',
+            ],
+            'restore_order'      => [ 'config', 'media', 'runtime', 'database' ],
+            'component_archives' => [],
+        ];
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'initializing', 'Preparing local backup workspace.' );
 
-            $this->ensureBackupSourceDirectories();
-
-            $database_file = $this->buildDatabaseSnapshot( $payload_dir . '/database', $run_uuid );
-            $component_archives['database'] = $this->describeFile( 'database', $database_file );
-
-            $config_archive = $payload_dir . '/config.zip';
-            $this->zipDirectory( $this->configPath(), $config_archive, [], [ 'index.php' ] );
-            $component_archives['config'] = $this->describeFile( 'config', $config_archive );
-
-            $media_archive = $payload_dir . '/media.zip';
-            $this->zipDirectory( $this->metisPath( 'storage/media' ), $media_archive );
-            $component_archives['media'] = $this->describeFile( 'media', $media_archive );
-
-            foreach ( [
-                'public_media' => 'storage/public-media',
-                'protected_media' => 'storage/protected-media',
-                'private_records' => 'storage/private-records',
-            ] as $component => $storage_path ) {
-                $archive = $payload_dir . '/' . $component . '.zip';
-                $this->zipDirectory( $this->metisPath( $storage_path ), $archive );
-                $component_archives[ $component ] = $this->describeFile( $component, $archive );
-            }
-
-            $runtime_archive = $payload_dir . '/runtime.zip';
-            $this->zipDirectory(
-                $this->metisPath( 'storage/runtime' ),
-                $runtime_archive,
-                [ 'backups' ]
-            );
-            $component_archives['runtime'] = $this->describeFile( 'runtime', $runtime_archive );
-
-            $metadata = [
-                'run_uuid'           => $run_uuid,
-                'created_at_utc'     => $timestamp_utc,
-                'created_at_local'   => $started_at,
-                'environment'        => $environment,
-                'site_url'           => \metis_home_url( '/' ),
-                'version'            => $this->version(),
-                'trigger_source'     => $trigger,
-                'directory_layout'   => [
-                    'database' => 'database/',
-                    'config'   => 'config/',
-                    'media'    => 'media/',
-                    'runtime'  => 'runtime/',
-                    'full'     => 'full/',
-                ],
-                'restore_order'      => [ 'config', 'media', 'runtime', 'database' ],
-                'component_archives' => $component_archives,
-            ];
-
-            $metadata_path = $payload_dir . '/metadata.json';
-            $this->writeJsonFile( $metadata_path, $metadata );
-
-            foreach ( $component_archives as $component => $details ) {
-                $checksums[ $component ] = [
-                    'archive' => (string) ( $details['archive_name'] ?? '' ),
-                    'sha256'  => (string) ( $details['sha256'] ?? '' ),
-                    'bytes'   => (int) ( $details['bytes'] ?? 0 ),
-                ];
-            }
-
-            $checksums_path = $payload_dir . '/checksums.json';
-            $this->writeJsonFile( $checksums_path, [
-                'run_uuid'       => $run_uuid,
-                'generated_at'   => $timestamp_utc,
-                'component_hash' => $checksums,
-            ] );
-
-            $full_archive = $payload_dir . '/full.zip';
-            $this->buildFullArchive( $full_archive, $database_file, $metadata_path, $checksums_path );
-            $component_archives['full'] = $this->describeFile( 'full', $full_archive );
-
-            $drive_segments = [
-                $environment,
-                \gmdate( 'Y' ),
-                \gmdate( 'm' ),
-                \gmdate( 'd' ),
-                $run_uuid,
-            ];
-            $run_folder = $this->ensureDriveFolderPath( $drive_cfg, $drive_segments );
-            if ( empty( $run_folder['ok'] ) ) {
-                throw new \RuntimeException( 'Could not create the backup folder structure in Google Drive.' );
-            }
-
-            $root_folder_id = (string) ( $run_folder['folder_id'] ?? '' );
-            $this->uploadJsonArtifact( $drive_cfg, $root_folder_id, 'metadata.json', $metadata );
-            $this->uploadJsonArtifact( $drive_cfg, $root_folder_id, 'checksums.json', [
-                'run_uuid'       => $run_uuid,
-                'generated_at'   => $timestamp_utc,
-                'component_hash' => $checksums,
-            ] );
-
-            $upload_map = [
-                'full' => '',
-            ];
-
-            foreach ( $upload_map as $component => $folder_name ) {
-                $component_folder = $folder_name === ''
-                    ? $run_folder
-                    : $this->ensureDriveFolderPath( $drive_cfg, array_merge( $drive_segments, [ $folder_name ] ) );
-                if ( empty( $component_folder['ok'] ) && $folder_name !== '' ) {
-                    throw new \RuntimeException( 'Could not create a component folder in Google Drive.' );
-                }
-
-                $upload = $this->uploadFileToDrive(
-                    $drive_cfg,
-                    (string) ( $component_folder['folder_id'] ?? $root_folder_id ),
-                    (string) ( $component_archives[ $component ]['local_path'] ?? '' ),
-                    (string) ( $component_archives[ $component ]['archive_name'] ?? '' ),
-                    'application/zip'
-                );
-                if ( empty( $upload['ok'] ) ) {
-                    throw new \RuntimeException( 'File upload failed.' );
-                }
-
-                $component_archives[ $component ]['drive_file_id'] = (string) ( $upload['id'] ?? '' );
-                $component_archives[ $component ]['drive_web_view_link'] = (string) ( $upload['webViewLink'] ?? '' );
-                $component_archives[ $component ]['drive_folder_id'] = (string) ( $component_folder['folder_id'] ?? '' );
-            }
-
-            $completed_at = \metis_current_time( 'mysql' );
-            $metadata['completed_at_local'] = $completed_at;
-            $metadata['drive'] = [
-                'drive_id'       => (string) ( $drive_cfg['shared_drive_id'] ?? '' ),
-                'run_folder_id'  => $root_folder_id,
-                'shared_drive'   => (string) ( $drive_cfg['shared_drive_label'] ?? $drive_cfg['shared_drive_name'] ?? '' ),
-            ];
-            $metadata['integrity'] = [
-                'created'  => true,
-                'uploaded' => true,
-            ];
-            $metadata['component_archives'] = $component_archives;
-
-            $this->updateRun( $run_id, [
-                'status'              => self::SUCCESS,
-                'completed_at'        => $completed_at,
-                'drive_run_folder_id' => $root_folder_id,
-                'metadata_json'       => $this->encode( $metadata ),
-                'components_json'     => $this->encode( $component_archives ),
-                'last_error'          => '',
-            ] );
-
-            $this->applyRetentionPolicy( $environment, (int) $run_id, $drive_cfg );
-            $this->cleanupLocalRunArtifacts( $run_id, $run_uuid, $local_dir );
-
-            return [
-                'ok'             => true,
-                'status'         => self::SUCCESS,
-                'run_uuid'       => $run_uuid,
-                'environment'    => $environment,
-                'completed_at'   => $completed_at,
-                'drive_folder_id'=> $root_folder_id,
-                'components'     => $component_archives,
-                'metadata'       => $metadata,
-            ];
-        } catch ( \Throwable $e ) {
-            $this->cleanupLocalRunArtifacts( $run_id, $run_uuid, $local_dir );
-
-            $this->updateRun( $run_id, [
-                'status'        => self::FAILED,
-                'completed_at'  => \metis_current_time( 'mysql' ),
-                'last_error'    => 'Backup run failed. Review logs for details.',
-                'local_path'     => '',
-            ] );
-
-            if ( \class_exists( 'Metis_Logger' ) ) {
-                \Metis_Logger::error( 'Backup run failed', [
-                    'run_uuid' => $run_uuid,
-                    'error'    => $e->getMessage(),
-                ] );
-            }
-
+        $queued = $this->enqueueStage( $run_uuid, self::STAGE_HEALTH_CHECK );
+        if ( empty( $queued['ok'] ) ) {
+            $reason = 'Backup failed because the stage worker could not be queued.';
+            $this->failRun( $run_id, $run_uuid, $local_dir, $metadata, $component_archives, 'stage_queue_failed', $reason, true );
             return [
                 'ok'       => false,
                 'status'   => self::FAILED,
                 'run_uuid' => $run_uuid,
-                'error'    => 'Backup run failed. Review logs for details.',
+                'error'    => $reason,
             ];
         }
+
+        return [
+            'ok'        => true,
+            'status'    => 'queued',
+            'run_uuid'  => $run_uuid,
+            'stage'     => self::STAGE_HEALTH_CHECK,
+            'message'   => 'Backup pipeline queued.',
+            'job'       => $queued,
+        ];
+    }
+
+    public function runBackupStage( string $run_uuid, string $stage ): array {
+        $this->initializeLongRunningExecution();
+        $this->ensureSchema();
+        $this->reconcileStaleRuns();
+
+        $run_uuid = trim( $run_uuid );
+        $stage = $this->normalizeBackupStage( $stage );
+        if ( $run_uuid === '' || $stage === '' ) {
+            return [ 'ok' => false, 'status' => self::FAILED, 'error' => 'Backup stage payload is invalid.' ];
+        }
+
+        $row = $this->findRun( $run_uuid );
+        if ( $row === null ) {
+            return [ 'ok' => false, 'status' => self::FAILED, 'error' => 'Backup run not found.' ];
+        }
+        if ( (string) ( $row['status'] ?? '' ) !== self::RUNNING ) {
+            return [
+                'ok'       => true,
+                'status'   => 'skipped',
+                'run_uuid' => $run_uuid,
+                'stage'    => $stage,
+                'message'  => 'Backup stage skipped because the run is no longer active.',
+            ];
+        }
+
+        return match ( $stage ) {
+            self::STAGE_HEALTH_CHECK => $this->runHealthCheckStage( $row ),
+            self::STAGE_LOCAL_GENERATION => $this->runLocalGenerationStage( $row ),
+            self::STAGE_VERIFY => $this->runVerifyStage( $row ),
+            self::STAGE_UPLOAD => $this->runUploadStage( $row ),
+            default => [ 'ok' => false, 'status' => self::FAILED, 'error' => 'Unknown backup stage.' ],
+        };
+    }
+
+    public function pauseStatus(): array {
+        return $this->backupPauseStatus();
     }
 
     public function listRuns( int $limit = 20 ): array {
@@ -284,10 +205,499 @@ final class BackupService {
         return array_values( array_map( fn ( array $row ): array => $this->normalizeRunRow( $row ), $rows ?: [] ) );
     }
 
+    private function runHealthCheckStage( array $row ): array {
+        $run_id = (int) ( $row['id'] ?? 0 );
+        $run_uuid = (string) ( $row['run_uuid'] ?? '' );
+        $local_dir = (string) ( $row['local_path'] ?? '' );
+        $metadata = $this->decode( (string) ( $row['metadata_json'] ?? '' ) );
+        $components = $this->decode( (string) ( $row['components_json'] ?? '' ) );
+
+        try {
+            $this->updateRunProgress( $run_id, $metadata, $components, self::STAGE_HEALTH_CHECK, 'Running backup health check.' );
+            if ( ! \class_exists( '\ZipArchive' ) ) {
+                throw new \RuntimeException( 'Backup failed because PHP ZipArchive is not available.' );
+            }
+            if ( ! \metis_runtime_make_dir( rtrim( $local_dir, '/\\' ) . '/payload/database' ) ) {
+                throw new \RuntimeException( 'Backup failed because the local backup staging directory could not be created.' );
+            }
+            if ( ! \is_dir( $this->metisPath() ) || ! \is_readable( $this->metisPath() ) ) {
+                throw new \RuntimeException( 'Backup failed because the application root is not readable.' );
+            }
+            if ( ! \is_dir( $this->configPath() ) || ! \is_readable( $this->configPath() ) ) {
+                throw new \RuntimeException( 'Backup failed because the configuration directory is not readable.' );
+            }
+            $this->ensureBackupSourceDirectories();
+            $drive_cfg = $this->resolveDriveConfig();
+            if ( empty( $drive_cfg['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the configured Google Drive backup target is unavailable.' );
+            }
+
+            $this->updateRun( $run_id, [ 'drive_id' => (string) ( $drive_cfg['shared_drive_id'] ?? '' ) ] );
+            $this->updateRunProgress( $run_id, $metadata, $components, 'health_check_passed', 'Backup health check passed.' );
+            $queued = $this->enqueueStage( $run_uuid, self::STAGE_LOCAL_GENERATION );
+            if ( empty( $queued['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the local generation stage could not be queued.' );
+            }
+
+            return [
+                'ok' => true,
+                'status' => 'queued',
+                'run_uuid' => $run_uuid,
+                'stage' => self::STAGE_HEALTH_CHECK,
+                'next_stage' => self::STAGE_LOCAL_GENERATION,
+                'job' => $queued,
+            ];
+        } catch ( \Throwable $e ) {
+            return $this->failRun( $run_id, $run_uuid, $local_dir, $metadata, $components, 'health_check_failed', $this->publicFailureReason( self::STAGE_HEALTH_CHECK, $e ), true );
+        }
+    }
+
+    private function runLocalGenerationStage( array $row ): array {
+        $run_id = (int) ( $row['id'] ?? 0 );
+        $run_uuid = (string) ( $row['run_uuid'] ?? '' );
+        $local_dir = (string) ( $row['local_path'] ?? '' );
+        $metadata = $this->decode( (string) ( $row['metadata_json'] ?? '' ) );
+        $components = $this->decode( (string) ( $row['components_json'] ?? '' ) );
+
+        try {
+            $snapshot = $this->localArtifactSnapshot( $local_dir, $run_uuid, $metadata, $components );
+            if ( empty( $snapshot['full_available'] ) ) {
+                [ $metadata, $components ] = $this->createLocalBackupArtifacts( $run_id, $run_uuid, $local_dir, $metadata, $components );
+            } else {
+                $metadata = (array) ( $snapshot['metadata'] ?? $metadata );
+                $components = (array) ( $snapshot['components'] ?? $components );
+                $this->updateRunProgress( $run_id, $metadata, $components, 'local_artifact_reused', 'Existing local backup archive found; reusing it for verification.' );
+            }
+
+            $queued = $this->enqueueStage( $run_uuid, self::STAGE_VERIFY );
+            if ( empty( $queued['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the verification stage could not be queued.' );
+            }
+
+            return [
+                'ok' => true,
+                'status' => 'queued',
+                'run_uuid' => $run_uuid,
+                'stage' => self::STAGE_LOCAL_GENERATION,
+                'next_stage' => self::STAGE_VERIFY,
+                'job' => $queued,
+            ];
+        } catch ( \Throwable $e ) {
+            return $this->failRun( $run_id, $run_uuid, $local_dir, $metadata, $components, 'local_generation_failed', $this->publicFailureReason( self::STAGE_LOCAL_GENERATION, $e ), true );
+        }
+    }
+
+    private function runVerifyStage( array $row ): array {
+        $run_id = (int) ( $row['id'] ?? 0 );
+        $run_uuid = (string) ( $row['run_uuid'] ?? '' );
+        $local_dir = (string) ( $row['local_path'] ?? '' );
+        $metadata = $this->decode( (string) ( $row['metadata_json'] ?? '' ) );
+        $components = $this->decode( (string) ( $row['components_json'] ?? '' ) );
+
+        try {
+            $snapshot = $this->localArtifactSnapshot( $local_dir, $run_uuid, $metadata, $components );
+            $metadata = (array) ( $snapshot['metadata'] ?? $metadata );
+            $components = (array) ( $snapshot['components'] ?? $components );
+            $this->updateRunProgress( $run_id, $metadata, $components, self::STAGE_VERIFY, 'Verifying local backup artifacts.' );
+            $this->verifyLocalBackupArtifacts( $components );
+            $this->updateRunProgress( $run_id, $metadata, $components, 'verification_passed', 'Local backup artifacts verified.' );
+
+            $queued = $this->enqueueStage( $run_uuid, self::STAGE_UPLOAD );
+            if ( empty( $queued['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the upload stage could not be queued.' );
+            }
+
+            return [
+                'ok' => true,
+                'status' => 'queued',
+                'run_uuid' => $run_uuid,
+                'stage' => self::STAGE_VERIFY,
+                'next_stage' => self::STAGE_UPLOAD,
+                'job' => $queued,
+            ];
+        } catch ( \Throwable $e ) {
+            return $this->failRun( $run_id, $run_uuid, $local_dir, $metadata, $components, 'verification_failed', $this->publicFailureReason( self::STAGE_VERIFY, $e ), true );
+        }
+    }
+
+    private function runUploadStage( array $row ): array {
+        $run_id = (int) ( $row['id'] ?? 0 );
+        $run_uuid = (string) ( $row['run_uuid'] ?? '' );
+        $local_dir = (string) ( $row['local_path'] ?? '' );
+        $environment = (string) ( $row['environment'] ?? $this->environmentLabel() );
+        $metadata = $this->decode( (string) ( $row['metadata_json'] ?? '' ) );
+        $components = $this->decode( (string) ( $row['components_json'] ?? '' ) );
+
+        try {
+            $snapshot = $this->localArtifactSnapshot( $local_dir, $run_uuid, $metadata, $components );
+            $metadata = (array) ( $snapshot['metadata'] ?? $metadata );
+            $components = (array) ( $snapshot['components'] ?? $components );
+            $this->verifyLocalBackupArtifacts( $components );
+
+            $drive_cfg = $this->resolveDriveConfig( (string) ( $row['drive_id'] ?? '' ) );
+            if ( empty( $drive_cfg['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the configured Google Drive backup target is unavailable.' );
+            }
+
+            $drive_segments = [
+                $environment,
+                \gmdate( 'Y' ),
+                \gmdate( 'm' ),
+                \gmdate( 'd' ),
+                $run_uuid,
+            ];
+            $this->updateRunProgress( $run_id, $metadata, $components, 'drive_folder', 'Creating or locating backup folder in Drive.' );
+            $run_folder = $this->ensureDriveFolderPath( $drive_cfg, $drive_segments );
+            if ( empty( $run_folder['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the Drive backup folder could not be created.' );
+            }
+
+            $root_folder_id = (string) ( $run_folder['folder_id'] ?? '' );
+            $metadata['drive'] = [
+                'drive_id'       => (string) ( $drive_cfg['shared_drive_id'] ?? '' ),
+                'run_folder_id'  => $root_folder_id,
+                'shared_drive'   => (string) ( $drive_cfg['shared_drive_label'] ?? $drive_cfg['shared_drive_name'] ?? '' ),
+            ];
+            $metadata['integrity'] = [
+                'created'  => true,
+                'uploaded' => false,
+            ];
+
+            $this->updateRunProgress( $run_id, $metadata, $components, 'drive_upload_metadata', 'Uploading backup metadata to Drive.' );
+            $this->uploadJsonArtifact( $drive_cfg, $root_folder_id, 'metadata.json', $metadata );
+            $this->uploadJsonArtifact( $drive_cfg, $root_folder_id, 'checksums.json', $this->checksumPayload( $run_uuid, $metadata, $components ) );
+
+            $this->updateRunProgress( $run_id, $metadata, $components, 'drive_upload_full', 'Uploading full backup archive to Drive.' );
+            $upload = $this->uploadFileToDrive(
+                $drive_cfg,
+                $root_folder_id,
+                (string) ( $components['full']['local_path'] ?? '' ),
+                (string) ( $components['full']['archive_name'] ?? 'full.zip' ),
+                'application/zip'
+            );
+            if ( empty( $upload['ok'] ) ) {
+                throw new \RuntimeException( 'Backup failed because the full archive could not be uploaded to Drive.' );
+            }
+
+            $components['full']['drive_file_id'] = (string) ( $upload['id'] ?? '' );
+            $components['full']['drive_web_view_link'] = (string) ( $upload['webViewLink'] ?? '' );
+            $components['full']['drive_folder_id'] = $root_folder_id;
+
+            $completed_at = \metis_current_time( 'mysql' );
+            $metadata['completed_at_local'] = $completed_at;
+            $metadata['integrity'] = [
+                'created'  => true,
+                'uploaded' => true,
+            ];
+            $metadata['component_archives'] = $components;
+            $metadata['progress'] = [
+                'stage'      => 'completed',
+                'message'    => 'Backup completed and uploaded.',
+                'updated_at' => $completed_at,
+            ];
+
+            $this->updateRun( $run_id, [
+                'status'              => self::SUCCESS,
+                'completed_at'        => $completed_at,
+                'drive_run_folder_id' => $root_folder_id,
+                'metadata_json'       => $this->encode( $metadata ),
+                'components_json'     => $this->encode( $components ),
+                'last_error'          => '',
+            ] );
+
+            $this->clearBackupPause();
+            $this->applyRetentionPolicy( $environment, $run_id, $drive_cfg );
+            $this->cleanupLocalRunArtifacts( $run_id, $run_uuid, $local_dir );
+
+            return [
+                'ok' => true,
+                'status' => self::SUCCESS,
+                'run_uuid' => $run_uuid,
+                'stage' => self::STAGE_UPLOAD,
+                'completed_at' => $completed_at,
+                'drive_folder_id' => $root_folder_id,
+            ];
+        } catch ( \Throwable $e ) {
+            return $this->failRun( $run_id, $run_uuid, $local_dir, $metadata, $components, 'upload_failed', $this->publicFailureReason( self::STAGE_UPLOAD, $e ), true );
+        }
+    }
+
+    private function createLocalBackupArtifacts( int $run_id, string $run_uuid, string $local_dir, array $metadata, array $component_archives ): array {
+        $payload_dir = rtrim( $local_dir, '/\\' ) . '/payload';
+        if ( ! \metis_runtime_make_dir( $payload_dir . '/database' ) ) {
+            throw new \RuntimeException( 'Backup failed because the local backup staging directory could not be created.' );
+        }
+
+        $timestamp_utc = (string) ( $metadata['created_at_utc'] ?? \gmdate( 'c' ) );
+        $checksums = [];
+
+        $this->ensureBackupSourceDirectories();
+
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'database_snapshot', 'Creating database snapshot.' );
+        $database_file = $this->buildDatabaseSnapshot( $payload_dir . '/database', $run_uuid );
+        $component_archives['database'] = $this->describeFile( 'database', $database_file );
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'component_archives', 'Database snapshot created.' );
+
+        $config_archive = $payload_dir . '/config.zip';
+        $this->zipDirectory( $this->configPath(), $config_archive, [], [ 'index.php' ] );
+        $component_archives['config'] = $this->describeFile( 'config', $config_archive );
+
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'component_archives', 'Archiving media and runtime directories.' );
+        $media_archive = $payload_dir . '/media.zip';
+        $this->zipDirectory( $this->metisPath( 'storage/media' ), $media_archive );
+        $component_archives['media'] = $this->describeFile( 'media', $media_archive );
+
+        foreach ( [
+            'public_media' => 'storage/public-media',
+            'protected_media' => 'storage/protected-media',
+            'private_records' => 'storage/private-records',
+        ] as $component => $storage_path ) {
+            $archive = $payload_dir . '/' . $component . '.zip';
+            $this->zipDirectory( $this->metisPath( $storage_path ), $archive );
+            $component_archives[ $component ] = $this->describeFile( $component, $archive );
+        }
+
+        $runtime_archive = $payload_dir . '/runtime.zip';
+        $this->zipDirectory(
+            $this->metisPath( 'storage/runtime' ),
+            $runtime_archive,
+            [ 'backups' ]
+        );
+        $component_archives['runtime'] = $this->describeFile( 'runtime', $runtime_archive );
+
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'metadata', 'Writing local backup metadata.' );
+
+        $metadata_path = $payload_dir . '/metadata.json';
+        $metadata['component_archives'] = $component_archives;
+        $this->writeJsonFile( $metadata_path, $metadata );
+
+        foreach ( $component_archives as $component => $details ) {
+            $checksums[ $component ] = [
+                'archive' => (string) ( $details['archive_name'] ?? '' ),
+                'sha256'  => (string) ( $details['sha256'] ?? '' ),
+                'bytes'   => (int) ( $details['bytes'] ?? 0 ),
+            ];
+        }
+
+        $checksums_path = $payload_dir . '/checksums.json';
+        $this->writeJsonFile( $checksums_path, [
+            'run_uuid'       => $run_uuid,
+            'generated_at'   => $timestamp_utc,
+            'component_hash' => $checksums,
+        ] );
+
+        $full_archive = $payload_dir . '/full.zip';
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'full_archive', 'Building full local backup archive.' );
+        $this->buildFullArchive( $full_archive, $database_file, $metadata_path, $checksums_path );
+        $component_archives['full'] = $this->describeFile( 'full', $full_archive );
+        $metadata['integrity'] = [
+            'created'  => true,
+            'uploaded' => false,
+        ];
+        $metadata['component_archives'] = $component_archives;
+        $this->writeJsonFile( $metadata_path, $metadata );
+        $this->updateRunProgress( $run_id, $metadata, $component_archives, 'local_generation_complete', 'Full local backup archive created.' );
+
+        return [ $metadata, $component_archives ];
+    }
+
+    private function verifyLocalBackupArtifacts( array $components ): void {
+        foreach ( [ 'database', 'config', 'media', 'public_media', 'protected_media', 'private_records', 'runtime', 'full' ] as $component ) {
+            $path = trim( (string) ( $components[ $component ]['local_path'] ?? '' ) );
+            if ( $path === '' || ! \is_file( $path ) ) {
+                throw new \RuntimeException( 'Backup failed because a required local artifact is missing: ' . $component );
+            }
+            if ( (int) @filesize( $path ) < 1 ) {
+                throw new \RuntimeException( 'Backup failed because a required local artifact is empty: ' . $component );
+            }
+
+            $expected_hash = trim( (string) ( $components[ $component ]['sha256'] ?? '' ) );
+            if ( $expected_hash !== '' ) {
+                $actual_hash = \hash_file( 'sha256', $path );
+                if ( ! \is_string( $actual_hash ) || ! \hash_equals( $expected_hash, $actual_hash ) ) {
+                    throw new \RuntimeException( 'Backup failed because a local artifact checksum did not match: ' . $component );
+                }
+            }
+        }
+
+        $zip = new \ZipArchive();
+        $full_path = (string) ( $components['full']['local_path'] ?? '' );
+        if ( $zip->open( $full_path ) !== true ) {
+            throw new \RuntimeException( 'Backup failed because the full local archive could not be opened.' );
+        }
+
+        foreach ( [ 'metadata.json', 'checksums.json', 'database/database.sql.gz' ] as $entry ) {
+            if ( $zip->locateName( $entry ) === false ) {
+                $zip->close();
+                throw new \RuntimeException( 'Backup failed because the full archive is missing ' . $entry . '.' );
+            }
+        }
+        $zip->close();
+    }
+
+    private function checksumPayload( string $run_uuid, array $metadata, array $components ): array {
+        $hashes = [];
+        foreach ( $components as $component => $details ) {
+            if ( ! \is_array( $details ) ) {
+                continue;
+            }
+            $hashes[ (string) $component ] = [
+                'archive' => (string) ( $details['archive_name'] ?? '' ),
+                'sha256'  => (string) ( $details['sha256'] ?? '' ),
+                'bytes'   => (int) ( $details['bytes'] ?? 0 ),
+            ];
+        }
+
+        return [
+            'run_uuid'       => $run_uuid,
+            'generated_at'   => (string) ( $metadata['created_at_utc'] ?? \gmdate( 'c' ) ),
+            'component_hash' => $hashes,
+        ];
+    }
+
+    private function failRun( int $run_id, string $run_uuid, string $local_dir, array $metadata, array $components, string $stage, string $reason, bool $pause_scheduled ): array {
+        $completed_at = \metis_current_time( 'mysql' );
+        $snapshot = $this->localArtifactSnapshot( $local_dir, $run_uuid, $metadata, $components );
+        $snapshot_metadata = (array) ( $snapshot['metadata'] ?? $metadata );
+        $snapshot_components = (array) ( $snapshot['components'] ?? $components );
+        $snapshot_metadata['completed_at_local'] = $completed_at;
+        $snapshot_metadata['integrity'] = [
+            'created'  => ! empty( $snapshot['full_available'] ),
+            'uploaded' => false,
+        ];
+        $this->updateRunProgress( $run_id, $snapshot_metadata, $snapshot_components, $stage, $reason );
+
+        $payload = [
+            'status'          => self::FAILED,
+            'completed_at'    => $completed_at,
+            'metadata_json'   => $this->encode( $snapshot_metadata ),
+            'components_json' => $this->encode( $snapshot_components ),
+            'last_error'      => $reason,
+        ];
+
+        if ( empty( $snapshot['full_available'] ) ) {
+            $this->cleanupLocalRunArtifacts( $run_id, $run_uuid, $local_dir );
+            $payload['local_path'] = '';
+        }
+
+        $this->updateRun( $run_id, $payload );
+
+        if ( $pause_scheduled ) {
+            $this->pauseScheduledBackups( $reason );
+        }
+
+        if ( \class_exists( 'Metis_Logger' ) ) {
+            \Metis_Logger::error( 'Backup stage failed', [
+                'run_uuid' => $run_uuid,
+                'stage' => $stage,
+                'reason' => $reason,
+                'local_artifact_available' => ! empty( $snapshot['full_available'] ),
+            ] );
+        }
+
+        return [
+            'ok' => false,
+            'status' => self::FAILED,
+            'run_uuid' => $run_uuid,
+            'stage' => $stage,
+            'error' => $reason,
+            'paused' => $pause_scheduled,
+            'local_artifact_available' => ! empty( $snapshot['full_available'] ),
+        ];
+    }
+
+    private function enqueueStage( string $run_uuid, string $stage ): array {
+        if ( ! \function_exists( 'metis_operations' ) ) {
+            return [ 'ok' => false, 'message' => 'Operations service is unavailable.' ];
+        }
+
+        return \metis_operations()->queueOperation(
+            'backup.stage',
+            [
+                'run_uuid' => $run_uuid,
+                'stage'    => $this->normalizeBackupStage( $stage ),
+            ],
+            [
+                'created_by' => 0,
+                'dedupe_key' => 'operation:backup.stage:' . $run_uuid . ':' . $this->normalizeBackupStage( $stage ),
+            ]
+        );
+    }
+
+    private function activeRunningRun(): ?array {
+        $table = \Metis_Tables::get( 'backup_runs' );
+        $cutoff = $this->formatTimestamp( time() - self::RUN_TIMEOUT_SECONDS );
+        $row = $this->database()->fetchOne(
+            "SELECT *
+             FROM {$table}
+             WHERE status = %s
+               AND started_at >= %s
+             ORDER BY id DESC
+             LIMIT 1",
+            [ self::RUNNING, $cutoff ]
+        );
+
+        return \is_array( $row ) ? $row : null;
+    }
+
+    private function normalizeBackupStage( string $stage ): string {
+        $stage = $this->normalizeProgressStage( $stage );
+        return \in_array( $stage, [ self::STAGE_HEALTH_CHECK, self::STAGE_LOCAL_GENERATION, self::STAGE_VERIFY, self::STAGE_UPLOAD ], true )
+            ? $stage
+            : '';
+    }
+
+    private function publicFailureReason( string $stage, \Throwable $e ): string {
+        $message = trim( $e->getMessage() );
+        if ( str_starts_with( $message, 'Backup failed because ' ) ) {
+            return $message;
+        }
+
+        return match ( $stage ) {
+            self::STAGE_HEALTH_CHECK => 'Backup failed because the backup health check did not pass.',
+            self::STAGE_LOCAL_GENERATION => 'Backup failed because local backup artifact generation did not complete.',
+            self::STAGE_VERIFY => 'Backup failed because local backup artifact verification did not pass.',
+            self::STAGE_UPLOAD => 'Backup failed because the verified backup archive could not be uploaded.',
+            default => 'Backup failed because the backup pipeline did not complete.',
+        };
+    }
+
+    private function pauseScheduledBackups( string $reason ): void {
+        if ( \class_exists( '\Core_Settings_Service' ) ) {
+            \Core_Settings_Service::set( self::PAUSED_SETTING, true, false );
+            \Core_Settings_Service::set( self::PAUSED_REASON_SETTING, $reason, false );
+            \Core_Settings_Service::set( self::PAUSED_AT_SETTING, \metis_current_time( 'mysql' ), false );
+        }
+    }
+
+    private function clearBackupPause(): void {
+        if ( \class_exists( '\Core_Settings_Service' ) ) {
+            \Core_Settings_Service::set( self::PAUSED_SETTING, false, false );
+            \Core_Settings_Service::set( self::PAUSED_REASON_SETTING, '', false );
+            \Core_Settings_Service::set( self::PAUSED_AT_SETTING, '', false );
+        }
+    }
+
+    private function backupPauseStatus(): array {
+        if ( ! \class_exists( '\Core_Settings_Service' ) ) {
+            return [ 'paused' => false, 'reason' => '', 'paused_at' => '' ];
+        }
+
+        return [
+            'paused' => (bool) \Core_Settings_Service::get( self::PAUSED_SETTING, false ),
+            'reason' => (string) \Core_Settings_Service::get( self::PAUSED_REASON_SETTING, '' ),
+            'paused_at' => (string) \Core_Settings_Service::get( self::PAUSED_AT_SETTING, '' ),
+        ];
+    }
+
+    private function isScheduledTrigger( string $trigger ): bool {
+        return \in_array( \metis_key_clean( $trigger ), [ 'system_cron', 'scheduled', 'queued' ], true );
+    }
+
     private function reconcileStaleRuns(): void {
         $table = \Metis_Tables::get( 'backup_runs' );
         $rows  = $this->database()->fetchAll(
-            "SELECT id, run_uuid, started_at, local_path
+            "SELECT id, run_uuid, started_at, updated_at, local_path, metadata_json, components_json
              FROM {$table}
              WHERE status = %s
              ORDER BY id DESC
@@ -298,33 +708,65 @@ final class BackupService {
         $now = time();
         foreach ( $rows as $row ) {
             $started = (string) ( $row['started_at'] ?? '' );
+            $last_activity = (string) ( $row['updated_at'] ?? $started );
             $timezone = \function_exists( 'metis_runtime_timezone' )
                 ? \metis_runtime_timezone()
                 : new \DateTimeZone( 'UTC' );
-            $started_dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $started, $timezone );
-            $started_ts = $started_dt instanceof \DateTimeImmutable ? $started_dt->getTimestamp() : false;
-            if ( $started_ts === false || $started_ts < 1 ) {
-                continue;
-            }
-
-            if ( ( $now - $started_ts ) < self::RUN_TIMEOUT_SECONDS ) {
+            $activity_dt = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $last_activity !== '' ? $last_activity : $started, $timezone );
+            $activity_ts = $activity_dt instanceof \DateTimeImmutable ? $activity_dt->getTimestamp() : false;
+            if ( $activity_ts === false || $activity_ts < 1 ) {
                 continue;
             }
 
             $run_id   = (int) ( $row['id'] ?? 0 );
             $run_uuid = (string) ( $row['run_uuid'] ?? '' );
+            $local_path = trim( (string) ( $row['local_path'] ?? '' ) );
             if ( $run_id < 1 ) {
                 continue;
             }
 
-            $this->updateRun( $run_id, [
-                'status'       => self::FAILED,
-                'completed_at' => \metis_current_time( 'mysql' ),
-                'last_error'   => 'Backup run timed out before completion; marked failed by watchdog.',
-            ] );
+            $snapshot = $this->localArtifactSnapshot(
+                $local_path,
+                $run_uuid,
+                $this->decode( (string) ( $row['metadata_json'] ?? '' ) ),
+                $this->decode( (string) ( $row['components_json'] ?? '' ) )
+            );
+            $timeout_seconds = ! empty( $snapshot['full_available'] )
+                ? self::LOCAL_ARTIFACT_STALE_SECONDS
+                : self::RUN_TIMEOUT_SECONDS;
+            if ( ( $now - $activity_ts ) < $timeout_seconds ) {
+                continue;
+            }
 
-            $local_path = trim( (string) ( $row['local_path'] ?? '' ) );
-            if ( $local_path !== '' ) {
+            $completed_at = \metis_current_time( 'mysql' );
+            if ( ! empty( $snapshot['full_available'] ) ) {
+                $snapshot_metadata = (array) ( $snapshot['metadata'] ?? [] );
+                $snapshot_components = (array) ( $snapshot['components'] ?? [] );
+                $snapshot_metadata['completed_at_local'] = $completed_at;
+                $snapshot_metadata['integrity'] = [
+                    'created'  => true,
+                    'uploaded' => false,
+                ];
+                $this->updateRunProgress( $run_id, $snapshot_metadata, $snapshot_components, 'stale_after_local_artifact', self::LOCAL_ARTIFACT_RETAINED_ERROR );
+                $this->updateRun( $run_id, [
+                    'status'          => self::FAILED,
+                    'completed_at'    => $completed_at,
+                    'metadata_json'   => $this->encode( $snapshot_metadata ),
+                    'components_json' => $this->encode( $snapshot_components ),
+                    'last_error'      => self::LOCAL_ARTIFACT_RETAINED_ERROR,
+                ] );
+                $this->pauseScheduledBackups( self::LOCAL_ARTIFACT_RETAINED_ERROR );
+            } else {
+                $timeout_reason = 'Backup failed because the backup worker stopped without completing local artifact generation.';
+                $this->updateRun( $run_id, [
+                    'status'       => self::FAILED,
+                    'completed_at' => $completed_at,
+                    'last_error'   => $timeout_reason,
+                ] );
+                $this->pauseScheduledBackups( $timeout_reason );
+            }
+
+            if ( $local_path !== '' && empty( $snapshot['full_available'] ) ) {
                 $this->removeDirectory( $local_path );
             }
 
@@ -332,7 +774,7 @@ final class BackupService {
                 \Metis_Logger::warn( 'Backup run reconciled from stale running state', [
                     'run_uuid' => $run_uuid,
                     'started_at' => $started,
-                    'timeout_seconds' => self::RUN_TIMEOUT_SECONDS,
+                    'timeout_seconds' => $timeout_seconds,
                 ] );
             }
         }
@@ -355,6 +797,80 @@ final class BackupService {
                 ] );
             }
         }
+    }
+
+    private function updateRunProgress( int $run_id, array &$metadata, array $components, string $stage, string $message ): void {
+        $metadata['component_archives'] = $components;
+        $metadata['progress'] = [
+            'stage'      => $this->normalizeProgressStage( $stage ),
+            'message'    => $message,
+            'updated_at' => \metis_current_time( 'mysql' ),
+        ];
+
+        $this->updateRun( $run_id, [
+            'metadata_json'   => $this->encode( $metadata ),
+            'components_json' => $this->encode( $components ),
+        ] );
+    }
+
+    private function localArtifactSnapshot( string $local_dir, string $run_uuid, array $fallback_metadata = [], array $fallback_components = [] ): array {
+        $local_dir = rtrim( trim( $local_dir ), '/\\' );
+        $payload_dir = $local_dir !== '' ? $local_dir . '/payload' : '';
+        $metadata = $fallback_metadata;
+        $components = $fallback_components;
+
+        $metadata_path = $payload_dir !== '' ? $payload_dir . '/metadata.json' : '';
+        if ( $metadata_path !== '' && \is_file( $metadata_path ) ) {
+            $metadata_contents = \file_get_contents( $metadata_path );
+            $metadata_file = \is_string( $metadata_contents ) ? $this->decode( $metadata_contents ) : [];
+            if ( $metadata_file !== [] ) {
+                $metadata = array_replace_recursive( $metadata, $metadata_file );
+            }
+        }
+
+        if ( isset( $metadata['component_archives'] ) && \is_array( $metadata['component_archives'] ) ) {
+            $components = array_replace( $components, $metadata['component_archives'] );
+        }
+
+        $candidate_paths = $payload_dir !== '' ? [
+            'database' => $payload_dir . '/database/database.sql.gz',
+            'config' => $payload_dir . '/config.zip',
+            'media' => $payload_dir . '/media.zip',
+            'public_media' => $payload_dir . '/public_media.zip',
+            'protected_media' => $payload_dir . '/protected_media.zip',
+            'private_records' => $payload_dir . '/private_records.zip',
+            'runtime' => $payload_dir . '/runtime.zip',
+            'full' => $payload_dir . '/full.zip',
+        ] : [];
+
+        foreach ( $candidate_paths as $component => $path ) {
+            if ( $path === '' || ! \is_file( $path ) ) {
+                continue;
+            }
+
+            try {
+                $components[ $component ] = array_merge(
+                    \is_array( $components[ $component ] ?? null ) ? (array) $components[ $component ] : [],
+                    $this->describeFile( $component, $path )
+                );
+            } catch ( \Throwable ) {
+                continue;
+            }
+        }
+
+        $full_available = isset( $candidate_paths['full'] ) && \is_file( $candidate_paths['full'] );
+        $metadata['run_uuid'] = $run_uuid !== '' ? $run_uuid : (string) ( $metadata['run_uuid'] ?? '' );
+        $metadata['component_archives'] = $components;
+        $metadata['integrity'] = [
+            'created'  => $full_available,
+            'uploaded' => ! empty( $components['full']['drive_file_id'] ),
+        ];
+
+        return [
+            'full_available' => $full_available,
+            'metadata'       => $metadata,
+            'components'     => $components,
+        ];
     }
 
     public function restoreRun( string $run_uuid ): array {
@@ -1077,8 +1593,20 @@ final class BackupService {
         $row['metadata']   = $this->decode( (string) ( $row['metadata_json'] ?? '' ) );
         $row['components'] = $this->decode( (string) ( $row['components_json'] ?? '' ) );
         $row['restore']    = $this->decode( (string) ( $row['restore_json'] ?? '' ) );
+        $row['local_artifact_available'] = $this->localArtifactAvailable( $row );
         unset( $row['metadata_json'], $row['components_json'], $row['restore_json'] );
         return $row;
+    }
+
+    private function localArtifactAvailable( array $row ): bool {
+        $components = \is_array( $row['components'] ?? null ) ? (array) $row['components'] : [];
+        $full_path = trim( (string) ( $components['full']['local_path'] ?? '' ) );
+        if ( $full_path !== '' && \is_file( $full_path ) ) {
+            return true;
+        }
+
+        $local_path = trim( (string) ( $row['local_path'] ?? '' ) );
+        return $local_path !== '' && \is_file( rtrim( $local_path, '/\\' ) . '/payload/full.zip' );
     }
 
     private function describeFile( string $component, string $path ): array {
@@ -1201,6 +1729,12 @@ final class BackupService {
         }
     }
 
+    private function formatTimestamp( int $timestamp ): string {
+        return \function_exists( 'metis_runtime_date' )
+            ? \metis_runtime_date( 'Y-m-d H:i:s', $timestamp )
+            : date( 'Y-m-d H:i:s', $timestamp );
+    }
+
     private function metisPath( string $suffix = '' ): string {
         return rtrim( \METIS_PATH, '/\\' ) . ( $suffix !== '' ? '/' . ltrim( $suffix, '/\\' ) : '' );
     }
@@ -1233,5 +1767,10 @@ final class BackupService {
 
         $decoded = \json_decode( $value, true );
         return \is_array( $decoded ) ? $decoded : [];
+    }
+
+    private function normalizeProgressStage( string $stage ): string {
+        $stage = strtolower( trim( preg_replace( '/[^a-z0-9_-]+/', '_', $stage ) ?? '' ) );
+        return $stage !== '' ? $stage : 'unknown';
     }
 }

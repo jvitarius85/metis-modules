@@ -136,7 +136,7 @@ final class OperationsService {
 
         $table = \Metis_Tables::get( 'job_queue' );
         $rows = $this->db->fetchAll(
-            "SELECT id, job_code, queue_name, job_type, status, attempts, max_attempts, payload_json, result_json, last_error, created_by, available_at, started_at, completed_at, failed_at
+            "SELECT id, job_code, queue_name, job_type, status, attempts, max_attempts, payload_json, result_json, last_error, created_by, available_at, reserved_at, reserved_until, started_at, completed_at, failed_at
              FROM {$table}
              WHERE job_type IN ({$placeholders})
              ORDER BY CASE WHEN status IN ('failed', 'processing', 'queued') THEN 0 ELSE 1 END, id DESC
@@ -174,6 +174,8 @@ final class OperationsService {
                 ),
                 'created_by'   => (int) ( $row['created_by'] ?? 0 ),
                 'available_at' => (string) ( $row['available_at'] ?? '' ),
+                'reserved_at'  => (string) ( $row['reserved_at'] ?? '' ),
+                'reserved_until' => (string) ( $row['reserved_until'] ?? '' ),
                 'started_at'   => (string) ( $row['started_at'] ?? '' ),
                 'completed_at' => (string) ( $row['completed_at'] ?? '' ),
                 'failed_at'    => (string) ( $row['failed_at'] ?? '' ),
@@ -195,6 +197,7 @@ final class OperationsService {
             'calendar.sync' => $this->runCalendarSyncOperation( $operation ),
             'cache.clear' => $this->runCacheClearOperation( $operation ),
             'backup.run' => $this->runBackupOperation( $operation ),
+            'backup.stage' => $this->runBackupStageOperation( $operation, $payload ),
             'backup.restore' => $this->runBackupRestoreOperation( $operation, $payload ),
             'release.check' => $this->runReleaseCheckOperation( $operation ),
             'release.apply' => $this->runReleaseApplyOperation( $operation, $payload ),
@@ -320,6 +323,7 @@ final class OperationsService {
             'calendar.sync'      => [ 'label' => 'Calendar Sync', 'priority' => 15, 'max_attempts' => 2 ],
             'cache.clear'        => [ 'label' => 'Clear Runtime Cache', 'priority' => 10, 'max_attempts' => 1 ],
             'backup.run'         => [ 'label' => 'Run Backup', 'priority' => 12, 'max_attempts' => 2 ],
+            'backup.stage'       => [ 'label' => 'Run Backup Stage', 'priority' => 11, 'max_attempts' => 1 ],
             'backup.restore'     => [ 'label' => 'Restore Backup', 'priority' => 6, 'max_attempts' => 1 ],
             'release.check'      => [ 'label' => 'Check Releases', 'priority' => 16, 'max_attempts' => 2 ],
             'release.apply'      => [ 'label' => 'Apply Release', 'priority' => 7, 'max_attempts' => 1 ],
@@ -337,7 +341,8 @@ final class OperationsService {
             return 'operation:' . $normalized . ':' . \metis_key_clean( (string) $payload['task_slug'] );
         }
         if ( isset( $payload['run_uuid'] ) ) {
-            return 'operation:' . $normalized . ':' . trim( (string) $payload['run_uuid'] );
+            $stage = isset( $payload['stage'] ) ? ':' . \metis_key_clean( (string) $payload['stage'] ) : '';
+            return 'operation:' . $normalized . ':' . trim( (string) $payload['run_uuid'] ) . $stage;
         }
         if ( isset( $payload['tag'] ) ) {
             return 'operation:' . $normalized . ':' . strtolower( trim( (string) $payload['tag'] ) );
@@ -416,7 +421,31 @@ final class OperationsService {
             throw new RuntimeException( 'Backup service is not available.' );
         }
 
-        return [ 'operation' => $operation, 'result' => \metis_backup_run_now( 'settings_operations' ) ];
+        $result = \metis_backup_run_now( 'settings_operations' );
+        if ( empty( $result['ok'] ) ) {
+            throw new RuntimeException( (string) ( $result['error'] ?? 'Backup could not be queued.' ) );
+        }
+
+        return [ 'operation' => $operation, 'result' => $result ];
+    }
+
+    private function runBackupStageOperation( string $operation, array $payload ): array {
+        if ( ! \function_exists( 'metis_backup_run_stage' ) ) {
+            throw new RuntimeException( 'Backup stage service is not available.' );
+        }
+
+        $runUuid = trim( (string) ( $payload['run_uuid'] ?? '' ) );
+        $stage = \metis_key_clean( (string) ( $payload['stage'] ?? '' ) );
+        if ( $runUuid === '' || $stage === '' ) {
+            throw new RuntimeException( 'Backup stage payload is required.' );
+        }
+
+        $result = \metis_backup_run_stage( $runUuid, $stage );
+        if ( empty( $result['ok'] ) ) {
+            throw new RuntimeException( (string) ( $result['error'] ?? 'Backup stage failed.' ) );
+        }
+
+        return [ 'operation' => $operation, 'run_uuid' => $runUuid, 'stage' => $stage, 'result' => $result ];
     }
 
     private function runBackupRestoreOperation( string $operation, array $payload ): array {

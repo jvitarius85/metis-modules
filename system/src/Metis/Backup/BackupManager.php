@@ -18,8 +18,16 @@ final class BackupManager {
         return ( new BackupRunner( $this->service ) )->run( $trigger );
     }
 
+    public function runBackupStage( string $runUuid, string $stage ): array {
+        return $this->service->runBackupStage( $runUuid, $stage );
+    }
+
     public function listRuns( int $limit = 20 ): array {
         return $this->service->listRuns( $limit );
+    }
+
+    public function pauseStatus(): array {
+        return $this->service->pauseStatus();
     }
 
     public function restoreRun( string $runUuid ): array {

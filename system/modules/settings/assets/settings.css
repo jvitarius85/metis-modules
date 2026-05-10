@@ -59,6 +59,23 @@
     gap: 16px;
 }
 
+.metis-backup-alert {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.metis-backup-alert.is-warning {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+}
+
 /* ── Settings field rows ─────────────────────────────────── */
 
 .metis-field {

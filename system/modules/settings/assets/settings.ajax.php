@@ -335,25 +335,35 @@ metis_ajax_register_handler( 'metis_backup_restore_run', function () {
 
 metis_ajax_register_handler( 'metis_backup_history_snapshot', function () {
     $runs = function_exists( 'metis_backup_list_runs' ) ? (array) metis_backup_list_runs( 12 ) : [];
+    $pause_status = function_exists( 'metis_backup_pause_status' ) ? (array) metis_backup_pause_status() : [ 'paused' => false ];
     $rows = [];
     foreach ( $runs as $run ) {
         if ( ! is_array( $run ) ) {
             continue;
         }
         $components = is_array( $run['components'] ?? null ) ? $run['components'] : [];
+        $metadata = is_array( $run['metadata'] ?? null ) ? $run['metadata'] : [];
+        $progress = is_array( $metadata['progress'] ?? null ) ? $metadata['progress'] : [];
         $rows[] = [
             'run_uuid' => (string) ( $run['run_uuid'] ?? '' ),
             'status' => (string) ( $run['status'] ?? 'unknown' ),
             'environment' => (string) ( $run['environment'] ?? '' ),
+            'started_at' => (string) ( $run['started_at'] ?? '' ),
             'completed_at' => (string) ( $run['completed_at'] ?? '' ),
+            'updated_at' => (string) ( $run['updated_at'] ?? '' ),
             'drive_folder_id' => (string) ( $run['drive_run_folder_id'] ?? '' ),
             'full_link' => (string) ( $components['full']['drive_web_view_link'] ?? '' ),
+            'local_artifact_available' => ! empty( $run['local_artifact_available'] ),
+            'progress_stage' => (string) ( $progress['stage'] ?? '' ),
+            'progress_message' => (string) ( $progress['message'] ?? '' ),
+            'progress_updated_at' => (string) ( $progress['updated_at'] ?? '' ),
             'last_error' => (string) ( $run['last_error'] ?? '' ),
         ];
     }
 
     metis_runtime_send_json_success( [
         'message' => 'Backup history loaded.',
+        'pause_status' => $pause_status,
         'runs' => $rows,
     ] );
 }, [

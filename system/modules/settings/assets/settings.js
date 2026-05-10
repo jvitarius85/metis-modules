@@ -1191,6 +1191,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const backupHistoryRefreshBtn = document.querySelector('[data-backup-history-refresh]');
     const backupHistoryStatusEl = document.querySelector('[data-backup-history-status]');
     const backupHistoryBody = document.querySelector('[data-backup-history-body]');
+    const backupStatusAlert = document.querySelector('[data-backup-status-alert]');
 
     function bindBackupRestoreButtons(scope) {
         const root = scope || document;
@@ -1243,32 +1244,63 @@ document.addEventListener('DOMContentLoaded', function () {
             const status = String((run && run.status) || 'unknown').trim().toLowerCase();
             const environment = String((run && run.environment) || '').trim();
             const completedAt = String((run && run.completed_at) || '').trim();
+            const updatedAt = String((run && (run.progress_updated_at || run.updated_at)) || '').trim();
             const driveFolderId = String((run && run.drive_folder_id) || '').trim();
             const fullLink = String((run && run.full_link) || '').trim();
+            const localArtifactAvailable = !!(run && run.local_artifact_available);
+            const progressStage = String((run && run.progress_stage) || '').trim();
+            const progressMessage = String((run && run.progress_message) || '').trim();
             const lastError = String((run && run.last_error) || '').trim();
             const canRestore = status === 'success' && runUuid !== '';
 
             const driveCell = fullLink
                 ? '<a href="' + escapeHtml(fullLink) + '" target="_blank" rel="noopener noreferrer">Open archive</a>'
-                : (driveFolderId ? '<code>' + escapeHtml(driveFolderId) + '</code>' : '<span class="metis-help">Not uploaded</span>');
+                : (driveFolderId ? '<code>' + escapeHtml(driveFolderId) + '</code>' : '<span class="metis-help">' + (localArtifactAvailable ? 'Local only' : 'Not uploaded') + '</span>');
 
             const restoreButton = canRestore
                 ? '<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-backup-restore-run="' + escapeHtml(runUuid) + '">Restore</button>'
                 : '<button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" disabled>Restore</button>';
 
-            const errorNote = lastError ? '<div class="metis-help" style="margin-top:6px;color:#b91c1c;">Backup run failed. Review logs for details.</div>' : '';
+            const errorNote = lastError ? '<div class="metis-help" style="margin-top:6px;color:#b91c1c;">' + escapeHtml(lastError) + '</div>' : '';
+            const progressNote = progressMessage && !lastError
+                ? '<div class="metis-help" style="margin-top:6px;">' + escapeHtml(progressMessage) + (progressStage ? ' <code>' + escapeHtml(progressStage) + '</code>' : '') + '</div>'
+                : '';
+            const completedCell = completedAt || (updatedAt ? 'Last activity ' + updatedAt : 'In progress');
 
             return [
                 '<tr>',
-                '  <td><strong>' + escapeHtml(runUuid || '-') + '</strong>' + errorNote + '</td>',
+                '  <td><strong>' + escapeHtml(runUuid || '-') + '</strong>' + errorNote + progressNote + '</td>',
                 '  <td>' + escapeHtml(ucfirst(status || 'unknown')) + '</td>',
                 '  <td>' + escapeHtml(environment || '-') + '</td>',
-                '  <td>' + escapeHtml(completedAt || 'In progress') + '</td>',
+                '  <td>' + escapeHtml(completedCell) + '</td>',
                 '  <td>' + driveCell + '</td>',
                 '  <td>' + restoreButton + '</td>',
                 '</tr>'
             ].join('');
         }).join('');
+    }
+
+    function renderBackupStatusAlert(runs, pauseStatus) {
+        if (!backupStatusAlert) return;
+
+        const paused = !!(pauseStatus && pauseStatus.paused);
+        const failedRun = Array.isArray(runs)
+            ? runs.find(function (run) { return String((run && run.last_error) || '').trim() !== ''; })
+            : null;
+        const message = paused
+            ? 'Scheduled backups are paused because: ' + String((pauseStatus && pauseStatus.reason) || 'manual repair is required.')
+            : (failedRun ? String(failedRun.last_error || '') : '');
+
+        if (!message) {
+            backupStatusAlert.hidden = true;
+            backupStatusAlert.textContent = '';
+            backupStatusAlert.className = 'metis-backup-alert';
+            return;
+        }
+
+        backupStatusAlert.hidden = false;
+        backupStatusAlert.className = 'metis-backup-alert ' + (paused ? 'is-warning' : 'is-error');
+        backupStatusAlert.textContent = message;
     }
 
     function loadBackupHistory() {
@@ -1291,6 +1323,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
             const runs = Array.isArray(data && data.runs ? data.runs : []) ? data.runs : [];
+            renderBackupStatusAlert(runs, data && data.pause_status ? data.pause_status : null);
             backupHistoryBody.innerHTML = renderBackupHistoryRows(runs);
             bindBackupRestoreButtons(backupHistoryRoot || document);
             if (backupHistoryStatusEl) {

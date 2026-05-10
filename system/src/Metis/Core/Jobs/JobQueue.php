@@ -13,6 +13,7 @@ class JobQueue {
     private const STATUS_FAILED = 'failed';
     private const DEFAULT_QUEUE = 'default';
     private const DEFAULT_LEASE_TTL = 900;
+    private const LONG_RUNNING_LEASE_TTL = 10800;
 
     public function __construct(
         private readonly JobWorkerRegistry $workers,
@@ -184,7 +185,7 @@ class JobQueue {
     public function recoverExpiredProcessingJobs(): array {
         $table = \Metis_Tables::get( 'job_queue' );
         $now   = \metis_current_time( 'mysql' );
-        $futureSkewCutoff = $this->formatTimestamp( $this->currentLocalTimestamp() + ( self::DEFAULT_LEASE_TTL * 2 ) );
+        $futureSkewCutoff = $this->formatTimestamp( $this->currentLocalTimestamp() + self::LONG_RUNNING_LEASE_TTL + self::DEFAULT_LEASE_TTL );
 
         $failed = $this->database()->execute( (string) $this->database()->prepare(
             "UPDATE {$table}
@@ -273,9 +274,9 @@ class JobQueue {
         );
 
         $claimed = [];
-        $lease_until = $this->formatTimestamp( $this->currentLocalTimestamp() + self::DEFAULT_LEASE_TTL );
 
         foreach ( $jobs as $job ) {
+            $lease_until = $this->formatTimestamp( $this->currentLocalTimestamp() + $this->leaseTtlForJob( $job ) );
             $updated = $this->database()->update(
                 $table,
                 [
@@ -304,6 +305,42 @@ class JobQueue {
         }
 
         return $claimed;
+    }
+
+    private function leaseTtlForJob( array $job ): int {
+        $payload = $this->decodeJson( (string) ( $job['payload_json'] ?? '' ) );
+        $job_type = (string) ( $job['job_type'] ?? '' );
+
+        if ( $job_type === 'system.operation' ) {
+            $operation = strtolower( trim( (string) ( $payload['operation'] ?? '' ) ) );
+            if ( in_array( $operation, [ 'backup.run', 'backup.stage', 'backup.restore', 'release.apply', 'release.rollback' ], true ) ) {
+                return self::LONG_RUNNING_LEASE_TTL;
+            }
+
+            if ( $operation === 'cron.task.run' ) {
+                $task = (string) (
+                    $payload['payload']['task_slug']
+                    ?? $payload['payload']['task']
+                    ?? ''
+                );
+                if ( $task === 'system_backup_snapshot' ) {
+                    return self::LONG_RUNNING_LEASE_TTL;
+                }
+            }
+        }
+
+        if ( $job_type === 'system.cron.task' ) {
+            $task = (string) (
+                $payload['task']
+                ?? $payload['task_slug']
+                ?? ''
+            );
+            if ( $task === 'system_backup_snapshot' ) {
+                return self::LONG_RUNNING_LEASE_TTL;
+            }
+        }
+
+        return self::DEFAULT_LEASE_TTL;
     }
 
     private function markCompleted( int $job_id, array $result ): void {

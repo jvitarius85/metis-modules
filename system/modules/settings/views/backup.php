@@ -71,6 +71,7 @@ $backup_task_url = metis_settings_section_url( 'system', 'jobs-tasks' );
     <div class="metis-settings-card">
         <div class="metis-settings-header"><h2>Recent Backups</h2></div>
         <div class="metis-settings-body" data-backup-history-root="1">
+            <div class="metis-backup-alert" data-backup-status-alert="1" hidden></div>
             <div class="metis-settings-actions" style="justify-content:flex-start;">
                 <button type="button" class="metis-btn metis-btn-ghost" data-backup-history-refresh="1">Load History</button>
                 <span class="metis-help" data-backup-history-status>History not loaded.</span>
