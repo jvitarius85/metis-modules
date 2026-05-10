@@ -50,11 +50,11 @@ metis_ajax_register_handler( 'metis_media_library_upload', function (): void {
     metis_media_ajax_verify_nonce();
     metis_media_ajax_require_permission( 'media.edit' );
 
-    if ( empty( $_FILES['file'] ) || ! is_array( $_FILES['file'] ) ) {
+    if ( empty( metis_request_files()['file'] ) || ! is_array( metis_request_files()['file'] ) ) {
         metis_runtime_send_json_error( 'File is required.', 400 );
     }
 
-    $file = $_FILES['file'];
+    $file = metis_request_files()['file'];
     $size = isset( $file['size'] ) ? (int) $file['size'] : 0;
     if ( $size < 1 ) {
         metis_runtime_send_json_error( 'Uploaded file is empty.', 400 );
@@ -76,8 +76,8 @@ metis_ajax_register_handler( 'metis_media_library_upload', function (): void {
     }
 
     $token = isset( $uploaded['token'] ) ? metis_text_clean( (string) $uploaded['token'] ) : '';
-    $folder_path = isset( $_POST['folder_path'] ) ? (string) metis_runtime_unslash( $_POST['folder_path'] ) : '';
-    $category_key = isset( $_POST['category_key'] ) ? (string) metis_runtime_unslash( $_POST['category_key'] ) : '';
+    $folder_path = isset( metis_request_post()['folder_path'] ) ? (string) metis_runtime_unslash( metis_request_post()['folder_path'] ) : '';
+    $category_key = isset( metis_request_post()['category_key'] ) ? (string) metis_runtime_unslash( metis_request_post()['category_key'] ) : '';
     if ( $token !== '' && function_exists( 'metis_media_update_metadata' ) ) {
         metis_media_update_metadata( $token, $folder_path, $category_key );
     }
@@ -104,14 +104,14 @@ metis_ajax_register_handler( 'metis_media_library_list', function (): void {
     $db = metis_db();
     $table = function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : 'metis_media_files';
 
-    $search = isset( $_POST['search'] ) ? trim( metis_text_clean( metis_runtime_unslash( $_POST['search'] ) ) ) : '';
-    $type = isset( $_POST['type'] ) ? trim( metis_key_clean( metis_runtime_unslash( $_POST['type'] ) ) ) : '';
-    $folder = isset( $_POST['folder'] ) ? (string) metis_runtime_unslash( $_POST['folder'] ) : '';
-    $category = isset( $_POST['category'] ) ? (string) metis_runtime_unslash( $_POST['category'] ) : '';
-    $sort = isset( $_POST['sort'] ) ? trim( metis_key_clean( metis_runtime_unslash( $_POST['sort'] ) ) ) : 'created_desc';
+    $search = isset( metis_request_post()['search'] ) ? trim( metis_text_clean( metis_runtime_unslash( metis_request_post()['search'] ) ) ) : '';
+    $type = isset( metis_request_post()['type'] ) ? trim( metis_key_clean( metis_runtime_unslash( metis_request_post()['type'] ) ) ) : '';
+    $folder = isset( metis_request_post()['folder'] ) ? (string) metis_runtime_unslash( metis_request_post()['folder'] ) : '';
+    $category = isset( metis_request_post()['category'] ) ? (string) metis_runtime_unslash( metis_request_post()['category'] ) : '';
+    $sort = isset( metis_request_post()['sort'] ) ? trim( metis_key_clean( metis_runtime_unslash( metis_request_post()['sort'] ) ) ) : 'created_desc';
     $folder = function_exists( 'metis_media_normalize_folder_path' ) ? metis_media_normalize_folder_path( $folder ) : metis_slug_clean( $folder );
     $category = function_exists( 'metis_media_normalize_category_key' ) ? metis_media_normalize_category_key( $category ) : metis_key_clean( $category );
-    $limit = isset( $_POST['limit'] ) ? (int) $_POST['limit'] : 80;
+    $limit = isset( metis_request_post()['limit'] ) ? (int) metis_request_post()['limit'] : 80;
     $limit = max( 1, min( 200, $limit ) );
     $sort_sql = match ( $sort ) {
         'created_asc' => 'created_at ASC, id ASC',
@@ -222,13 +222,13 @@ metis_ajax_register_handler( 'metis_media_library_update_meta', function (): voi
     metis_media_ajax_verify_nonce();
     metis_media_ajax_require_permission( 'media.edit' );
 
-    $token = isset( $_POST['token'] ) ? strtolower( trim( metis_text_clean( metis_runtime_unslash( $_POST['token'] ) ) ) ) : '';
+    $token = isset( metis_request_post()['token'] ) ? strtolower( trim( metis_text_clean( metis_runtime_unslash( metis_request_post()['token'] ) ) ) ) : '';
     if ( $token === '' || ! preg_match( '/^[a-f0-9]{24,64}$/', $token ) ) {
         metis_runtime_send_json_error( 'Invalid media token.', 400 );
     }
 
-    $folder_path = isset( $_POST['folder_path'] ) ? (string) metis_runtime_unslash( $_POST['folder_path'] ) : '';
-    $category_key = isset( $_POST['category_key'] ) ? (string) metis_runtime_unslash( $_POST['category_key'] ) : '';
+    $folder_path = isset( metis_request_post()['folder_path'] ) ? (string) metis_runtime_unslash( metis_request_post()['folder_path'] ) : '';
+    $category_key = isset( metis_request_post()['category_key'] ) ? (string) metis_runtime_unslash( metis_request_post()['category_key'] ) : '';
 
     if ( ! function_exists( 'metis_media_update_metadata' ) || ! metis_media_update_metadata( $token, $folder_path, $category_key ) ) {
         metis_runtime_send_json_error( 'Unable to update media metadata.', 500 );
@@ -241,7 +241,7 @@ metis_ajax_register_handler( 'metis_media_library_delete', function (): void {
     metis_media_ajax_verify_nonce();
     metis_media_ajax_require_permission( 'media.delete' );
 
-    $token = isset( $_POST['token'] ) ? strtolower( trim( metis_text_clean( metis_runtime_unslash( $_POST['token'] ) ) ) ) : '';
+    $token = isset( metis_request_post()['token'] ) ? strtolower( trim( metis_text_clean( metis_runtime_unslash( metis_request_post()['token'] ) ) ) ) : '';
     if ( $token === '' || ! preg_match( '/^[a-f0-9]{24,64}$/', $token ) ) {
         metis_runtime_send_json_error( 'Invalid media token.', 400 );
     }
@@ -260,28 +260,17 @@ metis_ajax_register_handler( 'metis_media_library_delete', function (): void {
 
     $relative_path = ltrim( (string) ( $row['storage_path'] ?? '' ), '/' );
     $storage_class = metis_key_clean( (string) ( $row['storage_class'] ?? 'legacy' ) );
-    $roots = function_exists( 'metis_media_storage_roots' ) ? metis_media_storage_roots( true ) : [
-        'public' => METIS_PATH . 'storage/public-media',
-        'protected' => METIS_PATH . 'storage/protected-media',
-        'private' => METIS_PATH . 'storage/private-records',
-        'legacy_uploads' => METIS_PATH . 'storage/uploads',
-        'legacy_media' => METIS_PATH . 'storage/media',
-    ];
-    $candidate_roots = match ( $storage_class ) {
-        'public' => [ $roots['public'] ?? '' ],
-        'protected' => [ $roots['protected'] ?? '' ],
-        'private' => [ $roots['private'] ?? '' ],
-        default => [ $roots['legacy_uploads'] ?? '', $roots['legacy_media'] ?? '' ],
-    };
-    foreach ( $candidate_roots as $root_path ) {
-        if ( ! is_string( $root_path ) || $root_path === '' ) {
-            continue;
-        }
-        $base = realpath( $root_path );
-        $target = $base && $relative_path !== '' ? realpath( $base . '/' . $relative_path ) : false;
-        if ( is_string( $base ) && is_string( $target ) && str_starts_with( $target, $base ) && is_file( $target ) ) {
-            @unlink( $target );
-            break;
+    $resolved = function_exists( 'metis_media_resolve_registered_path' )
+        ? metis_media_resolve_registered_path( $storage_class, $relative_path, true )
+        : null;
+    if ( is_array( $resolved ) && is_file( (string) ( $resolved['path'] ?? '' ) ) ) {
+        @unlink( (string) $resolved['path'] );
+        if ( function_exists( 'metis_audit_log_activity' ) ) {
+            metis_audit_log_activity( 'media_storage_deleted', [
+                'module' => 'media',
+                'resource' => [ 'type' => 'media', 'id' => $token ],
+                'context' => [ 'storage_class' => $storage_class ],
+            ] );
         }
     }
 

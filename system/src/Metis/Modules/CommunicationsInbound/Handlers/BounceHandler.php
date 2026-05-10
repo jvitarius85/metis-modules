@@ -26,14 +26,19 @@ final class BounceHandler implements MessageHandlerInterface {
         $contact_id = 0;
         if ( $recipient !== '' ) {
             $contact_id = (int) $db->scalar( "SELECT id FROM {$contacts_table} WHERE email = %s LIMIT 1", [ $recipient ] );
-            $db->query(
-                "UPDATE {$subs_table}
+            $db->execute(
+                $db->prepare(
+                    "UPDATE {$subs_table}
                  SET status = 'bounced',
                      bounce_count = bounce_count + 1,
                      last_event_at = %s,
                      updated_at = %s
                  WHERE email = %s OR contact_id = %d",
-                [ $now, $now, $recipient, $contact_id ]
+                    $now,
+                    $now,
+                    $recipient,
+                    $contact_id
+                )
             );
 
             $suppression_id = (int) $db->scalar(

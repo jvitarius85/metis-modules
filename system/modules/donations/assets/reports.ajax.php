@@ -379,7 +379,7 @@ function metis_build_top_donors( string $transactions_table, string $where, arra
 // -------------------------------------------------------------------------
 
 function metis_ajax_donations_report(): void {
-    $filters_raw = $_POST['filters'] ?? null;
+    $filters_raw = metis_request_post()['filters'] ?? null;
     $filters     = [];
 
     if ( is_string( $filters_raw ) && $filters_raw !== '' ) {
@@ -390,13 +390,13 @@ function metis_ajax_donations_report(): void {
     }
 
     $data = metis_build_donations_report_data( [
-        'start'    => metis_text_clean( $_POST['start']  ?? '' ),
-        'end'      => metis_text_clean( $_POST['end']    ?? '' ),
-        'group'    => metis_key_clean(        $_POST['group']  ?? 'month' ),
-        'metrics'  => $_POST['metrics'] ?? [],
+        'start'    => metis_text_clean( metis_request_post()['start']  ?? '' ),
+        'end'      => metis_text_clean( metis_request_post()['end']    ?? '' ),
+        'group'    => metis_key_clean(        metis_request_post()['group']  ?? 'month' ),
+        'metrics'  => metis_request_post()['metrics'] ?? [],
         'filters'  => $filters,
-        'lifetime' => ! empty( $_POST['lifetime'] ),
-        'compare'  => metis_key_clean( $_POST['compare'] ?? 'none' ),
+        'lifetime' => ! empty( metis_request_post()['lifetime'] ),
+        'compare'  => metis_key_clean( metis_request_post()['compare'] ?? 'none' ),
     ] );
 
     metis_runtime_send_json_success( $data );
@@ -419,7 +419,7 @@ function metis_ajax_donations_report_pdf(): void {
 
     $footer_left = "{$org_name} \xE2\x80\x94 {$portal_name} \xE2\x80\x94 Confidential";
 
-    $filters_raw = $_POST['filters'] ?? null;
+    $filters_raw = metis_request_post()['filters'] ?? null;
     $filters     = [];
     if ( is_string( $filters_raw ) && $filters_raw !== '' ) {
         $decoded = json_decode( stripslashes( $filters_raw ), true );
@@ -428,7 +428,7 @@ function metis_ajax_donations_report_pdf(): void {
         $filters = $filters_raw;
     }
 
-    $metrics_raw = $_POST['metrics'] ?? '';
+    $metrics_raw = metis_request_post()['metrics'] ?? '';
     $metrics     = [];
     if ( is_string( $metrics_raw ) && $metrics_raw !== '' ) {
         $decoded = json_decode( stripslashes( $metrics_raw ), true );
@@ -437,13 +437,13 @@ function metis_ajax_donations_report_pdf(): void {
         $metrics = $metrics_raw;
     }
 
-    $group    = metis_key_clean( $_POST['group'] ?? 'month' );
-    $lifetime = ! empty( $_POST['lifetime'] );
-    $start    = metis_text_clean( $_POST['start'] ?? '' );
-    $end      = metis_text_clean( $_POST['end']   ?? '' );
+    $group    = metis_key_clean( metis_request_post()['group'] ?? 'month' );
+    $lifetime = ! empty( metis_request_post()['lifetime'] );
+    $start    = metis_text_clean( metis_request_post()['start'] ?? '' );
+    $end      = metis_text_clean( metis_request_post()['end']   ?? '' );
 
     $report_data = [];
-    $raw_rd = $_POST['report_data'] ?? '';
+    $raw_rd = metis_request_post()['report_data'] ?? '';
     if ( is_string( $raw_rd ) && $raw_rd !== '' ) {
         $decoded = json_decode( stripslashes( $raw_rd ), true );
         if ( is_array( $decoded ) ) $report_data = $decoded;
@@ -700,7 +700,7 @@ HTML;
         $group_label = ucfirst( $meta['group'] ?? $group );
 
         $chart_html = '';
-        $raw_img    = $_POST['chart_image'] ?? '';
+        $raw_img    = metis_request_post()['chart_image'] ?? '';
         if ( is_string( $raw_img ) && str_starts_with( $raw_img, 'data:image/png;base64,' ) ) {
             $chart_html = '<img src="' . metis_escape_attr( $raw_img ) . '" style="width:100%;max-width:680px;margin:20px 0;display:block;">';
         }
@@ -799,9 +799,9 @@ function metis_ajax_report_save(): void {
         metis_runtime_send_json_error( [ 'message' => 'Reports table missing. Run DB install first.' ], 500 );
     }
 
-    $id    = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
-    $name  = metis_text_clean( $_POST['name']   ?? '' );
-    $cfg_s = $_POST['config'] ?? '';
+    $id    = isset( metis_request_post()['id'] ) ? (int) metis_request_post()['id'] : 0;
+    $name  = metis_text_clean( metis_request_post()['name']   ?? '' );
+    $cfg_s = metis_request_post()['config'] ?? '';
 
     if ( $name === '' || $cfg_s === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'Missing name or config' ], 400 );
@@ -871,7 +871,7 @@ function metis_ajax_report_delete(): void {
         metis_runtime_send_json_error( [ 'message' => 'Reports table missing' ], 500 );
     }
 
-    $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+    $id = isset( metis_request_post()['id'] ) ? (int) metis_request_post()['id'] : 0;
     if ( $id <= 0 ) {
         metis_runtime_send_json_error( [ 'message' => 'Missing id' ], 400 );
     }

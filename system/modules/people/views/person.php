@@ -15,8 +15,8 @@ $roles_table = Metis_Tables::get( 'people_roles' );
 $user_roles_table = Metis_Tables::get( 'people_user_roles' );
 
 $can_manage = metis_people_can_manage();
-$is_new = isset( $_GET['new'] ) && (string) metis_runtime_unslash( $_GET['new'] ) === '1';
-$pid = isset( $_GET['pid'] ) ? metis_text_clean( metis_runtime_unslash( $_GET['pid'] ) ) : '';
+$is_new = isset( metis_request_get()['new'] ) && (string) metis_runtime_unslash( metis_request_get()['new'] ) === '1';
+$pid = isset( metis_request_get()['pid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_get()['pid'] ) ) : '';
 
 $person = null;
 if ( ! $is_new && $pid !== '' ) {

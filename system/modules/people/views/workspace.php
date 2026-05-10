@@ -60,8 +60,8 @@ $workspace_groups = $db->fetchAll(
 
 $sync_page_size = 12;
 $security_page_size = 12;
-$sync_page = isset($_GET['sync_page']) ? (int) metis_runtime_unslash($_GET['sync_page']) : 1;
-$security_page = isset($_GET['security_page']) ? (int) metis_runtime_unslash($_GET['security_page']) : 1;
+$sync_page = isset(metis_request_get()['sync_page']) ? (int) metis_runtime_unslash(metis_request_get()['sync_page']) : 1;
+$security_page = isset(metis_request_get()['security_page']) ? (int) metis_runtime_unslash(metis_request_get()['security_page']) : 1;
 if ($sync_page < 1) $sync_page = 1;
 if ($security_page < 1) $security_page = 1;
 

@@ -26,6 +26,8 @@ if ( is_file( $metis_composer_autoload ) ) {
     require_once $metis_composer_autoload;
 }
 
+require_once __DIR__ . '/Runtime/RequestRuntime.php';
+
 $metis_bootstrap_root = metis_bootstrap_root_path();
 $metis_bootstrap_system = $metis_bootstrap_root . 'system/';
 foreach ( [
@@ -331,9 +333,9 @@ if ( ! function_exists( 'metis_check_ajax_referer' ) ) {
         }
 
         $field = is_string( $query_arg ) && $query_arg !== '' ? $query_arg : 'metis_action_nonce';
-        $nonce = isset( $_POST[ $field ] )
-            ? (string) $_POST[ $field ]
-            : ( isset( $_GET[ $field ] ) ? (string) $_GET[ $field ] : '' );
+        $nonce = isset( metis_request_post()[ $field ] )
+            ? (string) metis_request_post()[ $field ]
+            : ( isset( metis_request_get()[ $field ] ) ? (string) metis_request_get()[ $field ] : '' );
         $valid = function_exists( 'metis_runtime_verify_nonce' )
             ? metis_runtime_verify_nonce( $nonce, $action )
             : $nonce !== '';

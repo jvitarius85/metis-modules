@@ -68,7 +68,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_state', function (): void {
 
 metis_ajax_register_handler( 'metis_grandys_stash_save_ticket', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.assign' );
-    $payload = json_decode( (string) ( $_POST['payload'] ?? '' ), true );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
     if ( ! is_array( $payload ) ) {
         metis_runtime_send_json_error( 'Invalid ticket payload.', 422 );
     }
@@ -83,8 +83,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_save_ticket', function (): voi
 
 metis_ajax_register_handler( 'metis_grandys_stash_update_item_status', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.inventory' );
-    $item_id = (int) ( $_POST['item_id'] ?? 0 );
-    $status  = (string) ( $_POST['status'] ?? '' );
+    $item_id = (int) ( metis_request_post()['item_id'] ?? 0 );
+    $status  = (string) ( metis_request_post()['status'] ?? '' );
     if ( $item_id < 1 || $status === '' ) {
         metis_runtime_send_json_error( 'Item ID and status are required.', 422 );
     }
@@ -99,8 +99,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_update_item_status', function 
 
 metis_ajax_register_handler( 'metis_grandys_stash_add_note', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.comment' );
-    $ticket_id = (int) ( $_POST['ticket_id'] ?? 0 );
-    $content   = (string) ( $_POST['content'] ?? '' );
+    $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
+    $content   = (string) ( metis_request_post()['content'] ?? '' );
     if ( $ticket_id < 1 || trim( $content ) === '' ) {
         metis_runtime_send_json_error( 'Ticket ID and note content are required.', 422 );
     }
@@ -118,9 +118,9 @@ metis_ajax_register_handler( 'metis_grandys_stash_add_note', function (): void {
 
 metis_ajax_register_handler( 'metis_grandys_stash_send_reply', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.reply' );
-    $ticket_id = (int) ( $_POST['ticket_id'] ?? 0 );
-    $content   = (string) ( $_POST['content'] ?? '' );
-    $subject   = (string) ( $_POST['subject'] ?? '' );
+    $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
+    $content   = (string) ( metis_request_post()['content'] ?? '' );
+    $subject   = (string) ( metis_request_post()['subject'] ?? '' );
     if ( $ticket_id < 1 || trim( $content ) === '' ) {
         metis_runtime_send_json_error( 'Ticket ID and reply content are required.', 422 );
     }
@@ -143,7 +143,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_send_reply', function (): void
 
 metis_ajax_register_handler( 'metis_grandys_stash_ticket_detail', function (): void {
     metis_grandys_stash_ajax_guard();
-    $ticket_id = (int) ( $_POST['ticket_id'] ?? 0 );
+    $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
     if ( $ticket_id < 1 ) {
         metis_runtime_send_json_error( 'Ticket ID is required.', 422 );
     }
@@ -158,7 +158,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_ticket_detail', function (): v
 
 metis_ajax_register_handler( 'metis_grandys_stash_unlink_group', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.assign' );
-    $ticket_id = (int) ( $_POST['ticket_id'] ?? 0 );
+    $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
     if ( $ticket_id < 1 ) {
         metis_runtime_send_json_error( 'Ticket ID is required.', 422 );
     }
@@ -174,7 +174,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_unlink_group', function (): vo
 
 metis_ajax_register_handler( 'metis_grandys_stash_contact_search', function (): void {
     metis_grandys_stash_ajax_guard();
-    $query = isset( $_POST['query'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['query'] ) ) : '';
+    $query = isset( metis_request_post()['query'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['query'] ) ) : '';
     metis_runtime_send_json_success( [ 'contacts' => GrandyStashRepository::searchContacts( $query ) ] );
 } );
 
@@ -182,14 +182,14 @@ metis_ajax_register_handler( 'metis_grandys_stash_contact_search', function (): 
 
 metis_ajax_register_handler( 'metis_grandys_stash_search_groups', function (): void {
     metis_grandys_stash_ajax_guard();
-    $query = isset( $_POST['query'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['query'] ) ) : '';
+    $query = isset( metis_request_post()['query'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['query'] ) ) : '';
     metis_runtime_send_json_success( [ 'groups' => GrandyStashRepository::searchGroups( $query ) ] );
 } );
 
 metis_ajax_register_handler( 'metis_grandys_stash_link_group', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.assign' );
-    $ticket_id = (int) ( $_POST['ticket_id'] ?? 0 );
-    $group_id  = (int) ( $_POST['group_id'] ?? 0 );
+    $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
+    $group_id  = (int) ( metis_request_post()['group_id'] ?? 0 );
     if ( $ticket_id < 1 || $group_id < 1 ) {
         metis_runtime_send_json_error( 'Ticket ID and Group ID are required.', 422 );
     }
@@ -202,8 +202,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_link_group', function (): void
 
 metis_ajax_register_handler( 'metis_grandys_stash_merge_groups', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.assign' );
-    $source_id = (int) ( $_POST['source_id'] ?? 0 );
-    $target_id = (int) ( $_POST['target_id'] ?? 0 );
+    $source_id = (int) ( metis_request_post()['source_id'] ?? 0 );
+    $target_id = (int) ( metis_request_post()['target_id'] ?? 0 );
     if ( $source_id < 1 || $target_id < 1 ) {
         metis_runtime_send_json_error( 'Source and target group IDs are required.', 422 );
     }
@@ -218,7 +218,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_merge_groups', function (): vo
 
 metis_ajax_register_handler( 'metis_grandys_stash_create_ticket', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.create' );
-    $payload = json_decode( (string) ( $_POST['payload'] ?? '' ), true );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
     if ( ! is_array( $payload ) ) {
         metis_runtime_send_json_error( 'Invalid payload.', 422 );
     }
@@ -238,8 +238,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_get_inventory', function (): v
 
 metis_ajax_register_handler( 'metis_grandys_stash_update_inventory', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.inventory' );
-    $catalog_item_id = (int) ( $_POST['catalog_item_id'] ?? 0 );
-    $qty             = (int) ( $_POST['qty'] ?? 0 );
+    $catalog_item_id = (int) ( metis_request_post()['catalog_item_id'] ?? 0 );
+    $qty             = (int) ( metis_request_post()['qty'] ?? 0 );
     if ( $catalog_item_id < 1 ) {
         metis_runtime_send_json_error( 'Catalog item ID is required.', 422 );
     }
@@ -255,10 +255,10 @@ metis_ajax_register_handler( 'metis_grandys_stash_update_inventory', function ()
 metis_ajax_register_handler( 'metis_grandys_stash_export', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.export' );
     $filters = [
-        'date_from' => isset( $_POST['date_from'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['date_from'] ) ) : '',
-        'date_to'   => isset( $_POST['date_to'] )   ? metis_text_clean( metis_runtime_unslash( $_POST['date_to'] ) )   : '',
-        'type'      => isset( $_POST['type'] )       ? metis_key_clean( $_POST['type'] )                                : '',
-        'status'    => isset( $_POST['status'] )     ? strtoupper( metis_key_clean( $_POST['status'] ) )               : '',
+        'date_from' => isset( metis_request_post()['date_from'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['date_from'] ) ) : '',
+        'date_to'   => isset( metis_request_post()['date_to'] )   ? metis_text_clean( metis_runtime_unslash( metis_request_post()['date_to'] ) )   : '',
+        'type'      => isset( metis_request_post()['type'] )       ? metis_key_clean( metis_request_post()['type'] )                                : '',
+        'status'    => isset( metis_request_post()['status'] )     ? strtoupper( metis_key_clean( metis_request_post()['status'] ) )               : '',
     ];
     $rows = GrandyStashRepository::exportTickets( $filters );
     metis_runtime_send_json_success( [ 'rows' => $rows, 'count' => count( $rows ) ] );
@@ -268,7 +268,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_export', function (): void {
 
 metis_ajax_register_handler( 'metis_grandys_stash_save_routing_defaults', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
-    $payload = json_decode( (string) ( $_POST['payload'] ?? '' ), true );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
     if ( ! is_array( $payload ) ) {
         metis_runtime_send_json_error( 'Invalid routing defaults payload.', 422 );
     }
@@ -284,8 +284,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_save_routing_defaults', functi
 
 metis_ajax_register_handler( 'metis_grandys_stash_report', function (): void {
     metis_grandys_stash_ajax_guard();
-    $from = metis_text_clean( (string) ( $_POST['from'] ?? '' ) );
-    $to   = metis_text_clean( (string) ( $_POST['to'] ?? '' ) );
+    $from = metis_text_clean( (string) ( metis_request_post()['from'] ?? '' ) );
+    $to   = metis_text_clean( (string) ( metis_request_post()['to'] ?? '' ) );
     metis_runtime_send_json_success( [ 'report' => GrandyStashRepository::reportData( $from, $to ) ] );
 } );
 
@@ -298,8 +298,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_get_email_prefs', function ():
 
 metis_ajax_register_handler( 'metis_grandys_stash_set_email_pref', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
-    $user_id = (int) ( $_POST['user_id'] ?? 0 );
-    $enabled = ( $_POST['enabled'] ?? '0' ) === '1';
+    $user_id = (int) ( metis_request_post()['user_id'] ?? 0 );
+    $enabled = ( metis_request_post()['enabled'] ?? '0' ) === '1';
     if ( $user_id < 1 ) {
         metis_runtime_send_json_error( 'User ID is required.', 422 );
     }

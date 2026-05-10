@@ -131,16 +131,16 @@ function metis_verify_table_renames(): array {
 metis_on( 'metis_admin_init', function () {
 
     if ( ! metis_current_user_can( 'manage_options' ) ) return;
-    if ( ! isset( $_GET['metis_rename_tables'] ) && ! isset( $_POST['metis_rename_tables'] ) ) return;
+    if ( ! isset( metis_request_get()['metis_rename_tables'] ) && ! isset( metis_request_post()['metis_rename_tables'] ) ) return;
 
-    $mode = metis_key_clean( (string) ( $_POST['metis_rename_tables'] ?? $_GET['metis_rename_tables'] ) );
+    $mode = metis_key_clean( (string) ( metis_request_post()['metis_rename_tables'] ?? metis_request_get()['metis_rename_tables'] ) );
 
     if ( metis_rename_tables_mutation_mode( $mode ) && $_SERVER['REQUEST_METHOD'] !== 'POST' ) {
         $hidden = [
             'metis_rename_tables' => $mode,
         ];
-        if ( isset( $_GET['table'] ) ) {
-            $hidden['table'] = metis_text_clean( (string) $_GET['table'] );
+        if ( isset( metis_request_get()['table'] ) ) {
+            $hidden['table'] = metis_text_clean( (string) metis_request_get()['table'] );
         }
 
         metis_rename_tables_maintenance()->renderPostConfirmation(
@@ -226,7 +226,7 @@ metis_on( 'metis_admin_init', function () {
     if ( $mode === 'drop_old' ) {
 
         $db    = metis_db();
-        $table = metis_text_clean( (string) ( $_POST['table'] ?? $_GET['table'] ?? '' ) );
+        $table = metis_text_clean( (string) ( metis_request_post()['table'] ?? metis_request_get()['table'] ?? '' ) );
         $prefix = (string) ( $db->connection()->prefix ?? '' );
         if ( ! $table || ! preg_match( '/(^|_)metis_/', $table ) || ! str_starts_with( $table, $prefix ) ) {
             metis_runtime_die( 'Invalid table parameter. Must be a prefixed metis table.', 'Error', [ 'response' => 400 ] );
@@ -262,7 +262,7 @@ metis_on( 'metis_admin_init', function () {
     if ( $mode === 'resolve' ) {
 
         $db     = metis_db();
-        $old    = metis_text_clean( (string) ( $_POST['table'] ?? $_GET['table'] ?? '' ) );
+        $old    = metis_text_clean( (string) ( metis_request_post()['table'] ?? metis_request_get()['table'] ?? '' ) );
         $prefix = (string) ( $db->connection()->prefix ?? '' );
         if ( ! $old || ! preg_match( '/(^|_)metis_/', $old ) || ! str_starts_with( $old, $prefix ) ) {
             metis_runtime_die( 'Invalid table parameter. Must be a prefixed metis table.', 'Error', [ 'response' => 400 ] );

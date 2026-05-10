@@ -17,7 +17,7 @@ $user_roles_table = Metis_Tables::get('people_user_roles');
 $can_manage = metis_people_can_manage();
 
 $per_page = 100;
-$page = max(1, (int) ($_GET['page'] ?? 1));
+$page = max(1, (int) (metis_request_get()['page'] ?? 1));
 $offset = max(0, ($page - 1) * $per_page);
 
 $total_row = $db->fetchOne("SELECT COUNT(*) AS total_count FROM {$people_table}") ?: [];

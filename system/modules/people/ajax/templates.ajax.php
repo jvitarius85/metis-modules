@@ -21,12 +21,12 @@ metis_ajax_register_handler( 'metis_people_save_template', function () {
     $template_roles_table = Metis_Tables::get('people_template_roles');
     $roles_table = Metis_Tables::get('people_roles');
 
-    $template_key = isset($_POST['template_key']) ? metis_key_clean(metis_runtime_unslash($_POST['template_key'])) : '';
-    $template_name = isset($_POST['template_name']) ? metis_text_clean(metis_runtime_unslash($_POST['template_name'])) : '';
-    $description = isset($_POST['description']) ? metis_text_clean(metis_runtime_unslash($_POST['description'])) : '';
+    $template_key = isset(metis_request_post()['template_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['template_key'])) : '';
+    $template_name = isset(metis_request_post()['template_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['template_name'])) : '';
+    $description = isset(metis_request_post()['description']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['description'])) : '';
     $checklist_json = null;
-    if (isset($_POST['checklist_json'])) {
-        $decoded_checklist = json_decode((string) metis_runtime_unslash($_POST['checklist_json']), true);
+    if (isset(metis_request_post()['checklist_json'])) {
+        $decoded_checklist = json_decode((string) metis_runtime_unslash(metis_request_post()['checklist_json']), true);
         if (is_array($decoded_checklist)) {
             $items = [];
             foreach ($decoded_checklist as $item) {
@@ -37,12 +37,12 @@ metis_ajax_register_handler( 'metis_people_save_template', function () {
             $checklist_json = metis_json_encode($items);
         }
     }
-    if ($checklist_json === null && isset($_POST['checklist_text'])) {
-        $checklist_json = metis_people_parse_lines_to_json((string) metis_runtime_unslash($_POST['checklist_text']));
+    if ($checklist_json === null && isset(metis_request_post()['checklist_text'])) {
+        $checklist_json = metis_people_parse_lines_to_json((string) metis_runtime_unslash(metis_request_post()['checklist_text']));
     }
     $role_keys = [];
-    if (isset($_POST['role_keys'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['role_keys']), true);
+    if (isset(metis_request_post()['role_keys'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['role_keys']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $k) {
                 $rk = metis_key_clean((string) $k);
@@ -91,8 +91,8 @@ metis_ajax_register_handler( 'metis_people_apply_template', function () {
     $user_roles_table = Metis_Tables::get('people_user_roles');
     $tasks_table = Metis_Tables::get('people_lifecycle_tasks');
 
-    $pid = isset($_POST['pid']) ? metis_text_clean(metis_runtime_unslash($_POST['pid'])) : '';
-    $template_key = isset($_POST['template_key']) ? metis_key_clean(metis_runtime_unslash($_POST['template_key'])) : '';
+    $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
+    $template_key = isset(metis_request_post()['template_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['template_key'])) : '';
     if ($pid === '' || $template_key === '') {
         metis_runtime_send_json_error('PID and template are required.', 400);
     }

@@ -60,7 +60,7 @@ function metis_donations_quick_action_offline_donation_form( array $action = [] 
 }
 
 metis_ajax_register_handler( 'metis_donations_lookup_donors', static function (): void {
-    $query = trim( metis_text_clean( (string) ( $_POST['q'] ?? '' ) ) );
+    $query = trim( metis_text_clean( (string) ( metis_request_post()['q'] ?? '' ) ) );
     if ( $query === '' || strlen( $query ) < 2 ) {
         metis_runtime_send_json_success( [ 'matches' => [] ] );
     }
@@ -75,7 +75,7 @@ metis_ajax_register_handler( 'metis_donations_lookup_donors', static function ()
 } );
 
 metis_ajax_register_handler( 'metis_donations_record_offline_donation', static function (): void {
-    $nonce = isset( $_POST['nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['nonce'] ) ) : '';
+    $nonce = isset( metis_request_post()['nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['nonce'] ) ) : '';
     $valid = function_exists( 'metis_ajax_nonce_action' )
         ? metis_runtime_verify_nonce( $nonce, metis_ajax_nonce_action( 'metis_donations_record_offline_donation' ) )
         : metis_runtime_verify_nonce( $nonce, 'metis_donations_record_offline_donation' );
@@ -98,8 +98,8 @@ metis_ajax_register_handler( 'metis_donations_record_offline_donation', static f
     ];
 
     foreach ( $fields as $key => $default ) {
-        $fields[ $key ] = is_string( $_POST[ $key ] ?? null )
-            ? trim( (string) metis_runtime_unslash( $_POST[ $key ] ) )
+        $fields[ $key ] = is_string( metis_request_post()[ $key ] ?? null )
+            ? trim( (string) metis_runtime_unslash( metis_request_post()[ $key ] ) )
             : $default;
     }
 

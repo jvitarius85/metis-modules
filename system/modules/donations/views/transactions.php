@@ -35,19 +35,19 @@ $offline_form   = [
 
 if (
     $_SERVER['REQUEST_METHOD'] === 'POST'
-    && isset( $_POST['metis_action'] )
-    && $_POST['metis_action'] === 'record_offline_donation'
+    && isset( metis_request_post()['metis_action'] )
+    && metis_request_post()['metis_action'] === 'record_offline_donation'
 ) {
     if ( ! $can_manage ) {
         metis_runtime_die( 'Unauthorized.', 'Error', [ 'response' => 403 ] );
     }
 
-    if ( ! isset( $_POST['metis_offline_donation_nonce'] ) || ! metis_runtime_verify_nonce( (string) $_POST['metis_offline_donation_nonce'], 'metis_record_offline_donation' ) ) {
+    if ( ! isset( metis_request_post()['metis_offline_donation_nonce'] ) || ! metis_runtime_verify_nonce( (string) metis_request_post()['metis_offline_donation_nonce'], 'metis_record_offline_donation' ) ) {
         metis_runtime_die( 'Invalid nonce.', 'Error', [ 'response' => 403 ] );
     }
 
     foreach ( $offline_form as $key => $value ) {
-        $offline_form[ $key ] = is_string( $_POST[ $key ] ?? null ) ? trim( (string) $_POST[ $key ] ) : $value;
+        $offline_form[ $key ] = is_string( metis_request_post()[ $key ] ?? null ) ? trim( (string) metis_request_post()[ $key ] ) : $value;
     }
 
     $result = \Metis\Modules\Donations\DonationsModule::recordOfflineDonation( $offline_form, (int) metis_current_user_id() );
@@ -79,19 +79,19 @@ $batch_error  = '';
 
 if (
     $_SERVER['REQUEST_METHOD'] === 'POST'
-    && isset( $_POST['metis_action'] )
-    && $_POST['metis_action'] === 'create_batch'
+    && isset( metis_request_post()['metis_action'] )
+    && metis_request_post()['metis_action'] === 'create_batch'
 ) {
     if ( ! $can_manage ) {
         metis_runtime_die( 'Unauthorized.', 'Error', [ 'response' => 403 ] );
     }
 
-    if ( ! isset( $_POST['metis_batch_nonce'] ) || ! metis_runtime_verify_nonce( (string) $_POST['metis_batch_nonce'], 'metis_create_batch' ) ) {
+    if ( ! isset( metis_request_post()['metis_batch_nonce'] ) || ! metis_runtime_verify_nonce( (string) metis_request_post()['metis_batch_nonce'], 'metis_create_batch' ) ) {
         metis_runtime_die( 'Invalid nonce.', 'Error', [ 'response' => 403 ] );
     }
 
-    $selected_tids = isset( $_POST['tx'] ) && is_array( $_POST['tx'] )
-        ? array_filter( array_map( 'metis_text_clean', $_POST['tx'] ) )
+    $selected_tids = isset( metis_request_post()['tx'] ) && is_array( metis_request_post()['tx'] )
+        ? array_filter( array_map( 'metis_text_clean', metis_request_post()['tx'] ) )
         : [];
 
     if ( empty( $selected_tids ) ) {

@@ -22,7 +22,7 @@ $lists_url = metis_portal_url('newsletter', 'lists');
 $subscribers_url = metis_portal_url('newsletter', 'subscribers');
 $contact_url_base = metis_portal_url('contacts', 'contact');
 
-$selected_list_id = isset($_GET['list_id']) ? max(0, (int) $_GET['list_id']) : 0;
+$selected_list_id = isset(metis_request_get()['list_id']) ? max(0, (int) metis_request_get()['list_id']) : 0;
 
 $lists = $db->fetchAll(
     "SELECT l.id, l.list_key, l.name, l.description, l.is_active, l.updated_at,

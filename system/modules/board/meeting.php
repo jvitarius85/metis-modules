@@ -20,7 +20,7 @@ $agenda_templates_table = Metis_Tables::get('board_agenda_templates');
 $decision_templates_table = Metis_Tables::get('board_decision_templates');
 $people_table = Metis_Tables::get('people');
 
-$meeting_code = metis_text_clean((string) ($_GET['meeting'] ?? ''));
+$meeting_code = metis_text_clean((string) (metis_request_get()['meeting'] ?? ''));
 if ($meeting_code === '') {
     echo '<div class="metis-alert metis-alert-error">Meeting not found.</div>';
     return;

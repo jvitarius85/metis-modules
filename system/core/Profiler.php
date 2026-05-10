@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname( __DIR__ ) . '/src/Metis/Core/Runtime/RequestRuntime.php';
+
 final class Profiler {
     private static array $marks = [];
     private static float $start = 0.0;
@@ -12,7 +14,7 @@ final class Profiler {
             return $default;
         }
 
-        $value = $_GET['metis_profiler'] ?? $_GET['profiler'] ?? null;
+        $value = metis_request_get()['metis_profiler'] ?? metis_request_get()['profiler'] ?? null;
         if ( $value === null ) {
             return $default;
         }

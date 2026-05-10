@@ -19,7 +19,7 @@ $can_delete = function_exists( 'metis_security_user_can' ) && metis_security_use
 $can_publish = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'website.publish' );
 
 $per_page = 100;
-$current_page = isset( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
+$current_page = isset( metis_request_get()['paged'] ) ? max( 1, (int) metis_request_get()['paged'] ) : 1;
 $total_posts = PostService::countAll();
 $page_count = max( 1, (int) ceil( $total_posts / $per_page ) );
 $current_page = min( $current_page, $page_count );
@@ -226,7 +226,7 @@ if ( $is_editor_route ) {
             </tbody>
         </table>
         <?php
-        $post_base_params = $_GET;
+        $post_base_params = metis_request_get();
         unset( $post_base_params['paged'] );
         $post_base_path = (string) ( parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH ) ?? '' );
         $post_link = static function ( int $target_page ) use ( $post_base_params, $post_base_path ): string {

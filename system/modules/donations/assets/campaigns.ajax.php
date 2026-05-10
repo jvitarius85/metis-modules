@@ -36,9 +36,9 @@ metis_ajax_register_handler( 'metis_campaign_save_goal', function () {
     $db = metis_db();
     $table = Metis_Tables::get( 'campaigns' );
 
-    $cid    = metis_text_clean( $_POST['cid']    ?? '' );
-    $year   = (int) ( $_POST['year']   ?? 0 );
-    $amount = (float) ( $_POST['amount'] ?? -1 );
+    $cid    = metis_text_clean( metis_request_post()['cid']    ?? '' );
+    $year   = (int) ( metis_request_post()['year']   ?? 0 );
+    $amount = (float) ( metis_request_post()['amount'] ?? -1 );
 
     if ( ! $cid || ! $year ) {
         metis_runtime_send_json_error( 'Missing required fields' );
@@ -100,8 +100,8 @@ metis_ajax_register_handler( 'metis_campaign_save_desc', function () {
     $db = metis_db();
     $table = Metis_Tables::get( 'campaigns' );
 
-    $cid  = metis_text_clean( $_POST['cid'] ?? '' );
-    $desc = metis_runtime_kses_post( metis_runtime_unslash( $_POST['desc'] ?? '' ) ); // allow safe HTML from WYSIWYG
+    $cid  = metis_text_clean( metis_request_post()['cid'] ?? '' );
+    $desc = metis_runtime_kses_post( metis_runtime_unslash( metis_request_post()['desc'] ?? '' ) ); // allow safe HTML from WYSIWYG
 
     if ( ! $cid ) {
         metis_runtime_send_json_error( 'Missing campaign ID' );
@@ -130,12 +130,12 @@ metis_ajax_register_handler( 'metis_campaign_save_info', function () {
     $db = metis_db();
     $table = Metis_Tables::get( 'campaigns' );
 
-    $cid    = metis_text_clean( $_POST['cid']    ?? '' );
-    $cname  = metis_text_clean( $_POST['cname']  ?? '' );
-    $type   = metis_text_clean( $_POST['type']   ?? '' );
-    $url    = metis_text_clean( $_POST['url']    ?? '' );
-    $active = isset( $_POST['active'] ) ? (int) $_POST['active'] : 1;
-    $public = isset( $_POST['public'] ) ? (int) $_POST['public'] : 1;
+    $cid    = metis_text_clean( metis_request_post()['cid']    ?? '' );
+    $cname  = metis_text_clean( metis_request_post()['cname']  ?? '' );
+    $type   = metis_text_clean( metis_request_post()['type']   ?? '' );
+    $url    = metis_text_clean( metis_request_post()['url']    ?? '' );
+    $active = isset( metis_request_post()['active'] ) ? (int) metis_request_post()['active'] : 1;
+    $public = isset( metis_request_post()['public'] ) ? (int) metis_request_post()['public'] : 1;
 
     if ( ! $cid || ! $cname ) {
         metis_runtime_send_json_error( 'Campaign name is required' );

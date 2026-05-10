@@ -35,8 +35,8 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_add_batch_note', function () {
-    $batch = metis_text_clean( $_POST['batch_code'] ?? '' );
-    $text  = metis_text_clean( $_POST['text']       ?? '' );
+    $batch = metis_text_clean( metis_request_post()['batch_code'] ?? '' );
+    $text  = metis_text_clean( metis_request_post()['text']       ?? '' );
 
     if ( ! $batch || ! $text ) {
         metis_runtime_send_json_error( [ 'message' => 'Missing batch_code or text' ], 400 );
@@ -58,9 +58,9 @@ metis_ajax_register_handler( 'metis_add_batch_note', function () {
 metis_ajax_register_handler( 'metis_update_note', function () {
     $db = metis_db();
 
-    $id    = intval( $_POST['id']    ?? 0 );
-    $text  = metis_textarea_clean( $_POST['text']  ?? '' );
-    $batch = metis_text_clean( $_POST['batch'] ?? '' );
+    $id    = intval( metis_request_post()['id']    ?? 0 );
+    $text  = metis_textarea_clean( metis_request_post()['text']  ?? '' );
+    $batch = metis_text_clean( metis_request_post()['batch'] ?? '' );
 
     if ( ! $id || ! $batch ) {
         metis_runtime_send_json_error( [ 'message' => 'Missing id or batch' ], 400 );
@@ -87,8 +87,8 @@ metis_ajax_register_handler( 'metis_update_note', function () {
 metis_ajax_register_handler( 'metis_delete_note', function () {
     $db = metis_db();
 
-    $id    = intval( $_POST['id']    ?? 0 );
-    $batch = metis_text_clean( $_POST['batch'] ?? '' );
+    $id    = intval( metis_request_post()['id']    ?? 0 );
+    $batch = metis_text_clean( metis_request_post()['batch'] ?? '' );
 
     if ( ! $id || ! $batch ) {
         metis_runtime_send_json_error( [ 'message' => 'Missing id or batch' ], 400 );

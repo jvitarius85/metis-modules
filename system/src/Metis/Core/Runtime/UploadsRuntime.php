@@ -48,6 +48,69 @@ function metis_media_storage_roots( bool $include_legacy = true ): array {
     return $roots;
 }
 
+function metis_media_normalize_storage_class( string $storage_class ): string {
+    $storage_class = metis_key_clean( str_replace( '-', '_', strtolower( trim( $storage_class ) ) ) );
+    return match ( $storage_class ) {
+        'public', 'public_media' => 'public',
+        'protected', 'protected_media' => 'protected',
+        'private', 'private_record', 'private_records' => 'private',
+        'legacy', 'legacy_uploads', 'legacy_media' => 'legacy',
+        default => '',
+    };
+}
+
+function metis_media_storage_root_for_class( string $storage_class ): string {
+    $storage_class = metis_media_normalize_storage_class( $storage_class );
+    if ( ! in_array( $storage_class, [ 'public', 'protected', 'private' ], true ) ) {
+        return '';
+    }
+
+    $roots = metis_media_storage_roots( false );
+    return (string) ( $roots[ $storage_class ] ?? '' );
+}
+
+function metis_media_audit_storage_event( string $event, string $storage_class, string $outcome, array $context = [] ): void {
+    $safe_context = [
+        'storage_class' => metis_media_normalize_storage_class( $storage_class ),
+        'outcome' => metis_key_clean( $outcome ),
+        'file_name' => isset( $context['file_name'] ) ? metis_filename_clean( (string) $context['file_name'] ) : '',
+        'mime_type' => isset( $context['mime_type'] ) ? strtolower( trim( (string) $context['mime_type'] ) ) : '',
+        'size' => isset( $context['size'] ) ? max( 0, (int) $context['size'] ) : 0,
+        'category_key' => isset( $context['category_key'] ) ? metis_media_normalize_category_key( (string) $context['category_key'] ) : '',
+        'retention_key' => isset( $context['retention_key'] ) ? metis_key_clean( (string) $context['retention_key'] ) : '',
+    ];
+
+    if ( isset( $context['reason'] ) ) {
+        $safe_context['reason'] = metis_key_clean( (string) $context['reason'] );
+    }
+
+    if ( function_exists( 'metis_audit_log_activity' ) && $outcome === 'stored' ) {
+        metis_audit_log_activity( $event, [
+            'module' => 'media',
+            'resource' => [ 'type' => 'media_storage', 'id' => $safe_context['storage_class'] ],
+            'context' => $safe_context,
+        ] );
+        return;
+    }
+
+    if ( function_exists( 'metis_audit_log_security' ) ) {
+        metis_audit_log_security( $event, [
+            'module' => 'media',
+            'resource' => [ 'type' => 'media_storage', 'id' => $safe_context['storage_class'] ],
+            'severity' => $outcome === 'blocked' ? 'warning' : 'info',
+            'outcome' => $outcome === 'stored' ? 'allowed' : 'blocked',
+            'context' => $safe_context,
+        ] );
+        return;
+    }
+
+    if ( class_exists( 'Metis_Logger' ) ) {
+        $outcome === 'stored'
+            ? Metis_Logger::info( $event, $safe_context )
+            : Metis_Logger::warn( $event, $safe_context );
+    }
+}
+
 function metis_media_storage_class_for_path( string $absolute_path ): ?array {
     $real_path = realpath( $absolute_path );
     if ( ! is_string( $real_path ) ) {
@@ -171,6 +234,15 @@ function metis_media_register_file( string $absolute_path, string $file_name, st
     $relative_storage_path = ltrim( str_replace( '\\', '/', substr( $real_path, strlen( $storage_root ) ) ), '/' );
     $public_token = bin2hex( random_bytes( 16 ) );
     $expires_at = null;
+    if ( in_array( $storage_class, [ 'protected', 'private' ], true ) && $access_ttl_seconds === null ) {
+        metis_media_audit_storage_event( 'media_storage_rejected', $storage_class, 'blocked', [
+            'file_name' => $file_name,
+            'mime_type' => $mime_type,
+            'size' => $size,
+            'reason' => 'missing_access_ttl',
+        ] );
+        return null;
+    }
     if ( in_array( $storage_class, [ 'protected', 'private' ], true ) && $access_ttl_seconds !== null ) {
         $expires_at = gmdate( 'Y-m-d H:i:s', time() + max( 60, $access_ttl_seconds ) );
     }
@@ -264,6 +336,49 @@ function metis_media_update_metadata( string $token, string $folder_path = '', s
         [ '%s', '%s' ],
         [ '%s' ]
     );
+}
+
+function metis_media_resolve_registered_path( string $storage_class, string $relative_path, bool $include_legacy = true ): ?array {
+    $storage_class = metis_media_normalize_storage_class( $storage_class );
+    $relative_path = ltrim( str_replace( '\\', '/', $relative_path ), '/' );
+    if ( $storage_class === '' || $relative_path === '' || str_contains( $relative_path, '..' ) || str_contains( $relative_path, "\0" ) ) {
+        return null;
+    }
+
+    $roots = metis_media_storage_roots( $include_legacy );
+    $candidate_roots = match ( $storage_class ) {
+        'public' => [ 'public' ],
+        'protected' => [ 'protected' ],
+        'private' => [ 'private' ],
+        'legacy' => [ 'legacy_uploads', 'legacy_media' ],
+        default => [],
+    };
+
+    foreach ( $candidate_roots as $root_key ) {
+        $root = (string) ( $roots[ $root_key ] ?? '' );
+        $base = $root !== '' ? realpath( $root ) : false;
+        if ( ! is_string( $base ) ) {
+            continue;
+        }
+
+        $target = realpath( rtrim( $base, '/\\' ) . '/' . $relative_path );
+        $normalized_base = rtrim( str_replace( '\\', '/', $base ), '/' ) . '/';
+        $normalized_target = is_string( $target ) ? str_replace( '\\', '/', $target ) : '';
+        if (
+            is_string( $target )
+            && str_starts_with( $normalized_target, $normalized_base )
+            && is_file( $target )
+            && ! is_link( $target )
+        ) {
+            return [
+                'base' => $base,
+                'path' => $target,
+                'storage_class' => $storage_class,
+            ];
+        }
+    }
+
+    return null;
 }
 
 function metis_normalize_mime_map( array $mimes ): array {
@@ -384,10 +499,30 @@ function metis_generate_upload_filename( string $original_name = '', string $mim
 }
 
 function metis_upload_dir( string $mime_type = '' ): array {
+    return metis_media_upload_dir_for_class( 'public', $mime_type );
+}
+
+function metis_media_upload_dir_for_class( string $storage_class, string $mime_type = '', string $folder_path = '' ): array {
+    $storage_class = metis_media_normalize_storage_class( $storage_class );
+    if ( ! in_array( $storage_class, [ 'public', 'protected', 'private' ], true ) ) {
+        return [
+            'path' => '',
+            'url' => '',
+            'subdir' => '',
+            'basedir' => '',
+            'baseurl' => '',
+            'error' => 'Invalid media storage class.',
+        ];
+    }
+
     $type = metis_media_type_from_mime( strtolower( trim( $mime_type ) ) );
+    $folder_path = metis_media_normalize_folder_path( $folder_path );
     $subdir = '/' . $type . '/' . gmdate( 'Y' ) . '/' . gmdate( 'm' );
-    $basedir = rtrim( (string) METIS_PATH, '/\\' ) . '/storage/public-media';
-    $baseurl = metis_home_url( '/media/raw' );
+    if ( $folder_path !== '' ) {
+        $subdir = '/' . $folder_path . $subdir;
+    }
+    $basedir = metis_media_storage_root_for_class( $storage_class );
+    $baseurl = $storage_class === 'public' ? metis_home_url( '/media/raw' ) : metis_home_url( '/media' );
     $path = $basedir . $subdir;
     $url = rtrim( $baseurl, '/' ) . $subdir;
 
@@ -488,8 +623,31 @@ function metis_check_filetype( string $filename, ?array $mimes = null ): array {
     ];
 }
 
-function metis_store_upload_bits( string $name, string $bits, array $allowed_mimes = [] ): array {
+function metis_store_upload_bits( string $name, string $bits, array $allowed_mimes = [], array $options = [] ): array {
+    $storage_class = isset( $options['storage_class'] ) ? (string) $options['storage_class'] : 'public';
+    return metis_media_store_bits_for_class( $storage_class, $name, $bits, $allowed_mimes, $options );
+}
+
+function metis_store_public_media( string $name, string $bits, array $allowed_mimes, array $options = [] ): array {
+    return metis_media_store_bits_for_class( 'public', $name, $bits, $allowed_mimes, $options );
+}
+
+function metis_store_protected_media( string $name, string $bits, array $allowed_mimes, array $options = [] ): array {
+    return metis_media_store_bits_for_class( 'protected', $name, $bits, $allowed_mimes, $options );
+}
+
+function metis_store_private_record( string $name, string $bits, array $allowed_mimes, array $options = [] ): array {
+    return metis_media_store_bits_for_class( 'private', $name, $bits, $allowed_mimes, $options );
+}
+
+function metis_media_store_bits_for_class( string $storage_class, string $name, string $bits, array $allowed_mimes = [], array $options = [] ): array {
+    $storage_class = metis_media_normalize_storage_class( $storage_class );
+    $original_name = metis_filename_clean( $name );
     if ( $bits === '' ) {
+        metis_media_audit_storage_event( 'media_storage_rejected', $storage_class, 'blocked', [
+            'file_name' => $original_name,
+            'reason' => 'empty_upload',
+        ] );
         return [
             'file' => '',
             'url' => '',
@@ -498,7 +656,43 @@ function metis_store_upload_bits( string $name, string $bits, array $allowed_mim
         ];
     }
 
+    if ( ! in_array( $storage_class, [ 'public', 'protected', 'private' ], true ) ) {
+        return [
+            'file' => '',
+            'url' => '',
+            'type' => '',
+            'error' => 'Invalid media storage class.',
+        ];
+    }
+
+    $access_ttl_seconds = isset( $options['access_ttl_seconds'] ) ? (int) $options['access_ttl_seconds'] : null;
+    if ( in_array( $storage_class, [ 'protected', 'private' ], true ) && $access_ttl_seconds === null ) {
+        metis_media_audit_storage_event( 'media_storage_rejected', $storage_class, 'blocked', [
+            'file_name' => $original_name,
+            'reason' => 'missing_access_ttl',
+        ] );
+        return [
+            'file' => '',
+            'url' => '',
+            'type' => '',
+            'error' => 'Protected media requires an explicit access expiration.',
+        ];
+    }
+
     $normalized_mimes = metis_normalize_mime_map( $allowed_mimes );
+    if ( $normalized_mimes === [] ) {
+        metis_media_audit_storage_event( 'media_storage_rejected', $storage_class, 'blocked', [
+            'file_name' => $original_name,
+            'reason' => 'missing_mime_allowlist',
+        ] );
+        return [
+            'file' => '',
+            'url' => '',
+            'type' => '',
+            'error' => 'File uploads require an explicit allowlist.',
+        ];
+    }
+
     $detected_mime = metis_detect_binary_mime_type( $bits );
     if ( $detected_mime === '' ) {
         return [
@@ -518,7 +712,26 @@ function metis_store_upload_bits( string $name, string $bits, array $allowed_mim
         ];
     }
 
-    $uploads = metis_upload_dir( $detected_mime );
+    $policy = new \Metis\Core\Services\UploadPolicyService();
+    $validation = $policy->validateBinary(
+        $original_name !== '' ? $original_name : 'upload.' . metis_extension_for_mime_type( $detected_mime, $normalized_mimes ),
+        $detected_mime,
+        strlen( $bits ),
+        [
+            'mimes' => $allowed_mimes,
+            'max_size' => isset( $options['max_size'] ) ? (int) $options['max_size'] : 0,
+        ]
+    );
+    if ( empty( $validation['ok'] ) ) {
+        return [
+            'file' => '',
+            'url' => '',
+            'type' => '',
+            'error' => (string) ( $validation['error'] ?? 'Uploaded file is not allowed.' ),
+        ];
+    }
+
+    $uploads = metis_media_upload_dir_for_class( $storage_class, $detected_mime, (string) ( $options['folder_path'] ?? '' ) );
     if ( ! empty( $uploads['error'] ) ) {
         return [
             'file' => '',
@@ -528,7 +741,7 @@ function metis_store_upload_bits( string $name, string $bits, array $allowed_mim
         ];
     }
 
-    $filename = metis_generate_upload_filename( $name, $detected_mime, $normalized_mimes );
+    $filename = metis_generate_upload_filename( $original_name, $detected_mime, $normalized_mimes );
     $path = rtrim( (string) $uploads['path'], '/' ) . '/' . $filename;
     $url = rtrim( (string) $uploads['url'], '/' ) . '/' . rawurlencode( $filename );
     $written = file_put_contents( $path, $bits );
@@ -544,14 +757,138 @@ function metis_store_upload_bits( string $name, string $bits, array $allowed_mim
     @chmod( $path, 0644 );
 
     $uploaded_by = function_exists( 'metis_current_user_id' ) ? (int) metis_current_user_id() : null;
-    $media = metis_media_register_file( $path, $name, $detected_mime, strlen( $bits ), $uploaded_by );
+    $media = metis_media_register_file( $path, $original_name, $detected_mime, strlen( $bits ), $uploaded_by, $access_ttl_seconds );
+    if ( ! is_array( $media ) ) {
+        @unlink( $path );
+        return [
+            'file' => '',
+            'url' => '',
+            'type' => '',
+            'error' => 'Failed to register media record.',
+        ];
+    }
+
+    if ( isset( $options['folder_path'] ) || isset( $options['category_key'] ) ) {
+        metis_media_update_metadata( (string) ( $media['token'] ?? '' ), (string) ( $options['folder_path'] ?? '' ), (string) ( $options['category_key'] ?? '' ) );
+    }
+
+    metis_media_audit_storage_event( 'media_storage_stored', $storage_class, 'stored', [
+        'file_name' => $original_name,
+        'mime_type' => $detected_mime,
+        'size' => strlen( $bits ),
+        'category_key' => (string) ( $options['category_key'] ?? '' ),
+        'retention_key' => (string) ( $options['retention_key'] ?? '' ),
+    ] );
 
     return [
         'file' => $path,
         'url' => $media['url'] ?? $url,
         'token' => $media['token'] ?? null,
+        'storage_class' => $media['storage_class'] ?? $storage_class,
         'type' => $detected_mime,
         'error' => false,
+    ];
+}
+
+function metis_media_store_uploaded_file_for_class( array $file, array $overrides = [] ): array {
+    if ( empty( $file['tmp_name'] ) || empty( $file['name'] ) ) {
+        return [ 'error' => 'Invalid upload payload.' ];
+    }
+
+    $storage_class = metis_media_normalize_storage_class( (string) ( $overrides['storage_class'] ?? 'public' ) );
+    if ( ! in_array( $storage_class, [ 'public', 'protected', 'private' ], true ) ) {
+        return [ 'error' => 'Invalid media storage class.' ];
+    }
+
+    $access_ttl_seconds = isset( $overrides['access_ttl_seconds'] ) ? (int) $overrides['access_ttl_seconds'] : null;
+    if ( in_array( $storage_class, [ 'protected', 'private' ], true ) && $access_ttl_seconds === null ) {
+        metis_media_audit_storage_event( 'media_storage_rejected', $storage_class, 'blocked', [
+            'file_name' => (string) ( $file['name'] ?? '' ),
+            'reason' => 'missing_access_ttl',
+        ] );
+        return [ 'error' => 'Protected media requires an explicit access expiration.' ];
+    }
+
+    $upload_policy = new \Metis\Core\Services\UploadPolicyService();
+    $validation = $upload_policy->validateFile( $file, $overrides );
+    if ( empty( $validation['ok'] ) ) {
+        return [ 'error' => 'Uploaded file is not allowed.' ];
+    }
+
+    $tmp = (string) $file['tmp_name'];
+    $is_uploaded_file = function_exists( 'is_uploaded_file' ) && is_uploaded_file( $tmp );
+    if ( ! $is_uploaded_file && ! is_file( $tmp ) ) {
+        return [ 'error' => 'Uploaded file not found.' ];
+    }
+
+    $normalized_mimes = metis_normalize_mime_map( (array) ( $validation['options']['mimes'] ?? [] ) );
+    $detected_mime = metis_detect_file_mime_type( $tmp );
+    if ( $detected_mime === '' ) {
+        return [ 'error' => 'Unable to determine uploaded file type.' ];
+    }
+    if ( ! in_array( $detected_mime, $normalized_mimes, true ) ) {
+        return [ 'error' => 'Uploaded file type is not allowed.' ];
+    }
+
+    $uploads = metis_media_upload_dir_for_class( $storage_class, $detected_mime, (string) ( $overrides['folder_path'] ?? '' ) );
+    if ( ! empty( $uploads['error'] ) ) {
+        return [ 'error' => (string) $uploads['error'] ];
+    }
+
+    $original_name = metis_filename_clean( (string) $file['name'] );
+    $filename = metis_generate_upload_filename( $original_name, $detected_mime, $normalized_mimes );
+    $destination = metis_trailingslashit( (string) $uploads['path'] ) . $filename;
+    $path_info = pathinfo( $destination );
+    $counter = 1;
+    while ( is_file( $destination ) ) {
+        $base = (string) ( $path_info['filename'] ?? 'upload' );
+        $ext = isset( $path_info['extension'] ) ? '.' . $path_info['extension'] : '';
+        $destination = metis_trailingslashit( (string) $uploads['path'] ) . $base . '-' . $counter . $ext;
+        $counter++;
+    }
+
+    $moved = $is_uploaded_file ? @move_uploaded_file( $tmp, $destination ) : @rename( $tmp, $destination );
+    if ( ! $moved && ! @copy( $tmp, $destination ) ) {
+        return [ 'error' => 'Failed to move uploaded file.' ];
+    }
+
+    @chmod( $destination, $storage_class === 'public' ? 0644 : 0640 );
+    $optimization = metis_optimize_uploaded_image_file( $destination, $detected_mime, $overrides );
+
+    $uploaded_by = function_exists( 'metis_current_user_id' ) ? (int) metis_current_user_id() : null;
+    $media = metis_media_register_file(
+        $destination,
+        $original_name !== '' ? $original_name : basename( $destination ),
+        $detected_mime,
+        (int) @filesize( $destination ),
+        $uploaded_by,
+        $access_ttl_seconds
+    );
+    if ( ! is_array( $media ) ) {
+        @unlink( $destination );
+        return [ 'error' => 'Failed to register media record.' ];
+    }
+
+    if ( isset( $overrides['folder_path'] ) || isset( $overrides['category_key'] ) ) {
+        metis_media_update_metadata( (string) ( $media['token'] ?? '' ), (string) ( $overrides['folder_path'] ?? '' ), (string) ( $overrides['category_key'] ?? '' ) );
+    }
+
+    metis_media_audit_storage_event( 'media_storage_stored', $storage_class, 'stored', [
+        'file_name' => $original_name,
+        'mime_type' => $detected_mime,
+        'size' => (int) @filesize( $destination ),
+        'category_key' => (string) ( $overrides['category_key'] ?? '' ),
+        'retention_key' => (string) ( $overrides['retention_key'] ?? '' ),
+    ] );
+
+    return [
+        'file' => $destination,
+        'url' => $media['url'] ?? ( metis_trailingslashit( (string) $uploads['url'] ) . basename( $destination ) ),
+        'token' => $media['token'] ?? null,
+        'storage_class' => $media['storage_class'] ?? $storage_class,
+        'type' => $detected_mime,
+        'optimized' => ! empty( $optimization['optimized'] ),
+        'optimization' => $optimization,
     ];
 }
 
@@ -690,70 +1027,5 @@ function metis_optimize_uploaded_image_file( string $path, string $mime_type, ar
 }
 
 function metis_handle_upload( array $file, array $overrides = [] ): array {
-    if ( empty( $file['tmp_name'] ) || empty( $file['name'] ) ) {
-        return [ 'error' => 'Invalid upload payload.' ];
-    }
-
-    $upload_policy = new \Metis\Core\Services\UploadPolicyService();
-    $validation = $upload_policy->validateFile( $file, $overrides );
-    if ( empty( $validation['ok'] ) ) {
-        return [ 'error' => 'Uploaded file is not allowed.' ];
-    }
-
-    $tmp = (string) $file['tmp_name'];
-    $is_uploaded_file = function_exists( 'is_uploaded_file' ) && is_uploaded_file( $tmp );
-    if ( ! $is_uploaded_file && ! is_file( $tmp ) ) {
-        return [ 'error' => 'Uploaded file not found.' ];
-    }
-
-    $normalized_mimes = metis_normalize_mime_map( (array) ( $validation['options']['mimes'] ?? [] ) );
-    $detected_mime = metis_detect_file_mime_type( $tmp );
-    if ( $detected_mime === '' ) {
-        return [ 'error' => 'Unable to determine uploaded file type.' ];
-    }
-    if ( ! in_array( $detected_mime, $normalized_mimes, true ) ) {
-        return [ 'error' => 'Uploaded file type is not allowed.' ];
-    }
-
-    $uploads = metis_upload_dir( $detected_mime );
-    if ( ! empty( $uploads['error'] ) ) {
-        return [ 'error' => (string) $uploads['error'] ];
-    }
-
-    $filename = metis_generate_upload_filename( (string) $file['name'], $detected_mime, $normalized_mimes );
-    $destination = metis_trailingslashit( (string) $uploads['path'] ) . $filename;
-    $path_info = pathinfo( $destination );
-    $counter = 1;
-    while ( is_file( $destination ) ) {
-        $base = (string) ( $path_info['filename'] ?? 'upload' );
-        $ext = isset( $path_info['extension'] ) ? '.' . $path_info['extension'] : '';
-        $destination = metis_trailingslashit( (string) $uploads['path'] ) . $base . '-' . $counter . $ext;
-        $counter++;
-    }
-
-    $moved = $is_uploaded_file ? @move_uploaded_file( $tmp, $destination ) : @rename( $tmp, $destination );
-    if ( ! $moved && ! @copy( $tmp, $destination ) ) {
-        return [ 'error' => 'Failed to move uploaded file.' ];
-    }
-
-    @chmod( $destination, 0644 );
-    $optimization = metis_optimize_uploaded_image_file( $destination, $detected_mime, $overrides );
-
-    $uploaded_by = function_exists( 'metis_current_user_id' ) ? (int) metis_current_user_id() : null;
-    $media = metis_media_register_file(
-        $destination,
-        (string) ( $file['name'] ?? basename( $destination ) ),
-        $detected_mime,
-        (int) @filesize( $destination ),
-        $uploaded_by
-    );
-
-    return [
-        'file' => $destination,
-        'url' => $media['url'] ?? ( metis_trailingslashit( (string) $uploads['url'] ) . basename( $destination ) ),
-        'token' => $media['token'] ?? null,
-        'type' => $detected_mime,
-        'optimized' => ! empty( $optimization['optimized'] ),
-        'optimization' => $optimization,
-    ];
+    return metis_media_store_uploaded_file_for_class( $file, $overrides );
 }

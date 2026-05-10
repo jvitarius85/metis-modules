@@ -1,0 +1,5 @@
+# Example LiteSpeed virtual-host parity rules when .htaccess is disabled.
+RewriteRule (^|/)\.(?!well-known/) - [F,L]
+RewriteRule ^(?:vendor|\.metis-integrity|storage)(?:/|$) - [F,L,NC]
+RewriteRule ^system/(?:config|docs|modules|src|tests|tools|cloudflare|vendor)(?:/|$) - [F,L,NC]
+RewriteRule \.(?:env|ini|log|md|markdown|pem|key|crt|sql|sqlite3?|toml|txt|ya?ml|zip|tar|gz|bak|dist|old)$ - [F,L,NC]

@@ -15,17 +15,17 @@ metis_help_enclave_register_policy( 'help.search', 'view', 'metis_help_search_ro
 try {
     $payload = $enclave->execute(
         'help.search',
-        metis_security_runtime_request_context( $_POST ),
+        metis_security_runtime_request_context( metis_request_post() ),
         static function (): array {
             $service = metis_help_service();
             if ( ! $service instanceof Metis_Help_Service ) {
                 throw new RuntimeException( 'Help service is unavailable.' );
             }
 
-            $query = (string) ( $_POST['query'] ?? '' );
-            $category = (string) ( $_POST['category'] ?? '' );
-            $limit = (int) ( $_POST['limit'] ?? 10 );
-            $page = (int) ( $_POST['page'] ?? 1 );
+            $query = (string) ( metis_request_post()['query'] ?? '' );
+            $category = (string) ( metis_request_post()['category'] ?? '' );
+            $limit = (int) ( metis_request_post()['limit'] ?? 10 );
+            $page = (int) ( metis_request_post()['page'] ?? 1 );
 
             return $service->searchIndex( $query, $category, $limit, $page );
         }

@@ -828,17 +828,17 @@ final class DonationsModule {
             return;
         }
 
-        if ( isset( $_GET['metis_backfill_payouts'] ) ) {
+        if ( isset( metis_request_get()['metis_backfill_payouts'] ) ) {
             self::backfillStripePayoutIds();
             \metis_runtime_die( 'Metis: Stripe payout backfill complete. Check logs.' );
         }
 
-        if ( isset( $_GET['metis_backfill_from_payouts'] ) ) {
+        if ( isset( metis_request_get()['metis_backfill_from_payouts'] ) ) {
             self::backfillStripePayoutsFromPayouts();
             \metis_runtime_die( 'Metis: Payout-based backfill complete. Check logs.' );
         }
 
-        if ( isset( $_GET['metis_backfill_transaction_refs'] ) ) {
+        if ( isset( metis_request_get()['metis_backfill_transaction_refs'] ) ) {
             $summary = self::backfillTransactionEntityReferences();
             \metis_runtime_die(
                 'Metis: Transaction reference backfill complete. '

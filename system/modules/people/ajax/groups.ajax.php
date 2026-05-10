@@ -250,13 +250,13 @@ metis_ajax_register_handler( 'metis_people_bulk_workspace_group_action', functio
     $workspace_users_table = Metis_Tables::get('people_workspace_users');
     $workspace_members_table = Metis_Tables::get('people_workspace_group_members');
 
-    $action_type = isset($_POST['bulk_action']) ? metis_key_clean(metis_runtime_unslash($_POST['bulk_action'])) : '';
-    $group_email = strtolower(trim((string) (isset($_POST['group_email']) ? metis_email_clean(metis_runtime_unslash($_POST['group_email'])) : '')));
-    $member_role = isset($_POST['member_role']) ? metis_key_clean(metis_runtime_unslash($_POST['member_role'])) : 'member';
+    $action_type = isset(metis_request_post()['bulk_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['bulk_action'])) : '';
+    $group_email = strtolower(trim((string) (isset(metis_request_post()['group_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['group_email'])) : '')));
+    $member_role = isset(metis_request_post()['member_role']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['member_role'])) : 'member';
     if (!in_array($member_role, ['member', 'manager', 'owner'], true)) $member_role = 'member';
     $person_pids = [];
-    if (isset($_POST['person_pids'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['person_pids']), true);
+    if (isset(metis_request_post()['person_pids'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['person_pids']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $pid) {
                 $clean = metis_text_clean((string) $pid);
@@ -351,10 +351,10 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group', function () {
     metis_people_workspace_ajax_verify();
     $db = metis_db();
     $groups_table = Metis_Tables::get('people_workspace_groups');
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
-    $group_email = strtolower(trim((string) (isset($_POST['group_email']) ? metis_email_clean(metis_runtime_unslash($_POST['group_email'])) : '')));
-    $group_name = isset($_POST['group_name']) ? metis_text_clean(metis_runtime_unslash($_POST['group_name'])) : '';
-    $description = isset($_POST['description']) ? metis_textarea_clean(metis_runtime_unslash($_POST['description'])) : '';
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
+    $group_email = strtolower(trim((string) (isset(metis_request_post()['group_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['group_email'])) : '')));
+    $group_name = isset(metis_request_post()['group_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['group_name'])) : '';
+    $description = isset(metis_request_post()['description']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['description'])) : '';
     if (!metis_email_is_valid($group_email) || $group_name === '') {
         metis_runtime_send_json_error('Group name and valid group email are required.', 400);
     }
@@ -411,9 +411,9 @@ metis_ajax_register_handler( 'metis_people_workspace_add_group_member', function
     $users_table = Metis_Tables::get('people_workspace_users');
     $members_table = Metis_Tables::get('people_workspace_group_members');
 
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
-    $member_email = strtolower(trim((string) (isset($_POST['member_email']) ? metis_email_clean(metis_runtime_unslash($_POST['member_email'])) : '')));
-    $member_role = isset($_POST['member_role']) ? metis_key_clean(metis_runtime_unslash($_POST['member_role'])) : 'member';
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
+    $member_email = strtolower(trim((string) (isset(metis_request_post()['member_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['member_email'])) : '')));
+    $member_role = isset(metis_request_post()['member_role']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['member_role'])) : 'member';
     if (!in_array($member_role, ['member', 'manager', 'owner'], true)) $member_role = 'member';
     if ($group_id < 1 || !metis_email_is_valid($member_email)) {
         metis_runtime_send_json_error('Group and member email are required.', 400);
@@ -468,7 +468,7 @@ metis_ajax_register_handler( 'metis_people_workspace_get_group_members_matrix', 
     $users_table = Metis_Tables::get('people_workspace_users');
     $members_table = Metis_Tables::get('people_workspace_group_members');
 
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) {
         metis_runtime_send_json_error('Group is required.', 400);
     }
@@ -603,7 +603,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
     $users_table = Metis_Tables::get('people_workspace_users');
     $members_table = Metis_Tables::get('people_workspace_group_members');
 
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
     $group = $db->fetchOne(
         "SELECT id, group_email
@@ -614,7 +614,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
     );
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);
 
-    $members_json = isset($_POST['members']) ? (string) metis_runtime_unslash($_POST['members']) : '[]';
+    $members_json = isset(metis_request_post()['members']) ? (string) metis_runtime_unslash(metis_request_post()['members']) : '[]';
     $decoded_members = json_decode($members_json, true);
     if (!is_array($decoded_members)) $decoded_members = [];
 
@@ -742,7 +742,7 @@ metis_ajax_register_handler( 'metis_people_workspace_get_group_permissions', fun
     metis_people_workspace_ajax_verify();
     $db = metis_db();
     $groups_table = Metis_Tables::get('people_workspace_groups');
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
 
     $group = $db->fetchOne("SELECT id, group_email, metadata_json FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
@@ -792,20 +792,20 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_permissions', fu
     metis_people_workspace_ajax_verify();
     $db = metis_db();
     $groups_table = Metis_Tables::get('people_workspace_groups');
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
     $group = $db->fetchOne("SELECT id, group_email, metadata_json FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);
 
     $permissions_payload = [];
-    if (isset($_POST['permissions'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['permissions']), true);
+    if (isset(metis_request_post()['permissions'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['permissions']), true);
         if (is_array($decoded)) $permissions_payload = $decoded;
     }
     $permissions = metis_people_workspace_group_permissions_sanitize($permissions_payload);
     $permissions_full_payload = [];
-    if (isset($_POST['permissions_full'])) {
-        $decoded_full = json_decode((string) metis_runtime_unslash($_POST['permissions_full']), true);
+    if (isset(metis_request_post()['permissions_full'])) {
+        $decoded_full = json_decode((string) metis_runtime_unslash(metis_request_post()['permissions_full']), true);
         if (is_array($decoded_full)) {
             $permissions_full_payload = $decoded_full;
         }
@@ -914,7 +914,7 @@ metis_ajax_register_handler( 'metis_people_workspace_delete_group', function () 
     $db = metis_db();
     $groups_table = Metis_Tables::get('people_workspace_groups');
     $members_table = Metis_Tables::get('people_workspace_group_members');
-    $group_id = isset($_POST['group_id']) ? (int) metis_runtime_unslash($_POST['group_id']) : 0;
+    $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
     $group = $db->fetchOne("SELECT id, group_email FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);

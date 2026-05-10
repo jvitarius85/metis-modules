@@ -24,7 +24,7 @@ final class MaintenanceService {
             throw new RuntimeException( 'This operation must be submitted with POST.' );
         }
 
-        $this->csrf->requireValidToken( $_POST, $nonce_action );
+        $this->csrf->requireValidToken( metis_request_post(), $nonce_action );
     }
 
     public function renderPostConfirmation( string $title, string $message, string $nonce_action, array $hidden = [] ): never {

@@ -17,9 +17,9 @@ metis_ajax_register_handler( 'metis_people_simulate_permission', function () {
     $user_roles_table = Metis_Tables::get('people_user_roles');
     $role_perms_table = Metis_Tables::get('people_role_perms');
     $perms_table = Metis_Tables::get('people_permissions');
-    $pid = isset($_POST['pid']) ? metis_text_clean(metis_runtime_unslash($_POST['pid'])) : '';
-    $module = isset($_POST['module']) ? metis_key_clean(metis_runtime_unslash($_POST['module'])) : '';
-    $action = isset($_POST['action']) ? metis_key_clean(metis_runtime_unslash($_POST['action'])) : '';
+    $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
+    $module = isset(metis_request_post()['module']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['module'])) : '';
+    $action = isset(metis_request_post()['action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['action'])) : '';
     if ($pid === '' || $module === '' || $action === '') {
         metis_runtime_send_json_error('PID, module, and action are required.', 400);
     }

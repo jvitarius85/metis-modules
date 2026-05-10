@@ -16,9 +16,9 @@ $role_perms_table = Metis_Tables::get( 'people_role_perms' );
 $user_roles_table = Metis_Tables::get( 'people_user_roles' );
 
 $can_manage = metis_people_can_manage();
-$is_new = isset( $_GET['new'] ) && (string) metis_runtime_unslash( $_GET['new'] ) === '1';
-$role_key_param = isset( $_GET['role'] ) ? metis_key_clean( metis_runtime_unslash( $_GET['role'] ) ) : '';
-$role_domain_param = isset( $_GET['domain'] ) ? metis_key_clean( metis_runtime_unslash( $_GET['domain'] ) ) : 'metis';
+$is_new = isset( metis_request_get()['new'] ) && (string) metis_runtime_unslash( metis_request_get()['new'] ) === '1';
+$role_key_param = isset( metis_request_get()['role'] ) ? metis_key_clean( metis_runtime_unslash( metis_request_get()['role'] ) ) : '';
+$role_domain_param = isset( metis_request_get()['domain'] ) ? metis_key_clean( metis_runtime_unslash( metis_request_get()['domain'] ) ) : 'metis';
 if ( ! in_array( $role_domain_param, [ 'metis', 'stripe', 'workspace' ], true ) ) {
     $role_domain_param = 'metis';
 }

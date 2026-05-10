@@ -1340,9 +1340,9 @@ metis_ajax_register_handler( 'metis_people_save_position', function () {
     $db = metis_db();
     $positions_table = Metis_Tables::get( 'people_positions' );
 
-    $group_key = isset( $_POST['group_key'] ) ? metis_people_normalize_position_group( (string) metis_runtime_unslash( $_POST['group_key'] ) ) : '';
-    $position_label = isset( $_POST['position_label'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['position_label'] ) ) : '';
-    $sort_order = isset( $_POST['sort_order'] ) ? (int) metis_runtime_unslash( $_POST['sort_order'] ) : 0;
+    $group_key = isset( metis_request_post()['group_key'] ) ? metis_people_normalize_position_group( (string) metis_runtime_unslash( metis_request_post()['group_key'] ) ) : '';
+    $position_label = isset( metis_request_post()['position_label'] ) ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['position_label'] ) ) : '';
+    $sort_order = isset( metis_request_post()['sort_order'] ) ? (int) metis_runtime_unslash( metis_request_post()['sort_order'] ) : 0;
     if ( $group_key === '' ) {
         metis_runtime_send_json_error( 'Invalid position group.', 400 );
     }
@@ -1408,7 +1408,7 @@ metis_ajax_register_handler( 'metis_people_delete_position', function () {
     metis_people_ajax_verify();
     $db = metis_db();
     $positions_table = Metis_Tables::get( 'people_positions' );
-    $position_id = isset( $_POST['position_id'] ) ? (int) metis_runtime_unslash( $_POST['position_id'] ) : 0;
+    $position_id = isset( metis_request_post()['position_id'] ) ? (int) metis_runtime_unslash( metis_request_post()['position_id'] ) : 0;
     if ( $position_id < 1 ) {
         metis_runtime_send_json_error( 'Position id is required.', 400 );
     }
@@ -1441,37 +1441,37 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
     $workspace_users_table = Metis_Tables::get('people_workspace_users');
     $workspace_groups_table = Metis_Tables::get('people_workspace_groups');
     $workspace_members_table = Metis_Tables::get('people_workspace_group_members');
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
-    $pid = isset($_POST['pid']) ? trim(metis_text_clean(metis_runtime_unslash($_POST['pid']))) : '';
-    $first_name = isset($_POST['first_name']) ? metis_text_clean(metis_runtime_unslash($_POST['first_name'])) : '';
-    $last_name = isset($_POST['last_name']) ? metis_text_clean(metis_runtime_unslash($_POST['last_name'])) : '';
-    $display_name = isset($_POST['display_name']) ? metis_text_clean(metis_runtime_unslash($_POST['display_name'])) : '';
-    $email = isset($_POST['email']) ? metis_email_clean(metis_runtime_unslash($_POST['email'])) : '';
-    $auth_provider = isset($_POST['auth_provider']) ? metis_key_clean(metis_runtime_unslash($_POST['auth_provider'])) : 'metis';
-    $is_workspace_user = !empty($_POST['is_workspace_user']) ? 1 : 0;
-    $workspace_email = isset($_POST['workspace_email']) ? metis_email_clean(metis_runtime_unslash($_POST['workspace_email'])) : '';
-    $workspace_role = isset($_POST['workspace_role']) ? metis_key_clean(metis_runtime_unslash($_POST['workspace_role'])) : '';
-    $workspace_is_protected = !empty($_POST['workspace_is_protected']) ? 1 : 0;
-    $workspace_groups_json = isset($_POST['workspace_groups_json']) ? (string) metis_runtime_unslash($_POST['workspace_groups_json']) : '[]';
-    $stripe_role = isset($_POST['stripe_role']) ? metis_key_clean(metis_runtime_unslash($_POST['stripe_role'])) : '';
-    $linked_donor_id_raw = isset($_POST['linked_donor_id']) ? metis_text_clean(metis_runtime_unslash($_POST['linked_donor_id'])) : '';
-    $manager_pid = isset($_POST['manager_pid']) ? metis_text_clean(metis_runtime_unslash($_POST['manager_pid'])) : '';
-    $department = isset($_POST['department']) ? metis_text_clean(metis_runtime_unslash($_POST['department'])) : '';
-    $board_term_start = isset($_POST['board_term_start']) ? metis_text_clean(metis_runtime_unslash($_POST['board_term_start'])) : '';
-    $board_term_end = isset($_POST['board_term_end']) ? metis_text_clean(metis_runtime_unslash($_POST['board_term_end'])) : '';
-    $volunteer_area = isset($_POST['volunteer_area']) ? metis_text_clean(metis_runtime_unslash($_POST['volunteer_area'])) : '';
-    $lifecycle_status = isset($_POST['lifecycle_status']) ? metis_key_clean(metis_runtime_unslash($_POST['lifecycle_status'])) : 'active';
-    $email_notifications = isset($_POST['email_notifications']) ? (!empty($_POST['email_notifications']) ? 1 : 0) : 1;
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
+    $pid = isset(metis_request_post()['pid']) ? trim(metis_text_clean(metis_runtime_unslash(metis_request_post()['pid']))) : '';
+    $first_name = isset(metis_request_post()['first_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['first_name'])) : '';
+    $last_name = isset(metis_request_post()['last_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['last_name'])) : '';
+    $display_name = isset(metis_request_post()['display_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['display_name'])) : '';
+    $email = isset(metis_request_post()['email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['email'])) : '';
+    $auth_provider = isset(metis_request_post()['auth_provider']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['auth_provider'])) : 'metis';
+    $is_workspace_user = !empty(metis_request_post()['is_workspace_user']) ? 1 : 0;
+    $workspace_email = isset(metis_request_post()['workspace_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['workspace_email'])) : '';
+    $workspace_role = isset(metis_request_post()['workspace_role']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['workspace_role'])) : '';
+    $workspace_is_protected = !empty(metis_request_post()['workspace_is_protected']) ? 1 : 0;
+    $workspace_groups_json = isset(metis_request_post()['workspace_groups_json']) ? (string) metis_runtime_unslash(metis_request_post()['workspace_groups_json']) : '[]';
+    $stripe_role = isset(metis_request_post()['stripe_role']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['stripe_role'])) : '';
+    $linked_donor_id_raw = isset(metis_request_post()['linked_donor_id']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['linked_donor_id'])) : '';
+    $manager_pid = isset(metis_request_post()['manager_pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['manager_pid'])) : '';
+    $department = isset(metis_request_post()['department']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['department'])) : '';
+    $board_term_start = isset(metis_request_post()['board_term_start']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_term_start'])) : '';
+    $board_term_end = isset(metis_request_post()['board_term_end']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_term_end'])) : '';
+    $volunteer_area = isset(metis_request_post()['volunteer_area']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['volunteer_area'])) : '';
+    $lifecycle_status = isset(metis_request_post()['lifecycle_status']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['lifecycle_status'])) : 'active';
+    $email_notifications = isset(metis_request_post()['email_notifications']) ? (!empty(metis_request_post()['email_notifications']) ? 1 : 0) : 1;
     $sms_notifications = 0;
-    $requires_2fa = !empty($_POST['requires_2fa']) ? 1 : 0;
-    $mfa_method = isset($_POST['mfa_method']) ? metis_key_clean(metis_runtime_unslash($_POST['mfa_method'])) : 'none';
-    $is_staff = !empty($_POST['is_staff']) ? 1 : 0;
-    $is_board = !empty($_POST['is_board']) ? 1 : 0;
-    $board_position = isset($_POST['board_position']) ? metis_text_clean(metis_runtime_unslash($_POST['board_position'])) : '';
-    $staff_position = isset($_POST['staff_position']) ? metis_text_clean(metis_runtime_unslash($_POST['staff_position'])) : '';
-    $volunteer_position = isset($_POST['volunteer_position']) ? metis_text_clean(metis_runtime_unslash($_POST['volunteer_position'])) : '';
-    $is_volunteer = !empty($_POST['is_volunteer']) ? 1 : 0;
-    $status = isset($_POST['status']) ? metis_key_clean(metis_runtime_unslash($_POST['status'])) : 'active';
+    $requires_2fa = !empty(metis_request_post()['requires_2fa']) ? 1 : 0;
+    $mfa_method = isset(metis_request_post()['mfa_method']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['mfa_method'])) : 'none';
+    $is_staff = !empty(metis_request_post()['is_staff']) ? 1 : 0;
+    $is_board = !empty(metis_request_post()['is_board']) ? 1 : 0;
+    $board_position = isset(metis_request_post()['board_position']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_position'])) : '';
+    $staff_position = isset(metis_request_post()['staff_position']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['staff_position'])) : '';
+    $volunteer_position = isset(metis_request_post()['volunteer_position']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['volunteer_position'])) : '';
+    $is_volunteer = !empty(metis_request_post()['is_volunteer']) ? 1 : 0;
+    $status = isset(metis_request_post()['status']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['status'])) : 'active';
     $current_person = null;
     if ($person_id > 0 || $pid !== '') {
         $resolved_person = metis_people_resolve_person_record($person_id, $pid);
@@ -1484,8 +1484,8 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
         $person_id = (int) ($current_person['id'] ?? 0);
     }
     $roles = [];
-    if (isset($_POST['roles'])) {
-        $decoded_roles = json_decode((string) metis_runtime_unslash($_POST['roles']), true);
+    if (isset(metis_request_post()['roles'])) {
+        $decoded_roles = json_decode((string) metis_runtime_unslash(metis_request_post()['roles']), true);
         if (is_array($decoded_roles)) {
             foreach ($decoded_roles as $role_key) {
                 $rk = metis_key_clean((string) $role_key);
@@ -1505,8 +1505,8 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
     }
     $workspace_group_emails = array_values(array_unique($workspace_group_emails));
     $role_windows = [];
-    if (isset($_POST['role_windows'])) {
-        $decoded_windows = json_decode((string) metis_runtime_unslash($_POST['role_windows']), true);
+    if (isset(metis_request_post()['role_windows'])) {
+        $decoded_windows = json_decode((string) metis_runtime_unslash(metis_request_post()['role_windows']), true);
         if (is_array($decoded_windows)) {
             foreach ($decoded_windows as $role_key => $window) {
                 $rk = metis_key_clean((string) $role_key);
@@ -1528,8 +1528,8 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
         }
     }
     $notification_prefs_json = null;
-    if (isset($_POST['notification_prefs_json'])) {
-        $decoded_notify = json_decode((string) metis_runtime_unslash($_POST['notification_prefs_json']), true);
+    if (isset(metis_request_post()['notification_prefs_json'])) {
+        $decoded_notify = json_decode((string) metis_runtime_unslash(metis_request_post()['notification_prefs_json']), true);
         if (is_array($decoded_notify)) {
             $clean_notify = [];
             foreach ($decoded_notify as $event_key => $channels) {
@@ -1924,9 +1924,9 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
 metis_ajax_register_handler( 'metis_people_save_avatar', function () {
     metis_people_ajax_verify();
     $people_table = Metis_Tables::get('people');
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
-    $pid = isset($_POST['pid']) ? trim(metis_text_clean(metis_runtime_unslash($_POST['pid']))) : '';
-    $base64 = isset($_POST['avatar_base64']) ? (string) metis_runtime_unslash($_POST['avatar_base64']) : '';
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
+    $pid = isset(metis_request_post()['pid']) ? trim(metis_text_clean(metis_runtime_unslash(metis_request_post()['pid']))) : '';
+    $base64 = isset(metis_request_post()['avatar_base64']) ? (string) metis_runtime_unslash(metis_request_post()['avatar_base64']) : '';
     if (($person_id < 1 && $pid === '') || $base64 === '') {
         metis_runtime_send_json_error('Image data is required.', 400);
     }
@@ -1961,7 +1961,7 @@ metis_ajax_register_handler( 'metis_people_offboard_person', function () {
     $user_roles_table = Metis_Tables::get('people_user_roles');
     $workspace_users_table = Metis_Tables::get('people_workspace_users');
 
-    $pid = isset($_POST['pid']) ? metis_text_clean(metis_runtime_unslash($_POST['pid'])) : '';
+    $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
     if ($pid === '') {
         metis_runtime_send_json_error('PID is required.', 400);
     }
@@ -2042,12 +2042,12 @@ metis_ajax_register_handler( 'metis_people_add_document', function () {
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
     $documents_table = Metis_Tables::get('people_documents');
-    $pid = isset($_POST['pid']) ? metis_text_clean(metis_runtime_unslash($_POST['pid'])) : '';
-    $doc_type = isset($_POST['doc_type']) ? metis_key_clean(metis_runtime_unslash($_POST['doc_type'])) : '';
-    $doc_label = isset($_POST['doc_label']) ? metis_text_clean(metis_runtime_unslash($_POST['doc_label'])) : '';
-    $storage_ref = isset($_POST['storage_ref']) ? metis_text_clean(metis_runtime_unslash($_POST['storage_ref'])) : '';
-    $remind_at = isset($_POST['remind_at']) ? metis_text_clean(metis_runtime_unslash($_POST['remind_at'])) : '';
-    $expires_at = isset($_POST['expires_at']) ? metis_text_clean(metis_runtime_unslash($_POST['expires_at'])) : '';
+    $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
+    $doc_type = isset(metis_request_post()['doc_type']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['doc_type'])) : '';
+    $doc_label = isset(metis_request_post()['doc_label']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['doc_label'])) : '';
+    $storage_ref = isset(metis_request_post()['storage_ref']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['storage_ref'])) : '';
+    $remind_at = isset(metis_request_post()['remind_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['remind_at'])) : '';
+    $expires_at = isset(metis_request_post()['expires_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['expires_at'])) : '';
     if ($pid === '' || $doc_type === '' || $doc_label === '') {
         metis_runtime_send_json_error('PID, document type, and label are required.', 400);
     }
@@ -2098,10 +2098,10 @@ metis_ajax_register_handler( 'metis_people_grant_emergency_access', function () 
     $roles_table = Metis_Tables::get('people_roles');
     $emergency_table = Metis_Tables::get('people_emergency_access');
 
-    $pid = isset($_POST['pid']) ? metis_text_clean(metis_runtime_unslash($_POST['pid'])) : '';
-    $role_key = isset($_POST['role_key']) ? metis_key_clean(metis_runtime_unslash($_POST['role_key'])) : '';
-    $hours = isset($_POST['hours']) ? (int) metis_runtime_unslash($_POST['hours']) : 4;
-    $reason = isset($_POST['reason']) ? metis_textarea_clean(metis_runtime_unslash($_POST['reason'])) : '';
+    $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
+    $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
+    $hours = isset(metis_request_post()['hours']) ? (int) metis_runtime_unslash(metis_request_post()['hours']) : 4;
+    $reason = isset(metis_request_post()['reason']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['reason'])) : '';
     if ($pid === '' || $role_key === '') {
         metis_runtime_send_json_error('PID and role key are required.', 400);
     }
@@ -2144,7 +2144,7 @@ metis_ajax_register_handler( 'metis_people_delete_document', function () {
     metis_people_ajax_verify();
     $db = metis_db();
     $documents_table = Metis_Tables::get('people_documents');
-    $doc_id = isset($_POST['doc_id']) ? (int) metis_runtime_unslash($_POST['doc_id']) : 0;
+    $doc_id = isset(metis_request_post()['doc_id']) ? (int) metis_runtime_unslash(metis_request_post()['doc_id']) : 0;
     if ($doc_id < 1) {
         metis_runtime_send_json_error('Invalid document id.', 400);
     }
@@ -2162,7 +2162,7 @@ metis_ajax_register_handler( 'metis_people_revoke_emergency_access', function ()
     metis_people_ajax_verify();
     $db = metis_db();
     $emergency_table = Metis_Tables::get('people_emergency_access');
-    $entry_id = isset($_POST['entry_id']) ? (int) metis_runtime_unslash($_POST['entry_id']) : 0;
+    $entry_id = isset(metis_request_post()['entry_id']) ? (int) metis_runtime_unslash(metis_request_post()['entry_id']) : 0;
     if ($entry_id < 1) {
         metis_runtime_send_json_error('Invalid emergency entry id.', 400);
     }
@@ -2189,7 +2189,7 @@ metis_ajax_register_handler( 'metis_people_search_person', function () {
         metis_runtime_send_json_success(['people' => []]);
     }
 
-    $q = isset($_POST['q']) ? metis_text_clean(metis_runtime_unslash($_POST['q'])) : '';
+    $q = isset(metis_request_post()['q']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['q'])) : '';
     $q = trim($q);
     if ($q === '') {
         metis_runtime_send_json_success(['people' => []]);
@@ -2243,7 +2243,7 @@ metis_ajax_register_handler( 'metis_people_search_donor', function () {
         metis_runtime_send_json_success(['donors' => []]);
     }
 
-    $q = isset($_POST['q']) ? metis_text_clean(metis_runtime_unslash($_POST['q'])) : '';
+    $q = isset(metis_request_post()['q']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['q'])) : '';
     $q = trim($q);
     if ($q === '') {
         metis_runtime_send_json_success(['donors' => []]);
@@ -2362,8 +2362,8 @@ if (!function_exists('metis_people_activity_fetch_page')) {
 }
 
 metis_ajax_register_handler( 'metis_people_get_activity_page', function () {
-    $page = isset($_POST['page']) ? (int) metis_runtime_unslash($_POST['page']) : 1;
-    $query = isset($_POST['q']) ? metis_text_clean(metis_runtime_unslash($_POST['q'])) : '';
+    $page = isset(metis_request_post()['page']) ? (int) metis_runtime_unslash(metis_request_post()['page']) : 1;
+    $query = isset(metis_request_post()['q']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['q'])) : '';
     if ($page < 1) $page = 1;
     $payload = metis_people_activity_fetch_page($page, 15, $query);
     $labels = metis_people_activity_type_labels();

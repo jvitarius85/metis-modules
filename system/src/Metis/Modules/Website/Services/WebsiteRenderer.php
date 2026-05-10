@@ -2498,13 +2498,13 @@ final class WebsiteRenderer {
     }
 
     private static function previewLayoutProfileOverride(): string {
-        if ( ! isset( $_GET['metis_layout_preview'] ) ) {
+        if ( ! isset( metis_request_get()['metis_layout_preview'] ) ) {
             return '';
         }
         if ( ! function_exists( 'metis_security_user_can' ) || ! metis_security_user_can( 'website.edit' ) ) {
             return '';
         }
-        $raw_value = $_GET['metis_layout_preview'];
+        $raw_value = metis_request_get()['metis_layout_preview'];
         if ( function_exists( 'metis_runtime_unslash' ) ) {
             $raw_value = metis_runtime_unslash( $raw_value );
         }
@@ -2525,13 +2525,13 @@ final class WebsiteRenderer {
     }
 
     private static function isTemplatePreviewMode(): bool {
-        if ( ! isset( $_GET['metis_preview'] ) ) {
+        if ( ! isset( metis_request_get()['metis_preview'] ) ) {
             return false;
         }
         if ( ! function_exists( 'metis_security_user_can' ) || ! metis_security_user_can( 'website.edit' ) ) {
             return false;
         }
-        $raw = $_GET['metis_preview'];
+        $raw = metis_request_get()['metis_preview'];
         if ( function_exists( 'metis_runtime_unslash' ) ) {
             $raw = metis_runtime_unslash( $raw );
         }
@@ -2540,10 +2540,10 @@ final class WebsiteRenderer {
     }
 
     private static function previewTemplateSlugFromRequest(): string {
-        if ( ! isset( $_GET['metis_layout_preview'] ) ) {
+        if ( ! isset( metis_request_get()['metis_layout_preview'] ) ) {
             return TemplateService::getActiveTemplateSlug();
         }
-        $raw = $_GET['metis_layout_preview'];
+        $raw = metis_request_get()['metis_layout_preview'];
         if ( function_exists( 'metis_runtime_unslash' ) ) {
             $raw = metis_runtime_unslash( $raw );
         }
@@ -2682,10 +2682,10 @@ final class WebsiteRenderer {
      * @return array{source:string,id:int}
      */
     private static function previewContentSourceFromRequest(): array {
-        if ( ! isset( $_GET['metis_preview_source'] ) ) {
+        if ( ! isset( metis_request_get()['metis_preview_source'] ) ) {
             return [ 'source' => 'auto', 'id' => 0 ];
         }
-        $raw = $_GET['metis_preview_source'];
+        $raw = metis_request_get()['metis_preview_source'];
         if ( function_exists( 'metis_runtime_unslash' ) ) {
             $raw = metis_runtime_unslash( $raw );
         }
@@ -2695,8 +2695,8 @@ final class WebsiteRenderer {
         }
 
         $id = 0;
-        if ( isset( $_GET['metis_preview_id'] ) ) {
-            $raw_id = $_GET['metis_preview_id'];
+        if ( isset( metis_request_get()['metis_preview_id'] ) ) {
+            $raw_id = metis_request_get()['metis_preview_id'];
             if ( function_exists( 'metis_runtime_unslash' ) ) {
                 $raw_id = metis_runtime_unslash( $raw_id );
             }

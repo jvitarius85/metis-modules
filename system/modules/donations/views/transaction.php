@@ -10,7 +10,7 @@ $refunds_table      = Metis_Tables::get( 'transaction_refunds' );
 $notes_table        = Metis_Tables::get( 'transaction_notes' );
 
 $base_url = metis_donations_base_url();
-$tid      = isset( $_GET['tid'] ) ? metis_text_clean( $_GET['tid'] ) : '';
+$tid      = isset( metis_request_get()['tid'] ) ? metis_text_clean( metis_request_get()['tid'] ) : '';
 
 if ( $tid === '' ) : ?>
     <h1 class="metis-page-title">Transaction Not Found</h1>

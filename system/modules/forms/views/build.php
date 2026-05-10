@@ -10,14 +10,14 @@ if ( ! metis_forms_can_view() ) {
 
 metis_forms_ensure_schema();
 
-$form_id = isset( $_GET['form_id'] ) ? (int) $_GET['form_id'] : 0;
+$form_id = isset( metis_request_get()['form_id'] ) ? (int) metis_request_get()['form_id'] : 0;
 $existing = $form_id > 0 ? \Metis\Modules\Forms\Repository::getFormById( $form_id, false ) : null;
 if ( $form_id > 0 && ! is_array( $existing ) ) {
     echo '<div class="metis-alert metis-alert-error">That form could not be found.</div>';
     return;
 }
 
-$default_step = isset( $_GET['step'] ) ? metis_key_clean( (string) $_GET['step'] ) : 'build';
+$default_step = isset( metis_request_get()['step'] ) ? metis_key_clean( (string) metis_request_get()['step'] ) : 'build';
 $normalized_step = match ( $default_step ) {
     'settings', 'notifications', 'logic', 'payments' => 'settings',
     'publish', 'review' => 'publish',

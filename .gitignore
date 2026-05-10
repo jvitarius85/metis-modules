@@ -7,6 +7,15 @@ system/config/database.php
 # --- RUNTIME DATA ---
 /storage/*
 !/storage/.gitkeep
+!/storage/public-media/
+!/storage/public-media/.htaccess
+!/storage/public-media/index.php
+!/storage/protected-media/
+!/storage/protected-media/.htaccess
+!/storage/protected-media/index.php
+!/storage/private-records/
+!/storage/private-records/.htaccess
+!/storage/private-records/index.php
 
 /logs/*
 !/logs/.gitkeep

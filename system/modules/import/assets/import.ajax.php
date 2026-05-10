@@ -12,14 +12,14 @@ require_once dirname( __DIR__ ) . '/services/ImportService.php';
 
 if ( ! function_exists( 'metis_import_ajax_guard' ) ) {
     function metis_import_ajax_guard( bool $execute_required = false ): void {
-        $nonce = isset( $_POST['nonce'] ) && is_scalar( $_POST['nonce'] )
-            ? trim( (string) metis_runtime_unslash( $_POST['nonce'] ) )
+        $nonce = isset( metis_request_post()['nonce'] ) && is_scalar( metis_request_post()['nonce'] )
+            ? trim( (string) metis_runtime_unslash( metis_request_post()['nonce'] ) )
             : '';
-        $action_nonce = isset( $_POST['metis_action_nonce'] ) && is_scalar( $_POST['metis_action_nonce'] )
-            ? trim( (string) metis_runtime_unslash( $_POST['metis_action_nonce'] ) )
+        $action_nonce = isset( metis_request_post()['metis_action_nonce'] ) && is_scalar( metis_request_post()['metis_action_nonce'] )
+            ? trim( (string) metis_runtime_unslash( metis_request_post()['metis_action_nonce'] ) )
             : '';
-        $action = isset( $_POST['action'] ) && is_scalar( $_POST['action'] )
-            ? metis_key_clean( (string) metis_runtime_unslash( $_POST['action'] ) )
+        $action = isset( metis_request_post()['action'] ) && is_scalar( metis_request_post()['action'] )
+            ? metis_key_clean( (string) metis_runtime_unslash( metis_request_post()['action'] ) )
             : '';
 
         $valid = false;
@@ -69,12 +69,12 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 metis_ajax_register_handler( 'metis_import_upload_parse', function (): void {
     metis_import_ajax_guard( false );
 
-    if ( empty( $_FILES['import_file'] ) || ! is_array( $_FILES['import_file'] ) ) {
+    if ( empty( metis_request_files()['import_file'] ) || ! is_array( metis_request_files()['import_file'] ) ) {
         metis_runtime_send_json_error( 'Import file is required.', 400 );
     }
 
     $user_id = function_exists( 'metis_current_user_id' ) ? (int) metis_current_user_id() : 0;
-    $result = ImporterPipeline::parseUpload( $_FILES['import_file'], $user_id );
+    $result = ImporterPipeline::parseUpload( metis_request_files()['import_file'], $user_id );
 
     if ( empty( $result['ok'] ) ) {
         $status = (int) ( $result['status'] ?? 500 );
@@ -92,11 +92,11 @@ metis_ajax_register_handler( 'metis_import_confirm', function (): void {
 
     $user_id = function_exists( 'metis_current_user_id' ) ? (int) metis_current_user_id() : 0;
     $options = [
-        'import_pages' => (string) ( $_POST['import_pages'] ?? '' ) === '1',
-        'import_posts' => (string) ( $_POST['import_posts'] ?? '' ) === '1',
-        'import_menus' => (string) ( $_POST['import_menus'] ?? '' ) === '1',
-        'selected_page_ids' => isset( $_POST['selected_page_ids'] ) ? (string) metis_runtime_unslash( $_POST['selected_page_ids'] ) : '[]',
-        'selected_post_ids' => isset( $_POST['selected_post_ids'] ) ? (string) metis_runtime_unslash( $_POST['selected_post_ids'] ) : '[]',
+        'import_pages' => (string) ( metis_request_post()['import_pages'] ?? '' ) === '1',
+        'import_posts' => (string) ( metis_request_post()['import_posts'] ?? '' ) === '1',
+        'import_menus' => (string) ( metis_request_post()['import_menus'] ?? '' ) === '1',
+        'selected_page_ids' => isset( metis_request_post()['selected_page_ids'] ) ? (string) metis_runtime_unslash( metis_request_post()['selected_page_ids'] ) : '[]',
+        'selected_post_ids' => isset( metis_request_post()['selected_post_ids'] ) ? (string) metis_runtime_unslash( metis_request_post()['selected_post_ids'] ) : '[]',
     ];
 
     $result = ImporterPipeline::confirm( $options, $user_id );

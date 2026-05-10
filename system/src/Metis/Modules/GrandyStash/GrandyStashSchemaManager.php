@@ -304,8 +304,16 @@ final class GrandyStashSchemaManager {
         return \metis_db();
     }
 
+    private static function assertIdentifier( string $identifier, string $label ): void {
+        if ( ! preg_match( '/^[A-Za-z0-9_]+$/', $identifier ) ) {
+            throw new \InvalidArgumentException( sprintf( 'Invalid %s identifier.', $label ) );
+        }
+    }
+
     private static function addColumnIfMissing( string $table, string $column, string $definition ): void {
         $db     = self::db();
+        self::assertIdentifier( $table, 'table' );
+        self::assertIdentifier( $column, 'column' );
         $exists = (int) $db->scalar(
             'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE()
@@ -314,12 +322,14 @@ final class GrandyStashSchemaManager {
             [ $table, $column ]
         );
         if ( $exists === 0 ) {
-            $db->query( "ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}" );
+            $db->execute( "ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}" );
         }
     }
 
     private static function addIndexIfMissing( string $table, string $index_name, string $definition ): void {
         $db     = self::db();
+        self::assertIdentifier( $table, 'table' );
+        self::assertIdentifier( $index_name, 'index' );
         $exists = (int) $db->scalar(
             'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
              WHERE TABLE_SCHEMA = DATABASE()
@@ -328,7 +338,7 @@ final class GrandyStashSchemaManager {
             [ $table, $index_name ]
         );
         if ( $exists === 0 ) {
-            $db->query( "ALTER TABLE `{$table}` ADD {$definition}" );
+            $db->execute( "ALTER TABLE `{$table}` ADD {$definition}" );
         }
     }
 }

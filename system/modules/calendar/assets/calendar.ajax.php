@@ -12,7 +12,7 @@ function metis_calendar_ajax_verify(bool $manage = false): void {
 }
 
 function metis_calendar_selected_configs_from_request(): array {
-    $requested_ids = metis_runtime_unslash($_POST['calendar_ids'] ?? []);
+    $requested_ids = metis_runtime_unslash(metis_request_post()['calendar_ids'] ?? []);
     if (!is_array($requested_ids)) {
         $requested_ids = [];
     }
@@ -114,9 +114,9 @@ metis_ajax_register_handler( 'metis_calendar_list_events', function () {
     $workspace = metis_calendar_workspace_settings_all();
     if (empty($workspace['ok'])) metis_runtime_send_json_error('Workspace calendar configuration is unavailable.', 400);
 
-    $search = metis_text_clean(metis_runtime_unslash($_POST['search'] ?? ''));
-    $start = metis_text_clean(metis_runtime_unslash($_POST['start'] ?? ''));
-    $end = metis_text_clean(metis_runtime_unslash($_POST['end'] ?? ''));
+    $search = metis_text_clean(metis_runtime_unslash(metis_request_post()['search'] ?? ''));
+    $start = metis_text_clean(metis_runtime_unslash(metis_request_post()['start'] ?? ''));
+    $end = metis_text_clean(metis_runtime_unslash(metis_request_post()['end'] ?? ''));
     $configs = metis_calendar_selected_configs_from_request();
     if (empty($configs)) {
         metis_runtime_send_json_error('No valid calendars were selected.', 400);
@@ -203,7 +203,7 @@ metis_ajax_register_handler( 'metis_calendar_sync_worker', function () {
     metis_calendar_ajax_verify(false);
     metis_calendar_ensure_schema();
 
-    $force = !empty($_POST['force']);
+    $force = !empty(metis_request_post()['force']);
     $configs = metis_calendar_selected_configs_from_request();
     if (empty($configs)) {
         metis_runtime_send_json_error('No valid calendars were selected.', 400);
@@ -226,19 +226,19 @@ metis_ajax_register_handler( 'metis_calendar_sync_worker', function () {
 metis_ajax_register_handler( 'metis_calendar_save_event', function () {
     metis_calendar_ajax_verify(true);
     metis_calendar_ensure_schema();
-    $calendar_id = metis_text_clean(metis_runtime_unslash($_POST['calendar_id'] ?? ''));
+    $calendar_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['calendar_id'] ?? ''));
     $selected = $calendar_id !== '' ? metis_calendar_settings_by_ids([$calendar_id]) : [];
     $cfg = !empty($selected) ? metis_calendar_setting_config($selected[0]) : metis_calendar_workspace_settings();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace calendar configuration is unavailable.', 400);
 
-    $event_id = metis_text_clean(metis_runtime_unslash($_POST['event_id'] ?? ''));
-    $summary = metis_text_clean(metis_runtime_unslash($_POST['summary'] ?? ''));
-    $location = metis_text_clean(metis_runtime_unslash($_POST['location'] ?? ''));
-    $description = metis_runtime_kses_post(metis_runtime_unslash($_POST['description'] ?? ''));
-    $start_dt = metis_text_clean(metis_runtime_unslash($_POST['start_dt'] ?? ''));
-    $end_dt = metis_text_clean(metis_runtime_unslash($_POST['end_dt'] ?? ''));
-    $event_type = metis_key_clean(metis_runtime_unslash($_POST['event_type'] ?? 'general'));
-    $event_module = metis_key_clean(metis_runtime_unslash($_POST['event_module'] ?? 'general'));
+    $event_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['event_id'] ?? ''));
+    $summary = metis_text_clean(metis_runtime_unslash(metis_request_post()['summary'] ?? ''));
+    $location = metis_text_clean(metis_runtime_unslash(metis_request_post()['location'] ?? ''));
+    $description = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
+    $start_dt = metis_text_clean(metis_runtime_unslash(metis_request_post()['start_dt'] ?? ''));
+    $end_dt = metis_text_clean(metis_runtime_unslash(metis_request_post()['end_dt'] ?? ''));
+    $event_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['event_type'] ?? 'general'));
+    $event_module = metis_key_clean(metis_runtime_unslash(metis_request_post()['event_module'] ?? 'general'));
 
     if ($summary === '' || $start_dt === '' || $end_dt === '') {
         metis_runtime_send_json_error('Summary, start, and end are required.', 422);
@@ -292,12 +292,12 @@ metis_ajax_register_handler( 'metis_calendar_delete_event', function () {
     }
     metis_calendar_ensure_schema();
     metis_calendar_ensure_schema();
-    $calendar_id = metis_text_clean(metis_runtime_unslash($_POST['calendar_id'] ?? ''));
+    $calendar_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['calendar_id'] ?? ''));
     $selected = $calendar_id !== '' ? metis_calendar_settings_by_ids([$calendar_id]) : [];
     $cfg = !empty($selected) ? metis_calendar_setting_config($selected[0]) : metis_calendar_workspace_settings();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace calendar configuration is unavailable.', 400);
 
-    $event_id = metis_text_clean(metis_runtime_unslash($_POST['event_id'] ?? ''));
+    $event_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['event_id'] ?? ''));
     if ($event_id === '') metis_runtime_send_json_error('Event is required.', 422);
 
     $url = 'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode((string) $cfg['calendar_id']) . '/events/' . rawurlencode($event_id);

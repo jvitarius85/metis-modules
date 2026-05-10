@@ -6,7 +6,7 @@ if (!metis_drive_can_view()) {
 }
 $cfg = metis_drive_workspace_settings();
 $can_manage = metis_drive_can_manage();
-$initial_folder_id = isset($_GET['folder_id']) ? metis_text_clean(metis_runtime_unslash($_GET['folder_id'])) : '';
+$initial_folder_id = isset(metis_request_get()['folder_id']) ? metis_text_clean(metis_runtime_unslash(metis_request_get()['folder_id'])) : '';
 $drive_configs = metis_drive_configured_drives();
 $users_home_drive_id = '';
 $initial_user_folder_id = '';

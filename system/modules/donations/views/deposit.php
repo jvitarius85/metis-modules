@@ -9,7 +9,7 @@ $contacts_table     = Metis_Tables::get( 'contacts' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url     = metis_donations_base_url();
-$deposit_code = metis_text_clean( $_GET['id'] ?? '' );
+$deposit_code = metis_text_clean( metis_request_get()['id'] ?? '' );
 
 if ( ! $deposit_code ) {
     echo '<p class="metis-muted">Invalid deposit.</p>';

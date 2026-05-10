@@ -23,10 +23,10 @@ metis_ajax_register_handler( 'metis_contact_remove_relationship', function () {
     $contacts_table = Metis_Tables::get( 'contacts' );
     $details_table  = Metis_Tables::get( 'contact_details' );
 
-    $cid = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $related_cid = isset( $_POST['related_cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['related_cid'] ) ) : '';
-    $relation_type = isset( $_POST['relation_type'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['relation_type'] ) ) : '';
-    $notes = isset( $_POST['notes'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['notes'] ) ) : '';
+    $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $related_cid = isset( metis_request_post()['related_cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['related_cid'] ) ) : '';
+    $relation_type = isset( metis_request_post()['relation_type'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['relation_type'] ) ) : '';
+    $notes = isset( metis_request_post()['notes'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['notes'] ) ) : '';
 
     if ( $cid === '' || $related_cid === '' || $relation_type === '' ) {
         metis_runtime_send_json_error( 'Missing relationship payload.', 400 );

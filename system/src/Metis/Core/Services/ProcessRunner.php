@@ -14,6 +14,17 @@ final class ProcessRunner {
             return [ 'exit_code' => 1, 'stdout' => '', 'stderr' => 'Process command is not allowed.' ];
         }
 
+        $contextError = $this->validateExecutionContext( $context );
+        if ( $contextError !== '' ) {
+            $this->audit( 'process_execution_rejected', $validated, $this->workingDirectory( $cwd ) ?: '', $context + [ 'reason' => $contextError ], 'blocked' );
+            return [ 'exit_code' => 1, 'stdout' => '', 'stderr' => $contextError ];
+        }
+
+        if ( ! $this->contextAllowsExecution( $context ) ) {
+            $this->audit( 'process_execution_rejected', $validated, $this->workingDirectory( $cwd ) ?: '', $context + [ 'reason' => 'permission_denied' ], 'blocked' );
+            return [ 'exit_code' => 1, 'stdout' => '', 'stderr' => 'Process permission context denied execution.' ];
+        }
+
         if ( ! \function_exists( 'proc_open' ) ) {
             return [ 'exit_code' => 1, 'stdout' => '', 'stderr' => 'proc_open unavailable' ];
         }
@@ -87,13 +98,55 @@ final class ProcessRunner {
         return \is_string( $real ) && \is_dir( $real ) ? $real : '';
     }
 
+    private function validateExecutionContext( array $context ): string {
+        foreach ( [ 'security_context', 'audit_context', 'permission_context' ] as $required ) {
+            if ( ! isset( $context[ $required ] ) || ! \is_array( $context[ $required ] ) || $context[ $required ] === [] ) {
+                return 'Process execution requires explicit ' . $required . '.';
+            }
+        }
+
+        $security = (array) $context['security_context'];
+        $audit = (array) $context['audit_context'];
+        $permission = (array) $context['permission_context'];
+
+        if ( trim( (string) ( $security['operation'] ?? '' ) ) === '' || trim( (string) ( $security['source'] ?? '' ) ) === '' ) {
+            return 'Process security context requires operation and source.';
+        }
+
+        if ( trim( (string) ( $audit['event'] ?? '' ) ) === '' ) {
+            return 'Process audit context requires an event.';
+        }
+
+        if ( trim( (string) ( $permission['permission'] ?? $permission['capability'] ?? '' ) ) === '' ) {
+            return 'Process permission context requires a permission.';
+        }
+
+        return '';
+    }
+
+    private function contextAllowsExecution( array $context ): bool {
+        $permission = (array) ( $context['permission_context'] ?? [] );
+        $capability = trim( (string) ( $permission['permission'] ?? $permission['capability'] ?? '' ) );
+        $preauthorized = ! empty( $permission['preauthorized'] ) && trim( (string) ( $permission['authorization_source'] ?? '' ) ) !== '';
+
+        if ( isset( $permission['enforce'] ) && $permission['enforce'] === false ) {
+            return $preauthorized;
+        }
+
+        if ( \function_exists( 'metis_security_user_can' ) && $capability !== '' ) {
+            return (bool) \metis_security_user_can( $capability );
+        }
+
+        return $preauthorized;
+    }
+
     /** @param array<int,string> $command */
     private function audit( string $event, array $command, string $cwd, array $context, string $outcome ): void {
         $payload = [
             'command' => $command[0] ?? '',
             'argc' => \count( $command ),
             'cwd' => $cwd,
-            'context' => $context,
+            'context' => $this->redactContext( $context ),
             'outcome' => $outcome,
         ];
 
@@ -115,5 +168,20 @@ final class ProcessRunner {
         if ( \class_exists( '\Metis_Logger' ) ) {
             \Metis_Logger::info( $event, $payload );
         }
+    }
+
+    private function redactContext( array $context ): array {
+        $redacted = [];
+        foreach ( $context as $key => $value ) {
+            $keyString = \strtolower( (string) $key );
+            if ( \preg_match( '/secret|token|password|credential|key/', $keyString ) === 1 ) {
+                $redacted[ $key ] = '[redacted]';
+                continue;
+            }
+
+            $redacted[ $key ] = \is_array( $value ) ? $this->redactContext( $value ) : $value;
+        }
+
+        return $redacted;
     }
 }

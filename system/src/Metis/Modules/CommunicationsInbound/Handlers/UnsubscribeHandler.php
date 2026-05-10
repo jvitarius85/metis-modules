@@ -26,14 +26,20 @@ final class UnsubscribeHandler implements MessageHandlerInterface {
         if ( $email !== '' ) {
             $contact_id = (int) $db->scalar( "SELECT id FROM {$contacts_table} WHERE email = %s LIMIT 1", [ $email ] );
 
-            $db->query(
-                "UPDATE {$subs_table}
+            $db->execute(
+                $db->prepare(
+                    "UPDATE {$subs_table}
                  SET status = 'unsubscribed',
                      unsubscribed_at = %s,
                      last_event_at = %s,
                      updated_at = %s
                  WHERE email = %s OR contact_id = %d",
-                [ $now, $now, $now, $email, $contact_id ]
+                    $now,
+                    $now,
+                    $now,
+                    $email,
+                    $contact_id
+                )
             );
 
             $suppression_id = (int) $db->scalar(

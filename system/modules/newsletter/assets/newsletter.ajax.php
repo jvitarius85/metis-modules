@@ -4,9 +4,9 @@ if (!defined('METIS_ROOT')) exit;
 require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
 
 function metis_newsletter_ajax_verify_nonce(): void {
-    $nonce = isset($_POST['nonce']) ? metis_text_clean(metis_runtime_unslash($_POST['nonce'])) : '';
-    $action_nonce = isset($_POST['metis_action_nonce']) ? metis_text_clean(metis_runtime_unslash($_POST['metis_action_nonce'])) : '';
-    $action = isset($_POST['action']) ? metis_key_clean(metis_runtime_unslash($_POST['action'])) : '';
+    $nonce = isset(metis_request_post()['nonce']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['nonce'])) : '';
+    $action_nonce = isset(metis_request_post()['metis_action_nonce']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['metis_action_nonce'])) : '';
+    $action = isset(metis_request_post()['action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['action'])) : '';
 
     $valid = metis_runtime_verify_nonce($nonce, 'metis_newsletter');
     if (!$valid && $action_nonce !== '' && $action !== '' && function_exists('metis_ajax_nonce_action')) {
@@ -428,9 +428,9 @@ metis_ajax_register_handler( 'metis_newsletter_save_defaults', function () {
     metis_newsletter_ajax_verify_nonce();
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
 
-    $from_name = metis_text_clean(metis_runtime_unslash($_POST['from_name'] ?? ($_POST['sender_name'] ?? '')));
-    $from_email = metis_email_clean(metis_runtime_unslash($_POST['from_email'] ?? ($_POST['sender_email'] ?? '')));
-    $reply_to = metis_email_clean(metis_runtime_unslash($_POST['reply_to'] ?? ''));
+    $from_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['from_name'] ?? (metis_request_post()['sender_name'] ?? '')));
+    $from_email = metis_email_clean(metis_runtime_unslash(metis_request_post()['from_email'] ?? (metis_request_post()['sender_email'] ?? '')));
+    $reply_to = metis_email_clean(metis_runtime_unslash(metis_request_post()['reply_to'] ?? ''));
 
     if ($from_email !== '' && !metis_email_is_valid($from_email)) {
         metis_runtime_send_json_error('Default From Email is invalid.', 400);
@@ -455,8 +455,8 @@ metis_ajax_register_handler( 'metis_newsletter_layout_profile_save', function ()
     metis_newsletter_ajax_verify_nonce();
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
 
-    $requested = isset($_POST['newsletter_layout_profile'])
-        ? metis_key_clean((string) metis_runtime_unslash($_POST['newsletter_layout_profile']))
+    $requested = isset(metis_request_post()['newsletter_layout_profile'])
+        ? metis_key_clean((string) metis_runtime_unslash(metis_request_post()['newsletter_layout_profile']))
         : '';
     $profile = \Metis\Modules\Website\Services\LayoutProfileService::sanitizeNewsletterProfile($requested);
     Core_Settings_Service::set('newsletter_layout_profile', $profile, true);
@@ -471,26 +471,26 @@ metis_ajax_register_handler( 'metis_newsletter_save_theme_defaults', function ()
     metis_newsletter_ajax_verify_nonce();
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
 
-    $header_html = metis_newsletter_sanitize_theme_html((string) ($_POST['header_html'] ?? ''));
-    $personalized_html = metis_newsletter_sanitize_theme_html((string) ($_POST['personalized_html'] ?? ''));
-    $closing_html = metis_newsletter_sanitize_theme_html((string) ($_POST['closing_html'] ?? ''));
-    $footer_html = metis_newsletter_sanitize_theme_html((string) ($_POST['footer_html'] ?? ''));
-    $canvas_bg = metis_text_clean((string) metis_runtime_unslash($_POST['canvas_bg'] ?? 'transparent')) ?: 'transparent';
-    $text_color = metis_text_clean((string) metis_runtime_unslash($_POST['text_color'] ?? 'text')) ?: 'text';
-    $font_size = max(10, min(28, (int) metis_runtime_unslash($_POST['font_size'] ?? 16)));
-    $content_width = max(520, min(820, (int) metis_runtime_unslash($_POST['content_width'] ?? 680)));
-    $content_width_mode = metis_key_clean((string) metis_runtime_unslash($_POST['content_width_mode'] ?? ''));
-    $divider_color = metis_text_clean((string) metis_runtime_unslash($_POST['divider_color'] ?? 'border')) ?: 'border';
-    $divider_style = metis_key_clean((string) metis_runtime_unslash($_POST['divider_style'] ?? 'solid'));
-    $divider_weight = max(1, min(6, (int) metis_runtime_unslash($_POST['divider_weight'] ?? 1)));
+    $header_html = metis_newsletter_sanitize_theme_html((string) (metis_request_post()['header_html'] ?? ''));
+    $personalized_html = metis_newsletter_sanitize_theme_html((string) (metis_request_post()['personalized_html'] ?? ''));
+    $closing_html = metis_newsletter_sanitize_theme_html((string) (metis_request_post()['closing_html'] ?? ''));
+    $footer_html = metis_newsletter_sanitize_theme_html((string) (metis_request_post()['footer_html'] ?? ''));
+    $canvas_bg = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['canvas_bg'] ?? 'transparent')) ?: 'transparent';
+    $text_color = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['text_color'] ?? 'text')) ?: 'text';
+    $font_size = max(10, min(28, (int) metis_runtime_unslash(metis_request_post()['font_size'] ?? 16)));
+    $content_width = max(520, min(820, (int) metis_runtime_unslash(metis_request_post()['content_width'] ?? 680)));
+    $content_width_mode = metis_key_clean((string) metis_runtime_unslash(metis_request_post()['content_width_mode'] ?? ''));
+    $divider_color = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['divider_color'] ?? 'border')) ?: 'border';
+    $divider_style = metis_key_clean((string) metis_runtime_unslash(metis_request_post()['divider_style'] ?? 'solid'));
+    $divider_weight = max(1, min(6, (int) metis_runtime_unslash(metis_request_post()['divider_weight'] ?? 1)));
     if ($content_width_mode === '') { $content_width_mode = $content_width <= 600 ? 'narrow' : ($content_width >= 740 ? 'wide' : 'normal'); }
     if (!in_array($content_width_mode, ['narrow','normal','wide'], true)) $content_width_mode = $content_width <= 600 ? 'narrow' : ($content_width >= 740 ? 'wide' : 'normal');
     if (!in_array($divider_style, ['solid', 'dashed', 'dotted', 'double'], true)) $divider_style = 'solid';
     $section_keys = ['header','personalized','closing','footer'];
     foreach ($section_keys as $section_key) {
-        Core_Settings_Service::set('newsletter_theme_' . $section_key . '_bg', metis_text_clean((string) metis_runtime_unslash($_POST[$section_key . '_bg'] ?? 'transparent')) ?: 'transparent', true);
-        Core_Settings_Service::set('newsletter_theme_' . $section_key . '_text_color', metis_text_clean((string) metis_runtime_unslash($_POST[$section_key . '_text_color'] ?? 'text')) ?: 'text', true);
-        Core_Settings_Service::set('newsletter_theme_' . $section_key . '_padding', metis_text_clean((string) metis_runtime_unslash($_POST[$section_key . '_padding'] ?? '0 0 0 0')) ?: '0 0 0 0', true);
+        Core_Settings_Service::set('newsletter_theme_' . $section_key . '_bg', metis_text_clean((string) metis_runtime_unslash(metis_request_post()[$section_key . '_bg'] ?? 'transparent')) ?: 'transparent', true);
+        Core_Settings_Service::set('newsletter_theme_' . $section_key . '_text_color', metis_text_clean((string) metis_runtime_unslash(metis_request_post()[$section_key . '_text_color'] ?? 'text')) ?: 'text', true);
+        Core_Settings_Service::set('newsletter_theme_' . $section_key . '_padding', metis_text_clean((string) metis_runtime_unslash(metis_request_post()[$section_key . '_padding'] ?? '0 0 0 0')) ?: '0 0 0 0', true);
     }
 
     Core_Settings_Service::set('newsletter_theme_header_html', $header_html, true);
@@ -545,7 +545,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_template', function () {
     $db = metis_db();
     $table = Metis_Tables::get('newsletter_templates');
 
-    $template_code = metis_newsletter_sanitize_ref_code($_POST['template_code'] ?? '');
+    $template_code = metis_newsletter_sanitize_ref_code(metis_request_post()['template_code'] ?? '');
     $template_id = 0;
     if ($template_code !== '') {
         $template_id = (int) $db->scalar("SELECT id FROM {$table} WHERE template_code = %s LIMIT 1", [$template_code]);
@@ -553,19 +553,19 @@ metis_ajax_register_handler( 'metis_newsletter_save_template', function () {
             metis_runtime_send_json_error('Template not found.', 404);
         }
     } else {
-        $template_id = isset($_POST['template_id']) ? (int) metis_runtime_unslash($_POST['template_id']) : 0;
+        $template_id = isset(metis_request_post()['template_id']) ? (int) metis_runtime_unslash(metis_request_post()['template_id']) : 0;
     }
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
-    $subject = metis_text_clean(metis_runtime_unslash($_POST['subject'] ?? ''));
-    $from_name = metis_text_clean(metis_runtime_unslash($_POST['from_name'] ?? ($_POST['sender_name'] ?? '')));
-    $from_email = metis_email_clean(metis_runtime_unslash($_POST['from_email'] ?? ($_POST['sender_email'] ?? '')));
-    $reply_to = metis_email_clean(metis_runtime_unslash($_POST['reply_to'] ?? ''));
-    $doc_json_raw = (string) metis_runtime_unslash($_POST['doc_json'] ?? '');
-    $has_html_body = array_key_exists('html_body', $_POST);
-    $raw_html_body = $has_html_body ? (string) metis_runtime_unslash($_POST['html_body']) : '';
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
+    $subject = metis_text_clean(metis_runtime_unslash(metis_request_post()['subject'] ?? ''));
+    $from_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['from_name'] ?? (metis_request_post()['sender_name'] ?? '')));
+    $from_email = metis_email_clean(metis_runtime_unslash(metis_request_post()['from_email'] ?? (metis_request_post()['sender_email'] ?? '')));
+    $reply_to = metis_email_clean(metis_runtime_unslash(metis_request_post()['reply_to'] ?? ''));
+    $doc_json_raw = (string) metis_runtime_unslash(metis_request_post()['doc_json'] ?? '');
+    $has_html_body = array_key_exists('html_body', metis_request_post());
+    $raw_html_body = $has_html_body ? (string) metis_runtime_unslash(metis_request_post()['html_body']) : '';
     $html_body = $has_html_body ? metis_runtime_kses_post($raw_html_body) : '';
-    $has_text_body = array_key_exists('text_body', $_POST);
-    $text_body = $has_text_body ? metis_textarea_clean(metis_runtime_unslash($_POST['text_body'])) : '';
+    $has_text_body = array_key_exists('text_body', metis_request_post());
+    $text_body = $has_text_body ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['text_body'])) : '';
 
     $compiled = null;
     if ($doc_json_raw !== '') {
@@ -629,8 +629,8 @@ metis_ajax_register_handler( 'metis_newsletter_template_get', function () {
     $db = metis_db();
     $table = Metis_Tables::get('newsletter_templates');
 
-    $template_code = metis_newsletter_sanitize_ref_code($_POST['template_code'] ?? ($_POST['key'] ?? ''));
-    $template_id = isset($_POST['template_id']) ? (int) metis_runtime_unslash($_POST['template_id']) : 0;
+    $template_code = metis_newsletter_sanitize_ref_code(metis_request_post()['template_code'] ?? (metis_request_post()['key'] ?? ''));
+    $template_id = isset(metis_request_post()['template_id']) ? (int) metis_runtime_unslash(metis_request_post()['template_id']) : 0;
     if ($template_code === '' && $template_id < 1) {
         metis_runtime_send_json_error('Template reference is required.', 400);
     }
@@ -685,10 +685,10 @@ metis_ajax_register_handler( 'metis_newsletter_save_list', function () {
     $db = metis_db();
     $table = Metis_Tables::get('newsletter_lists');
 
-    $list_id = isset($_POST['list_id']) ? (int) metis_runtime_unslash($_POST['list_id']) : 0;
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
-    $description = metis_textarea_clean(metis_runtime_unslash($_POST['description'] ?? ''));
-    $is_active = isset($_POST['is_active']) ? (int) metis_runtime_unslash($_POST['is_active']) : 1;
+    $list_id = isset(metis_request_post()['list_id']) ? (int) metis_runtime_unslash(metis_request_post()['list_id']) : 0;
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
+    $description = metis_textarea_clean(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
+    $is_active = isset(metis_request_post()['is_active']) ? (int) metis_runtime_unslash(metis_request_post()['is_active']) : 1;
 
     if ($name === '') metis_runtime_send_json_error('List name is required.', 400);
 
@@ -732,7 +732,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
     $templates_table = Metis_Tables::get('newsletter_templates');
     $lists_table = Metis_Tables::get('newsletter_lists');
 
-    $campaign_code = metis_newsletter_sanitize_ref_code($_POST['campaign_code'] ?? '');
+    $campaign_code = metis_newsletter_sanitize_ref_code(metis_request_post()['campaign_code'] ?? '');
     $campaign_id = 0;
     if ($campaign_code !== '') {
         $campaign_id = (int) $db->scalar("SELECT id FROM {$campaigns_table} WHERE campaign_code = %s LIMIT 1", [$campaign_code]);
@@ -740,9 +740,9 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
             metis_runtime_send_json_error('Campaign not found.', 404);
         }
     } else {
-        $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
+        $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     }
-    $template_code = metis_newsletter_sanitize_ref_code($_POST['template_code'] ?? '');
+    $template_code = metis_newsletter_sanitize_ref_code(metis_request_post()['template_code'] ?? '');
     $template_id = 0;
     if ($template_code !== '') {
         $template_id = (int) $db->scalar("SELECT id FROM {$templates_table} WHERE template_code = %s LIMIT 1", [$template_code]);
@@ -750,27 +750,27 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
             metis_runtime_send_json_error('Template not found.', 404);
         }
     } else {
-        $template_id = isset($_POST['template_id']) ? (int) metis_runtime_unslash($_POST['template_id']) : 0;
+        $template_id = isset(metis_request_post()['template_id']) ? (int) metis_runtime_unslash(metis_request_post()['template_id']) : 0;
     }
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
-    $subject = metis_text_clean(metis_runtime_unslash($_POST['subject'] ?? ''));
-    $from_name = metis_text_clean(metis_runtime_unslash($_POST['from_name'] ?? ($_POST['sender_name'] ?? '')));
-    $from_email = metis_email_clean(metis_runtime_unslash($_POST['from_email'] ?? ($_POST['sender_email'] ?? '')));
-    $reply_to = metis_email_clean(metis_runtime_unslash($_POST['reply_to'] ?? ''));
-    $preheader = metis_text_clean(metis_runtime_unslash($_POST['preheader'] ?? ($_POST['preview_text'] ?? '')));
-    $doc_json_raw = (string) metis_runtime_unslash($_POST['doc_json'] ?? '');
-    $editor_body_field_present = array_key_exists('editor_body_html', $_POST);
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
+    $subject = metis_text_clean(metis_runtime_unslash(metis_request_post()['subject'] ?? ''));
+    $from_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['from_name'] ?? (metis_request_post()['sender_name'] ?? '')));
+    $from_email = metis_email_clean(metis_runtime_unslash(metis_request_post()['from_email'] ?? (metis_request_post()['sender_email'] ?? '')));
+    $reply_to = metis_email_clean(metis_runtime_unslash(metis_request_post()['reply_to'] ?? ''));
+    $preheader = metis_text_clean(metis_runtime_unslash(metis_request_post()['preheader'] ?? (metis_request_post()['preview_text'] ?? '')));
+    $doc_json_raw = (string) metis_runtime_unslash(metis_request_post()['doc_json'] ?? '');
+    $editor_body_field_present = array_key_exists('editor_body_html', metis_request_post());
     $editor_body_html = $editor_body_field_present
-        ? metis_newsletter_sanitize_theme_html((string) metis_runtime_unslash($_POST['editor_body_html']))
+        ? metis_newsletter_sanitize_theme_html((string) metis_runtime_unslash(metis_request_post()['editor_body_html']))
         : '';
-    $has_html_body = array_key_exists('html_body', $_POST);
-    $html_body = $has_html_body ? metis_runtime_kses_post(metis_runtime_unslash($_POST['html_body'])) : '';
-    $has_text_body = array_key_exists('text_body', $_POST);
-    $text_body = $has_text_body ? metis_textarea_clean(metis_runtime_unslash($_POST['text_body'])) : '';
-    $audience_json_raw = (string) metis_runtime_unslash($_POST['audience_json'] ?? '');
-    $attachments_json_raw = (string) metis_runtime_unslash($_POST['attachments_json'] ?? '');
-    $scheduled_at = metis_newsletter_parse_datetime_local((string) (metis_runtime_unslash($_POST['scheduled_at'] ?? '')));
-    $status = metis_newsletter_sanitize_status((string) (metis_runtime_unslash($_POST['status'] ?? 'draft')));
+    $has_html_body = array_key_exists('html_body', metis_request_post());
+    $html_body = $has_html_body ? metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['html_body'])) : '';
+    $has_text_body = array_key_exists('text_body', metis_request_post());
+    $text_body = $has_text_body ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['text_body'])) : '';
+    $audience_json_raw = (string) metis_runtime_unslash(metis_request_post()['audience_json'] ?? '');
+    $attachments_json_raw = (string) metis_runtime_unslash(metis_request_post()['attachments_json'] ?? '');
+    $scheduled_at = metis_newsletter_parse_datetime_local((string) (metis_runtime_unslash(metis_request_post()['scheduled_at'] ?? '')));
+    $status = metis_newsletter_sanitize_status((string) (metis_runtime_unslash(metis_request_post()['status'] ?? 'draft')));
     $attachments_payload = [];
     if ($attachments_json_raw !== '') {
         $decoded_attachments = json_decode($attachments_json_raw, true);
@@ -792,8 +792,8 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
     }
 
     $list_ids = [];
-    if (isset($_POST['list_ids'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['list_ids']), true);
+    if (isset(metis_request_post()['list_ids'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['list_ids']), true);
         if (is_array($decoded)) {
             $list_ids = array_values(array_unique(array_map('intval', $decoded)));
         }
@@ -998,7 +998,7 @@ metis_ajax_register_handler( 'metis_newsletter_doc_preview', function () {
     if (!metis_newsletter_can_view()) metis_runtime_send_json_error('Unauthorized', 403);
 
     try {
-        $doc_json_raw = (string) metis_runtime_unslash($_POST['doc_json'] ?? '');
+        $doc_json_raw = (string) metis_runtime_unslash(metis_request_post()['doc_json'] ?? '');
         $compiled = metis_newsletter_doc_compile($doc_json_raw);
         $contact_payload = [];
         $html_body = (string) ($compiled['html'] ?? '');
@@ -1033,8 +1033,8 @@ metis_ajax_register_handler( 'metis_newsletter_campaign_get', function () {
     $templates_table = Metis_Tables::get('newsletter_templates');
     $campaign_lists_table = Metis_Tables::get('newsletter_campaign_lists');
 
-    $campaign_code = metis_newsletter_sanitize_ref_code($_POST['campaign_code'] ?? ($_POST['key'] ?? ''));
-    $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
+    $campaign_code = metis_newsletter_sanitize_ref_code(metis_request_post()['campaign_code'] ?? (metis_request_post()['key'] ?? ''));
+    $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_code === '' && $campaign_id < 1) {
         metis_runtime_send_json_error('Campaign reference is required.', 400);
     }
@@ -1122,7 +1122,7 @@ metis_ajax_register_handler( 'metis_newsletter_queue_campaign', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
+    $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
 
     $result = metis_newsletter_queue_campaign_messages($campaign_id);
@@ -1144,11 +1144,11 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
 
     $db = metis_db();
     $campaigns_table = Metis_Tables::get('newsletter_campaigns');
-    $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
-    $test_email = metis_email_clean(metis_runtime_unslash($_POST['test_email'] ?? ''));
-    $override_from_name = metis_text_clean(metis_runtime_unslash($_POST['from_name'] ?? ''));
-    $override_from_email = metis_email_clean(metis_runtime_unslash($_POST['from_email'] ?? ''));
-    $override_reply_to = metis_email_clean(metis_runtime_unslash($_POST['reply_to'] ?? ''));
+    $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
+    $test_email = metis_email_clean(metis_runtime_unslash(metis_request_post()['test_email'] ?? ''));
+    $override_from_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['from_name'] ?? ''));
+    $override_from_email = metis_email_clean(metis_runtime_unslash(metis_request_post()['from_email'] ?? ''));
+    $override_reply_to = metis_email_clean(metis_runtime_unslash(metis_request_post()['reply_to'] ?? ''));
     if ($campaign_id < 1 || !metis_email_is_valid($test_email)) metis_runtime_send_json_error('Campaign and valid test email are required.', 400);
 
     $campaign = $db->fetchOne("SELECT * FROM {$campaigns_table} WHERE id = %d LIMIT 1", [$campaign_id]);
@@ -1257,7 +1257,7 @@ metis_ajax_register_handler( 'metis_newsletter_archive_campaign', function () {
 
     $db = metis_db();
     $campaigns_table = Metis_Tables::get('newsletter_campaigns');
-    $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
+    $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
     $ok = $db->update($campaigns_table, ['status' => 'archived', 'archived_at' => metis_current_time('mysql'), 'updated_at' => metis_current_time('mysql')], ['id' => $campaign_id], ['%s', '%s', '%s'], ['%d']);
     if ($ok === false) metis_runtime_send_json_error('Unable to archive campaign.', 500);
@@ -1277,7 +1277,7 @@ metis_ajax_register_handler( 'metis_newsletter_delete_campaign', function () {
     $messages_table = Metis_Tables::get('newsletter_messages');
     $events_table = Metis_Tables::get('newsletter_events');
 
-    $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
+    $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
 
     $campaign = $db->fetchOne(
@@ -1311,7 +1311,7 @@ metis_ajax_register_handler( 'metis_newsletter_campaign_status', function () {
     $messages_table = Metis_Tables::get('newsletter_messages');
     $contacts_table = Metis_Tables::get('contacts');
 
-    $campaign_id = isset($_POST['campaign_id']) ? (int) metis_runtime_unslash($_POST['campaign_id']) : 0;
+    $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
 
     $campaign = $db->fetchOne(
@@ -1404,7 +1404,7 @@ metis_ajax_register_handler( 'metis_newsletter_search_contacts', function () {
 
     $db = metis_db();
     $contacts_table = Metis_Tables::get('contacts');
-    $query = metis_text_clean((string) metis_runtime_unslash($_POST['query'] ?? ''));
+    $query = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['query'] ?? ''));
     $query = trim($query);
     if ($query === '') metis_runtime_send_json_success(['results' => []]);
 
@@ -1440,7 +1440,7 @@ metis_ajax_register_handler( 'metis_newsletter_run_queue', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $limit = isset($_POST['limit']) ? (int) metis_runtime_unslash($_POST['limit']) : 100;
+    $limit = isset(metis_request_post()['limit']) ? (int) metis_runtime_unslash(metis_request_post()['limit']) : 100;
     $result = metis_newsletter_process_queue($limit);
 
     metis_portal_dashboard_forget_all();
@@ -1565,11 +1565,11 @@ metis_ajax_register_handler( 'metis_newsletter_upsert_subscription', function ()
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
 
     $result = metis_newsletter_upsert_subscription_record([
-        'email' => (string) metis_runtime_unslash($_POST['email'] ?? ''),
-        'first_name' => (string) metis_runtime_unslash($_POST['first_name'] ?? ''),
-        'last_name' => (string) metis_runtime_unslash($_POST['last_name'] ?? ''),
-        'list_id' => (int) metis_runtime_unslash($_POST['list_id'] ?? 0),
-        'status' => (string) metis_runtime_unslash($_POST['status'] ?? 'subscribed'),
+        'email' => (string) metis_runtime_unslash(metis_request_post()['email'] ?? ''),
+        'first_name' => (string) metis_runtime_unslash(metis_request_post()['first_name'] ?? ''),
+        'last_name' => (string) metis_runtime_unslash(metis_request_post()['last_name'] ?? ''),
+        'list_id' => (int) metis_runtime_unslash(metis_request_post()['list_id'] ?? 0),
+        'status' => (string) metis_runtime_unslash(metis_request_post()['status'] ?? 'subscribed'),
     ]);
 
     if (empty($result['success'])) {
@@ -1591,10 +1591,10 @@ metis_ajax_register_handler( 'metis_newsletter_record_event', function () {
     $db = metis_db();
     $messages_table = Metis_Tables::get('newsletter_messages');
 
-    $message_id = isset($_POST['message_id']) ? (int) metis_runtime_unslash($_POST['message_id']) : 0;
-    $message_code = metis_text_clean((string) metis_runtime_unslash($_POST['message_code'] ?? ''));
-    $event_type = metis_key_clean(metis_runtime_unslash($_POST['event_type'] ?? ''));
-    $reason = metis_text_clean(metis_runtime_unslash($_POST['reason'] ?? ''));
+    $message_id = isset(metis_request_post()['message_id']) ? (int) metis_runtime_unslash(metis_request_post()['message_id']) : 0;
+    $message_code = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['message_code'] ?? ''));
+    $event_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['event_type'] ?? ''));
+    $reason = metis_text_clean(metis_runtime_unslash(metis_request_post()['reason'] ?? ''));
     if ($event_type === '') metis_runtime_send_json_error('Event type required.', 400);
 
     if ($message_code === '' && $message_id > 0) {
@@ -1613,7 +1613,7 @@ metis_ajax_register_handler( 'metis_newsletter_sync_google_usage', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $date_input = isset($_POST['usage_date']) ? metis_text_clean(metis_runtime_unslash($_POST['usage_date'])) : '';
+    $date_input = isset(metis_request_post()['usage_date']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['usage_date'])) : '';
     $date_ymd = '';
     if ($date_input !== '') {
         $dt = DateTimeImmutable::createFromFormat('Y-m-d', $date_input);
@@ -1639,7 +1639,7 @@ $metis_newsletter_klipy_search_handler = static function () {
     metis_newsletter_ajax_verify_nonce();
     if (!metis_newsletter_can_view()) metis_runtime_send_json_error('Unauthorized', 403);
 
-    $query = metis_text_clean((string) metis_runtime_unslash($_POST['query'] ?? ''));
+    $query = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['query'] ?? ''));
     $query = trim($query);
     if ($query === '' || strlen($query) < 2) {
         metis_runtime_send_json_error('Search query must be at least 2 characters.', 400);
@@ -1704,10 +1704,10 @@ metis_ajax_register_handler( 'metis_newsletter_upload_image', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    if (empty($_FILES['image']) || !is_array($_FILES['image'])) {
+    if (empty(metis_request_files()['image']) || !is_array(metis_request_files()['image'])) {
         metis_runtime_send_json_error('Image file is required.', 400);
     }
-    $file = $_FILES['image'];
+    $file = metis_request_files()['image'];
     if (!isset($file['tmp_name']) || (string) $file['tmp_name'] === '') {
         metis_runtime_send_json_error('Image upload is invalid.', 400);
     }
@@ -1764,10 +1764,10 @@ metis_ajax_register_handler( 'metis_newsletter_upload_attachment', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    if (empty($_FILES['attachment']) || !is_array($_FILES['attachment'])) {
+    if (empty(metis_request_files()['attachment']) || !is_array(metis_request_files()['attachment'])) {
         metis_runtime_send_json_error('Attachment file is required.', 400);
     }
-    $file = $_FILES['attachment'];
+    $file = metis_request_files()['attachment'];
     if (!isset($file['tmp_name']) || (string) $file['tmp_name'] === '') {
         metis_runtime_send_json_error('Attachment upload is invalid.', 400);
     }

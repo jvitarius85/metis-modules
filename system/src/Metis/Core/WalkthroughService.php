@@ -176,7 +176,7 @@ if ( ! function_exists( 'metis_walkthrough_get_response' ) ) {
             metis_walkthrough_error_response( 'metis_walkthrough_get', 'Walkthrough service is unavailable.', 500, 'walkthrough_service_unavailable' );
         }
 
-        $id = metis_help_plain_key( (string) ( $_POST['walkthrough'] ?? '' ) );
+        $id = metis_help_plain_key( (string) ( metis_request_post()['walkthrough'] ?? '' ) );
         if ( $id === '' ) {
             metis_walkthrough_error_response( 'metis_walkthrough_get', 'Walkthrough id is required.', 400, 'walkthrough_id_required' );
         }
@@ -202,15 +202,15 @@ if ( ! function_exists( 'metis_walkthrough_progress_response' ) ) {
             metis_walkthrough_error_response( 'metis_walkthrough_progress', 'Walkthrough service is unavailable.', 500, 'walkthrough_service_unavailable' );
         }
 
-        $id = metis_help_plain_key( (string) ( $_POST['walkthrough'] ?? '' ) );
+        $id = metis_help_plain_key( (string) ( metis_request_post()['walkthrough'] ?? '' ) );
         if ( $id === '' ) {
             metis_walkthrough_error_response( 'metis_walkthrough_progress', 'Walkthrough id is required.', 400, 'walkthrough_id_required' );
         }
 
         $state = [
-            'step' => max( 0, (int) ( $_POST['step'] ?? 0 ) ),
-            'completed' => ! empty( $_POST['completed'] ),
-            'skipped' => ! empty( $_POST['skipped'] ),
+            'step' => max( 0, (int) ( metis_request_post()['step'] ?? 0 ) ),
+            'completed' => ! empty( metis_request_post()['completed'] ),
+            'skipped' => ! empty( metis_request_post()['skipped'] ),
         ];
 
         $saved = $service->save_progress( $id, $state );

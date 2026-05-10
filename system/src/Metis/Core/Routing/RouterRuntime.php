@@ -1064,8 +1064,8 @@ function metis_router_build_request( array $attributes = [] ): Metis_Http_Reques
         }
     }
 
-    $raw_body    = file_get_contents( 'php://input' ) ?: '';
-    $parsed_body = metis_runtime_unslash( $_POST );
+    $raw_body    = metis_request_raw_body() ?: '';
+    $parsed_body = metis_runtime_unslash( metis_request_post() );
 
     if ( empty( $parsed_body ) && str_contains( strtolower( (string) ( $headers['content-type'] ?? '' ) ), 'application/json' ) ) {
         $decoded = json_decode( $raw_body, true );
@@ -1078,11 +1078,11 @@ function metis_router_build_request( array $attributes = [] ): Metis_Http_Reques
         strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ),
         (string) ( $_SERVER['REQUEST_URI'] ?? '/' ),
         metis_request_path_relative_to_site(),
-        metis_runtime_unslash( $_GET ),
+        metis_runtime_unslash( metis_request_get() ),
         $parsed_body,
         $headers,
-        $_COOKIE,
-        $_FILES,
+        metis_request_cookie(),
+        metis_request_files(),
         $_SERVER,
         $raw_body,
         $attributes
@@ -2544,7 +2544,7 @@ metis_on( 'metis_admin_init', function () {
         return;
     }
 
-    $action_source = $_POST['action'] ?? $_GET['action'] ?? '';
+    $action_source = metis_request_post()['action'] ?? metis_request_get()['action'] ?? '';
     $action = is_string( $action_source ) ? metis_key_clean( metis_runtime_unslash( $action_source ) ) : '';
     if ( $action === '' || ! str_starts_with( $action, 'metis_' ) ) {
         return;

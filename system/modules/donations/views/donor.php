@@ -8,7 +8,7 @@ $transactions_table = Metis_Tables::get( 'transactions' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url = metis_donations_base_url();
-$donor_id = isset( $_GET['id'] ) ? metis_text_clean( $_GET['id'] ) : '';
+$donor_id = isset( metis_request_get()['id'] ) ? metis_text_clean( metis_request_get()['id'] ) : '';
 
 if ( $donor_id === '' ) : ?>
     <h1 class="metis-page-title">Donor not found</h1>

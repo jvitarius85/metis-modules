@@ -416,12 +416,12 @@ metis_ajax_register_handler( 'metis_board_save_committee', function () {
     $db = metis_db();
 
     $table = Metis_Tables::get('board_committees');
-    $committee_id = (int) ($_POST['committee_id'] ?? 0);
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
-    $description = metis_runtime_kses_post(metis_runtime_unslash($_POST['description'] ?? ''));
-    $chair_person_id = (int) ($_POST['chair_person_id'] ?? 0);
-    $newsletter_list_id = (int) ($_POST['newsletter_list_id'] ?? 0);
-    $is_active = (int) ($_POST['is_active'] ?? 1) === 1 ? 1 : 0;
+    $committee_id = (int) (metis_request_post()['committee_id'] ?? 0);
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
+    $description = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
+    $chair_person_id = (int) (metis_request_post()['chair_person_id'] ?? 0);
+    $newsletter_list_id = (int) (metis_request_post()['newsletter_list_id'] ?? 0);
+    $is_active = (int) (metis_request_post()['is_active'] ?? 1) === 1 ? 1 : 0;
 
     if ($name === '') metis_runtime_send_json_error('Committee name is required.', 422);
     if ($newsletter_list_id > 0 && !metis_board_newsletter_list_exists($newsletter_list_id)) {
@@ -458,17 +458,17 @@ metis_ajax_register_handler( 'metis_board_save_meeting', function () {
     $db = metis_db();
 
     $table = Metis_Tables::get('board_meetings');
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
-    $committee_id = (int) ($_POST['committee_id'] ?? 0);
-    $meeting_date_raw = metis_text_clean(metis_runtime_unslash($_POST['meeting_date'] ?? ''));
-    $meeting_type = metis_key_clean(metis_runtime_unslash($_POST['meeting_type'] ?? 'board'));
-    $location = metis_text_clean(metis_runtime_unslash($_POST['location'] ?? ''));
-    $status = metis_key_clean(metis_runtime_unslash($_POST['status'] ?? 'draft'));
-    $calendar_event_id = metis_text_clean(metis_runtime_unslash($_POST['google_calendar_event_id'] ?? ''));
-    $drive_folder_id = metis_text_clean(metis_runtime_unslash($_POST['google_drive_folder_id'] ?? ''));
-    $agenda_json_raw = trim((string) metis_runtime_unslash($_POST['agenda_json'] ?? ''));
-    $minutes_html = metis_runtime_kses_post(metis_runtime_unslash($_POST['minutes_html'] ?? ''));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
+    $committee_id = (int) (metis_request_post()['committee_id'] ?? 0);
+    $meeting_date_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['meeting_date'] ?? ''));
+    $meeting_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['meeting_type'] ?? 'board'));
+    $location = metis_text_clean(metis_runtime_unslash(metis_request_post()['location'] ?? ''));
+    $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'draft'));
+    $calendar_event_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['google_calendar_event_id'] ?? ''));
+    $drive_folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['google_drive_folder_id'] ?? ''));
+    $agenda_json_raw = trim((string) metis_runtime_unslash(metis_request_post()['agenda_json'] ?? ''));
+    $minutes_html = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['minutes_html'] ?? ''));
 
     if ($title === '') metis_runtime_send_json_error('Meeting title is required.', 422);
     if ($meeting_date_raw === '') metis_runtime_send_json_error('Meeting date is required.', 422);
@@ -542,15 +542,15 @@ metis_ajax_register_handler( 'metis_board_save_decision', function () {
     $db = metis_db();
 
     $table = Metis_Tables::get('board_decisions');
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
-    $agenda_section_title = metis_text_clean(metis_runtime_unslash($_POST['agenda_section_title'] ?? ''));
-    $agenda_item_title = metis_text_clean(metis_runtime_unslash($_POST['agenda_item_title'] ?? ''));
-    $decision_text = metis_runtime_kses_post(metis_runtime_unslash($_POST['decision_text'] ?? ''));
-    $outcome = metis_key_clean(metis_runtime_unslash($_POST['outcome'] ?? 'pending'));
-    $votes_for = max(0, (int) ($_POST['votes_for'] ?? 0));
-    $votes_against = max(0, (int) ($_POST['votes_against'] ?? 0));
-    $votes_abstain = max(0, (int) ($_POST['votes_abstain'] ?? 0));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
+    $agenda_section_title = metis_text_clean(metis_runtime_unslash(metis_request_post()['agenda_section_title'] ?? ''));
+    $agenda_item_title = metis_text_clean(metis_runtime_unslash(metis_request_post()['agenda_item_title'] ?? ''));
+    $decision_text = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['decision_text'] ?? ''));
+    $outcome = metis_key_clean(metis_runtime_unslash(metis_request_post()['outcome'] ?? 'pending'));
+    $votes_for = max(0, (int) (metis_request_post()['votes_for'] ?? 0));
+    $votes_against = max(0, (int) (metis_request_post()['votes_against'] ?? 0));
+    $votes_abstain = max(0, (int) (metis_request_post()['votes_abstain'] ?? 0));
 
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
     if ($title === '') metis_runtime_send_json_error('Decision title is required.', 422);
@@ -598,13 +598,13 @@ metis_ajax_register_handler( 'metis_board_save_action_item', function () {
     $db = metis_db();
 
     $table = Metis_Tables::get('board_action_items');
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $owner_person_id = (int) ($_POST['owner_person_id'] ?? 0);
-    $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
-    $description = metis_runtime_kses_post(metis_runtime_unslash($_POST['description'] ?? ''));
-    $due_date = metis_text_clean(metis_runtime_unslash($_POST['due_date'] ?? ''));
-    $priority = metis_key_clean(metis_runtime_unslash($_POST['priority'] ?? 'normal'));
-    $status = metis_key_clean(metis_runtime_unslash($_POST['status'] ?? 'open'));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $owner_person_id = (int) (metis_request_post()['owner_person_id'] ?? 0);
+    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
+    $description = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
+    $due_date = metis_text_clean(metis_runtime_unslash(metis_request_post()['due_date'] ?? ''));
+    $priority = metis_key_clean(metis_runtime_unslash(metis_request_post()['priority'] ?? 'normal'));
+    $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'open'));
 
     if ($title === '') metis_runtime_send_json_error('Action title is required.', 422);
     if (!in_array($priority, ['low', 'normal', 'high', 'critical'], true)) $priority = 'normal';
@@ -660,7 +660,7 @@ metis_ajax_register_handler( 'metis_board_resolve_action_item', function () {
     metis_board_ajax_verify(false);
     $db = metis_db();
     $table = Metis_Tables::get('board_action_items');
-    $action_item_id = (int) ($_POST['action_item_id'] ?? 0);
+    $action_item_id = (int) (metis_request_post()['action_item_id'] ?? 0);
 
     if ($action_item_id < 1) metis_runtime_send_json_error('Action item is required.', 422);
 
@@ -699,10 +699,10 @@ metis_ajax_register_handler( 'metis_board_save_announcement', function () {
     $db = metis_db();
 
     $table = Metis_Tables::get('board_announcements');
-    $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
-    $body_html = metis_runtime_kses_post(metis_runtime_unslash($_POST['body_html'] ?? ''));
-    $status = metis_key_clean(metis_runtime_unslash($_POST['status'] ?? 'draft'));
-    $publish_at_raw = metis_text_clean(metis_runtime_unslash($_POST['publish_at'] ?? ''));
+    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
+    $body_html = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['body_html'] ?? ''));
+    $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'draft'));
+    $publish_at_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['publish_at'] ?? ''));
 
     if ($title === '') metis_runtime_send_json_error('Announcement title is required.', 422);
     if (!in_array($status, ['draft', 'published'], true)) $status = 'draft';
@@ -1236,7 +1236,7 @@ function metis_board_packet_html(array $meeting, array $agenda, array $decisions
 
 metis_ajax_register_handler( 'metis_board_prepare_meeting_workspace', function () {
     metis_board_ajax_verify(true);
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) {
         metis_runtime_send_json_error('Meeting is required.', 422);
     }
@@ -1251,7 +1251,7 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
 
     $prepared = metis_board_prepare_workspace_folders($meeting_id);
@@ -1269,9 +1269,9 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
     $meeting = $db->fetchOne("SELECT * FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]);
     if (!$meeting) metis_runtime_send_json_error('Meeting not found.', 404);
 
-    $minutes_reference_raw = metis_text_clean(metis_runtime_unslash($_POST['packet_source_minutes_reference'] ?? ''));
+    $minutes_reference_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['packet_source_minutes_reference'] ?? ''));
     if ($minutes_reference_raw === '') {
-        $minutes_reference_raw = metis_text_clean(metis_runtime_unslash($_POST['packet_source_minutes_meeting_id'] ?? ''));
+        $minutes_reference_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['packet_source_minutes_meeting_id'] ?? ''));
     }
     $selected_prior_doc_id = 0;
     $selected_prior_meeting_id = 0;
@@ -1280,7 +1280,7 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
     } else {
         $selected_prior_meeting_id = (int) ($minutes_reference_raw !== '' ? $minutes_reference_raw : (string) ($meeting['packet_source_minutes_meeting_id'] ?? 0));
     }
-    $selected_financial_doc_id = (int) ($_POST['packet_financial_document_id'] ?? ($meeting['packet_financial_document_id'] ?? 0));
+    $selected_financial_doc_id = (int) (metis_request_post()['packet_financial_document_id'] ?? ($meeting['packet_financial_document_id'] ?? 0));
     $db->update(
         $meetings_table,
         [
@@ -1508,13 +1508,13 @@ metis_ajax_register_handler( 'metis_board_save_agenda_template', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
     $table = Metis_Tables::get('board_agenda_templates');
-    $template_id = (int) ($_POST['template_id'] ?? 0);
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
-    $description = metis_text_clean(metis_runtime_unslash($_POST['description'] ?? ''));
-    $sort_order = max(0, (int) ($_POST['sort_order'] ?? 0));
-    $is_required = (int) ($_POST['is_required'] ?? 0) === 1 ? 1 : 0;
-    $is_active = (int) ($_POST['is_active'] ?? 1) === 1 ? 1 : 0;
-    $default_items_raw = (string) metis_runtime_unslash($_POST['default_items_json'] ?? '[]');
+    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
+    $description = metis_text_clean(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
+    $sort_order = max(0, (int) (metis_request_post()['sort_order'] ?? 0));
+    $is_required = (int) (metis_request_post()['is_required'] ?? 0) === 1 ? 1 : 0;
+    $is_active = (int) (metis_request_post()['is_active'] ?? 1) === 1 ? 1 : 0;
+    $default_items_raw = (string) metis_runtime_unslash(metis_request_post()['default_items_json'] ?? '[]');
     $default_items = json_decode($default_items_raw, true);
     if (!is_array($default_items)) $default_items = [];
     if ($name === '') metis_runtime_send_json_error('Template name is required.', 422);
@@ -1541,7 +1541,7 @@ metis_ajax_register_handler( 'metis_board_save_agenda_template', function () {
 metis_ajax_register_handler( 'metis_board_delete_agenda_template', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
-    $template_id = (int) ($_POST['template_id'] ?? 0);
+    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
     if ($template_id < 1) metis_runtime_send_json_error('Template is required.', 422);
     $table = Metis_Tables::get('board_agenda_templates');
     $ok = $db->update($table, ['is_active' => 0], ['id' => $template_id], ['%d'], ['%d']);
@@ -1553,13 +1553,13 @@ metis_ajax_register_handler( 'metis_board_save_decision_template', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
     $table = Metis_Tables::get('board_decision_templates');
-    $template_id = (int) ($_POST['template_id'] ?? 0);
-    $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
-    $description = metis_text_clean(metis_runtime_unslash($_POST['description'] ?? ''));
-    $sort_order = max(0, (int) ($_POST['sort_order'] ?? 0));
-    $default_outcome = metis_key_clean(metis_runtime_unslash($_POST['default_outcome'] ?? 'pending'));
+    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
+    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
+    $description = metis_text_clean(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
+    $sort_order = max(0, (int) (metis_request_post()['sort_order'] ?? 0));
+    $default_outcome = metis_key_clean(metis_runtime_unslash(metis_request_post()['default_outcome'] ?? 'pending'));
     if (!in_array($default_outcome, ['pending', 'approved', 'rejected', 'tabled'], true)) $default_outcome = 'pending';
-    $is_active = (int) ($_POST['is_active'] ?? 1) === 1 ? 1 : 0;
+    $is_active = (int) (metis_request_post()['is_active'] ?? 1) === 1 ? 1 : 0;
     if ($title === '') metis_runtime_send_json_error('Decision template title is required.', 422);
     $payload = [
         'title' => $title,
@@ -1583,7 +1583,7 @@ metis_ajax_register_handler( 'metis_board_save_decision_template', function () {
 metis_ajax_register_handler( 'metis_board_delete_decision_template', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
-    $template_id = (int) ($_POST['template_id'] ?? 0);
+    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
     if ($template_id < 1) metis_runtime_send_json_error('Template is required.', 422);
     $table = Metis_Tables::get('board_decision_templates');
     $ok = $db->update($table, ['is_active' => 0], ['id' => $template_id], ['%d'], ['%d']);
@@ -1595,9 +1595,9 @@ metis_ajax_register_handler( 'metis_board_drive_list', function () {
     metis_board_ajax_verify(false);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
-    $search = metis_text_clean(metis_runtime_unslash($_POST['search'] ?? ''));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
+    $search = metis_text_clean(metis_runtime_unslash(metis_request_post()['search'] ?? ''));
 
     $meetings_table = Metis_Tables::get('board_meetings');
     if ($folder_id === '' && $meeting_id > 0) {
@@ -1714,10 +1714,10 @@ metis_ajax_register_handler( 'metis_board_drive_create_folder', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $parent_id = metis_text_clean(metis_runtime_unslash($_POST['parent_id'] ?? 'root'));
-    $folder_name = metis_text_clean(metis_runtime_unslash($_POST['folder_name'] ?? ''));
-    $set_as_meeting = (int) ($_POST['set_as_meeting'] ?? 0) === 1;
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['parent_id'] ?? 'root'));
+    $folder_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_name'] ?? ''));
+    $set_as_meeting = (int) (metis_request_post()['set_as_meeting'] ?? 0) === 1;
     if ($folder_name === '') metis_runtime_send_json_error('Folder name is required.', 422);
 
     $payload = [
@@ -1758,10 +1758,10 @@ metis_ajax_register_handler( 'metis_board_drive_upload', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
-    $doc_type = metis_key_clean(metis_runtime_unslash($_POST['doc_type'] ?? 'board_packet'));
-    $item_title = metis_text_clean(metis_runtime_unslash($_POST['item_title'] ?? ''));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
+    $doc_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['doc_type'] ?? 'board_packet'));
+    $item_title = metis_text_clean(metis_runtime_unslash(metis_request_post()['item_title'] ?? ''));
     if ($meeting_id > 0) {
         $workspace = metis_board_prepare_workspace_folders($meeting_id);
         if (!empty($workspace['ok'])) {
@@ -1772,10 +1772,10 @@ metis_ajax_register_handler( 'metis_board_drive_upload', function () {
         }
     }
     if ($folder_id === '') $folder_id = 'root';
-    if (empty($_FILES['file']) || !is_array($_FILES['file'])) {
+    if (empty(metis_request_files()['file']) || !is_array(metis_request_files()['file'])) {
         metis_runtime_send_json_error('Upload file is required.', 422);
     }
-    $file = $_FILES['file'];
+    $file = metis_request_files()['file'];
     $tmp = (string) ($file['tmp_name'] ?? '');
     $name = metis_filename_clean((string) ($file['name'] ?? ''));
     $size = (int) ($file['size'] ?? 0);
@@ -1876,9 +1876,9 @@ metis_ajax_register_handler( 'metis_board_drive_set_meeting_folder', function ()
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $folder_input = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
-    $folder_name_input = metis_text_clean(metis_runtime_unslash($_POST['folder_name'] ?? ''));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $folder_input = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
+    $folder_name_input = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_name'] ?? ''));
     $folder_id = metis_board_extract_google_id($folder_input, 'drive_folder');
     if ($meeting_id < 1 || $folder_id === '') metis_runtime_send_json_error('Meeting and folder are required.', 422);
     $folder_url = 'https://drive.google.com/drive/folders/' . rawurlencode($folder_id);
@@ -1916,13 +1916,13 @@ metis_ajax_register_handler( 'metis_board_drive_link_document', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $file_id = metis_text_clean(metis_runtime_unslash($_POST['file_id'] ?? ''));
-    $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
-    $doc_type = metis_key_clean(metis_runtime_unslash($_POST['doc_type'] ?? 'board_packet'));
-    $mime_type = metis_text_clean(metis_runtime_unslash($_POST['mime_type'] ?? ''));
-    $web_view_link = metis_escape_url((string) metis_runtime_unslash($_POST['web_view_link'] ?? ''));
-    $size = (int) ($_POST['size'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
+    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
+    $doc_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['doc_type'] ?? 'board_packet'));
+    $mime_type = metis_text_clean(metis_runtime_unslash(metis_request_post()['mime_type'] ?? ''));
+    $web_view_link = metis_escape_url((string) metis_runtime_unslash(metis_request_post()['web_view_link'] ?? ''));
+    $size = (int) (metis_request_post()['size'] ?? 0);
     if ($meeting_id < 1 || $file_id === '') metis_runtime_send_json_error('Meeting and file are required.', 422);
     if ($title === '') $title = 'Drive file';
     if ($doc_type === '') $doc_type = 'board_packet';
@@ -1972,7 +1972,7 @@ metis_ajax_register_handler( 'metis_board_drive_link_document', function () {
 metis_ajax_register_handler( 'metis_board_drive_unlink_document', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
-    $document_id = (int) ($_POST['document_id'] ?? 0);
+    $document_id = (int) (metis_request_post()['document_id'] ?? 0);
     if ($document_id < 1) metis_runtime_send_json_error('Document is required.', 422);
     $docs_table = Metis_Tables::get('board_documents');
     $meeting_id = (int) $db->scalar("SELECT meeting_id FROM {$docs_table} WHERE id = %d LIMIT 1", [ $document_id ]);
@@ -1987,8 +1987,8 @@ metis_ajax_register_handler( 'metis_board_drive_unlink_document', function () {
 metis_ajax_register_handler( 'metis_board_drive_delete_file', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $file_id = metis_text_clean(metis_runtime_unslash($_POST['file_id'] ?? ''));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
     if ($file_id === '') metis_runtime_send_json_error('File is required.', 422);
 
     $url = metis_add_query_arg(['supportsAllDrives' => 'true'], 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($file_id));
@@ -1999,7 +1999,11 @@ metis_ajax_register_handler( 'metis_board_drive_delete_file', function () {
 
     if ($meeting_id > 0) {
         $docs_table = Metis_Tables::get('board_documents');
-        $db->query("DELETE FROM {$docs_table} WHERE meeting_id = %d AND google_file_id = %s", [ $meeting_id, $file_id ]);
+        $db->delete(
+            $docs_table,
+            [ 'meeting_id' => $meeting_id, 'google_file_id' => $file_id ],
+            [ '%d', '%s' ]
+        );
     }
 
     metis_runtime_send_json_success([
@@ -2010,7 +2014,7 @@ metis_ajax_register_handler( 'metis_board_drive_delete_file', function () {
 
 metis_ajax_register_handler( 'metis_board_get_meeting_documents', function () {
     metis_board_ajax_verify(false);
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
     metis_runtime_send_json_success([
         'meeting_id' => $meeting_id,
@@ -2021,7 +2025,7 @@ metis_ajax_register_handler( 'metis_board_get_meeting_documents', function () {
 metis_ajax_register_handler( 'metis_board_get_workspace_links_summary', function () {
     metis_board_ajax_verify(false);
     $db = metis_db();
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
 
     $meetings_table = Metis_Tables::get('board_meetings');
@@ -2067,7 +2071,7 @@ metis_ajax_register_handler( 'metis_board_get_workspace_links_summary', function
 metis_ajax_register_handler( 'metis_board_list_calendar_events', function () {
     metis_board_ajax_verify(false);
     $db = metis_db();
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
     $events_table = Metis_Tables::get('calendar_events');
     $rows = [];
@@ -2136,7 +2140,7 @@ metis_ajax_register_handler( 'metis_board_list_calendar_events', function () {
 metis_ajax_register_handler( 'metis_board_list_drive_folders', function () {
     metis_board_ajax_verify(false);
     $db = metis_db();
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
     $items_table = Metis_Tables::get('drive_items');
     $rows = [];
@@ -2259,9 +2263,9 @@ metis_ajax_register_handler( 'metis_board_assign_calendar_event', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $event_input = metis_text_clean(metis_runtime_unslash($_POST['event_id'] ?? ''));
-    $event_name = metis_text_clean(metis_runtime_unslash($_POST['event_name'] ?? ''));
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $event_input = metis_text_clean(metis_runtime_unslash(metis_request_post()['event_id'] ?? ''));
+    $event_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['event_name'] ?? ''));
     if ($meeting_id < 1 || trim($event_input) === '') {
         metis_runtime_send_json_error('Meeting and calendar event are required.', 422);
     }
@@ -2304,7 +2308,7 @@ metis_ajax_register_handler( 'metis_board_generate_calendar_event', function () 
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) {
         metis_runtime_send_json_error('Meeting is required.', 422);
     }
@@ -2351,12 +2355,12 @@ metis_ajax_register_handler( 'metis_board_generate_calendar_event', function () 
 metis_ajax_register_handler( 'metis_board_sync_decision_points', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
 
     $agenda = null;
-    if (array_key_exists('agenda_json', $_POST)) {
-        $agenda_json_raw = trim((string) metis_runtime_unslash($_POST['agenda_json'] ?? ''));
+    if (array_key_exists('agenda_json', metis_request_post())) {
+        $agenda_json_raw = trim((string) metis_runtime_unslash(metis_request_post()['agenda_json'] ?? ''));
         if ($agenda_json_raw !== '') {
             $decoded = json_decode($agenda_json_raw, true);
             if (!is_array($decoded)) metis_runtime_send_json_error('Agenda JSON is invalid.', 422);
@@ -2671,7 +2675,7 @@ function metis_board_send_packet_publish_email(int $meeting_id): array {
 
 metis_ajax_register_handler( 'metis_board_resend_packet_email', function () {
     metis_board_ajax_verify(true);
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) {
         metis_runtime_send_json_error('Meeting is required.', 422);
     }
@@ -2689,7 +2693,7 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     if ($meeting_id < 1) {
         metis_runtime_send_json_error('Meeting is required.', 422);
     }
@@ -2705,8 +2709,8 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
     $setup_changed = false;
     $send_publish_email = false;
 
-    if (array_key_exists('title', $_POST)) {
-        $title = metis_text_clean(metis_runtime_unslash($_POST['title'] ?? ''));
+    if (array_key_exists('title', metis_request_post())) {
+        $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
         if ($title === '') {
             metis_runtime_send_json_error('Meeting title is required.', 422);
         }
@@ -2715,8 +2719,8 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         $setup_changed = true;
     }
 
-    if (array_key_exists('meeting_date', $_POST)) {
-        $meeting_date_raw = metis_text_clean(metis_runtime_unslash($_POST['meeting_date'] ?? ''));
+    if (array_key_exists('meeting_date', metis_request_post())) {
+        $meeting_date_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['meeting_date'] ?? ''));
         if ($meeting_date_raw === '') {
             metis_runtime_send_json_error('Meeting date is required.', 422);
         }
@@ -2729,8 +2733,8 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         $setup_changed = true;
     }
 
-    if (array_key_exists('meeting_type', $_POST)) {
-        $meeting_type = metis_key_clean(metis_runtime_unslash($_POST['meeting_type'] ?? 'board'));
+    if (array_key_exists('meeting_type', metis_request_post())) {
+        $meeting_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['meeting_type'] ?? 'board'));
         if (!in_array($meeting_type, ['board', 'committee', 'special'], true)) {
             $meeting_type = 'board';
         }
@@ -2739,14 +2743,14 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         $setup_changed = true;
     }
 
-    if (array_key_exists('location', $_POST)) {
-        $payload['location'] = metis_text_clean(metis_runtime_unslash($_POST['location'] ?? ''));
+    if (array_key_exists('location', metis_request_post())) {
+        $payload['location'] = metis_text_clean(metis_runtime_unslash(metis_request_post()['location'] ?? ''));
         $formats[] = '%s';
         $setup_changed = true;
     }
 
-    if (array_key_exists('status', $_POST)) {
-        $status = metis_key_clean(metis_runtime_unslash($_POST['status'] ?? 'draft'));
+    if (array_key_exists('status', metis_request_post())) {
+        $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'draft'));
         if (!in_array($status, ['draft', 'scheduled', 'completed', 'cancelled'], true)) {
             $status = 'draft';
         }
@@ -2755,8 +2759,8 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         $setup_changed = true;
     }
 
-    if (array_key_exists('agenda_json', $_POST)) {
-        $agenda_json_raw = trim((string) metis_runtime_unslash($_POST['agenda_json'] ?? ''));
+    if (array_key_exists('agenda_json', metis_request_post())) {
+        $agenda_json_raw = trim((string) metis_runtime_unslash(metis_request_post()['agenda_json'] ?? ''));
         if ($agenda_json_raw === '') {
             $payload['agenda_json'] = null;
             $formats[] = '%s';
@@ -2770,30 +2774,30 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         }
     }
 
-    if (array_key_exists('minutes_html', $_POST)) {
-        $payload['minutes_html'] = metis_runtime_kses_post(metis_runtime_unslash($_POST['minutes_html'] ?? ''));
+    if (array_key_exists('minutes_html', metis_request_post())) {
+        $payload['minutes_html'] = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['minutes_html'] ?? ''));
         $formats[] = '%s';
     }
 
-    if (array_key_exists('board_packet_notes', $_POST)) {
-        $payload['board_packet_notes'] = metis_runtime_kses_post(metis_runtime_unslash($_POST['board_packet_notes'] ?? ''));
+    if (array_key_exists('board_packet_notes', metis_request_post())) {
+        $payload['board_packet_notes'] = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['board_packet_notes'] ?? ''));
         $formats[] = '%s';
     }
 
-    if (array_key_exists('packet_source_minutes_meeting_id', $_POST)) {
-        $val = (int) ($_POST['packet_source_minutes_meeting_id'] ?? 0);
+    if (array_key_exists('packet_source_minutes_meeting_id', metis_request_post())) {
+        $val = (int) (metis_request_post()['packet_source_minutes_meeting_id'] ?? 0);
         $payload['packet_source_minutes_meeting_id'] = $val > 0 ? $val : null;
         $formats[] = '%d';
     }
 
-    if (array_key_exists('packet_financial_document_id', $_POST)) {
-        $val = (int) ($_POST['packet_financial_document_id'] ?? 0);
+    if (array_key_exists('packet_financial_document_id', metis_request_post())) {
+        $val = (int) (metis_request_post()['packet_financial_document_id'] ?? 0);
         $payload['packet_financial_document_id'] = $val > 0 ? $val : null;
         $formats[] = '%d';
     }
 
-    if (array_key_exists('packet_published', $_POST)) {
-        $packet_published = (int) ($_POST['packet_published'] ?? 0) === 1;
+    if (array_key_exists('packet_published', metis_request_post())) {
+        $packet_published = (int) (metis_request_post()['packet_published'] ?? 0) === 1;
         $payload['published_at'] = $packet_published ? metis_current_time('mysql') : null;
         $formats[] = '%s';
         if ($packet_published && !$was_published) {
@@ -2801,8 +2805,8 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
         }
     }
 
-    if (array_key_exists('attendance_locked', $_POST)) {
-        $payload['attendance_locked'] = (int) ($_POST['attendance_locked'] ?? 0) === 1 ? 1 : 0;
+    if (array_key_exists('attendance_locked', metis_request_post())) {
+        $payload['attendance_locked'] = (int) (metis_request_post()['attendance_locked'] ?? 0) === 1 ? 1 : 0;
         $formats[] = '%d';
     }
 
@@ -2818,7 +2822,7 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
     $calendar_sync = null;
     $publish_email = null;
     if ($setup_changed) {
-        $sync_calendar = !array_key_exists('sync_calendar_event', $_POST) || (int) ($_POST['sync_calendar_event'] ?? 1) === 1;
+        $sync_calendar = !array_key_exists('sync_calendar_event', metis_request_post()) || (int) (metis_request_post()['sync_calendar_event'] ?? 1) === 1;
         if ($sync_calendar) {
             $meeting_row = $db->fetchOne(
                 "SELECT id, meeting_code, title, meeting_date, location, status, google_calendar_event_id
@@ -2874,7 +2878,7 @@ metis_ajax_register_handler( 'metis_board_update_decision', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $decision_id = (int) ($_POST['decision_id'] ?? 0);
+    $decision_id = (int) (metis_request_post()['decision_id'] ?? 0);
     if ($decision_id < 1) {
         metis_runtime_send_json_error('Decision is required.', 422);
     }
@@ -2885,13 +2889,13 @@ metis_ajax_register_handler( 'metis_board_update_decision', function () {
         metis_runtime_send_json_error('Decision not found.', 404);
     }
 
-    $votes_for = max(0, (int) ($_POST['votes_for'] ?? 0));
-    $votes_against = max(0, (int) ($_POST['votes_against'] ?? 0));
-    $votes_abstain = max(0, (int) ($_POST['votes_abstain'] ?? 0));
+    $votes_for = max(0, (int) (metis_request_post()['votes_for'] ?? 0));
+    $votes_against = max(0, (int) (metis_request_post()['votes_against'] ?? 0));
+    $votes_abstain = max(0, (int) (metis_request_post()['votes_abstain'] ?? 0));
     $vote_assignments_payload = null;
 
-    if (array_key_exists('vote_assignments_json', $_POST)) {
-        $raw = trim((string) metis_runtime_unslash($_POST['vote_assignments_json'] ?? ''));
+    if (array_key_exists('vote_assignments_json', metis_request_post())) {
+        $raw = trim((string) metis_runtime_unslash(metis_request_post()['vote_assignments_json'] ?? ''));
         $decoded = json_decode($raw, true);
         if (is_array($decoded)) {
             $people_table = Metis_Tables::get('people');
@@ -2969,8 +2973,8 @@ metis_ajax_register_handler( 'metis_board_upsert_attendance', function () {
     metis_board_ajax_verify(true);
     $db = metis_db();
 
-    $meeting_id = (int) ($_POST['meeting_id'] ?? 0);
-    $person_id = (int) ($_POST['person_id'] ?? 0);
+    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
+    $person_id = (int) (metis_request_post()['person_id'] ?? 0);
     if ($meeting_id < 1 || $person_id < 1) {
         metis_runtime_send_json_error('Meeting and member are required.', 422);
     }
@@ -2981,13 +2985,13 @@ metis_ajax_register_handler( 'metis_board_upsert_attendance', function () {
         metis_runtime_send_json_error('Attendance is locked for this meeting.', 423);
     }
 
-    $status = metis_key_clean(metis_runtime_unslash($_POST['status'] ?? 'absent'));
+    $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'absent'));
     if (!in_array($status, ['present', 'remote', 'absent', 'excused'], true)) {
         $status = 'absent';
     }
 
-    $role_label = metis_text_clean(metis_runtime_unslash($_POST['role_label'] ?? ''));
-    $notes = metis_text_clean(metis_runtime_unslash($_POST['notes'] ?? ''));
+    $role_label = metis_text_clean(metis_runtime_unslash(metis_request_post()['role_label'] ?? ''));
+    $notes = metis_text_clean(metis_runtime_unslash(metis_request_post()['notes'] ?? ''));
 
     $table = Metis_Tables::get('board_attendance');
     $existing_id = (int) $db->scalar(

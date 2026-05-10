@@ -20,13 +20,13 @@ metis_ajax_register_handler( 'metis_people_create_access_request', function () {
     $people_table = Metis_Tables::get('people');
     $roles_table = Metis_Tables::get('people_roles');
 
-    $target_pid = isset($_POST['target_pid']) ? metis_text_clean(metis_runtime_unslash($_POST['target_pid'])) : '';
-    $role_key = isset($_POST['role_key']) ? metis_key_clean(metis_runtime_unslash($_POST['role_key'])) : '';
-    $reason = isset($_POST['reason']) ? metis_textarea_clean(metis_runtime_unslash($_POST['reason'])) : '';
-    $requested_start_at = isset($_POST['requested_start_at']) ? metis_text_clean(metis_runtime_unslash($_POST['requested_start_at'])) : '';
-    $requested_end_at = isset($_POST['requested_end_at']) ? metis_text_clean(metis_runtime_unslash($_POST['requested_end_at'])) : '';
-    $expires_at = isset($_POST['expires_at']) ? metis_text_clean(metis_runtime_unslash($_POST['expires_at'])) : '';
-    $required_approvals = isset($_POST['required_approvals']) ? (int) metis_runtime_unslash($_POST['required_approvals']) : 2;
+    $target_pid = isset(metis_request_post()['target_pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['target_pid'])) : '';
+    $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
+    $reason = isset(metis_request_post()['reason']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['reason'])) : '';
+    $requested_start_at = isset(metis_request_post()['requested_start_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['requested_start_at'])) : '';
+    $requested_end_at = isset(metis_request_post()['requested_end_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['requested_end_at'])) : '';
+    $expires_at = isset(metis_request_post()['expires_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['expires_at'])) : '';
+    $required_approvals = isset(metis_request_post()['required_approvals']) ? (int) metis_runtime_unslash(metis_request_post()['required_approvals']) : 2;
     $role_id = (int) $db->scalar("SELECT id FROM {$roles_table} WHERE role_key=%s AND role_domain='metis' LIMIT 1", [ $role_key ]);
     $target_person_id = (int) $db->scalar("SELECT id FROM {$people_table} WHERE pid=%s LIMIT 1", [ $target_pid ]);
     if ($role_id < 1 || $target_person_id < 1 || trim($reason) === '') {
@@ -95,9 +95,9 @@ metis_ajax_register_handler( 'metis_people_resolve_access_request', function () 
     $db = metis_db();
     $requests_table = Metis_Tables::get('people_access_requests');
     $user_roles_table = Metis_Tables::get('people_user_roles');
-    $request_id = isset($_POST['request_id']) ? (int) metis_runtime_unslash($_POST['request_id']) : 0;
-    $decision = isset($_POST['decision']) ? metis_key_clean(metis_runtime_unslash($_POST['decision'])) : '';
-    $decision_note = isset($_POST['decision_note']) ? metis_textarea_clean(metis_runtime_unslash($_POST['decision_note'])) : '';
+    $request_id = isset(metis_request_post()['request_id']) ? (int) metis_runtime_unslash(metis_request_post()['request_id']) : 0;
+    $decision = isset(metis_request_post()['decision']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['decision'])) : '';
+    $decision_note = isset(metis_request_post()['decision_note']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['decision_note'])) : '';
     if ($request_id < 1 || !in_array($decision, ['approved', 'rejected'], true) || trim($decision_note) === '') {
         metis_runtime_send_json_error('Invalid request or decision.', 400);
     }

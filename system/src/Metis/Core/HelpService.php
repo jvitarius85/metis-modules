@@ -780,7 +780,7 @@ if ( ! function_exists( 'metis_help_topic_response' ) ) {
             metis_help_error_response( 'metis_help_topic', 'Help service is unavailable.', 500, 'help_service_unavailable' );
         }
 
-        $topic_id = metis_help_normalize_topic_id( $_POST['topic'] ?? '' );
+        $topic_id = metis_help_normalize_topic_id( metis_request_post()['topic'] ?? '' );
         if ( $topic_id === '' ) {
             metis_help_error_response( 'metis_help_topic', 'Help topic is required.', 400, 'help_topic_required' );
         }
@@ -801,8 +801,8 @@ if ( ! function_exists( 'metis_help_index_response' ) ) {
             metis_help_error_response( 'metis_help_index', 'Help service is unavailable.', 500, 'help_service_unavailable' );
         }
 
-        $domain = metis_help_plain_key( (string) ( $_POST['domain'] ?? '' ) );
-        $view   = metis_help_plain_key( (string) ( $_POST['view'] ?? '' ) );
+        $domain = metis_help_plain_key( (string) ( metis_request_post()['domain'] ?? '' ) );
+        $view   = metis_help_plain_key( (string) ( metis_request_post()['view'] ?? '' ) );
 
         metis_runtime_send_json_success(
             [
@@ -821,8 +821,8 @@ if ( ! function_exists( 'metis_help_search_response' ) ) {
         }
 
         try {
-            $query = metis_help_plain_text( (string) ( $_POST['query'] ?? '' ) );
-            $limit = max( 1, min( 20, (int) ( $_POST['limit'] ?? 12 ) ) );
+            $query = metis_help_plain_text( (string) ( metis_request_post()['query'] ?? '' ) );
+            $limit = max( 1, min( 20, (int) ( metis_request_post()['limit'] ?? 12 ) ) );
 
             metis_runtime_send_json_success( [ 'results' => $service->search( $query, $limit ) ] );
         } catch ( Throwable $e ) {

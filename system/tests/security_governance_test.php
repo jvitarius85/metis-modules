@@ -56,6 +56,10 @@ $assert( str_contains( $kernel, 'metis_audit_log_activity' ), 'Protected media g
 $assert( str_contains( $uploads, 'storage_class' ), 'Media records must store a media storage class.' );
 $assert( str_contains( $uploads, 'access_expires_at' ), 'Media records must store an optional access expiration.' );
 $assert( str_contains( $uploads, 'metis_media_storage_class_for_path' ), 'Media registration must classify file storage paths centrally.' );
+$assert( str_contains( $uploads, 'function metis_store_public_media' ), 'Media runtime must expose a canonical public-media helper.' );
+$assert( str_contains( $uploads, 'function metis_store_protected_media' ), 'Media runtime must expose a canonical protected-media helper.' );
+$assert( str_contains( $uploads, 'function metis_store_private_record' ), 'Media runtime must expose a canonical private-record helper.' );
+$assert( str_contains( $uploads, 'Protected media requires an explicit access expiration.' ), 'Protected/private media writes must fail without expiration metadata.' );
 $assert( str_contains( $uploads, '/storage/public-media' ), 'Default uploads must write public media to the public media root.' );
 $assert( str_contains( $avatar, '/storage/public-media/avatars/' ), 'Avatar storage must use public media rather than legacy uploads.' );
 
@@ -70,6 +74,10 @@ foreach ( [
 $assert( str_contains( $processRunner, 'proc_open' ), 'ProcessRunner must be the central process execution gateway.' );
 $assert( str_contains( $processRunner, 'metis_audit_log_activity' ), 'ProcessRunner must audit process execution.' );
 $assert( str_contains( $processRunner, 'validateCommand' ), 'ProcessRunner must validate command vectors before execution.' );
+$assert( str_contains( $processRunner, 'validateExecutionContext' ), 'ProcessRunner must require explicit execution context.' );
+$assert( str_contains( $processRunner, 'security_context' ), 'ProcessRunner must require security context.' );
+$assert( str_contains( $processRunner, 'audit_context' ), 'ProcessRunner must require audit context.' );
+$assert( str_contains( $processRunner, 'permission_context' ), 'ProcessRunner must require permission context.' );
 
 $assert( is_array( $governance['approved_layers']['superglobals'] ?? null ), 'Governance config must define approved superglobal layers.' );
 $assert( is_array( $governance['approved_layers']['raw_sql'] ?? null ), 'Governance config must define approved raw SQL layers.' );

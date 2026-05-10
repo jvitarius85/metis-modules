@@ -19,10 +19,10 @@ metis_ajax_register_handler( 'metis_people_add_lifecycle_task', function () {
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
     $tasks_table = Metis_Tables::get('people_lifecycle_tasks');
-    $pid = isset($_POST['pid']) ? metis_text_clean(metis_runtime_unslash($_POST['pid'])) : '';
-    $phase = isset($_POST['phase']) ? metis_key_clean(metis_runtime_unslash($_POST['phase'])) : 'onboarding';
-    $task_label = isset($_POST['task_label']) ? metis_text_clean(metis_runtime_unslash($_POST['task_label'])) : '';
-    $due_at = isset($_POST['due_at']) ? metis_text_clean(metis_runtime_unslash($_POST['due_at'])) : '';
+    $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
+    $phase = isset(metis_request_post()['phase']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['phase'])) : 'onboarding';
+    $task_label = isset(metis_request_post()['task_label']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['task_label'])) : '';
+    $due_at = isset(metis_request_post()['due_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['due_at'])) : '';
     if ($pid === '' || $task_label === '') {
         metis_runtime_send_json_error('PID and task label are required.', 400);
     }
@@ -62,7 +62,7 @@ metis_ajax_register_handler( 'metis_people_complete_lifecycle_task', function ()
     metis_people_ajax_verify();
     $db = metis_db();
     $tasks_table = Metis_Tables::get('people_lifecycle_tasks');
-    $task_id = isset($_POST['task_id']) ? (int) metis_runtime_unslash($_POST['task_id']) : 0;
+    $task_id = isset(metis_request_post()['task_id']) ? (int) metis_runtime_unslash(metis_request_post()['task_id']) : 0;
     if ($task_id < 1) {
         metis_runtime_send_json_error('Invalid task id.', 400);
     }

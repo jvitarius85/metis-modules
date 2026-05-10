@@ -11,7 +11,7 @@ function metis_drive_ajax_verify(bool $manage = false): void {
 }
 
 function metis_drive_ajax_cfg_from_request(): array {
-    $requested_drive_id = metis_text_clean(metis_runtime_unslash($_POST['drive_id'] ?? ''));
+    $requested_drive_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['drive_id'] ?? ''));
     return metis_drive_workspace_settings($requested_drive_id);
 }
 
@@ -271,8 +271,8 @@ metis_ajax_register_handler( 'metis_drive_list', function () {
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
     $can_manage = metis_drive_can_manage();
 
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
-    $search = metis_text_clean(metis_runtime_unslash($_POST['search'] ?? ''));
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
+    $search = metis_text_clean(metis_runtime_unslash(metis_request_post()['search'] ?? ''));
     if ($folder_id === '') $folder_id = (string) $cfg['shared_drive_id'];
     $shared_drive_id = (string) $cfg['shared_drive_id'];
 
@@ -373,7 +373,7 @@ metis_ajax_register_handler( 'metis_drive_tree_children', function () {
     $can_manage = metis_drive_can_manage();
 
     $shared_drive_id = (string) $cfg['shared_drive_id'];
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
     if ($folder_id === '') $folder_id = $shared_drive_id;
 
     $users_root_id = '';
@@ -428,13 +428,13 @@ metis_ajax_register_handler( 'metis_drive_sync_worker', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
     if ($folder_id === '') {
         $folder_id = (string) ($cfg['shared_drive_id'] ?? '');
     }
 
-    $force = !empty($_POST['force']);
-    $depth = max(0, min(metis_drive_sync_max_depth(), (int) ($_POST['depth'] ?? metis_drive_sync_max_depth())));
+    $force = !empty(metis_request_post()['force']);
+    $depth = max(0, min(metis_drive_sync_max_depth(), (int) (metis_request_post()['depth'] ?? metis_drive_sync_max_depth())));
     if (!$force && !metis_drive_sync_needs_refresh((string) ($cfg['shared_drive_id'] ?? ''), $folder_id, metis_drive_background_sync_interval())) {
         metis_runtime_send_json_success(['status' => 'fresh']);
     }
@@ -453,8 +453,8 @@ metis_ajax_register_handler( 'metis_drive_create_folder', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $parent_id = metis_text_clean(metis_runtime_unslash($_POST['parent_id'] ?? ''));
-    $folder_name = metis_text_clean(metis_runtime_unslash($_POST['folder_name'] ?? ''));
+    $parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['parent_id'] ?? ''));
+    $folder_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_name'] ?? ''));
     if ($parent_id === '') $parent_id = (string) $cfg['shared_drive_id'];
     if ($folder_name === '') metis_runtime_send_json_error('Folder name is required.', 422);
 
@@ -495,15 +495,15 @@ metis_ajax_register_handler( 'metis_drive_upload_file', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $parent_id = metis_text_clean(metis_runtime_unslash($_POST['parent_id'] ?? ''));
+    $parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['parent_id'] ?? ''));
     if ($parent_id === '') $parent_id = (string) $cfg['shared_drive_id'];
     if ($parent_id !== (string) $cfg['shared_drive_id']) {
         $guard = metis_drive_guard_in_shared_drive($parent_id, $cfg);
         if (empty($guard['ok'])) metis_runtime_send_json_error('Invalid parent folder.', 400);
     }
 
-    if (empty($_FILES['file']) || !is_array($_FILES['file'])) metis_runtime_send_json_error('File is required.', 422);
-    $file = $_FILES['file'];
+    if (empty(metis_request_files()['file']) || !is_array(metis_request_files()['file'])) metis_runtime_send_json_error('File is required.', 422);
+    $file = metis_request_files()['file'];
     $tmp = (string) ($file['tmp_name'] ?? '');
     $name = metis_filename_clean((string) ($file['name'] ?? ''));
     $size = (int) ($file['size'] ?? 0);
@@ -563,15 +563,15 @@ metis_ajax_register_handler( 'metis_drive_create_google_file', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $parent_id = metis_text_clean(metis_runtime_unslash($_POST['parent_id'] ?? ''));
+    $parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['parent_id'] ?? ''));
     if ($parent_id === '') $parent_id = (string) $cfg['shared_drive_id'];
     if ($parent_id !== (string) $cfg['shared_drive_id']) {
         $guard = metis_drive_guard_in_shared_drive($parent_id, $cfg);
         if (empty($guard['ok'])) metis_runtime_send_json_error('Invalid parent folder.', 400);
     }
 
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
-    $type = metis_key_clean(metis_runtime_unslash($_POST['google_type'] ?? ''));
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
+    $type = metis_key_clean(metis_runtime_unslash(metis_request_post()['google_type'] ?? ''));
     $type_map = [
         'doc' => 'application/vnd.google-apps.document',
         'sheet' => 'application/vnd.google-apps.spreadsheet',
@@ -618,8 +618,8 @@ metis_ajax_register_handler( 'metis_drive_move_item', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $file_id = metis_text_clean(metis_runtime_unslash($_POST['file_id'] ?? ''));
-    $target_parent_id = metis_text_clean(metis_runtime_unslash($_POST['target_parent_id'] ?? ''));
+    $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
+    $target_parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['target_parent_id'] ?? ''));
     if ($file_id === '') metis_runtime_send_json_error('File is required.', 422);
     if ($target_parent_id === '') $target_parent_id = (string) ($cfg['shared_drive_id'] ?? '');
 
@@ -684,9 +684,9 @@ metis_ajax_register_handler( 'metis_drive_copy_item', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $file_id = metis_text_clean(metis_runtime_unslash($_POST['file_id'] ?? ''));
-    $target_parent_id = metis_text_clean(metis_runtime_unslash($_POST['target_parent_id'] ?? ''));
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
+    $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
+    $target_parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['target_parent_id'] ?? ''));
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
     if ($file_id === '') metis_runtime_send_json_error('File is required.', 422);
     if ($target_parent_id === '') $target_parent_id = (string) ($cfg['shared_drive_id'] ?? '');
 
@@ -737,8 +737,8 @@ metis_ajax_register_handler( 'metis_drive_rename', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $file_id = metis_text_clean(metis_runtime_unslash($_POST['file_id'] ?? ''));
-    $name = metis_text_clean(metis_runtime_unslash($_POST['name'] ?? ''));
+    $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
+    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
     if ($file_id === '' || $name === '') metis_runtime_send_json_error('File and new name are required.', 422);
     $guard = metis_drive_guard_in_shared_drive($file_id, $cfg);
     if (empty($guard['ok'])) metis_runtime_send_json_error('Invalid file.', 400);
@@ -770,7 +770,7 @@ metis_ajax_register_handler( 'metis_drive_trash', function () {
     $cfg = metis_drive_ajax_cfg_from_request();
     if (empty($cfg['ok'])) metis_runtime_send_json_error('Workspace Drive configuration is unavailable.', 400);
 
-    $file_id = metis_text_clean(metis_runtime_unslash($_POST['file_id'] ?? ''));
+    $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
     if ($file_id === '') metis_runtime_send_json_error('File is required.', 422);
     $guard = metis_drive_guard_in_shared_drive($file_id, $cfg);
     if (empty($guard['ok'])) metis_runtime_send_json_error('Invalid file.', 400);

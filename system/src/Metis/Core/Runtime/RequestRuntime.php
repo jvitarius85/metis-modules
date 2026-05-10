@@ -13,20 +13,142 @@ function metis_runtime_doing_ajax(): bool {
     return defined( 'DOING_AJAX' ) && DOING_AJAX;
 }
 
+function metis_request_get(): array {
+    return is_array( $_GET ) ? $_GET : [];
+}
+
+function metis_request_post(): array {
+    return is_array( $_POST ) ? $_POST : [];
+}
+
+function metis_request_files(): array {
+    return is_array( $_FILES ) ? $_FILES : [];
+}
+
+function metis_request_cookie(): array {
+    return is_array( $_COOKIE ) ? $_COOKIE : [];
+}
+
+function metis_request_raw_body(): string {
+    $raw = file_get_contents( 'php://input' );
+    return is_string( $raw ) ? $raw : '';
+}
+
 function metis_request_input_value( string $field, mixed $default = '' ): mixed {
     if ( $field === '' ) {
         return $default;
     }
 
-    if ( array_key_exists( $field, $_POST ) ) {
-        return $_POST[ $field ];
+    $post = metis_request_post();
+    if ( array_key_exists( $field, $post ) ) {
+        return $post[ $field ];
     }
 
-    if ( array_key_exists( $field, $_GET ) ) {
-        return $_GET[ $field ];
+    $get = metis_request_get();
+    if ( array_key_exists( $field, $get ) ) {
+        return $get[ $field ];
     }
 
     return $default;
+}
+
+function metis_request_scalar( string $field, mixed $default = '', string $source = 'request' ): mixed {
+    $source = metis_key_clean( $source );
+    $value = $default;
+
+    if ( $field === '' ) {
+        return $default;
+    }
+
+    if ( $source === 'post' ) {
+        $post = metis_request_post();
+        $value = array_key_exists( $field, $post ) ? $post[ $field ] : $default;
+    } elseif ( $source === 'get' ) {
+        $get = metis_request_get();
+        $value = array_key_exists( $field, $get ) ? $get[ $field ] : $default;
+    } else {
+        $value = metis_request_input_value( $field, $default );
+    }
+
+    if ( is_array( $value ) || is_object( $value ) ) {
+        return $default;
+    }
+
+    return is_string( $value ) && function_exists( 'metis_runtime_unslash' )
+        ? metis_runtime_unslash( $value )
+        : $value;
+}
+
+function metis_request_id( string $field, int $default = 0, string $source = 'request' ): int {
+    $value = metis_request_scalar( $field, $default, $source );
+    if ( is_int( $value ) ) {
+        return max( 0, $value );
+    }
+
+    $value = trim( (string) $value );
+    if ( $value === '' || ! preg_match( '/^[0-9]+$/', $value ) ) {
+        return $default;
+    }
+
+    return max( 0, (int) $value );
+}
+
+function metis_request_object_code( string $field, string $default = '', string $source = 'request' ): string {
+    $value = strtoupper( trim( metis_text_clean( (string) metis_request_scalar( $field, $default, $source ) ) ) );
+    if ( $value === '' ) {
+        return $default;
+    }
+
+    return preg_match( '/^[A-Z][A-Z0-9_-]{1,63}$/', $value ) ? $value : $default;
+}
+
+function metis_request_enum( string $field, array $allowed, string $default = '', string $source = 'request' ): string {
+    $allowed = array_values( array_unique( array_map( static fn ( mixed $item ): string => metis_key_clean( (string) $item ), $allowed ) ) );
+    $value = metis_key_clean( (string) metis_request_scalar( $field, $default, $source ) );
+    if ( $value === '' ) {
+        return $default;
+    }
+
+    return in_array( $value, $allowed, true ) ? $value : $default;
+}
+
+function metis_request_json( string $field, array $default = [], string $source = 'request', int $max_bytes = 65536 ): array {
+    $raw = (string) metis_request_scalar( $field, '', $source );
+    if ( $raw === '' || strlen( $raw ) > max( 1024, $max_bytes ) ) {
+        return $default;
+    }
+
+    $decoded = json_decode( $raw, true );
+    return is_array( $decoded ) ? $decoded : $default;
+}
+
+function metis_request_date( string $field, string $default = '', string $source = 'request' ): string {
+    $value = trim( (string) metis_request_scalar( $field, $default, $source ) );
+    if ( $value === '' || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+        return $default;
+    }
+
+    $date = DateTimeImmutable::createFromFormat( '!Y-m-d', $value );
+    return $date instanceof DateTimeImmutable && $date->format( 'Y-m-d' ) === $value ? $value : $default;
+}
+
+function metis_request_bool( string $field, bool $default = false, string $source = 'request' ): bool {
+    $value = metis_request_scalar( $field, $default ? '1' : '0', $source );
+    if ( is_bool( $value ) ) {
+        return $value;
+    }
+
+    $parsed = filter_var( $value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
+    return $parsed === null ? $default : $parsed;
+}
+
+function metis_request_file( string $field ): ?array {
+    $files = metis_request_files();
+    if ( $field === '' || empty( $files[ $field ] ) || ! is_array( $files[ $field ] ) ) {
+        return null;
+    }
+
+    return $files[ $field ];
 }
 
 function metis_request_nonce_candidates( string|bool $query_arg = false ): array {

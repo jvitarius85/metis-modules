@@ -8,8 +8,8 @@ metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
 $db = metis_db();
-$page = isset($_GET['page']) ? (int) metis_runtime_unslash($_GET['page']) : 1;
-$q = isset($_GET['q']) ? metis_text_clean(metis_runtime_unslash($_GET['q'])) : '';
+$page = isset(metis_request_get()['page']) ? (int) metis_runtime_unslash(metis_request_get()['page']) : 1;
+$q = isset(metis_request_get()['q']) ? metis_text_clean(metis_runtime_unslash(metis_request_get()['q'])) : '';
 if ($page < 1) $page = 1;
 $payload = function_exists('metis_people_activity_fetch_page')
     ? metis_people_activity_fetch_page($page, 15, $q)

@@ -506,8 +506,8 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
         metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
     }
 
-    $code = strtoupper( trim( metis_text_clean( metis_runtime_unslash( $_POST['code'] ?? '' ) ) ) );
-    $fuzzy = ! empty( $_POST['fuzzy'] );
+    $code = strtoupper( trim( metis_text_clean( metis_runtime_unslash( metis_request_post()['code'] ?? '' ) ) ) );
+    $fuzzy = ! empty( metis_request_post()['fuzzy'] );
     if ( $code === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'A lookup code is required.' ], 422 );
     }
@@ -846,8 +846,8 @@ metis_ajax_register_handler( 'metis_quick_action_form', function () {
         metis_runtime_send_json_error( 'Quick actions are unavailable.', 404 );
     }
 
-    $nonce = isset( $_POST['nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['nonce'] ) ) : '';
-    $actionNonce = isset( $_POST['metis_action_nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( $_POST['metis_action_nonce'] ) ) : '';
+    $nonce = isset( metis_request_post()['nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['nonce'] ) ) : '';
+    $actionNonce = isset( metis_request_post()['metis_action_nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['metis_action_nonce'] ) ) : '';
     $valid = metis_runtime_verify_nonce( $nonce, 'metis_core' )
         || metis_runtime_verify_nonce( $actionNonce, 'metis_core' )
         || ( function_exists( 'metis_ajax_nonce_action' ) && metis_runtime_verify_nonce( $actionNonce, metis_ajax_nonce_action( 'metis_quick_action_form' ) ) )
@@ -856,7 +856,7 @@ metis_ajax_register_handler( 'metis_quick_action_form', function () {
         metis_runtime_send_json_error( 'Invalid nonce.', 403 );
     }
 
-    $key = metis_key_clean( (string) ( $_POST['key'] ?? '' ) );
+    $key = metis_key_clean( (string) ( metis_request_post()['key'] ?? '' ) );
     if ( $key === '' ) {
         metis_runtime_send_json_error( 'Quick action key is required.', 422 );
     }

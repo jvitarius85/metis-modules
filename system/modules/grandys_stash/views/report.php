@@ -6,8 +6,8 @@ if ( ! metis_grandys_stash_can_view() ) {
     return;
 }
 
-$from = metis_text_clean( (string) ( $_GET['from'] ?? '' ) );
-$to   = metis_text_clean( (string) ( $_GET['to'] ?? '' ) );
+$from = metis_text_clean( (string) ( metis_request_get()['from'] ?? '' ) );
+$to   = metis_text_clean( (string) ( metis_request_get()['to'] ?? '' ) );
 $report = \Metis\Modules\GrandyStash\GrandyStashRepository::reportData( $from, $to );
 $summary = $report['summary'] ?? [];
 ?>

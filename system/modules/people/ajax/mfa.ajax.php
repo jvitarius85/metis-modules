@@ -24,7 +24,7 @@ metis_ajax_register_handler( 'metis_people_generate_totp_secret', function () {
     metis_people_ajax_verify();
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     if ($person_id < 1) {
         metis_runtime_send_json_error('Invalid person id.', 400);
     }
@@ -47,9 +47,9 @@ metis_ajax_register_handler( 'metis_people_verify_totp_secret', function () {
     metis_people_ajax_verify();
     $people_table = Metis_Tables::get('people');
     $db = metis_db();
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
-    $secret = isset($_POST['secret']) ? strtoupper(metis_text_clean(metis_runtime_unslash($_POST['secret']))) : '';
-    $code = isset($_POST['code']) ? preg_replace('/\D+/', '', (string) metis_runtime_unslash($_POST['code'])) : '';
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
+    $secret = isset(metis_request_post()['secret']) ? strtoupper(metis_text_clean(metis_runtime_unslash(metis_request_post()['secret']))) : '';
+    $code = isset(metis_request_post()['code']) ? preg_replace('/\D+/', '', (string) metis_runtime_unslash(metis_request_post()['code'])) : '';
     if ($person_id < 1 || $secret === '' || strlen($code) !== 6) {
         metis_runtime_send_json_error('Secret and 6-digit code are required.', 400);
     }
@@ -96,7 +96,7 @@ metis_ajax_register_handler( 'metis_people_reset_metis_password', function () {
         metis_runtime_send_json_error( 'Metis password management is not available.', 500 );
     }
 
-    $person_id = isset( $_POST['person_id'] ) ? (int) metis_runtime_unslash( $_POST['person_id'] ) : 0;
+    $person_id = isset( metis_request_post()['person_id'] ) ? (int) metis_runtime_unslash( metis_request_post()['person_id'] ) : 0;
     if ( $person_id < 1 ) {
         metis_runtime_send_json_error( 'Invalid person id.', 400 );
     }
@@ -146,7 +146,7 @@ metis_ajax_register_handler( 'metis_people_begin_passkey_registration', function
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
     $passkeys_table = Metis_Tables::get('people_passkeys');
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     if ($person_id < 1) {
         metis_runtime_send_json_error('Invalid person id.', 400);
     }
@@ -204,13 +204,13 @@ metis_ajax_register_handler( 'metis_people_complete_passkey_registration', funct
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
     $passkeys_table = Metis_Tables::get('people_passkeys');
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
-    $challenge_key = isset($_POST['challenge_key']) ? metis_text_clean(metis_runtime_unslash($_POST['challenge_key'])) : '';
-    $credential_id = isset($_POST['credential_id']) ? metis_text_clean(metis_runtime_unslash($_POST['credential_id'])) : '';
-    $client_data_json_b64 = isset($_POST['client_data_json']) ? (string) metis_runtime_unslash($_POST['client_data_json']) : '';
-    $attestation_object_b64 = isset($_POST['attestation_object']) ? (string) metis_runtime_unslash($_POST['attestation_object']) : '';
-    $transports_json = isset($_POST['transports_json']) ? metis_text_clean(metis_runtime_unslash($_POST['transports_json'])) : '';
-    $label = isset($_POST['label']) ? metis_text_clean(metis_runtime_unslash($_POST['label'])) : '';
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
+    $challenge_key = isset(metis_request_post()['challenge_key']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['challenge_key'])) : '';
+    $credential_id = isset(metis_request_post()['credential_id']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['credential_id'])) : '';
+    $client_data_json_b64 = isset(metis_request_post()['client_data_json']) ? (string) metis_runtime_unslash(metis_request_post()['client_data_json']) : '';
+    $attestation_object_b64 = isset(metis_request_post()['attestation_object']) ? (string) metis_runtime_unslash(metis_request_post()['attestation_object']) : '';
+    $transports_json = isset(metis_request_post()['transports_json']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['transports_json'])) : '';
+    $label = isset(metis_request_post()['label']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['label'])) : '';
     if ($person_id < 1 || $challenge_key === '' || $credential_id === '' || $client_data_json_b64 === '' || $attestation_object_b64 === '') {
         metis_runtime_send_json_error('Missing registration payload.', 400);
     }
@@ -288,7 +288,7 @@ metis_ajax_register_handler( 'metis_people_revoke_passkey', function () {
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
     $passkeys_table = Metis_Tables::get('people_passkeys');
-    $passkey_id = isset($_POST['passkey_id']) ? (int) metis_runtime_unslash($_POST['passkey_id']) : 0;
+    $passkey_id = isset(metis_request_post()['passkey_id']) ? (int) metis_runtime_unslash(metis_request_post()['passkey_id']) : 0;
     if ($passkey_id < 1) {
         metis_runtime_send_json_error('Invalid passkey id.', 400);
     }
@@ -319,7 +319,7 @@ metis_ajax_register_handler( 'metis_people_reset_mfa', function () {
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
     $passkeys_table = Metis_Tables::get('people_passkeys');
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     if ($person_id < 1) {
         metis_runtime_send_json_error('Invalid person id.', 400);
     }

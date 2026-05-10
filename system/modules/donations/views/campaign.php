@@ -8,7 +8,7 @@ $transactions_table = Metis_Tables::get( 'transactions' );
 $contacts_table     = Metis_Tables::get( 'contacts' );
 $base_url           = metis_donations_base_url();
 
-$cid = isset( $_GET['cid'] ) ? metis_text_clean( $_GET['cid'] ) : '';
+$cid = isset( metis_request_get()['cid'] ) ? metis_text_clean( metis_request_get()['cid'] ) : '';
 
 if ( $cid === '' ) : ?>
     <h1 class="metis-page-title">Campaign Not Found</h1>

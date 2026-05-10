@@ -1,0 +1,9 @@
+# Example nginx parity rules for Metis.
+location ~ (^|/)\.(?!well-known/) { deny all; }
+location ~ ^/(?:vendor|\.metis-integrity|storage)(?:/|$) { return 404; }
+location ~ ^/system/(?:config|docs|modules|src|tests|tools|cloudflare|vendor)(?:/|$) { return 404; }
+location ~* \.(?:env|ini|log|md|markdown|pem|key|crt|sql|sqlite3?|toml|txt|ya?ml|zip|tar|gz|bak|dist|old)$ { return 404; }
+
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}

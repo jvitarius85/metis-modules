@@ -26,8 +26,8 @@ metis_ajax_register_handler( 'metis_contact_add_newsletter', function () {
     $newsletter_subs_table = Metis_Tables::get( 'newsletter_subs' );
     $newsletter_lists_table = Metis_Tables::get( 'newsletter_lists' );
 
-    $cid = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $list_id = isset( $_POST['list_id'] ) ? (int) metis_runtime_unslash( $_POST['list_id'] ) : 0;
+    $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $list_id = isset( metis_request_post()['list_id'] ) ? (int) metis_runtime_unslash( metis_request_post()['list_id'] ) : 0;
     if ( $cid === '' || $list_id < 1 ) {
         metis_runtime_send_json_error( 'CID and list are required.', 400 );
     }
@@ -82,8 +82,8 @@ metis_ajax_register_handler( 'metis_contact_remove_newsletter', function () {
     $contacts_table = Metis_Tables::get( 'contacts' );
     $newsletter_subs_table = Metis_Tables::get( 'newsletter_subs' );
 
-    $cid = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $list_id = isset( $_POST['list_id'] ) ? (int) metis_runtime_unslash( $_POST['list_id'] ) : 0;
+    $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $list_id = isset( metis_request_post()['list_id'] ) ? (int) metis_runtime_unslash( metis_request_post()['list_id'] ) : 0;
     if ( $cid === '' || $list_id < 1 ) {
         metis_runtime_send_json_error( 'CID and list are required.', 400 );
     }

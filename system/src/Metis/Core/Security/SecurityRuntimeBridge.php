@@ -476,7 +476,7 @@ function metis_security_enforce_ajax_request(): void {
         return;
     }
 
-    $action_source = $_POST['action'] ?? $_GET['action'] ?? '';
+    $action_source = metis_request_post()['action'] ?? metis_request_get()['action'] ?? '';
     $ajax_action = is_string( $action_source ) ? metis_key_clean( metis_runtime_unslash( $action_source ) ) : '';
     if ( $ajax_action === '' || strpos( $ajax_action, 'metis_' ) !== 0 ) {
         return;
@@ -518,7 +518,7 @@ function metis_security_enforce_ajax_request(): void {
         );
     }
 
-    $input = array_merge( metis_runtime_unslash( $_GET ), metis_runtime_unslash( $_POST ) );
+    $input = array_merge( metis_runtime_unslash( metis_request_get() ), metis_runtime_unslash( metis_request_post() ) );
 
     try {
         $enclave->execute(

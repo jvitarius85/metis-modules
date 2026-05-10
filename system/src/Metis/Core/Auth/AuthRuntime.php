@@ -1848,20 +1848,20 @@ function metis_auth_handle_request( Metis_Http_Request $request ): bool {
     $pending_person = \Metis\Core\Application::has_service( 'auth_mfa' )
         ? \Metis\Core\Application::service( 'auth_mfa' )->pendingPerson()
         : ( $pending ? metis_auth_get_person( (int) ( $pending['person_id'] ?? 0 ) ) : null );
-    $step = metis_key_clean( (string) ( $_GET['step'] ?? '' ) );
+    $step = metis_key_clean( (string) ( metis_request_get()['step'] ?? '' ) );
     $redirect = metis_auth_normalize_redirect(
-        isset( $_GET['redirect_to'] ) ? (string) $_GET['redirect_to'] : metis_auth_pending_login_redirect(),
+        isset( metis_request_get()['redirect_to'] ) ? (string) metis_request_get()['redirect_to'] : metis_auth_pending_login_redirect(),
         metis_portal_url()
     );
     $show_mfa = $step === 'mfa' && is_array( $pending ) && is_array( $pending_person );
     $needs_bootstrap = ! metis_auth_has_users() && metis_auth_legacy_people_without_auth_count() === 0;
 
-    if ( (string) ( $_GET['provider'] ?? '' ) === 'google_workspace' && isset( $_GET['code'] ) && \Metis\Core\Application::has_service( 'auth_core' ) ) {
+    if ( (string) ( metis_request_get()['provider'] ?? '' ) === 'google_workspace' && isset( metis_request_get()['code'] ) && \Metis\Core\Application::has_service( 'auth_core' ) ) {
         try {
             metis_auth_rate_limit_check( 'google_workspace' );
             $result = \Metis\Core\Application::service( 'auth_core' )->finishGoogleWorkspaceLogin(
-                (string) $_GET['code'],
-                (string) ( $_GET['state'] ?? '' ),
+                (string) metis_request_get()['code'],
+                (string) ( metis_request_get()['state'] ?? '' ),
                 $redirect
             );
             metis_runtime_redirect( (string) ( $result['redirect_url'] ?? $redirect ) );
@@ -1871,24 +1871,24 @@ function metis_auth_handle_request( Metis_Http_Request $request ): bool {
     }
 
     if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
-        $mode = metis_key_clean( (string) ( $_POST['mode'] ?? 'login' ) );
+        $mode = metis_key_clean( (string) ( metis_request_post()['mode'] ?? 'login' ) );
 
         try {
-            \Metis\Core\Application::service( 'csrf' )->requireValidToken( $_POST, metis_auth_form_nonce_action( $mode ) );
+            \Metis\Core\Application::service( 'csrf' )->requireValidToken( metis_request_post(), metis_auth_form_nonce_action( $mode ) );
 
             if ( $mode === 'bootstrap' && $needs_bootstrap ) {
                 $user = metis_auth_register_first_user( [
-                    'user_login' => (string) ( $_POST['user_login'] ?? '' ),
-                    'user_email' => (string) ( $_POST['user_email'] ?? '' ),
-                    'password' => (string) ( $_POST['password'] ?? '' ),
-                    'display_name' => (string) ( $_POST['display_name'] ?? '' ),
-                    'first_name' => (string) ( $_POST['first_name'] ?? '' ),
-                    'last_name' => (string) ( $_POST['last_name'] ?? '' ),
+                    'user_login' => (string) ( metis_request_post()['user_login'] ?? '' ),
+                    'user_email' => (string) ( metis_request_post()['user_email'] ?? '' ),
+                    'password' => (string) ( metis_request_post()['password'] ?? '' ),
+                    'display_name' => (string) ( metis_request_post()['display_name'] ?? '' ),
+                    'first_name' => (string) ( metis_request_post()['first_name'] ?? '' ),
+                    'last_name' => (string) ( metis_request_post()['last_name'] ?? '' ),
                 ] );
                 metis_auth_finalize_login( $user );
                 metis_runtime_redirect( $redirect );
             } elseif ( $mode === 'mfa_totp' ) {
-                $result = \Metis\Core\Application::service( 'auth_core' )->verifyPasswordMfa( (string) ( $_POST['code'] ?? '' ) );
+                $result = \Metis\Core\Application::service( 'auth_core' )->verifyPasswordMfa( (string) ( metis_request_post()['code'] ?? '' ) );
                 metis_runtime_redirect( (string) ( $result['redirect_url'] ?? $redirect ) );
             } elseif ( $mode === 'google_workspace_start' ) {
                 metis_auth_rate_limit_check( 'google_workspace' );
@@ -1896,8 +1896,8 @@ function metis_auth_handle_request( Metis_Http_Request $request ): bool {
                 metis_runtime_redirect( $auth_url );
             } else {
                 $result = \Metis\Core\Application::service( 'auth_core' )->authenticatePassword(
-                    (string) ( $_POST['identifier'] ?? '' ),
-                    (string) ( $_POST['password'] ?? '' ),
+                    (string) ( metis_request_post()['identifier'] ?? '' ),
+                    (string) ( metis_request_post()['password'] ?? '' ),
                     $redirect
                 );
                 metis_runtime_redirect( (string) ( $result['redirect_url'] ?? metis_auth_mfa_url( $redirect ) ) );

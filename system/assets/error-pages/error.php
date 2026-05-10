@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname( __DIR__, 2 ) . '/src/Metis/Core/Runtime/RequestRuntime.php';
+
 $requestedCode = $metisErrorStatus
-    ?? $_GET['code']
+    ?? ( metis_request_get()['code'] ?? null )
     ?? ($_SERVER['REDIRECT_STATUS'] ?? $_SERVER['REQUEST_STATUS'] ?? '500');
 $statusCode = (int) $requestedCode;
 

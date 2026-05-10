@@ -130,6 +130,6 @@ final class ContactsModule {
             return false;
         }
 
-        return isset( $_GET[ $param ] );
+        return isset( metis_request_get()[ $param ] );
     }
 }

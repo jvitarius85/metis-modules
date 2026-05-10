@@ -178,7 +178,7 @@ metis_ajax_register_handler( 'metis_profile_carddav_issue_token', function () {
         metis_runtime_send_json_error('CardDAV token service unavailable.', 500);
     }
 
-    $label = isset($_POST['label']) ? metis_text_clean((string) metis_runtime_unslash($_POST['label'])) : 'CardDAV device';
+    $label = isset(metis_request_post()['label']) ? metis_text_clean((string) metis_runtime_unslash(metis_request_post()['label'])) : 'CardDAV device';
     $label = trim($label) !== '' ? trim($label) : 'CardDAV device';
     $issued = metis_contacts_carddav_issue_token(metis_current_user_id(), $label);
     if (empty($issued['ok'])) {
@@ -202,7 +202,7 @@ metis_ajax_register_handler( 'metis_profile_carddav_revoke_token', function () {
         metis_runtime_send_json_error('CardDAV token service unavailable.', 500);
     }
 
-    $token_id = isset($_POST['token_id']) ? (int) metis_runtime_unslash($_POST['token_id']) : 0;
+    $token_id = isset(metis_request_post()['token_id']) ? (int) metis_runtime_unslash(metis_request_post()['token_id']) : 0;
     if ($token_id < 1 || !metis_contacts_carddav_revoke_token($token_id, metis_current_user_id())) {
         metis_runtime_send_json_error('Unable to revoke CardDAV token.', 400);
     }
@@ -220,12 +220,12 @@ metis_ajax_register_handler( 'metis_profile_save', function () {
         metis_runtime_send_json_error('Profile not found.', 404);
     }
 
-    $first_name = isset($_POST['first_name']) ? metis_text_clean(metis_runtime_unslash($_POST['first_name'])) : '';
-    $last_name = isset($_POST['last_name']) ? metis_text_clean(metis_runtime_unslash($_POST['last_name'])) : '';
-    $display_name = isset($_POST['display_name']) ? metis_text_clean(metis_runtime_unslash($_POST['display_name'])) : '';
-    $email_notifications = !empty($_POST['email_notifications']) ? 1 : 0;
-    $requires_2fa = !empty($_POST['requires_2fa']) ? 1 : 0;
-    $mfa_method = isset($_POST['mfa_method']) ? metis_key_clean(metis_runtime_unslash($_POST['mfa_method'])) : 'none';
+    $first_name = isset(metis_request_post()['first_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['first_name'])) : '';
+    $last_name = isset(metis_request_post()['last_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['last_name'])) : '';
+    $display_name = isset(metis_request_post()['display_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['display_name'])) : '';
+    $email_notifications = !empty(metis_request_post()['email_notifications']) ? 1 : 0;
+    $requires_2fa = !empty(metis_request_post()['requires_2fa']) ? 1 : 0;
+    $mfa_method = isset(metis_request_post()['mfa_method']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['mfa_method'])) : 'none';
     $allow_name_edit = (int) Core_Settings_Service::get('profile_allow_name_edit', 0) === 1;
 
     if (!in_array($mfa_method, ['none', 'totp', 'passkey', 'passkey_or_totp', 'passkey_and_totp'], true)) {
@@ -245,8 +245,8 @@ metis_ajax_register_handler( 'metis_profile_save', function () {
     }
 
     $notification_prefs_json = null;
-    if (isset($_POST['notification_prefs_json'])) {
-        $decoded_notify = json_decode((string) metis_runtime_unslash($_POST['notification_prefs_json']), true);
+    if (isset(metis_request_post()['notification_prefs_json'])) {
+        $decoded_notify = json_decode((string) metis_runtime_unslash(metis_request_post()['notification_prefs_json']), true);
         if (is_array($decoded_notify)) {
             $clean_notify = [];
             foreach ($decoded_notify as $event_key => $channels) {
@@ -307,8 +307,8 @@ metis_ajax_register_handler( 'metis_profile_change_workspace_password', function
         metis_runtime_send_json_error('Profile not found.', 404);
     }
 
-    $new_password = isset($_POST['new_password']) ? (string) metis_runtime_unslash($_POST['new_password']) : '';
-    $confirm_password = isset($_POST['confirm_password']) ? (string) metis_runtime_unslash($_POST['confirm_password']) : '';
+    $new_password = isset(metis_request_post()['new_password']) ? (string) metis_runtime_unslash(metis_request_post()['new_password']) : '';
+    $confirm_password = isset(metis_request_post()['confirm_password']) ? (string) metis_runtime_unslash(metis_request_post()['confirm_password']) : '';
     if (strlen($new_password) < 12) {
         metis_runtime_send_json_error('Password must be at least 12 characters.', 400);
     }
@@ -361,9 +361,9 @@ metis_ajax_register_handler( 'metis_profile_change_password', function () {
 
     try {
         $person_id = (int) ($person['id'] ?? 0);
-        $current_password = isset($_POST['current_password']) ? (string) metis_runtime_unslash($_POST['current_password']) : '';
-        $new_password = isset($_POST['new_password']) ? (string) metis_runtime_unslash($_POST['new_password']) : '';
-        $confirm_password = isset($_POST['confirm_password']) ? (string) metis_runtime_unslash($_POST['confirm_password']) : '';
+        $current_password = isset(metis_request_post()['current_password']) ? (string) metis_runtime_unslash(metis_request_post()['current_password']) : '';
+        $new_password = isset(metis_request_post()['new_password']) ? (string) metis_runtime_unslash(metis_request_post()['new_password']) : '';
+        $confirm_password = isset(metis_request_post()['confirm_password']) ? (string) metis_runtime_unslash(metis_request_post()['confirm_password']) : '';
         $auth_user = function_exists('metis_auth_find_user') ? metis_auth_find_user('person_id', $person_id) : null;
         $has_password = function_exists('metis_auth_password_hash_for_authentication')
             && is_array($auth_user)
@@ -423,7 +423,7 @@ metis_ajax_register_handler( 'metis_profile_save_avatar', function () {
         metis_runtime_send_json_error('Profile not found.', 404);
     }
 
-    $base64 = isset($_POST['avatar_base64']) ? (string) metis_runtime_unslash($_POST['avatar_base64']) : '';
+    $base64 = isset(metis_request_post()['avatar_base64']) ? (string) metis_runtime_unslash(metis_request_post()['avatar_base64']) : '';
     $decoded = metis_avatar_decode_base64_payload($base64);
     if (empty($decoded['ok'])) {
         metis_runtime_send_json_error('Invalid image payload.', 400);
@@ -490,8 +490,8 @@ metis_ajax_register_handler( 'metis_profile_verify_totp_secret', function () {
         metis_runtime_send_json_error('TOTP service unavailable.', 500);
     }
 
-    $secret = isset($_POST['secret']) ? strtoupper(metis_text_clean(metis_runtime_unslash($_POST['secret']))) : '';
-    $code = isset($_POST['code']) ? preg_replace('/\D+/', '', (string) metis_runtime_unslash($_POST['code'])) : '';
+    $secret = isset(metis_request_post()['secret']) ? strtoupper(metis_text_clean(metis_runtime_unslash(metis_request_post()['secret']))) : '';
+    $code = isset(metis_request_post()['code']) ? preg_replace('/\D+/', '', (string) metis_runtime_unslash(metis_request_post()['code'])) : '';
     if ($secret === '' || strlen((string) $code) !== 6) {
         metis_runtime_send_json_error('Secret and 6-digit code are required.', 400);
     }
@@ -611,12 +611,12 @@ metis_ajax_register_handler( 'metis_profile_complete_passkey_registration', func
         metis_runtime_send_json_error('Passkey service unavailable.', 500);
     }
 
-    $challenge_key = isset($_POST['challenge_key']) ? metis_text_clean(metis_runtime_unslash($_POST['challenge_key'])) : '';
-    $credential_id = isset($_POST['credential_id']) ? metis_text_clean(metis_runtime_unslash($_POST['credential_id'])) : '';
-    $client_data_json = isset($_POST['client_data_json']) ? (string) metis_runtime_unslash($_POST['client_data_json']) : '';
-    $attestation_object = isset($_POST['attestation_object']) ? (string) metis_runtime_unslash($_POST['attestation_object']) : '';
-    $transports_json = isset($_POST['transports_json']) ? metis_text_clean(metis_runtime_unslash($_POST['transports_json'])) : '';
-    $label = isset($_POST['label']) ? metis_text_clean(metis_runtime_unslash($_POST['label'])) : '';
+    $challenge_key = isset(metis_request_post()['challenge_key']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['challenge_key'])) : '';
+    $credential_id = isset(metis_request_post()['credential_id']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['credential_id'])) : '';
+    $client_data_json = isset(metis_request_post()['client_data_json']) ? (string) metis_runtime_unslash(metis_request_post()['client_data_json']) : '';
+    $attestation_object = isset(metis_request_post()['attestation_object']) ? (string) metis_runtime_unslash(metis_request_post()['attestation_object']) : '';
+    $transports_json = isset(metis_request_post()['transports_json']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['transports_json'])) : '';
+    $label = isset(metis_request_post()['label']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['label'])) : '';
 
     if ($challenge_key === '' || $credential_id === '' || $client_data_json === '' || $attestation_object === '') {
         metis_runtime_send_json_error('Missing registration payload.', 400);
@@ -714,7 +714,7 @@ metis_ajax_register_handler( 'metis_profile_revoke_passkey', function () {
         metis_runtime_send_json_error('Profile not found.', 404);
     }
 
-    $passkey_id = isset($_POST['passkey_id']) ? (int) metis_runtime_unslash($_POST['passkey_id']) : 0;
+    $passkey_id = isset(metis_request_post()['passkey_id']) ? (int) metis_runtime_unslash(metis_request_post()['passkey_id']) : 0;
     if ($passkey_id < 1) {
         metis_runtime_send_json_error('Invalid passkey id.', 400);
     }

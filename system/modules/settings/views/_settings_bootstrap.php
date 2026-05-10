@@ -629,10 +629,10 @@ if ( ! function_exists( 'metis_settings_asset_src' ) ) {
 
 if ( ! function_exists( 'metis_settings_media_asset_from_request' ) ) {
     function metis_settings_media_asset_from_request( string $field_prefix, array $allowed_mime_types ): array {
-        $token = strtolower( trim( metis_text_clean( (string) metis_runtime_unslash( $_POST[ $field_prefix . '_media_token' ] ?? '' ) ) ) );
-        $url   = metis_url_clean( (string) metis_runtime_unslash( $_POST[ $field_prefix . '_media_url' ] ?? '' ) );
-        $name  = metis_filename_clean( (string) metis_runtime_unslash( $_POST[ $field_prefix . '_media_name' ] ?? '' ) );
-        $mime  = strtolower( trim( metis_text_clean( (string) metis_runtime_unslash( $_POST[ $field_prefix . '_media_mime' ] ?? '' ) ) ) );
+        $token = strtolower( trim( metis_text_clean( (string) metis_runtime_unslash( metis_request_post()[ $field_prefix . '_media_token' ] ?? '' ) ) ) );
+        $url   = metis_url_clean( (string) metis_runtime_unslash( metis_request_post()[ $field_prefix . '_media_url' ] ?? '' ) );
+        $name  = metis_filename_clean( (string) metis_runtime_unslash( metis_request_post()[ $field_prefix . '_media_name' ] ?? '' ) );
+        $mime  = strtolower( trim( metis_text_clean( (string) metis_runtime_unslash( metis_request_post()[ $field_prefix . '_media_mime' ] ?? '' ) ) ) );
 
         if ( $token === '' && $url === '' ) {
             return [ 'ok' => false, 'empty' => true ];
@@ -2081,11 +2081,11 @@ if ( ! function_exists( 'metis_settings_read_uploaded_json_file' ) ) {
 
 if ( ! function_exists( 'metis_settings_save_general_section' ) ) {
     function metis_settings_save_general_section( array &$errors, bool &$saved ): void {
-        if ( ! empty( $_POST['remove_portal_logo'] ) ) {
+        if ( ! empty( metis_request_post()['remove_portal_logo'] ) ) {
             Core_Settings_Service::delete( 'portal_logo' );
             $saved = true;
-        } elseif ( isset( $_FILES['portal_logo_file'] ) && ! empty( $_FILES['portal_logo_file']['name'] ) ) {
-            $logo_upload = metis_settings_save_logo_upload( $_FILES['portal_logo_file'] );
+        } elseif ( isset( metis_request_files()['portal_logo_file'] ) && ! empty( metis_request_files()['portal_logo_file']['name'] ) ) {
+            $logo_upload = metis_settings_save_logo_upload( metis_request_files()['portal_logo_file'] );
             if ( empty( $logo_upload['ok'] ) ) {
                 $errors[] = 'Unable to save the uploaded logo.';
             } else {
@@ -2102,11 +2102,11 @@ if ( ! function_exists( 'metis_settings_save_general_section' ) ) {
             }
         }
 
-        if ( ! empty( $_POST['remove_portal_favicon'] ) ) {
+        if ( ! empty( metis_request_post()['remove_portal_favicon'] ) ) {
             Core_Settings_Service::delete( 'portal_favicon' );
             $saved = true;
-        } elseif ( isset( $_FILES['portal_favicon_file'] ) && ! empty( $_FILES['portal_favicon_file']['name'] ) ) {
-            $favicon_upload = metis_settings_save_favicon_upload( $_FILES['portal_favicon_file'] );
+        } elseif ( isset( metis_request_files()['portal_favicon_file'] ) && ! empty( metis_request_files()['portal_favicon_file']['name'] ) ) {
+            $favicon_upload = metis_settings_save_favicon_upload( metis_request_files()['portal_favicon_file'] );
             if ( empty( $favicon_upload['ok'] ) ) {
                 $errors[] = 'Unable to save the uploaded favicon.';
             } else {
@@ -2123,22 +2123,22 @@ if ( ! function_exists( 'metis_settings_save_general_section' ) ) {
             }
         }
 
-        $portal_name = metis_text_clean( $_POST['portal_name'] ?? '' );
+        $portal_name = metis_text_clean( metis_request_post()['portal_name'] ?? '' );
         if ( $portal_name !== '' ) {
             Core_Settings_Service::set( 'portal_name', $portal_name );
             $saved = true;
         }
 
-        $org_name = metis_text_clean( $_POST['org_name'] ?? '' );
+        $org_name = metis_text_clean( metis_request_post()['org_name'] ?? '' );
         if ( $org_name !== '' ) {
             Core_Settings_Service::set( 'org_name', $org_name );
             $saved = true;
         }
-        $org_tagline = metis_text_clean( (string) ( $_POST['org_tagline'] ?? '' ) );
+        $org_tagline = metis_text_clean( (string) ( metis_request_post()['org_tagline'] ?? '' ) );
         Core_Settings_Service::set( 'org_tagline', $org_tagline );
         $saved = true;
 
-        $timezone = metis_text_clean( (string) ( $_POST['timezone'] ?? '' ) );
+        $timezone = metis_text_clean( (string) ( metis_request_post()['timezone'] ?? '' ) );
         if ( $timezone === '' || ! in_array( $timezone, timezone_identifiers_list(), true ) ) {
             $timezone = 'UTC';
         }
@@ -2147,8 +2147,8 @@ if ( ! function_exists( 'metis_settings_save_general_section' ) ) {
         $saved = true;
 
         $date_presets = metis_settings_date_presets();
-        $date_choice = metis_text_clean( (string) ( $_POST['date_format_choice'] ?? 'mm/dd/yy' ) );
-        $date_custom = trim( metis_text_clean( (string) ( $_POST['date_format_custom'] ?? '' ) ) );
+        $date_choice = metis_text_clean( (string) ( metis_request_post()['date_format_choice'] ?? 'mm/dd/yy' ) );
+        $date_custom = trim( metis_text_clean( (string) ( metis_request_post()['date_format_custom'] ?? '' ) ) );
         if ( $date_choice === 'custom' ) {
             $parsed_date = metis_settings_parse_date_pattern( $date_custom );
             if ( $parsed_date === '' ) {
@@ -2169,8 +2169,8 @@ if ( ! function_exists( 'metis_settings_save_general_section' ) ) {
         $saved = true;
 
         $time_presets = metis_settings_time_presets();
-        $time_choice = metis_text_clean( (string) ( $_POST['time_format_choice'] ?? 'h:mm:ss a/m' ) );
-        $time_custom = trim( metis_text_clean( (string) ( $_POST['time_format_custom'] ?? '' ) ) );
+        $time_choice = metis_text_clean( (string) ( metis_request_post()['time_format_choice'] ?? 'h:mm:ss a/m' ) );
+        $time_custom = trim( metis_text_clean( (string) ( metis_request_post()['time_format_custom'] ?? '' ) ) );
         if ( $time_choice === 'custom' ) {
             $parsed_time = metis_settings_parse_time_pattern( $time_custom );
             if ( $parsed_time === '' ) {
@@ -2190,8 +2190,8 @@ if ( ! function_exists( 'metis_settings_save_general_section' ) ) {
         }
         $saved = true;
 
-        if ( array_key_exists( 'site_homepage_page_id', $_POST ) ) {
-            $homepage_id = isset( $_POST['site_homepage_page_id'] ) ? (int) $_POST['site_homepage_page_id'] : 0;
+        if ( array_key_exists( 'site_homepage_page_id', metis_request_post() ) ) {
+            $homepage_id = isset( metis_request_post()['site_homepage_page_id'] ) ? (int) metis_request_post()['site_homepage_page_id'] : 0;
             if ( $homepage_id > 0 ) {
                 if (
                     class_exists( '\Metis\Modules\Website\Services\HomepageService' )
@@ -2218,16 +2218,16 @@ if ( ! function_exists( 'metis_settings_save_customization_section' ) ) {
     function metis_settings_save_customization_section( array &$errors, bool &$saved ): void {
         $theme_colors = [];
         foreach ( metis_settings_theme_color_fields() as $key => $field ) {
-            $value = metis_hex_color_clean( (string) ( $_POST['theme_colors'][ $key ] ?? '' ) );
+            $value = metis_hex_color_clean( (string) ( metis_request_post()['theme_colors'][ $key ] ?? '' ) );
             $theme_colors[ $key ] = $value ?: (string) ( $field['default'] ?? '' );
         }
         Core_Settings_Service::set( 'theme_colors', $theme_colors, true );
 
-        if ( ! empty( $_POST['remove_login_logo'] ) ) {
+        if ( ! empty( metis_request_post()['remove_login_logo'] ) ) {
             Core_Settings_Service::delete( 'login_logo' );
             $saved = true;
-        } elseif ( isset( $_FILES['login_logo_file'] ) && ! empty( $_FILES['login_logo_file']['name'] ) ) {
-            $logo_upload = metis_settings_save_logo_upload( $_FILES['login_logo_file'] );
+        } elseif ( isset( metis_request_files()['login_logo_file'] ) && ! empty( metis_request_files()['login_logo_file']['name'] ) ) {
+            $logo_upload = metis_settings_save_logo_upload( metis_request_files()['login_logo_file'] );
             if ( empty( $logo_upload['ok'] ) ) {
                 $errors[] = 'Unable to save the uploaded login logo.';
             } else {
@@ -2244,12 +2244,12 @@ if ( ! function_exists( 'metis_settings_save_customization_section' ) ) {
             }
         }
 
-        if ( ! empty( $_POST['remove_login_background_image'] ) ) {
+        if ( ! empty( metis_request_post()['remove_login_background_image'] ) ) {
             Core_Settings_Service::delete( 'login_background_image' );
             $saved = true;
-        } elseif ( isset( $_FILES['login_background_image_file'] ) && ! empty( $_FILES['login_background_image_file']['name'] ) ) {
+        } elseif ( isset( metis_request_files()['login_background_image_file'] ) && ! empty( metis_request_files()['login_background_image_file']['name'] ) ) {
             $background_upload = metis_settings_save_image_upload(
-                $_FILES['login_background_image_file'],
+                metis_request_files()['login_background_image_file'],
                 'Login background image',
                 4 * 1024 * 1024,
                 [ 'image/png', 'image/jpeg', 'image/webp', 'image/gif' ]
@@ -2270,10 +2270,10 @@ if ( ! function_exists( 'metis_settings_save_customization_section' ) ) {
             }
         }
 
-        Core_Settings_Service::set( 'login_background_color', metis_hex_color_clean( (string) ( $_POST['login_background_color'] ?? '' ) ) ?: '#edf2f7', true );
-        Core_Settings_Service::set( 'login_welcome_text', metis_textarea_clean( (string) ( $_POST['login_welcome_text'] ?? '' ) ), true );
-        Core_Settings_Service::set( 'login_organization_name', metis_text_clean( (string) ( $_POST['login_organization_name'] ?? '' ) ), true );
-        Core_Settings_Service::set( 'login_footer_text', metis_text_clean( (string) ( $_POST['login_footer_text'] ?? '' ) ), true );
+        Core_Settings_Service::set( 'login_background_color', metis_hex_color_clean( (string) ( metis_request_post()['login_background_color'] ?? '' ) ) ?: '#edf2f7', true );
+        Core_Settings_Service::set( 'login_welcome_text', metis_textarea_clean( (string) ( metis_request_post()['login_welcome_text'] ?? '' ) ), true );
+        Core_Settings_Service::set( 'login_organization_name', metis_text_clean( (string) ( metis_request_post()['login_organization_name'] ?? '' ) ), true );
+        Core_Settings_Service::set( 'login_footer_text', metis_text_clean( (string) ( metis_request_post()['login_footer_text'] ?? '' ) ), true );
         $saved = true;
     }
 }
@@ -2281,13 +2281,13 @@ if ( ! function_exists( 'metis_settings_save_customization_section' ) ) {
 if ( ! function_exists( 'metis_settings_save_accessibility_section' ) ) {
     function metis_settings_save_accessibility_section( array &$errors, bool &$saved ): void {
         $profiles = function_exists( 'metis_accessibility_profiles' ) ? metis_accessibility_profiles() : [ 'none' => [] ];
-        $default_profile = metis_key_clean( (string) ( $_POST['accessibility_default_profile'] ?? 'none' ) );
+        $default_profile = metis_key_clean( (string) ( metis_request_post()['accessibility_default_profile'] ?? 'none' ) );
         if ( ! isset( $profiles[ $default_profile ] ) ) {
             $default_profile = 'none';
         }
 
-        Core_Settings_Service::set( 'accessibility_toolbar_enabled', ! empty( $_POST['accessibility_toolbar_enabled'] ) ? 1 : 0, true );
-        Core_Settings_Service::set( 'accessibility_allow_overrides', ! empty( $_POST['accessibility_allow_overrides'] ) ? 1 : 0, true );
+        Core_Settings_Service::set( 'accessibility_toolbar_enabled', ! empty( metis_request_post()['accessibility_toolbar_enabled'] ) ? 1 : 0, true );
+        Core_Settings_Service::set( 'accessibility_allow_overrides', ! empty( metis_request_post()['accessibility_allow_overrides'] ) ? 1 : 0, true );
         Core_Settings_Service::set( 'accessibility_default_profile', $default_profile, true );
         $saved = true;
     }
@@ -2296,13 +2296,13 @@ if ( ! function_exists( 'metis_settings_save_accessibility_section' ) ) {
 if ( ! function_exists( 'metis_settings_save_logging_section' ) ) {
     function metis_settings_save_logging_section( array &$errors, bool &$saved ): void {
         $allowed_levels = [ 'INFO', 'WARN', 'ERROR' ];
-        $logging_min_level = strtoupper( metis_text_clean( (string) ( $_POST['logging_min_level'] ?? 'INFO' ) ) );
+        $logging_min_level = strtoupper( metis_text_clean( (string) ( metis_request_post()['logging_min_level'] ?? 'INFO' ) ) );
         if ( ! in_array( $logging_min_level, $allowed_levels, true ) ) {
             $logging_min_level = 'INFO';
         }
 
-        $logging_enabled = ! empty( $_POST['logging_enabled'] ) ? 1 : 0;
-        $logging_force_url_token = trim( metis_text_clean( (string) metis_runtime_unslash( $_POST['logging_force_url_token'] ?? '' ) ) );
+        $logging_enabled = ! empty( metis_request_post()['logging_enabled'] ) ? 1 : 0;
+        $logging_force_url_token = trim( metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['logging_force_url_token'] ?? '' ) ) );
         if ( $logging_force_url_token !== '' && strlen( $logging_force_url_token ) < 16 ) {
             $errors[] = 'Force logging token must be at least 16 characters when enabled.';
             return;
@@ -2312,7 +2312,7 @@ if ( ! function_exists( 'metis_settings_save_logging_section' ) ) {
             return;
         }
 
-        if ( ! empty( $_POST['logging_clear_log'] ) && class_exists( 'Metis_Logger' ) ) {
+        if ( ! empty( metis_request_post()['logging_clear_log'] ) && class_exists( 'Metis_Logger' ) ) {
             Metis_Logger::clear();
             $saved = true;
         }
@@ -2447,7 +2447,7 @@ if ( ! function_exists( 'metis_settings_save_menu_section' ) ) {
             return;
         }
 
-        $raw_payload = $_POST['navigation_structure'] ?? '';
+        $raw_payload = metis_request_post()['navigation_structure'] ?? '';
         if ( is_array( $raw_payload ) ) {
             $decoded = $raw_payload;
         } else {
@@ -2514,7 +2514,7 @@ if ( ! function_exists( 'metis_settings_save_menu_section' ) ) {
 
 if ( ! function_exists( 'metis_settings_save_profile_section' ) ) {
     function metis_settings_save_profile_section( array &$errors, bool &$saved ): void {
-        $profile_allow_name_edit = ! empty( $_POST['profile_allow_name_edit'] ) ? '1' : '0';
+        $profile_allow_name_edit = ! empty( metis_request_post()['profile_allow_name_edit'] ) ? '1' : '0';
         Core_Settings_Service::set( 'profile_allow_name_edit', $profile_allow_name_edit );
         $saved = true;
     }
@@ -2553,11 +2553,11 @@ if ( ! function_exists( 'metis_settings_save_user_experience_section' ) ) {
 
 if ( ! function_exists( 'metis_settings_save_newsletter_section' ) ) {
     function metis_settings_save_newsletter_section( array &$errors, bool &$saved ): void {
-        $newsletter_default_from_name = metis_text_clean( $_POST['newsletter_default_from_name'] ?? '' );
+        $newsletter_default_from_name = metis_text_clean( metis_request_post()['newsletter_default_from_name'] ?? '' );
         Core_Settings_Service::set( 'newsletter_default_from_name', $newsletter_default_from_name, true );
         $saved = true;
 
-        $newsletter_default_from_email = metis_email_clean( $_POST['newsletter_default_from_email'] ?? '' );
+        $newsletter_default_from_email = metis_email_clean( metis_request_post()['newsletter_default_from_email'] ?? '' );
         if ( $newsletter_default_from_email !== '' && ! metis_email_is_valid( $newsletter_default_from_email ) ) {
             $errors[] = 'Newsletter default from email must be a valid email.';
         } else {
@@ -2565,7 +2565,7 @@ if ( ! function_exists( 'metis_settings_save_newsletter_section' ) ) {
             $saved = true;
         }
 
-        $newsletter_default_reply_to = metis_email_clean( $_POST['newsletter_default_reply_to'] ?? '' );
+        $newsletter_default_reply_to = metis_email_clean( metis_request_post()['newsletter_default_reply_to'] ?? '' );
         if ( $newsletter_default_reply_to !== '' && ! metis_email_is_valid( $newsletter_default_reply_to ) ) {
             $errors[] = 'Newsletter default reply-to must be a valid email.';
         } else {
@@ -2573,7 +2573,7 @@ if ( ! function_exists( 'metis_settings_save_newsletter_section' ) ) {
             $saved = true;
         }
 
-        $newsletter_google_daily_limit = (int) ( $_POST['newsletter_google_daily_limit'] ?? 2000 );
+        $newsletter_google_daily_limit = (int) ( metis_request_post()['newsletter_google_daily_limit'] ?? 2000 );
         if ( $newsletter_google_daily_limit < 100 ) {
             $newsletter_google_daily_limit = 100;
         } elseif ( $newsletter_google_daily_limit > 100000 ) {
@@ -2581,12 +2581,12 @@ if ( ! function_exists( 'metis_settings_save_newsletter_section' ) ) {
         }
         Core_Settings_Service::set( 'newsletter_google_daily_limit', (string) $newsletter_google_daily_limit, true );
 
-        $newsletter_klipy_credential_id = metis_text_clean( (string) ( $_POST['newsletter_klipy_credential_id'] ?? '' ) );
+        $newsletter_klipy_credential_id = metis_text_clean( (string) ( metis_request_post()['newsletter_klipy_credential_id'] ?? '' ) );
         if ( $newsletter_klipy_credential_id !== '' ) {
             Core_Settings_Service::set( 'newsletter_klipy_api_key_credential_id', $newsletter_klipy_credential_id, false );
             $saved = true;
         }
-        $newsletter_klipy_api_key = trim( metis_text_clean( (string) ( $_POST['newsletter_klipy_api_key'] ?? '' ) ) );
+        $newsletter_klipy_api_key = trim( metis_text_clean( (string) ( metis_request_post()['newsletter_klipy_api_key'] ?? '' ) ) );
         if ( $newsletter_klipy_api_key !== '' ) {
             if ( ! metis_settings_upsert_credential_reference( 'newsletter_klipy_api_key', 'klipy_api_key', $newsletter_klipy_api_key, 'Klipy API Key' ) ) {
                 $errors[] = 'Unable to store Klipy API key.';
@@ -2594,7 +2594,7 @@ if ( ! function_exists( 'metis_settings_save_newsletter_section' ) ) {
                 $saved = true;
             }
         }
-        $newsletter_klipy_search_url = metis_settings_normalize_klipy_search_url( (string) ( $_POST['newsletter_klipy_search_url'] ?? '' ) );
+        $newsletter_klipy_search_url = metis_settings_normalize_klipy_search_url( (string) ( metis_request_post()['newsletter_klipy_search_url'] ?? '' ) );
         if ( $newsletter_klipy_search_url === '' ) {
             $errors[] = 'Klipy search endpoint must be exactly <code>https://api.klipy.com/v1/gifs/search</code>.';
         } else {
@@ -2606,43 +2606,43 @@ if ( ! function_exists( 'metis_settings_save_newsletter_section' ) ) {
 
 if ( ! function_exists( 'metis_settings_save_workspace_section' ) ) {
     function metis_settings_save_workspace_section( array &$errors, bool &$saved ): void {
-        $workspace_customer_id = metis_text_clean( $_POST['workspace_customer_id'] ?? '' );
+        $workspace_customer_id = metis_text_clean( metis_request_post()['workspace_customer_id'] ?? '' );
         Core_Settings_Service::set( 'workspace_customer_id', $workspace_customer_id, false );
         $saved = true;
 
-        $workspace_domain = metis_text_clean( $_POST['workspace_domain'] ?? '' );
+        $workspace_domain = metis_text_clean( metis_request_post()['workspace_domain'] ?? '' );
         if ( $workspace_domain !== '' ) {
             $workspace_domain = strtolower( preg_replace( '/[^a-z0-9\.\-]/', '', $workspace_domain ) );
         }
         Core_Settings_Service::set( 'workspace_domain', $workspace_domain, false );
         $saved = true;
 
-        $workspace_stripe_sso_schema = metis_text_clean( $_POST['workspace_stripe_sso_schema'] ?? '' );
+        $workspace_stripe_sso_schema = metis_text_clean( metis_request_post()['workspace_stripe_sso_schema'] ?? '' );
         Core_Settings_Service::set( 'workspace_stripe_sso_schema', (string) $workspace_stripe_sso_schema, false );
         $saved = true;
 
-        $workspace_stripe_sso_field = metis_text_clean( $_POST['workspace_stripe_sso_field'] ?? '' );
+        $workspace_stripe_sso_field = metis_text_clean( metis_request_post()['workspace_stripe_sso_field'] ?? '' );
         Core_Settings_Service::set( 'workspace_stripe_sso_field', (string) $workspace_stripe_sso_field, false );
         $saved = true;
 
-        $workspace_google_sso_client_id = trim( metis_text_clean( (string) ( $_POST['workspace_google_sso_client_id'] ?? '' ) ) );
+        $workspace_google_sso_client_id = trim( metis_text_clean( (string) ( metis_request_post()['workspace_google_sso_client_id'] ?? '' ) ) );
         Core_Settings_Service::set( 'workspace_google_sso_client_id', $workspace_google_sso_client_id, false );
         $saved = true;
 
-        $workspace_google_sso_client_secret_credential_id = metis_text_clean( (string) ( $_POST['workspace_google_sso_client_secret_credential_id'] ?? '' ) );
+        $workspace_google_sso_client_secret_credential_id = metis_text_clean( (string) ( metis_request_post()['workspace_google_sso_client_secret_credential_id'] ?? '' ) );
         if ( $workspace_google_sso_client_secret_credential_id !== '' ) {
             Core_Settings_Service::set( 'workspace_google_sso_client_secret_credential_id', $workspace_google_sso_client_secret_credential_id, false );
         }
         $saved = true;
 
-        $workspace_google_sso_hosted_domain = metis_text_clean( (string) ( $_POST['workspace_google_sso_hosted_domain'] ?? '' ) );
+        $workspace_google_sso_hosted_domain = metis_text_clean( (string) ( metis_request_post()['workspace_google_sso_hosted_domain'] ?? '' ) );
         if ( $workspace_google_sso_hosted_domain !== '' ) {
             $workspace_google_sso_hosted_domain = strtolower( preg_replace( '/[^a-z0-9\.\-]/', '', $workspace_google_sso_hosted_domain ) );
         }
         Core_Settings_Service::set( 'workspace_google_sso_hosted_domain', $workspace_google_sso_hosted_domain, false );
         $saved = true;
 
-        $workspace_stripe_access_group_email = metis_email_clean( $_POST['workspace_stripe_access_group_email'] ?? '' );
+        $workspace_stripe_access_group_email = metis_email_clean( metis_request_post()['workspace_stripe_access_group_email'] ?? '' );
         if ( $workspace_stripe_access_group_email !== '' && ! metis_email_is_valid( $workspace_stripe_access_group_email ) ) {
             $errors[] = 'Workspace Stripe access group must be a valid email.';
         } else {
@@ -2659,7 +2659,7 @@ if ( ! function_exists( 'metis_settings_save_drive_section' ) ) {
             return;
         }
 
-        $workspace_drive_configs = metis_settings_normalize_drive_rows( metis_runtime_unslash( $_POST['workspace_drive_configs'] ?? [] ) );
+        $workspace_drive_configs = metis_settings_normalize_drive_rows( metis_runtime_unslash( metis_request_post()['workspace_drive_configs'] ?? [] ) );
         Core_Settings_Service::set( 'workspace_drive_configs', $workspace_drive_configs, false );
         $default_drive = '';
         foreach ( $workspace_drive_configs as $row ) {
@@ -2680,7 +2680,7 @@ if ( ! function_exists( 'metis_settings_save_calendar_section' ) ) {
             return;
         }
 
-        $workspace_calendar_configs = metis_settings_normalize_calendar_rows( metis_runtime_unslash( $_POST['workspace_calendar_configs'] ?? [] ) );
+        $workspace_calendar_configs = metis_settings_normalize_calendar_rows( metis_runtime_unslash( metis_request_post()['workspace_calendar_configs'] ?? [] ) );
         Core_Settings_Service::set( 'workspace_calendar_configs', $workspace_calendar_configs, false );
         $default_calendar = '';
         foreach ( $workspace_calendar_configs as $row ) {
@@ -2717,7 +2717,7 @@ if ( ! function_exists( 'metis_settings_save_backup_section' ) ) {
             }
         }
 
-        $backup_drive_id = metis_text_clean( (string) metis_runtime_unslash( $_POST['backup_drive_id'] ?? '' ) );
+        $backup_drive_id = metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['backup_drive_id'] ?? '' ) );
         if ( $backup_drive_id !== '' && ! in_array( $backup_drive_id, $drive_options, true ) ) {
             $errors[] = 'Backup Drive must match one of the configured Drive settings.';
         } else {
@@ -2725,12 +2725,12 @@ if ( ! function_exists( 'metis_settings_save_backup_section' ) ) {
             $saved = true;
         }
 
-        $backup_retention_runs = (int) metis_runtime_unslash( $_POST['backup_retention_runs'] ?? 14 );
+        $backup_retention_runs = (int) metis_runtime_unslash( metis_request_post()['backup_retention_runs'] ?? 14 );
         $backup_retention_runs = max( 1, min( 365, $backup_retention_runs ) );
         Core_Settings_Service::set( 'backup_retention_runs', $backup_retention_runs, false );
         $saved = true;
 
-        $backup_environment = metis_key_clean( (string) metis_runtime_unslash( $_POST['backup_environment'] ?? '' ) );
+        $backup_environment = metis_key_clean( (string) metis_runtime_unslash( metis_request_post()['backup_environment'] ?? '' ) );
         Core_Settings_Service::set( 'backup_environment', $backup_environment, false );
         $saved = true;
 
@@ -2744,17 +2744,17 @@ if ( ! function_exists( 'metis_settings_save_payments_section' ) ) {
             return;
         }
 
-        $stripe_platform_fee_percent = (float) ( $_POST['stripe_platform_fee_percent'] ?? 2.9 );
+        $stripe_platform_fee_percent = (float) ( metis_request_post()['stripe_platform_fee_percent'] ?? 2.9 );
         $stripe_platform_fee_percent = max( 0, min( 100, $stripe_platform_fee_percent ) );
         \Core_Settings_Service::set( 'stripe_platform_fee_percent', round( $stripe_platform_fee_percent, 2 ), false );
         $saved = true;
 
-        $stripe_platform_fee_fixed = (float) ( $_POST['stripe_platform_fee_fixed'] ?? 0.30 );
+        $stripe_platform_fee_fixed = (float) ( metis_request_post()['stripe_platform_fee_fixed'] ?? 0.30 );
         $stripe_platform_fee_fixed = max( 0, $stripe_platform_fee_fixed );
         \Core_Settings_Service::set( 'stripe_platform_fee_fixed', round( $stripe_platform_fee_fixed, 2 ), false );
         $saved = true;
 
-        $stripe_cover_fee_label = metis_text_clean( (string) ( $_POST['stripe_cover_fee_label'] ?? '' ) );
+        $stripe_cover_fee_label = metis_text_clean( (string) ( metis_request_post()['stripe_cover_fee_label'] ?? '' ) );
         \Core_Settings_Service::set(
             'stripe_cover_fee_label',
             $stripe_cover_fee_label !== '' ? $stripe_cover_fee_label : 'I would like to cover the processing fees.',
@@ -2768,7 +2768,7 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
     function metis_settings_save_api_section( bool $is_system_admin, array &$errors, bool &$saved, ?array &$carddav_token_notice = null ): void {
         $submitted_sensitive = false;
         foreach ( [ 'stripe_secret', 'stripe_publishable_key', 'stripe_webhook_secret', 'workspace_impersonation_admin', 'workspace_service_account_json', 'workspace_google_sso_client_secret', 'communications_inbound_pubsub_service_account_email' ] as $sensitive_key ) {
-            if ( isset( $_POST[ $sensitive_key ] ) && trim( (string) metis_runtime_unslash( $_POST[ $sensitive_key ] ) ) !== '' ) {
+            if ( isset( metis_request_post()[ $sensitive_key ] ) && trim( (string) metis_runtime_unslash( metis_request_post()[ $sensitive_key ] ) ) !== '' ) {
                 $submitted_sensitive = true;
                 break;
             }
@@ -2781,7 +2781,7 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             return;
         }
 
-        $stripe_secret = metis_text_clean( $_POST['stripe_secret'] ?? '' );
+        $stripe_secret = metis_text_clean( metis_request_post()['stripe_secret'] ?? '' );
         if ( $stripe_secret !== '' ) {
             if ( ! str_starts_with( $stripe_secret, 'sk_' ) ) {
                 $errors[] = 'Stripe secret key must begin with <code>sk_</code>.';
@@ -2794,13 +2794,13 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             }
         }
 
-        $stripe_credential_id = metis_text_clean( (string) ( $_POST['stripe_secret_credential_id'] ?? '' ) );
+        $stripe_credential_id = metis_text_clean( (string) ( metis_request_post()['stripe_secret_credential_id'] ?? '' ) );
         if ( $stripe_credential_id !== '' ) {
             Core_Settings_Service::set( 'stripe_secret_credential_id', $stripe_credential_id, false );
             $saved = true;
         }
 
-        $stripe_publishable_key = metis_text_clean( $_POST['stripe_publishable_key'] ?? '' );
+        $stripe_publishable_key = metis_text_clean( metis_request_post()['stripe_publishable_key'] ?? '' );
         if ( $stripe_publishable_key !== '' ) {
             if ( ! str_starts_with( $stripe_publishable_key, 'pk_' ) ) {
                 $errors[] = 'Stripe publishable key must begin with <code>pk_</code>.';
@@ -2810,7 +2810,7 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             }
         }
 
-        $webhook_secret = metis_text_clean( $_POST['stripe_webhook_secret'] ?? '' );
+        $webhook_secret = metis_text_clean( metis_request_post()['stripe_webhook_secret'] ?? '' );
         if ( $webhook_secret !== '' ) {
             if ( ! str_starts_with( $webhook_secret, 'whsec_' ) ) {
                 $errors[] = 'Webhook secret must begin with <code>whsec_</code>.';
@@ -2823,13 +2823,13 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             }
         }
 
-        $webhook_credential_id = metis_text_clean( (string) ( $_POST['stripe_webhook_secret_credential_id'] ?? '' ) );
+        $webhook_credential_id = metis_text_clean( (string) ( metis_request_post()['stripe_webhook_secret_credential_id'] ?? '' ) );
         if ( $webhook_credential_id !== '' ) {
             Core_Settings_Service::set( 'stripe_webhook_secret_credential_id', $webhook_credential_id, false );
             $saved = true;
         }
 
-        $workspace_impersonation_admin = metis_email_clean( $_POST['workspace_impersonation_admin'] ?? '' );
+        $workspace_impersonation_admin = metis_email_clean( metis_request_post()['workspace_impersonation_admin'] ?? '' );
         if ( $workspace_impersonation_admin !== '' ) {
             if ( ! metis_email_is_valid( $workspace_impersonation_admin ) ) {
                 $errors[] = 'Workspace impersonation admin must be a valid email.';
@@ -2840,15 +2840,15 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
         }
 
         $workspace_service_account_json = '';
-        if ( isset( $_FILES['workspace_service_account_json_file'] ) && ! empty( $_FILES['workspace_service_account_json_file']['name'] ) ) {
-            $upload = metis_settings_read_uploaded_json_file( $_FILES['workspace_service_account_json_file'], 'Workspace service account JSON file' );
+        if ( isset( metis_request_files()['workspace_service_account_json_file'] ) && ! empty( metis_request_files()['workspace_service_account_json_file']['name'] ) ) {
+            $upload = metis_settings_read_uploaded_json_file( metis_request_files()['workspace_service_account_json_file'], 'Workspace service account JSON file' );
             if ( empty( $upload['ok'] ) ) {
                 $errors[] = 'Unable to read the uploaded service account JSON file.';
             } else {
                 $workspace_service_account_json = trim( (string) ( $upload['json'] ?? '' ) );
             }
         } else {
-            $workspace_service_account_json = trim( (string) metis_runtime_unslash( $_POST['workspace_service_account_json'] ?? '' ) );
+            $workspace_service_account_json = trim( (string) metis_runtime_unslash( metis_request_post()['workspace_service_account_json'] ?? '' ) );
         }
 
         if ( $workspace_service_account_json !== '' ) {
@@ -2864,13 +2864,13 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             }
         }
 
-        $workspace_service_account_credential_id = metis_text_clean( (string) ( $_POST['workspace_service_account_json_credential_id'] ?? '' ) );
+        $workspace_service_account_credential_id = metis_text_clean( (string) ( metis_request_post()['workspace_service_account_json_credential_id'] ?? '' ) );
         if ( $workspace_service_account_credential_id !== '' ) {
             Core_Settings_Service::set( 'workspace_service_account_json_credential_id', $workspace_service_account_credential_id, false );
             $saved = true;
         }
 
-        $workspace_google_sso_client_secret = trim( metis_text_clean( (string) ( $_POST['workspace_google_sso_client_secret'] ?? '' ) ) );
+        $workspace_google_sso_client_secret = trim( metis_text_clean( (string) ( metis_request_post()['workspace_google_sso_client_secret'] ?? '' ) ) );
         if ( $workspace_google_sso_client_secret !== '' ) {
             if ( ! metis_settings_upsert_credential_reference( 'workspace_google_sso_client_secret', 'google_oauth_client_secret', $workspace_google_sso_client_secret, 'Google OAuth Client Secret' ) ) {
                 $errors[] = 'Unable to store Google OAuth client secret.';
@@ -2879,25 +2879,25 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             }
         }
 
-        $workspace_google_sso_client_secret_credential_id = metis_text_clean( (string) ( $_POST['workspace_google_sso_client_secret_credential_id'] ?? '' ) );
+        $workspace_google_sso_client_secret_credential_id = metis_text_clean( (string) ( metis_request_post()['workspace_google_sso_client_secret_credential_id'] ?? '' ) );
         if ( $workspace_google_sso_client_secret_credential_id !== '' ) {
             Core_Settings_Service::set( 'workspace_google_sso_client_secret_credential_id', $workspace_google_sso_client_secret_credential_id, false );
             $saved = true;
         }
 
-        $communications_project_id = trim( metis_text_clean( (string) ( $_POST['communications_inbound_google_project_id'] ?? '' ) ) );
+        $communications_project_id = trim( metis_text_clean( (string) ( metis_request_post()['communications_inbound_google_project_id'] ?? '' ) ) );
         Core_Settings_Service::set( 'communications_inbound_google_project_id', $communications_project_id, false );
         $saved = true;
 
-        $communications_topic = trim( metis_text_clean( (string) ( $_POST['communications_inbound_pubsub_topic'] ?? '' ) ) );
+        $communications_topic = trim( metis_text_clean( (string) ( metis_request_post()['communications_inbound_pubsub_topic'] ?? '' ) ) );
         Core_Settings_Service::set( 'communications_inbound_pubsub_topic', $communications_topic, false );
         $saved = true;
 
-        $communications_audience = trim( metis_text_clean( (string) ( $_POST['communications_inbound_pubsub_audience'] ?? '' ) ) );
+        $communications_audience = trim( metis_text_clean( (string) ( metis_request_post()['communications_inbound_pubsub_audience'] ?? '' ) ) );
         Core_Settings_Service::set( 'communications_inbound_pubsub_audience', $communications_audience, false );
         $saved = true;
 
-        $communications_service_account_email = strtolower( trim( metis_email_clean( (string) ( $_POST['communications_inbound_pubsub_service_account_email'] ?? '' ) ) ) );
+        $communications_service_account_email = strtolower( trim( metis_email_clean( (string) ( metis_request_post()['communications_inbound_pubsub_service_account_email'] ?? '' ) ) ) );
         if ( $communications_service_account_email !== '' && ! metis_email_is_valid( $communications_service_account_email ) ) {
             $errors[] = 'Inbound Pub/Sub push service account email must be a valid email.';
         } else {
@@ -2905,29 +2905,29 @@ if ( ! function_exists( 'metis_settings_save_api_section' ) ) {
             $saved = true;
         }
 
-        $communications_mailboxes_input = metis_runtime_unslash( $_POST['communications_inbound_mailboxes'] ?? null );
+        $communications_mailboxes_input = metis_runtime_unslash( metis_request_post()['communications_inbound_mailboxes'] ?? null );
         if ( $communications_mailboxes_input === null ) {
-            $communications_mailboxes_input = trim( (string) metis_runtime_unslash( $_POST['communications_inbound_mailboxes_json'] ?? '[]' ) );
+            $communications_mailboxes_input = trim( (string) metis_runtime_unslash( metis_request_post()['communications_inbound_mailboxes_json'] ?? '[]' ) );
         }
         $communications_mailboxes = metis_settings_normalize_inbound_mailbox_rows( $communications_mailboxes_input );
         Core_Settings_Service::set( 'communications_inbound_mailboxes', $communications_mailboxes, false );
         $saved = true;
 
-        $communications_log_verbosity = metis_key_clean( (string) ( $_POST['communications_inbound_log_verbosity'] ?? 'standard' ) );
+        $communications_log_verbosity = metis_key_clean( (string) ( metis_request_post()['communications_inbound_log_verbosity'] ?? 'standard' ) );
         if ( ! in_array( $communications_log_verbosity, [ 'quiet', 'standard', 'verbose' ], true ) ) {
             $communications_log_verbosity = 'standard';
         }
         Core_Settings_Service::set( 'communications_inbound_log_verbosity', $communications_log_verbosity, false );
         $saved = true;
 
-        $communications_full_sync_days = max( 1, min( 90, (int) ( $_POST['communications_inbound_full_sync_days'] ?? 30 ) ) );
+        $communications_full_sync_days = max( 1, min( 90, (int) ( metis_request_post()['communications_inbound_full_sync_days'] ?? 30 ) ) );
         Core_Settings_Service::set( 'communications_inbound_full_sync_days', $communications_full_sync_days, false );
         $saved = true;
 
-        Core_Settings_Service::set( 'communications_inbound_allow_reprocess', ! empty( $_POST['communications_inbound_allow_reprocess'] ) ? 1 : 0, false );
-        Core_Settings_Service::set( 'communications_inbound_enable_bounce_handler', ! empty( $_POST['communications_inbound_enable_bounce_handler'] ) ? 1 : 0, false );
-        Core_Settings_Service::set( 'communications_inbound_enable_unsubscribe_handler', ! empty( $_POST['communications_inbound_enable_unsubscribe_handler'] ) ? 1 : 0, false );
-        Core_Settings_Service::set( 'communications_inbound_enable_grandys_stash_handler', ! empty( $_POST['communications_inbound_enable_grandys_stash_handler'] ) ? 1 : 0, false );
+        Core_Settings_Service::set( 'communications_inbound_allow_reprocess', ! empty( metis_request_post()['communications_inbound_allow_reprocess'] ) ? 1 : 0, false );
+        Core_Settings_Service::set( 'communications_inbound_enable_bounce_handler', ! empty( metis_request_post()['communications_inbound_enable_bounce_handler'] ) ? 1 : 0, false );
+        Core_Settings_Service::set( 'communications_inbound_enable_unsubscribe_handler', ! empty( metis_request_post()['communications_inbound_enable_unsubscribe_handler'] ) ? 1 : 0, false );
+        Core_Settings_Service::set( 'communications_inbound_enable_grandys_stash_handler', ! empty( metis_request_post()['communications_inbound_enable_grandys_stash_handler'] ) ? 1 : 0, false );
         $saved = true;
     }
 }
@@ -2952,7 +2952,7 @@ if ( ! function_exists( 'metis_settings_save_scheduler_section' ) ) {
         }
 
         $registered_tasks = array_keys( Metis_Cron_Manager::registered_tasks() );
-        $selected_tasks = metis_runtime_unslash( $_POST['system_cron_enabled_tasks'] ?? [] );
+        $selected_tasks = metis_runtime_unslash( metis_request_post()['system_cron_enabled_tasks'] ?? [] );
         $selected_tasks = is_array( $selected_tasks ) ? $selected_tasks : [];
         $enabled_tasks = [];
 
@@ -2973,7 +2973,7 @@ if ( ! function_exists( 'metis_settings_save_scheduler_section' ) ) {
         Core_Settings_Service::set( 'system_cron_disabled_tasks', $disabled_tasks, false );
         $saved = true;
 
-        $submitted_intervals = metis_runtime_unslash( $_POST['system_cron_task_intervals'] ?? [] );
+        $submitted_intervals = metis_runtime_unslash( metis_request_post()['system_cron_task_intervals'] ?? [] );
         $submitted_intervals = is_array( $submitted_intervals ) ? $submitted_intervals : [];
         $interval_overrides = [];
 
@@ -2995,14 +2995,14 @@ if ( ! function_exists( 'metis_settings_save_scheduler_section' ) ) {
         Core_Settings_Service::set( 'system_cron_task_intervals', $interval_overrides, false );
         $saved = true;
 
-        if ( ! empty( $_POST['metis_generate_cron_secret'] ) ) {
+        if ( ! empty( metis_request_post()['metis_generate_cron_secret'] ) ) {
             $secret = bin2hex( random_bytes( 24 ) );
             Core_Settings_Service::set( 'system_cron_secret', $secret, false );
             $saved = true;
             return;
         }
 
-        $secret = trim( metis_text_clean( (string) metis_runtime_unslash( $_POST['system_cron_secret'] ?? '' ) ) );
+        $secret = trim( metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['system_cron_secret'] ?? '' ) ) );
         if ( $secret === '' ) {
             return;
         }
@@ -3019,11 +3019,11 @@ if ( ! function_exists( 'metis_settings_save_scheduler_section' ) ) {
 
 if ( ! function_exists( 'metis_settings_save_help_section' ) ) {
     function metis_settings_save_help_section( array &$errors, bool &$saved ): void {
-        $help_enabled = ! empty( $_POST['help_enabled'] ) ? 1 : 0;
-        $walkthrough_enabled = ! empty( $_POST['walkthrough_enabled'] ) ? 1 : 0;
-        $topic_overrides_raw = (string) metis_runtime_unslash( $_POST['help_topic_overrides_json'] ?? '{}' );
-        $custom_topics_raw = (string) metis_runtime_unslash( $_POST['help_custom_topics_json'] ?? '{}' );
-        $custom_walkthroughs_raw = (string) metis_runtime_unslash( $_POST['help_custom_walkthroughs_json'] ?? '{}' );
+        $help_enabled = ! empty( metis_request_post()['help_enabled'] ) ? 1 : 0;
+        $walkthrough_enabled = ! empty( metis_request_post()['walkthrough_enabled'] ) ? 1 : 0;
+        $topic_overrides_raw = (string) metis_runtime_unslash( metis_request_post()['help_topic_overrides_json'] ?? '{}' );
+        $custom_topics_raw = (string) metis_runtime_unslash( metis_request_post()['help_custom_topics_json'] ?? '{}' );
+        $custom_walkthroughs_raw = (string) metis_runtime_unslash( metis_request_post()['help_custom_walkthroughs_json'] ?? '{}' );
 
         $topic_overrides = json_decode( $topic_overrides_raw !== '' ? $topic_overrides_raw : '{}', true );
         if ( ! is_array( $topic_overrides ) ) {
@@ -3076,8 +3076,8 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $nonce_action = 'metis_save_settings_' . $section;
         if (
             $_SERVER['REQUEST_METHOD'] === 'POST'
-            && isset( $_POST['metis_settings_nonce'] )
-            && metis_runtime_verify_nonce( $_POST['metis_settings_nonce'], $nonce_action )
+            && isset( metis_request_post()['metis_settings_nonce'] )
+            && metis_runtime_verify_nonce( metis_request_post()['metis_settings_nonce'], $nonce_action )
         ) {
             metis_install_db();
             switch ( $section ) {
@@ -3193,7 +3193,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $logging_total_pages = 1;
         $logging_entries = [];
         if ( metis_settings_should_load_logging_state( $section ) ) {
-            extract( metis_settings_build_logging_viewer_state( $_POST ), EXTR_OVERWRITE );
+            extract( metis_settings_build_logging_viewer_state( metis_request_post() ), EXTR_OVERWRITE );
         }
 
         $menu_modules = [];

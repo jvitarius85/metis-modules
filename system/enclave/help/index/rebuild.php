@@ -14,7 +14,7 @@ metis_help_enclave_register_policy( 'help.index.rebuild', 'manage', 'metis_help_
 try {
     $payload = metis_security_enclave()->execute(
         'help.index.rebuild',
-        metis_security_runtime_request_context( $_POST ),
+        metis_security_runtime_request_context( metis_request_post() ),
         static function (): array {
             $store = new \Metis\Core\HelpSearchStore();
             $count = $store->rebuildSearchIndex();

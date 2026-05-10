@@ -16,20 +16,20 @@ $enclave = metis_security_enclave();
 try {
     $payload = $enclave->execute(
         'help.article.save',
-        metis_security_runtime_request_context( $_POST ),
+        metis_security_runtime_request_context( metis_request_post() ),
         static function (): array {
             $store = new \Metis\Core\HelpSearchStore();
-            $id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+            $id = isset( metis_request_post()['id'] ) ? (int) metis_request_post()['id'] : 0;
             $articleId = $store->saveArticle(
                 [
-                    'title' => (string) ( $_POST['title'] ?? '' ),
-                    'slug' => (string) ( $_POST['slug'] ?? '' ),
-                    'summary' => (string) ( $_POST['summary'] ?? '' ),
-                    'content' => (string) ( $_POST['content'] ?? '' ),
-                    'category_id' => (int) ( $_POST['category_id'] ?? 0 ),
-                    'tags' => (string) ( $_POST['tags'] ?? '' ),
-                    'search_terms' => (string) ( $_POST['search_terms'] ?? '' ),
-                    'status' => (string) ( $_POST['status'] ?? 'draft' ),
+                    'title' => (string) ( metis_request_post()['title'] ?? '' ),
+                    'slug' => (string) ( metis_request_post()['slug'] ?? '' ),
+                    'summary' => (string) ( metis_request_post()['summary'] ?? '' ),
+                    'content' => (string) ( metis_request_post()['content'] ?? '' ),
+                    'category_id' => (int) ( metis_request_post()['category_id'] ?? 0 ),
+                    'tags' => (string) ( metis_request_post()['tags'] ?? '' ),
+                    'search_terms' => (string) ( metis_request_post()['search_terms'] ?? '' ),
+                    'status' => (string) ( metis_request_post()['status'] ?? 'draft' ),
                 ],
                 $id > 0 ? $id : null
             );

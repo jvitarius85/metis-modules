@@ -116,7 +116,7 @@ function metis_build_donor_intelligence_data( array $args ): array {
 
 function metis_ajax_donor_intelligence(): void {
     // --- Parse filters ---
-    $filters_raw = $_POST['filters'] ?? null;
+    $filters_raw = metis_request_post()['filters'] ?? null;
     $filters     = [];
     if ( is_string( $filters_raw ) && $filters_raw !== '' ) {
         $decoded = json_decode( stripslashes( $filters_raw ), true );
@@ -125,9 +125,9 @@ function metis_ajax_donor_intelligence(): void {
         $filters = $filters_raw;
     }
 
-    $lifetime = ! empty( $_POST['lifetime'] );
-    $start    = metis_text_clean( $_POST['start'] ?? '' );
-    $end      = metis_text_clean( $_POST['end']   ?? '' );
+    $lifetime = ! empty( metis_request_post()['lifetime'] );
+    $start    = metis_text_clean( metis_request_post()['start'] ?? '' );
+    $end      = metis_text_clean( metis_request_post()['end']   ?? '' );
 
     $platform = ( ! empty( $filters['platform'] ) && $filters['platform'] !== 'ALL' )
         ? strtoupper( metis_key_clean( $filters['platform'] ) )

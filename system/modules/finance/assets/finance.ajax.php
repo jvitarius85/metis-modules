@@ -13,10 +13,10 @@ function metis_finance_ajax_current_user_id(): int {
 }
 
 function metis_finance_ajax_post_value( string $key, mixed $default = '' ): mixed {
-    if ( ! isset( $_POST[ $key ] ) ) {
+    if ( ! isset( metis_request_post()[ $key ] ) ) {
         return $default;
     }
-    return metis_runtime_unslash( $_POST[ $key ] );
+    return metis_runtime_unslash( metis_request_post()[ $key ] );
 }
 
 function metis_finance_ajax_post_json_array( string $key ): array {
@@ -311,13 +311,13 @@ metis_ajax_register_handler( 'metis_finance_v2_recon_import', static function ()
             'request_id' => $requestId,
             'requested_by' => $requestedBy,
             'recon_month' => $input['recon_month'],
-            'has_file' => isset( $_FILES['recon_file'] ) ? 1 : 0,
-            'file_keys' => array_keys( is_array( $_FILES ) ? $_FILES : [] ),
+            'has_file' => isset( metis_request_files()['recon_file'] ) ? 1 : 0,
+            'file_keys' => array_keys( is_array( metis_request_files() ) ? metis_request_files() : [] ),
         ] );
     }
 
     try {
-        $result = \Metis\Modules\Finance\FinanceV2Service::createReconciliationImportRun( $input, $requestedBy, is_array( $_FILES ) ? $_FILES : [] );
+        $result = \Metis\Modules\Finance\FinanceV2Service::createReconciliationImportRun( $input, $requestedBy, is_array( metis_request_files() ) ? metis_request_files() : [] );
     } catch ( \Throwable $e ) {
         if ( class_exists( 'Metis_Logger' ) ) {
             Metis_Logger::error( 'finance.v2.recon_import.exception', [

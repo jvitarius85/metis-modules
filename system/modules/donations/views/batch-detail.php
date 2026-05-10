@@ -9,7 +9,7 @@ $contacts_table     = Metis_Tables::get( 'contacts' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url = metis_donations_base_url();
-$code     = metis_text_clean( $_GET['batch'] ?? '' );
+$code     = metis_text_clean( metis_request_get()['batch'] ?? '' );
 
 if ( ! $code ) {
     echo '<h1 class="metis-page-title">Batch Not Found</h1><p class="metis-subtitle">Invalid batch code.</p>';

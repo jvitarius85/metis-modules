@@ -50,7 +50,7 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
 
     $requestNonce = '';
     foreach ( [ 'metis_action_nonce', '_wpnonce', 'security', '_ajax_nonce', 'nonce' ] as $field ) {
-        $candidate = $_POST[ $field ] ?? $_GET[ $field ] ?? '';
+        $candidate = metis_request_post()[ $field ] ?? metis_request_get()[ $field ] ?? '';
         if ( is_string( $candidate ) && trim( $candidate ) !== '' ) {
             $requestNonce = trim( $candidate );
             break;

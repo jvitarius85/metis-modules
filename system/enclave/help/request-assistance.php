@@ -15,14 +15,14 @@ metis_help_enclave_register_policy( 'help.request_assistance', 'view', 'metis_he
 try {
     $payload = $enclave->execute(
         'help.request_assistance',
-        metis_security_runtime_request_context( $_POST ),
+        metis_security_runtime_request_context( metis_request_post() ),
         static function (): array {
             $service = metis_help_service();
             if ( ! $service instanceof Metis_Help_Service ) {
                 throw new RuntimeException( 'Help service is unavailable.' );
             }
 
-            return $service->requestAdminAssistance( $_POST );
+            return $service->requestAdminAssistance( metis_request_post() );
         }
     );
 

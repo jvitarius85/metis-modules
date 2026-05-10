@@ -18,7 +18,7 @@ $campaigns_table = Metis_Tables::get( 'campaigns' );
 $newsletter_lists_table = Metis_Tables::get( 'newsletter_lists' );
 $newsletter_subs_table = Metis_Tables::get( 'newsletter_subs' );
 
-$cid = isset( $_GET['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_GET['cid'] ) ) : '';
+$cid = isset( metis_request_get()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_get()['cid'] ) ) : '';
 if ( $cid === '' ) {
     echo '<div class="metis-alert metis-alert-error">Missing contact CID.</div>';
     return;

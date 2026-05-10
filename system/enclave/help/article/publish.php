@@ -14,9 +14,9 @@ metis_help_enclave_register_policy( 'help.article.publish', 'manage', 'metis_hel
 try {
     $payload = metis_security_enclave()->execute(
         'help.article.publish',
-        metis_security_runtime_request_context( $_POST ),
+        metis_security_runtime_request_context( metis_request_post() ),
         static function (): array {
-            $id = (int) ( $_POST['id'] ?? 0 );
+            $id = (int) ( metis_request_post()['id'] ?? 0 );
             if ( $id < 1 ) {
                 throw new InvalidArgumentException( 'Help article ID is required.' );
             }

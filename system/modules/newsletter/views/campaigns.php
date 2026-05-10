@@ -44,9 +44,9 @@ $edit_campaign_id = 0;
 $edit_campaign_code = '';
 $compose_mode = false;
 
-$legacy_campaign_id = isset($_GET['campaign_id']) ? (int) $_GET['campaign_id'] : 0;
-$legacy_compose = isset($_GET['compose']) && (string) $_GET['compose'] === '1';
-$legacy_view = metis_key_clean((string) ($_GET['view'] ?? ''));
+$legacy_campaign_id = isset(metis_request_get()['campaign_id']) ? (int) metis_request_get()['campaign_id'] : 0;
+$legacy_compose = isset(metis_request_get()['compose']) && (string) metis_request_get()['compose'] === '1';
+$legacy_view = metis_key_clean((string) (metis_request_get()['view'] ?? ''));
 
 if ($legacy_compose || $legacy_campaign_id > 0) {
     $legacy_ref = '';

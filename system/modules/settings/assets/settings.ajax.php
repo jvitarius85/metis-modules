@@ -227,7 +227,7 @@ metis_ajax_register_controller( 'metis_settings_clear_log', [
 ] );
 
 metis_ajax_register_handler( 'metis_settings_save_section', function () {
-    $section = metis_key_clean( (string) ( $_POST['settings_section'] ?? 'general' ) );
+    $section = metis_key_clean( (string) ( metis_request_post()['settings_section'] ?? 'general' ) );
     $ctx = metis_settings_bootstrap( $section );
 
     if ( empty( $ctx['allowed'] ) ) {
@@ -277,7 +277,7 @@ metis_ajax_register_handler( 'metis_settings_clear_cache', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_settings_clear_cache_group', function () {
-    $group = metis_key_clean( (string) ( $_POST['group'] ?? '' ) );
+    $group = metis_key_clean( (string) ( metis_request_post()['group'] ?? '' ) );
     if ( $group === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'A cache group is required.' ], 400 );
     }
@@ -303,7 +303,7 @@ metis_ajax_register_handler( 'metis_settings_rebuild_cache', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_settings_fetch_logging_viewer', function () {
-    $state = metis_settings_build_logging_viewer_state( $_POST );
+    $state = metis_settings_build_logging_viewer_state( metis_request_post() );
     metis_runtime_send_json_success( [
         'entries' => array_values( (array) ( $state['logging_entries'] ?? [] ) ),
         'total_entries' => (int) ( $state['logging_total_entries'] ?? 0 ),
@@ -320,7 +320,7 @@ metis_ajax_register_handler( 'metis_settings_clear_log', function () {
         Metis_Logger::clear();
     }
 
-    $state = metis_settings_build_logging_viewer_state( $_POST );
+    $state = metis_settings_build_logging_viewer_state( metis_request_post() );
     metis_runtime_send_json_success( [
         'message' => 'Log cleared.',
         'entries' => array_values( (array) ( $state['logging_entries'] ?? [] ) ),
@@ -350,7 +350,7 @@ metis_ajax_register_handler( 'metis_backup_run_now', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_backup_restore_run', function () {
-    $run_uuid = metis_text_clean( (string) ( $_POST['run_uuid'] ?? '' ) );
+    $run_uuid = metis_text_clean( (string) ( metis_request_post()['run_uuid'] ?? '' ) );
     if ( $run_uuid === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'Backup run ID is required.' ], 400 );
     }
@@ -392,7 +392,7 @@ metis_ajax_register_handler( 'metis_backup_history_snapshot', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_scheduler_run_task_now', function () {
-    $task_slug = metis_key_clean( (string) ( $_POST['task_slug'] ?? '' ) );
+    $task_slug = metis_key_clean( (string) ( metis_request_post()['task_slug'] ?? '' ) );
     if ( $task_slug === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'Task slug is required.' ], 400 );
     }
@@ -806,7 +806,7 @@ metis_ajax_register_handler( 'metis_release_check_updates', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_release_apply', function () {
-    $tag = metis_text_clean( (string) ( $_POST['tag'] ?? '' ) );
+    $tag = metis_text_clean( (string) ( metis_request_post()['tag'] ?? '' ) );
     if ( $tag === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'A release tag is required.' ], 400 );
     }
@@ -822,8 +822,8 @@ metis_ajax_register_handler( 'metis_release_apply_now', function () {
         metis_runtime_send_json_error( [ 'message' => 'Release manager is not available.' ], 503 );
     }
 
-    $tag = metis_text_clean( (string) ( $_POST['tag'] ?? '' ) );
-    $token = metis_settings_release_progress_token( (string) ( $_POST['progress_token'] ?? '' ) );
+    $tag = metis_text_clean( (string) ( metis_request_post()['tag'] ?? '' ) );
+    $token = metis_settings_release_progress_token( (string) ( metis_request_post()['progress_token'] ?? '' ) );
     if ( $tag === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'A release tag is required.' ], 400 );
     }
@@ -897,7 +897,7 @@ metis_ajax_register_handler( 'metis_release_apply_now', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_release_apply_progress', function () {
-    $token = metis_settings_release_progress_token( (string) ( $_POST['progress_token'] ?? '' ) );
+    $token = metis_settings_release_progress_token( (string) ( metis_request_post()['progress_token'] ?? '' ) );
     if ( $token === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'A progress token is required.' ], 400 );
     }
@@ -930,7 +930,7 @@ metis_ajax_register_handler( 'metis_release_rollback', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_operations_queue_command', function () {
-    $command = trim( (string) ( $_POST['command'] ?? '' ) );
+    $command = trim( (string) ( metis_request_post()['command'] ?? '' ) );
     if ( $command === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'A command is required.' ], 400 );
     }
@@ -950,7 +950,7 @@ metis_ajax_register_handler( 'metis_operations_queue_command', function () {
 ] );
 
 metis_ajax_register_handler( 'metis_scheduler_update_task_settings', function () {
-    $task_slug = metis_key_clean( (string) ( $_POST['task_slug'] ?? '' ) );
+    $task_slug = metis_key_clean( (string) ( metis_request_post()['task_slug'] ?? '' ) );
     if ( $task_slug === '' ) {
         metis_runtime_send_json_error( [ 'message' => 'Task slug is required.' ], 400 );
     }
@@ -963,8 +963,8 @@ metis_ajax_register_handler( 'metis_scheduler_update_task_settings', function ()
     $disabled_tasks = Core_Settings_Service::get( 'system_cron_disabled_tasks', [] );
     $disabled_tasks = is_array( $disabled_tasks ) ? array_values( array_unique( array_map( 'metis_key_clean', $disabled_tasks ) ) ) : [];
 
-    if ( isset( $_POST['enabled'] ) ) {
-        $enabled = (string) $_POST['enabled'] === '1';
+    if ( isset( metis_request_post()['enabled'] ) ) {
+        $enabled = (string) metis_request_post()['enabled'] === '1';
         if ( $enabled ) {
             $disabled_tasks = array_values( array_filter( $disabled_tasks, static function ( string $slug ) use ( $task_slug ): bool {
                 return $slug !== $task_slug;
@@ -976,8 +976,8 @@ metis_ajax_register_handler( 'metis_scheduler_update_task_settings', function ()
         Core_Settings_Service::set( 'system_cron_disabled_tasks', $disabled_tasks, false );
     }
 
-    if ( isset( $_POST['interval_minutes'] ) ) {
-        $interval_minutes = (int) $_POST['interval_minutes'];
+    if ( isset( metis_request_post()['interval_minutes'] ) ) {
+        $interval_minutes = (int) metis_request_post()['interval_minutes'];
         if ( $interval_minutes < 1 ) {
             metis_runtime_send_json_error( [ 'message' => 'Cadence must be at least 1 minute.' ], 400 );
         }

@@ -159,7 +159,7 @@ metis_ajax_register_handler('metis_portal_fetch_board_actions', function (): voi
     $db = metis_db();
     $board_actions_table = Metis_Tables::get('board_action_items');
     $board_meetings_table = Metis_Tables::get('board_meetings');
-    $filter = metis_key_clean(metis_runtime_unslash($_POST['filter'] ?? 'mine'));
+    $filter = metis_key_clean(metis_runtime_unslash(metis_request_post()['filter'] ?? 'mine'));
 
     $result = metis_portal_fetch_board_actions($db, $board_actions_table, $board_meetings_table, $current_person_id, $filter);
     $counts = metis_portal_board_action_counts($db, $board_actions_table, $current_person_id);

@@ -4599,6 +4599,11 @@ PY;
         $uploaded = \metis_handle_upload( $upload, [
             'policy' => 'attachments',
             'test_form' => false,
+            'storage_class' => 'private',
+            'access_ttl_seconds' => 90 * DAY_IN_SECONDS,
+            'folder_path' => 'finance/reconciliation',
+            'category_key' => 'finance_reconciliation_statement',
+            'retention_key' => 'finance_reconciliation_statement',
             'mimes' => [ 'pdf' => 'application/pdf' ],
             'max_size' => 15 * 1024 * 1024,
         ] );

@@ -208,7 +208,7 @@ if ( ! function_exists( 'metis_kernel_prepare_entry' ) ) {
                 break;
 
             case 'webhook':
-                $provider = metis_key_clean( (string) ( $attributes['provider'] ?? $_GET['provider'] ?? '' ) );
+                $provider = metis_key_clean( (string) ( $attributes['provider'] ?? metis_request_get()['provider'] ?? '' ) );
                 if ( $provider !== '' && function_exists( 'metis_webhook_base_path' ) ) {
                     metis_kernel_force_request_uri( '/' . trim( metis_webhook_base_path(), '/' ) . '/' . $provider );
                     $attributes['provider'] = $provider;

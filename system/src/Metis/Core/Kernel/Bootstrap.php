@@ -377,7 +377,7 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         header( 'Content-Length: ' . (string) filesize( $target_path ) );
         header( 'X-Content-Type-Options: nosniff' );
         header( 'Content-Disposition: ' . ( $is_svg ? 'attachment' : 'inline' ) . '; filename="' . str_replace( '"', '', $file_name ) . '"' );
-        header( 'Cache-Control: public, max-age=31536000, immutable' );
+        header( 'Cache-Control: ' . ( in_array( $storage_class, [ 'protected', 'private' ], true ) ? 'private, no-store, max-age=0' : 'public, max-age=31536000, immutable' ) );
         readfile( $target_path );
         exit;
 

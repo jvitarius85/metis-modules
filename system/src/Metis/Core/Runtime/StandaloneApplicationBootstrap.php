@@ -1628,7 +1628,7 @@ function metis_standalone_render_database_setup( string $error = '', array $old 
 }
 
 function metis_standalone_handle_database_setup(): void {
-    if ( $_SERVER['REQUEST_METHOD'] !== 'POST' || empty( $_POST['metis_setup'] ) ) {
+    if ( $_SERVER['REQUEST_METHOD'] !== 'POST' || empty( metis_request_post()['metis_setup'] ) ) {
         return;
     }
 
@@ -1636,9 +1636,9 @@ function metis_standalone_handle_database_setup(): void {
         metis_standalone_render_database_setup( 'Installer is disabled after configuration has been written. Enable METIS_INSTALLER_RECOVERY to run recovery setup.' );
     }
 
-    \Metis\Core\Application::service( 'csrf' )->requireValidToken( $_POST, 'metis_installer_setup', 'Invalid installer request.' );
+    \Metis\Core\Application::service( 'csrf' )->requireValidToken( metis_request_post(), 'metis_installer_setup', 'Invalid installer request.' );
 
-    $action = metis_key_clean( (string) ( $_POST['metis_setup_action'] ?? '' ) );
+    $action = metis_key_clean( (string) ( metis_request_post()['metis_setup_action'] ?? '' ) );
     if ( $action !== '' ) {
         try {
             if ( $action === 'precheck' ) {
@@ -1652,8 +1652,8 @@ function metis_standalone_handle_database_setup(): void {
                 metis_standalone_install_json( [ 'ok' => true, 'checks' => $checks, 'summary' => metis_standalone_install_precheck_summary( $checks ) ] );
             }
 
-	            $config = metis_standalone_install_config_from_request( $_POST );
-	            $admin = metis_standalone_install_admin_from_request( $_POST );
+	            $config = metis_standalone_install_config_from_request( metis_request_post() );
+	            $admin = metis_standalone_install_admin_from_request( metis_request_post() );
 
 	            if ( $action === 'validate_database' ) {
 	                metis_standalone_install_validate_database_config( $config );
@@ -1670,7 +1670,7 @@ function metis_standalone_handle_database_setup(): void {
             if ( $action === 'schema' ) {
                 metis_standalone_install_validate_config_and_admin( $config, $admin, false );
                 metis_standalone_install_boot_database_context( $config );
-                $schema_step = metis_key_clean( (string) ( $_POST['schema_step'] ?? '' ) );
+                $schema_step = metis_key_clean( (string) ( metis_request_post()['schema_step'] ?? '' ) );
                 metis_standalone_install_run_schema_step( $schema_step );
                 metis_standalone_install_json( [ 'ok' => true, 'step' => $schema_step, 'label' => metis_standalone_install_schema_steps()[ $schema_step ] ?? $schema_step ] );
             }
@@ -1691,7 +1691,7 @@ function metis_standalone_handle_database_setup(): void {
                 metis_standalone_install_boot_database_context( $config );
                 $admin_result = metis_standalone_install_ensure_first_admin( $admin );
                 metis_standalone_install_complete_defaults();
-                $schema_created = json_decode( (string) ( $_POST['schema_created'] ?? '[]' ), true );
+                $schema_created = json_decode( (string) ( metis_request_post()['schema_created'] ?? '[]' ), true );
                 Core_Settings_Service::set( 'metis_install_schema_installers', is_array( $schema_created ) ? array_values( array_map( 'strval', $schema_created ) ) : [], false );
                 Core_Settings_Service::set( 'metis_install_first_admin_user_id', (int) $admin_result['id'], false );
                 metis_standalone_mark_installed();
@@ -1703,7 +1703,7 @@ function metis_standalone_handle_database_setup(): void {
 	        } catch ( Throwable $e ) {
 	            metis_standalone_boot_log( 'setup_ajax_failed', [
 	                'action' => $action,
-	                'schema_step' => metis_key_clean( (string) ( $_POST['schema_step'] ?? '' ) ),
+	                'schema_step' => metis_key_clean( (string) ( metis_request_post()['schema_step'] ?? '' ) ),
 	                'exception' => $e::class,
 	                'error' => $e->getMessage(),
 	                'file' => $e->getFile(),
@@ -1712,20 +1712,20 @@ function metis_standalone_handle_database_setup(): void {
 	            metis_standalone_install_json( [
 	                'ok' => false,
 	                'action' => $action,
-	                'schema_step' => metis_key_clean( (string) ( $_POST['schema_step'] ?? '' ) ),
+	                'schema_step' => metis_key_clean( (string) ( metis_request_post()['schema_step'] ?? '' ) ),
 	                'error' => $e->getMessage(),
 	            ], 422 );
 	        }
     }
 
-    $config = metis_standalone_install_config_from_request( $_POST );
-    $admin = metis_standalone_install_admin_from_request( $_POST );
+    $config = metis_standalone_install_config_from_request( metis_request_post() );
+    $admin = metis_standalone_install_admin_from_request( metis_request_post() );
 
     try {
         metis_standalone_install_validate_config_and_admin( $config, $admin, true );
     } catch ( Throwable $e ) {
         metis_standalone_boot_log( 'setup_connection_failed', [ 'error' => $e->getMessage(), 'config' => [ 'host' => $config['host'], 'port' => $config['port'], 'socket' => $config['socket'], 'database' => $config['database'], 'username' => $config['username'] ] ] );
-        metis_standalone_render_database_setup( $e->getMessage(), $_POST );
+        metis_standalone_render_database_setup( $e->getMessage(), metis_request_post() );
     }
 
     try {
@@ -1741,7 +1741,7 @@ function metis_standalone_handle_database_setup(): void {
         metis_standalone_install_ensure_permissions();
     } catch ( Throwable $e ) {
         metis_standalone_boot_log( 'setup_install_failed', [ 'error' => $e->getMessage() ] );
-        metis_standalone_render_database_setup( 'Install could not complete. Review the server logs, then verify database permissions and administrator details.', $_POST );
+        metis_standalone_render_database_setup( 'Install could not complete. Review the server logs, then verify database permissions and administrator details.', metis_request_post() );
     }
 
     metis_runtime_redirect( metis_home_url( '/admin/' ) );
@@ -1841,10 +1841,10 @@ function metis_standalone_boot(): void {
     }
     metis_standalone_boot_log( 'boot_phase', [ 'phase' => 'db_connect_ok' ] );
 
-    if ( isset( $_GET['metis_action'] ) && $_GET['metis_action'] === 'logout' ) {
+    if ( isset( metis_request_get()['metis_action'] ) && metis_request_get()['metis_action'] === 'logout' ) {
         unset( $_SESSION['metis_user'], $_SESSION['metis_session_token'] );
         \Metis\Core\Application::service( 'session_security' )->regenerateId();
-        $redirect = isset( $_GET['redirect_to'] ) ? (string) $_GET['redirect_to'] : metis_home_url( '/' );
+        $redirect = isset( metis_request_get()['redirect_to'] ) ? (string) metis_request_get()['redirect_to'] : metis_home_url( '/' );
         metis_runtime_redirect( $redirect );
     }
 

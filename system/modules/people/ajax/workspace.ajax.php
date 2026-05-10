@@ -473,27 +473,27 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     $group_members_table = Metis_Tables::get('people_workspace_group_members');
     $people_table = Metis_Tables::get('people');
 
-    $workspace_user_id = isset($_POST['workspace_user_id']) ? (int) metis_runtime_unslash($_POST['workspace_user_id']) : 0;
-    $primary_email = strtolower(trim((string) (isset($_POST['primary_email']) ? metis_email_clean(metis_runtime_unslash($_POST['primary_email'])) : '')));
-    $first_name = isset($_POST['first_name']) ? metis_text_clean(metis_runtime_unslash($_POST['first_name'])) : '';
-    $last_name = isset($_POST['last_name']) ? metis_text_clean(metis_runtime_unslash($_POST['last_name'])) : '';
-    $display_name = isset($_POST['display_name']) ? metis_text_clean(metis_runtime_unslash($_POST['display_name'])) : '';
-    $org_unit_path = isset($_POST['org_unit_path']) ? metis_text_clean(metis_runtime_unslash($_POST['org_unit_path'])) : '/';
-    $secondary_email = strtolower(trim((string) (isset($_POST['secondary_email']) ? metis_email_clean(metis_runtime_unslash($_POST['secondary_email'])) : '')));
-    $recovery_email = strtolower(trim((string) (isset($_POST['recovery_email']) ? metis_email_clean(metis_runtime_unslash($_POST['recovery_email'])) : '')));
+    $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
+    $primary_email = strtolower(trim((string) (isset(metis_request_post()['primary_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['primary_email'])) : '')));
+    $first_name = isset(metis_request_post()['first_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['first_name'])) : '';
+    $last_name = isset(metis_request_post()['last_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['last_name'])) : '';
+    $display_name = isset(metis_request_post()['display_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['display_name'])) : '';
+    $org_unit_path = isset(metis_request_post()['org_unit_path']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['org_unit_path'])) : '/';
+    $secondary_email = strtolower(trim((string) (isset(metis_request_post()['secondary_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['secondary_email'])) : '')));
+    $recovery_email = strtolower(trim((string) (isset(metis_request_post()['recovery_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['recovery_email'])) : '')));
     if ($recovery_email === '' && $secondary_email !== '') {
         $recovery_email = $secondary_email;
     }
-    $linked_pid = strtoupper(trim((string) (isset($_POST['linked_pid']) ? metis_text_clean(metis_runtime_unslash($_POST['linked_pid'])) : '')));
-    $is_suspended = !empty($_POST['is_suspended']) ? 1 : 0;
-    $is_protected = !empty($_POST['is_protected']) ? 1 : 0;
-    $is_hidden = !empty($_POST['is_hidden']) ? 1 : 0;
-    $create_metis_user = !empty($_POST['create_metis_user']);
-    $create_drive_folder = !empty($_POST['create_drive_folder']);
+    $linked_pid = strtoupper(trim((string) (isset(metis_request_post()['linked_pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['linked_pid'])) : '')));
+    $is_suspended = !empty(metis_request_post()['is_suspended']) ? 1 : 0;
+    $is_protected = !empty(metis_request_post()['is_protected']) ? 1 : 0;
+    $is_hidden = !empty(metis_request_post()['is_hidden']) ? 1 : 0;
+    $create_metis_user = !empty(metis_request_post()['create_metis_user']);
+    $create_drive_folder = !empty(metis_request_post()['create_drive_folder']);
 
     $role_keys = [];
-    if (isset($_POST['role_keys'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['role_keys']), true);
+    if (isset(metis_request_post()['role_keys'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['role_keys']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $key) {
                 $rk = metis_key_clean((string) $key);
@@ -503,8 +503,8 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     }
     $role_keys = array_values(array_unique($role_keys));
     $group_ids = [];
-    if (isset($_POST['group_ids'])) {
-        $decoded_groups = json_decode((string) metis_runtime_unslash($_POST['group_ids']), true);
+    if (isset(metis_request_post()['group_ids'])) {
+        $decoded_groups = json_decode((string) metis_runtime_unslash(metis_request_post()['group_ids']), true);
         if (is_array($decoded_groups)) {
             foreach ($decoded_groups as $gid) {
                 $group_id = (int) $gid;
@@ -970,13 +970,13 @@ metis_ajax_register_handler( 'metis_people_workspace_set_user_flags', function (
     $db = metis_db();
     $users_table = Metis_Tables::get('people_workspace_users');
 
-    $workspace_user_id = isset($_POST['workspace_user_id']) ? (int) metis_runtime_unslash($_POST['workspace_user_id']) : 0;
+    $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user is required.', 400);
     }
 
-    $has_hidden = isset($_POST['is_hidden']);
-    $has_protected = isset($_POST['is_protected']);
+    $has_hidden = isset(metis_request_post()['is_hidden']);
+    $has_protected = isset(metis_request_post()['is_protected']);
     if (!$has_hidden && !$has_protected) {
         metis_runtime_send_json_error('No flag update was provided.', 400);
     }
@@ -1002,10 +1002,10 @@ metis_ajax_register_handler( 'metis_people_workspace_set_user_flags', function (
     $is_hidden = !empty($metadata['ui_hidden']) ? 1 : 0;
     $is_protected = !empty($row['is_protected']) ? 1 : 0;
     if ($has_hidden) {
-        $is_hidden = !empty($_POST['is_hidden']) ? 1 : 0;
+        $is_hidden = !empty(metis_request_post()['is_hidden']) ? 1 : 0;
     }
     if ($has_protected) {
-        $is_protected = !empty($_POST['is_protected']) ? 1 : 0;
+        $is_protected = !empty(metis_request_post()['is_protected']) ? 1 : 0;
     }
 
     if ($is_hidden) {
@@ -1051,7 +1051,7 @@ metis_ajax_register_handler( 'metis_people_workspace_create_metis_user', functio
     $users_table = Metis_Tables::get('people_workspace_users');
     $people_table = Metis_Tables::get('people');
 
-    $workspace_user_id = isset($_POST['workspace_user_id']) ? (int) metis_runtime_unslash($_POST['workspace_user_id']) : 0;
+    $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user is required.', 400);
     }
@@ -1194,7 +1194,7 @@ metis_ajax_register_handler( 'metis_people_workspace_delete_user', function () {
     $group_members_table = Metis_Tables::get('people_workspace_group_members');
     $security_actions_table = Metis_Tables::get('people_workspace_security_actions');
 
-    $workspace_user_id = isset($_POST['workspace_user_id']) ? (int) metis_runtime_unslash($_POST['workspace_user_id']) : 0;
+    $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user is required.', 400);
     }
@@ -1250,9 +1250,9 @@ metis_ajax_register_handler( 'metis_people_workspace_run_security_action', funct
     $users_table = Metis_Tables::get('people_workspace_users');
     $actions_table = Metis_Tables::get('people_workspace_security_actions');
 
-    $workspace_user_id = isset($_POST['workspace_user_id']) ? (int) metis_runtime_unslash($_POST['workspace_user_id']) : 0;
-    $action_type = isset($_POST['action_type']) ? metis_key_clean(metis_runtime_unslash($_POST['action_type'])) : '';
-    $reason = isset($_POST['reason']) ? metis_textarea_clean(metis_runtime_unslash($_POST['reason'])) : '';
+    $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
+    $action_type = isset(metis_request_post()['action_type']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['action_type'])) : '';
+    $reason = isset(metis_request_post()['reason']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['reason'])) : '';
     $allowed_actions = ['reset_password', 'revoke_sessions', 'force_2fa_reenroll', 'suspend_account', 'unsuspend_account'];
     if ($workspace_user_id < 1 || !in_array($action_type, $allowed_actions, true) || trim($reason) === '') {
         metis_runtime_send_json_error('Valid user, action, and reason are required.', 400);
@@ -1291,8 +1291,8 @@ metis_ajax_register_handler( 'metis_people_workspace_run_security_action', funct
 
 metis_ajax_register_handler( 'metis_people_workspace_get_activity_page', function () {
     metis_people_workspace_ajax_verify();
-    $sync_page = isset($_POST['sync_page']) ? (int) metis_runtime_unslash($_POST['sync_page']) : 1;
-    $security_page = isset($_POST['security_page']) ? (int) metis_runtime_unslash($_POST['security_page']) : 1;
+    $sync_page = isset(metis_request_post()['sync_page']) ? (int) metis_runtime_unslash(metis_request_post()['sync_page']) : 1;
+    $security_page = isset(metis_request_post()['security_page']) ? (int) metis_runtime_unslash(metis_request_post()['security_page']) : 1;
     if ($sync_page < 1) $sync_page = 1;
     if ($security_page < 1) $security_page = 1;
     $payload = metis_people_workspace_activity_payload($sync_page, $security_page, 12, 12);
@@ -1307,11 +1307,11 @@ metis_ajax_register_handler( 'metis_people_bulk_workspace_user_action', function
     $workspace_actions_table = Metis_Tables::get('people_workspace_security_actions');
     $user_roles_table = Metis_Tables::get('people_user_roles');
 
-    $action_type = isset($_POST['workspace_action']) ? metis_key_clean(metis_runtime_unslash($_POST['workspace_action'])) : '';
-    $org_unit_path = isset($_POST['org_unit_path']) ? metis_text_clean(metis_runtime_unslash($_POST['org_unit_path'])) : '/';
+    $action_type = isset(metis_request_post()['workspace_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['workspace_action'])) : '';
+    $org_unit_path = isset(metis_request_post()['org_unit_path']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['org_unit_path'])) : '/';
     $person_pids = [];
-    if (isset($_POST['person_pids'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['person_pids']), true);
+    if (isset(metis_request_post()['person_pids'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['person_pids']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $pid) {
                 $clean = strtoupper(trim((string) metis_text_clean((string) $pid)));
@@ -1558,8 +1558,8 @@ metis_ajax_register_handler( 'metis_people_attach_drive_folder', function () {
         metis_runtime_send_json_error('Drive module is not available.', 400);
     }
 
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
-    $pid = isset($_POST['pid']) ? trim(metis_text_clean(metis_runtime_unslash($_POST['pid']))) : '';
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
+    $pid = isset(metis_request_post()['pid']) ? trim(metis_text_clean(metis_runtime_unslash(metis_request_post()['pid']))) : '';
     if ($person_id < 1 && $pid === '') {
         metis_runtime_send_json_error('Person identifier is required.', 422);
     }
@@ -1633,7 +1633,7 @@ metis_ajax_register_handler( 'metis_people_drive_folder_picker', function () {
         metis_runtime_send_json_error('Users folder could not be resolved.', 400);
     }
 
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
     if ($folder_id === '') {
         $folder_id = $users_root_id;
     }
@@ -1705,9 +1705,9 @@ metis_ajax_register_handler( 'metis_people_attach_drive_folder_selection', funct
         metis_runtime_send_json_error('Drive module is not available.', 400);
     }
 
-    $person_id = isset($_POST['person_id']) ? (int) metis_runtime_unslash($_POST['person_id']) : 0;
-    $pid = isset($_POST['pid']) ? trim(metis_text_clean(metis_runtime_unslash($_POST['pid']))) : '';
-    $folder_id = metis_text_clean(metis_runtime_unslash($_POST['folder_id'] ?? ''));
+    $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
+    $pid = isset(metis_request_post()['pid']) ? trim(metis_text_clean(metis_runtime_unslash(metis_request_post()['pid']))) : '';
+    $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
     if ($folder_id === '') {
         metis_runtime_send_json_error('Folder is required.', 422);
     }
@@ -1813,10 +1813,10 @@ metis_ajax_register_handler( 'metis_people_attach_drive_folder_selection', funct
 
 metis_ajax_register_handler( 'metis_people_workspace_process_queue', function () {
     metis_people_workspace_ajax_verify();
-    $limit = isset($_POST['limit']) ? (int) metis_runtime_unslash($_POST['limit']) : 10;
-    $job_id = isset($_POST['job_id']) ? (int) metis_runtime_unslash($_POST['job_id']) : 0;
-    $dry_run = !empty($_POST['dry_run']) ? true : false;
-    $run_all = !empty($_POST['run_all']) ? true : false;
+    $limit = isset(metis_request_post()['limit']) ? (int) metis_runtime_unslash(metis_request_post()['limit']) : 10;
+    $job_id = isset(metis_request_post()['job_id']) ? (int) metis_runtime_unslash(metis_request_post()['job_id']) : 0;
+    $dry_run = !empty(metis_request_post()['dry_run']) ? true : false;
+    $run_all = !empty(metis_request_post()['run_all']) ? true : false;
     $limit = max(1, min(100, $limit));
     if (!$run_all || $job_id > 0) {
         $result = metis_people_workspace_process_jobs($limit, $dry_run, $job_id);
@@ -2268,7 +2268,7 @@ metis_ajax_register_handler( 'metis_people_workspace_import_directory_users', fu
     if (empty($cfg['ok'])) {
         metis_runtime_send_json_error('Workspace configuration is missing.', 400);
     }
-    $limit = isset($_POST['limit']) ? (int) metis_runtime_unslash($_POST['limit']) : 500;
+    $limit = isset(metis_request_post()['limit']) ? (int) metis_runtime_unslash(metis_request_post()['limit']) : 500;
     $result = metis_people_workspace_import_directory_snapshot($cfg, $limit, false, 0);
     if (empty($result['ok'])) {
         metis_runtime_send_json_error('Import failed.', 400);
@@ -2283,8 +2283,8 @@ metis_ajax_register_handler( 'metis_people_workspace_full_sync_directory', funct
     if (empty($cfg['ok'])) {
         metis_runtime_send_json_error('Workspace configuration is missing.', 400);
     }
-    $user_limit = isset($_POST['user_limit']) ? (int) metis_runtime_unslash($_POST['user_limit']) : 800;
-    $group_limit = isset($_POST['group_limit']) ? (int) metis_runtime_unslash($_POST['group_limit']) : 400;
+    $user_limit = isset(metis_request_post()['user_limit']) ? (int) metis_runtime_unslash(metis_request_post()['user_limit']) : 800;
+    $group_limit = isset(metis_request_post()['group_limit']) ? (int) metis_runtime_unslash(metis_request_post()['group_limit']) : 400;
     $result = metis_people_workspace_import_directory_snapshot($cfg, $user_limit, true, $group_limit);
     if (empty($result['ok'])) {
         metis_runtime_send_json_error('Full sync failed.', 400);
@@ -2466,7 +2466,7 @@ metis_ajax_register_handler( 'metis_people_workspace_get_role_map', function () 
 
 metis_ajax_register_handler( 'metis_people_workspace_inspect_user_attributes', function () {
     metis_people_workspace_ajax_verify();
-    $email = strtolower(trim((string) (isset($_POST['email']) ? metis_email_clean(metis_runtime_unslash($_POST['email'])) : '')));
+    $email = strtolower(trim((string) (isset(metis_request_post()['email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['email'])) : '')));
     if (!metis_email_is_valid($email)) {
         metis_runtime_send_json_error('A valid user email is required.', 400);
     }

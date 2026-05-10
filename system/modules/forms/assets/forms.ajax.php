@@ -14,11 +14,11 @@ function metis_forms_ajax_current_user_id(): int {
 }
 
 function metis_forms_ajax_post_value( string $key, mixed $default = '' ): mixed {
-    if ( ! isset( $_POST[ $key ] ) ) {
+    if ( ! isset( metis_request_post()[ $key ] ) ) {
         return $default;
     }
 
-    return metis_runtime_unslash( $_POST[ $key ] );
+    return metis_runtime_unslash( metis_request_post()[ $key ] );
 }
 
 function metis_forms_ajax_post_json_array( string $key ): array {

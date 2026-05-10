@@ -418,10 +418,10 @@ metis_ajax_register_handler( 'metis_contacts_save', function () {
     }
 
     $result = metis_contacts_create_contact( [
-        'first_name' => (string) ( isset( $_POST['first_name'] ) ? metis_runtime_unslash( $_POST['first_name'] ) : '' ),
-        'last_name' => (string) ( isset( $_POST['last_name'] ) ? metis_runtime_unslash( $_POST['last_name'] ) : '' ),
-        'email' => (string) ( isset( $_POST['email'] ) ? metis_runtime_unslash( $_POST['email'] ) : '' ),
-        'phone' => (string) ( isset( $_POST['phone'] ) ? metis_runtime_unslash( $_POST['phone'] ) : '' ),
+        'first_name' => (string) ( isset( metis_request_post()['first_name'] ) ? metis_runtime_unslash( metis_request_post()['first_name'] ) : '' ),
+        'last_name' => (string) ( isset( metis_request_post()['last_name'] ) ? metis_runtime_unslash( metis_request_post()['last_name'] ) : '' ),
+        'email' => (string) ( isset( metis_request_post()['email'] ) ? metis_runtime_unslash( metis_request_post()['email'] ) : '' ),
+        'phone' => (string) ( isset( metis_request_post()['phone'] ) ? metis_runtime_unslash( metis_request_post()['phone'] ) : '' ),
     ] );
 
     if ( empty( $result['success'] ) ) {
@@ -451,31 +451,31 @@ metis_ajax_register_handler( 'metis_contact_detail_save', function () {
     $newsletter_subs_table = Metis_Tables::get( 'newsletter_subs' );
     $newsletter_lists_table = Metis_Tables::get( 'newsletter_lists' );
 
-    $cid   = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $first = isset( $_POST['first_name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['first_name'] ) ) : '';
-    $last  = isset( $_POST['last_name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['last_name'] ) ) : '';
-    $email = isset( $_POST['email'] ) ? metis_email_clean( metis_runtime_unslash( $_POST['email'] ) ) : '';
-    $phone = isset( $_POST['phone'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['phone'] ) ) : '';
-    $preferred_name = isset( $_POST['preferred_name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['preferred_name'] ) ) : '';
-    $preferred_contact = isset( $_POST['preferred_contact_method'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['preferred_contact_method'] ) ) : '';
-    $address = isset( $_POST['address'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['address'] ) ) : '';
-    $city = isset( $_POST['city'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['city'] ) ) : '';
-    $state = isset( $_POST['state'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['state'] ) ) : '';
-    $zip = isset( $_POST['zip'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['zip'] ) ) : '';
-    $birthday = isset( $_POST['birthday'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['birthday'] ) ) : '';
-    $spouse_name = isset( $_POST['spouse_name'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['spouse_name'] ) ) : null;
-    $household_id = isset( $_POST['household_id'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['household_id'] ) ) : '';
-    $source_code = isset( $_POST['source_code'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['source_code'] ) ) : null;
-    $first_contacted = isset( $_POST['first_contacted'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['first_contacted'] ) ) : null;
-    $staff_owner = isset( $_POST['staff_owner'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['staff_owner'] ) ) : null;
-    $do_not_contact = isset( $_POST['do_not_contact'] ) ? ( ! empty( metis_runtime_unslash( $_POST['do_not_contact'] ) ) ? 1 : 0 ) : 0;
-    $volunteer_status = isset( $_POST['volunteer_status'] ) ? ( ! empty( metis_runtime_unslash( $_POST['volunteer_status'] ) ) ? 1 : 0 ) : 0;
-    $anonymous_donor = isset( $_POST['anonymous_donor'] ) ? ( ! empty( metis_runtime_unslash( $_POST['anonymous_donor'] ) ) ? 1 : 0 ) : 0;
-    $relationships_json = isset( $_POST['relationships_json'] ) ? metis_runtime_unslash( $_POST['relationships_json'] ) : '[]';
-    $additional_emails_json = isset( $_POST['additional_emails_json'] ) ? metis_runtime_unslash( $_POST['additional_emails_json'] ) : '[]';
+    $cid   = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $first = isset( metis_request_post()['first_name'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['first_name'] ) ) : '';
+    $last  = isset( metis_request_post()['last_name'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['last_name'] ) ) : '';
+    $email = isset( metis_request_post()['email'] ) ? metis_email_clean( metis_runtime_unslash( metis_request_post()['email'] ) ) : '';
+    $phone = isset( metis_request_post()['phone'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['phone'] ) ) : '';
+    $preferred_name = isset( metis_request_post()['preferred_name'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['preferred_name'] ) ) : '';
+    $preferred_contact = isset( metis_request_post()['preferred_contact_method'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['preferred_contact_method'] ) ) : '';
+    $address = isset( metis_request_post()['address'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['address'] ) ) : '';
+    $city = isset( metis_request_post()['city'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['city'] ) ) : '';
+    $state = isset( metis_request_post()['state'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['state'] ) ) : '';
+    $zip = isset( metis_request_post()['zip'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['zip'] ) ) : '';
+    $birthday = isset( metis_request_post()['birthday'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['birthday'] ) ) : '';
+    $spouse_name = isset( metis_request_post()['spouse_name'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['spouse_name'] ) ) : null;
+    $household_id = isset( metis_request_post()['household_id'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['household_id'] ) ) : '';
+    $source_code = isset( metis_request_post()['source_code'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['source_code'] ) ) : null;
+    $first_contacted = isset( metis_request_post()['first_contacted'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['first_contacted'] ) ) : null;
+    $staff_owner = isset( metis_request_post()['staff_owner'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['staff_owner'] ) ) : null;
+    $do_not_contact = isset( metis_request_post()['do_not_contact'] ) ? ( ! empty( metis_runtime_unslash( metis_request_post()['do_not_contact'] ) ) ? 1 : 0 ) : 0;
+    $volunteer_status = isset( metis_request_post()['volunteer_status'] ) ? ( ! empty( metis_runtime_unslash( metis_request_post()['volunteer_status'] ) ) ? 1 : 0 ) : 0;
+    $anonymous_donor = isset( metis_request_post()['anonymous_donor'] ) ? ( ! empty( metis_runtime_unslash( metis_request_post()['anonymous_donor'] ) ) ? 1 : 0 ) : 0;
+    $relationships_json = isset( metis_request_post()['relationships_json'] ) ? metis_runtime_unslash( metis_request_post()['relationships_json'] ) : '[]';
+    $additional_emails_json = isset( metis_request_post()['additional_emails_json'] ) ? metis_runtime_unslash( metis_request_post()['additional_emails_json'] ) : '[]';
     $newsletter_list_ids = [];
-    if ( isset( $_POST['newsletter_list_ids'] ) ) {
-        $decoded_newsletters = json_decode( (string) metis_runtime_unslash( $_POST['newsletter_list_ids'] ), true );
+    if ( isset( metis_request_post()['newsletter_list_ids'] ) ) {
+        $decoded_newsletters = json_decode( (string) metis_runtime_unslash( metis_request_post()['newsletter_list_ids'] ), true );
         if ( is_array( $decoded_newsletters ) ) {
             $newsletter_list_ids = array_values( array_unique( array_map( 'intval', $decoded_newsletters ) ) );
         }
@@ -1019,9 +1019,9 @@ metis_ajax_register_handler( 'metis_contact_inline_update', function () {
     $contacts_table = Metis_Tables::get( 'contacts' );
     $details_table  = Metis_Tables::get( 'contact_details' );
 
-    $cid = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $field = isset( $_POST['field'] ) ? metis_key_clean( metis_runtime_unslash( $_POST['field'] ) ) : '';
-    $value = isset( $_POST['value'] ) ? metis_runtime_unslash( $_POST['value'] ) : '';
+    $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $field = isset( metis_request_post()['field'] ) ? metis_key_clean( metis_runtime_unslash( metis_request_post()['field'] ) ) : '';
+    $value = isset( metis_request_post()['value'] ) ? metis_runtime_unslash( metis_request_post()['value'] ) : '';
 
     if ( $cid === '' ) {
         metis_runtime_send_json_error( 'Invalid inline update payload.', 400 );
@@ -1483,8 +1483,8 @@ metis_ajax_register_handler( 'metis_contact_remove_additional_email', function (
     $contacts_table = Metis_Tables::get( 'contacts' );
     $details_table  = Metis_Tables::get( 'contact_details' );
 
-    $cid = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $email_to_remove = isset( $_POST['email'] ) ? metis_email_clean( metis_runtime_unslash( $_POST['email'] ) ) : '';
+    $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $email_to_remove = isset( metis_request_post()['email'] ) ? metis_email_clean( metis_runtime_unslash( metis_request_post()['email'] ) ) : '';
     $email_to_remove = strtolower( trim( $email_to_remove ) );
 
     if ( $cid === '' || $email_to_remove === '' ) {
@@ -1625,8 +1625,8 @@ metis_ajax_register_handler( 'metis_contact_add_additional_email', function () {
     $contacts_table = Metis_Tables::get( 'contacts' );
     $details_table  = Metis_Tables::get( 'contact_details' );
 
-    $cid = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $new_email = isset( $_POST['email'] ) ? metis_email_clean( metis_runtime_unslash( $_POST['email'] ) ) : '';
+    $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $new_email = isset( metis_request_post()['email'] ) ? metis_email_clean( metis_runtime_unslash( metis_request_post()['email'] ) ) : '';
     $new_email = strtolower( trim( $new_email ) );
     if ( $cid === '' || ! metis_email_is_valid( $new_email ) ) {
         metis_runtime_send_json_error( 'Valid CID and email are required.', 400 );
@@ -1736,8 +1736,8 @@ metis_ajax_register_handler( 'metis_contact_add_note', function () {
     $contacts_table = Metis_Tables::get( 'contacts' );
     $notes_table    = Metis_Tables::get( 'contact_notes' );
 
-    $cid  = isset( $_POST['cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['cid'] ) ) : '';
-    $note = isset( $_POST['note'] ) ? metis_textarea_clean( metis_runtime_unslash( $_POST['note'] ) ) : '';
+    $cid  = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
+    $note = isset( metis_request_post()['note'] ) ? metis_textarea_clean( metis_runtime_unslash( metis_request_post()['note'] ) ) : '';
 
     if ( $cid === '' || $note === '' ) {
         metis_runtime_send_json_error( 'CID and note are required.', 400 );

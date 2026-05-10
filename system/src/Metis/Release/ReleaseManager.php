@@ -1783,7 +1783,23 @@ final class ReleaseManager {
     }
 
     private function runCommand( array $command ): array {
-        return ( new ProcessRunner() )->run( $command, \METIS_PATH, [ 'service' => 'release' ] );
+        return ( new ProcessRunner() )->run( $command, \METIS_PATH, [
+            'security_context' => [
+                'operation' => 'release.process.execute',
+                'source' => self::class,
+            ],
+            'audit_context' => [
+                'event' => 'release_process_execution',
+                'resource' => 'release',
+            ],
+            'permission_context' => [
+                'module' => 'settings',
+                'permission' => 'system.release.execute',
+                'enforce' => false,
+                'preauthorized' => true,
+                'authorization_source' => 'release_manager_guard',
+            ],
+        ] );
     }
 
     private function runCommandWithExec( array $command ): array {

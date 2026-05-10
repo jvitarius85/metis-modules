@@ -158,16 +158,23 @@ function metis_install_db(): void {
         CREATE TABLE IF NOT EXISTS {$media_files} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             public_token VARCHAR(64) NOT NULL,
+            storage_class VARCHAR(32) NOT NULL DEFAULT 'legacy',
             storage_path VARCHAR(512) NOT NULL,
+            access_expires_at DATETIME DEFAULT NULL,
             file_name VARCHAR(255) NOT NULL,
             mime_type VARCHAR(191) NOT NULL,
             size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            folder_path VARCHAR(255) NOT NULL DEFAULT '',
+            category_key VARCHAR(80) NOT NULL DEFAULT '',
             uploaded_by BIGINT UNSIGNED DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY public_token (public_token),
+            KEY storage_class (storage_class),
             KEY created_at (created_at),
             KEY mime_type (mime_type),
+            KEY folder_path (folder_path),
+            KEY category_key (category_key),
             KEY uploaded_by (uploaded_by)
         ) {$charset_collate};
     ";
@@ -417,11 +424,11 @@ function metis_db_maintenance_service(): \Metis\Core\Services\MaintenanceService
 }
 
 function metis_db_maintenance_request_matches( string $query_arg ): bool {
-    if ( isset( $_POST['maintenance_action'] ) && metis_key_clean( (string) $_POST['maintenance_action'] ) === metis_key_clean( $query_arg ) ) {
+    if ( isset( metis_request_post()['maintenance_action'] ) && metis_key_clean( (string) metis_request_post()['maintenance_action'] ) === metis_key_clean( $query_arg ) ) {
         return true;
     }
 
-    return isset( $_GET[ $query_arg ] );
+    return isset( metis_request_get()[ $query_arg ] );
 }
 
 function metis_db_run_maintenance_action( string $query_arg, string $nonce_action, string $title, string $message, callable $callback, string $audit_action ): void {

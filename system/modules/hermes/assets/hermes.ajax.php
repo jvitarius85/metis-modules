@@ -105,45 +105,45 @@ metis_ajax_register_handler( 'metis_hermes_bootstrap', function () {
 
 metis_ajax_register_handler( 'metis_hermes_query', function () {
     metis_hermes_ajax_verify( false );
-    $query = metis_text_clean( metis_runtime_unslash( $_POST['query'] ?? '' ) );
-    $session_code = metis_text_clean( metis_runtime_unslash( $_POST['session_code'] ?? '' ) );
+    $query = metis_text_clean( metis_runtime_unslash( metis_request_post()['query'] ?? '' ) );
+    $session_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['session_code'] ?? '' ) );
     $runtime_context = [
-        'current_route' => metis_text_clean( metis_runtime_unslash( $_POST['current_route'] ?? '' ) ),
-        'current_module' => metis_text_clean( metis_runtime_unslash( $_POST['current_module'] ?? '' ) ),
-        'current_topic' => metis_text_clean( metis_runtime_unslash( $_POST['current_topic'] ?? '' ) ),
+        'current_route' => metis_text_clean( metis_runtime_unslash( metis_request_post()['current_route'] ?? '' ) ),
+        'current_module' => metis_text_clean( metis_runtime_unslash( metis_request_post()['current_module'] ?? '' ) ),
+        'current_topic' => metis_text_clean( metis_runtime_unslash( metis_request_post()['current_topic'] ?? '' ) ),
     ];
     metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->converse( $query, $session_code, $runtime_context ) );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_diagnostics', function () {
     metis_hermes_ajax_verify( false );
-    $query = metis_text_clean( metis_runtime_unslash( $_POST['query'] ?? '' ) );
-    $session_code = metis_text_clean( metis_runtime_unslash( $_POST['session_code'] ?? '' ) );
+    $query = metis_text_clean( metis_runtime_unslash( metis_request_post()['query'] ?? '' ) );
+    $session_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['session_code'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->diagnostics( $query, $session_code ) );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_preview_action', function () {
     metis_hermes_ajax_verify( false );
-    $action_code = metis_text_clean( metis_runtime_unslash( $_POST['action_code'] ?? '' ) );
+    $action_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['action_code'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->previewAction( $action_code ) );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_approve_action', function () {
     metis_hermes_ajax_verify( true );
-    $action_code = metis_text_clean( metis_runtime_unslash( $_POST['action_code'] ?? '' ) );
-    $note = metis_text_clean( metis_runtime_unslash( $_POST['note'] ?? '' ) );
+    $action_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['action_code'] ?? '' ) );
+    $note = metis_text_clean( metis_runtime_unslash( metis_request_post()['note'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => [ 'action' => metis_hermes_gateway()->approveAction( $action_code, $note ) ] );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_execute_action', function () {
     metis_hermes_ajax_verify( true );
-    $action_code = metis_text_clean( metis_runtime_unslash( $_POST['action_code'] ?? '' ) );
+    $action_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['action_code'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->executeAction( $action_code ) );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_reveal_secret', function () {
     metis_hermes_ajax_verify( true );
-    $reveal_token = metis_text_clean( metis_runtime_unslash( $_POST['reveal_token'] ?? '' ) );
+    $reveal_token = metis_text_clean( metis_runtime_unslash( metis_request_post()['reveal_token'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->revealSecret( $reveal_token ) );
 } );
 

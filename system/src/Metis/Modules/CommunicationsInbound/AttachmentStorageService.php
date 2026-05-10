@@ -75,7 +75,17 @@ final class AttachmentStorageService {
                 }
 
                 $filename = $this->attachmentFileName( $attachment );
-                $stored_media = \metis_store_upload_bits( $filename, $bytes, self::allowedMimeMap() );
+                $stored_media = \metis_store_protected_media(
+                    $filename,
+                    $bytes,
+                    self::allowedMimeMap(),
+                    [
+                        'access_ttl_seconds' => 30 * DAY_IN_SECONDS,
+                        'folder_path' => 'communications/inbound',
+                        'category_key' => 'communications_inbound',
+                        'retention_key' => 'communications_inbound_attachment',
+                    ]
+                );
                 if ( ! empty( $stored_media['error'] ) ) {
                     $status = str_contains( strtolower( (string) $stored_media['error'] ), 'not allowed' ) ? 'skipped' : 'failed';
                     $this->attachments->markFailed( $attachment_id, (string) $stored_media['error'], $status );

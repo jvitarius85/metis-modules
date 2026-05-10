@@ -740,7 +740,7 @@ class Metis_Logger {
             return false;
         }
 
-        $query_token = isset( $_GET['metis_log_token'] ) ? trim( metis_text_clean( (string) $_GET['metis_log_token'] ) ) : '';
+        $query_token = isset( metis_request_get()['metis_log_token'] ) ? trim( metis_text_clean( (string) metis_request_get()['metis_log_token'] ) ) : '';
         if ( $query_token !== '' ) {
             return hash_equals( $token, $query_token );
         }

@@ -29,10 +29,10 @@ metis_ajax_register_handler( 'metis_contacts_merge_duplicates', function () {
     $notes_table    = Metis_Tables::get( 'contact_notes' );
     $transactions_table = Metis_Tables::get( 'transactions' );
 
-    $primary_cid = isset( $_POST['primary_cid'] ) ? metis_text_clean( metis_runtime_unslash( $_POST['primary_cid'] ) ) : '';
+    $primary_cid = isset( metis_request_post()['primary_cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['primary_cid'] ) ) : '';
     $duplicate_cids = [];
-    if ( isset( $_POST['duplicate_cids'] ) ) {
-        $decoded = json_decode( (string) metis_runtime_unslash( $_POST['duplicate_cids'] ), true );
+    if ( isset( metis_request_post()['duplicate_cids'] ) ) {
+        $decoded = json_decode( (string) metis_runtime_unslash( metis_request_post()['duplicate_cids'] ), true );
         if ( is_array( $decoded ) ) {
             foreach ( $decoded as $item ) {
                 $candidate = metis_text_clean( (string) $item );
@@ -42,8 +42,8 @@ metis_ajax_register_handler( 'metis_contacts_merge_duplicates', function () {
             }
         }
     }
-    if ( empty( $duplicate_cids ) && isset( $_POST['duplicate_cid'] ) ) {
-        $candidate = metis_text_clean( metis_runtime_unslash( $_POST['duplicate_cid'] ) );
+    if ( empty( $duplicate_cids ) && isset( metis_request_post()['duplicate_cid'] ) ) {
+        $candidate = metis_text_clean( metis_runtime_unslash( metis_request_post()['duplicate_cid'] ) );
         if ( $candidate !== '' ) {
             $duplicate_cids[] = $candidate;
         }

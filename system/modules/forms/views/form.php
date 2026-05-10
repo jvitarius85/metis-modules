@@ -10,7 +10,7 @@ if ( ! metis_forms_can_view() ) {
 
 metis_forms_ensure_schema();
 
-$form_id = isset( $_GET['form_id'] ) ? (int) $_GET['form_id'] : 0;
+$form_id = isset( metis_request_get()['form_id'] ) ? (int) metis_request_get()['form_id'] : 0;
 $form = $form_id > 0 ? \Metis\Modules\Forms\Repository::getFormById( $form_id, false ) : null;
 if ( ! is_array( $form ) ) {
     echo '<div class="metis-alert metis-alert-error">That form could not be found.</div>';

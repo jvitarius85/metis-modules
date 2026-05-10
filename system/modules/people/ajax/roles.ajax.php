@@ -32,15 +32,15 @@ metis_ajax_register_handler( 'metis_people_save_role', function () {
     $perms_table = Metis_Tables::get('people_permissions');
     $role_perms_table = Metis_Tables::get('people_role_perms');
 
-    $role_id = isset($_POST['role_id']) ? (int) metis_runtime_unslash($_POST['role_id']) : 0;
-    $role_key = isset($_POST['role_key']) ? metis_key_clean(metis_runtime_unslash($_POST['role_key'])) : '';
-    $role_domain = isset($_POST['role_domain']) ? metis_key_clean(metis_runtime_unslash($_POST['role_domain'])) : 'metis';
-    $role_name = isset($_POST['role_name']) ? metis_text_clean(metis_runtime_unslash($_POST['role_name'])) : '';
-    $description = isset($_POST['description']) ? metis_textarea_clean(metis_runtime_unslash($_POST['description'])) : '';
+    $role_id = isset(metis_request_post()['role_id']) ? (int) metis_runtime_unslash(metis_request_post()['role_id']) : 0;
+    $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
+    $role_domain = isset(metis_request_post()['role_domain']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_domain'])) : 'metis';
+    $role_name = isset(metis_request_post()['role_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['role_name'])) : '';
+    $description = isset(metis_request_post()['description']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['description'])) : '';
 
     $permissions = [];
-    if (isset($_POST['permissions'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['permissions']), true);
+    if (isset(metis_request_post()['permissions'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['permissions']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $perm_key) {
                 $pk = metis_text_clean((string) $perm_key);
@@ -116,11 +116,11 @@ metis_ajax_register_handler( 'metis_people_bulk_role_action', function () {
     $roles_table = Metis_Tables::get('people_roles');
     $user_roles_table = Metis_Tables::get('people_user_roles');
 
-    $action_type = isset($_POST['bulk_action']) ? metis_key_clean(metis_runtime_unslash($_POST['bulk_action'])) : '';
-    $role_key = isset($_POST['role_key']) ? metis_key_clean(metis_runtime_unslash($_POST['role_key'])) : '';
+    $action_type = isset(metis_request_post()['bulk_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['bulk_action'])) : '';
+    $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
     $person_pids = [];
-    if (isset($_POST['person_pids'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['person_pids']), true);
+    if (isset(metis_request_post()['person_pids'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['person_pids']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $pid) {
                 $clean = metis_text_clean((string) $pid);
@@ -171,11 +171,11 @@ metis_ajax_register_handler( 'metis_people_bulk_stripe_role_action', function ()
     $people_table = Metis_Tables::get('people');
     $roles_table = Metis_Tables::get('people_roles');
 
-    $action_type = isset($_POST['bulk_action']) ? metis_key_clean(metis_runtime_unslash($_POST['bulk_action'])) : '';
-    $stripe_role = isset($_POST['stripe_role']) ? metis_key_clean(metis_runtime_unslash($_POST['stripe_role'])) : '';
+    $action_type = isset(metis_request_post()['bulk_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['bulk_action'])) : '';
+    $stripe_role = isset(metis_request_post()['stripe_role']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['stripe_role'])) : '';
     $person_pids = [];
-    if (isset($_POST['person_pids'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['person_pids']), true);
+    if (isset(metis_request_post()['person_pids'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['person_pids']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $pid) {
                 $clean = metis_text_clean((string) $pid);
@@ -254,11 +254,11 @@ metis_ajax_register_handler( 'metis_people_bulk_profile_action', function () {
     $db = metis_db();
     $people_table = Metis_Tables::get('people');
 
-    $position_type = isset($_POST['position_type']) ? metis_key_clean(metis_runtime_unslash($_POST['position_type'])) : '';
-    $position_value = isset($_POST['position_value']) ? metis_text_clean(metis_runtime_unslash($_POST['position_value'])) : '';
+    $position_type = isset(metis_request_post()['position_type']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['position_type'])) : '';
+    $position_value = isset(metis_request_post()['position_value']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['position_value'])) : '';
     $person_pids = [];
-    if (isset($_POST['person_pids'])) {
-        $decoded = json_decode((string) metis_runtime_unslash($_POST['person_pids']), true);
+    if (isset(metis_request_post()['person_pids'])) {
+        $decoded = json_decode((string) metis_runtime_unslash(metis_request_post()['person_pids']), true);
         if (is_array($decoded)) {
             foreach ($decoded as $pid) {
                 $clean = metis_text_clean((string) $pid);
