@@ -1188,6 +1188,246 @@ if ( ! function_exists( 'metis_settings_latest_backup_artifact' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_health_service_targets' ) ) {
+    function metis_settings_health_service_targets(): array {
+        return [
+            'cache' => 'Cache Service',
+            'files' => 'File Service',
+            'db' => 'Database Service',
+            'settings' => 'Settings Service',
+            'modules' => 'Module Loader',
+            'router' => 'Router Service',
+            'jobs' => 'Job Queue',
+            'job_workers' => 'Job Worker Registry',
+            'operations' => 'Operations Service',
+            'permissions' => 'Permissions Service',
+            'security_kernel' => 'Security Kernel',
+            'secure_enclave' => 'Secure Enclave',
+            'navigation' => 'Navigation Service',
+            'quick_actions' => 'Quick Actions Service',
+            'help' => 'Help Service',
+            'walkthroughs' => 'Walkthrough Service',
+            'hermes_library' => 'Hermes Definition Library',
+            'backup' => 'Backup Service',
+            'release' => 'Release Service',
+            'scheduler' => 'Scheduler Service',
+        ];
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_service_hydration_status' ) ) {
+    function metis_settings_health_service_hydration_status(): array {
+        if ( function_exists( 'metis_register_core_services' ) ) {
+            metis_register_core_services();
+        }
+
+        $hydrated = [];
+        $missing = [];
+        $failed = [];
+
+        foreach ( metis_settings_health_service_targets() as $service_key => $label ) {
+            $service_key = (string) $service_key;
+            $label = (string) $label;
+
+            if ( ! class_exists( '\Metis\Core\Application' ) || ! \Metis\Core\Application::has_service( $service_key ) ) {
+                $missing[] = $label;
+                continue;
+            }
+
+            try {
+                $service = \Metis\Core\Application::service( $service_key );
+                if ( ! is_object( $service ) ) {
+                    $failed[] = sprintf( '%s returned %s', $label, get_debug_type( $service ) );
+                    continue;
+                }
+                $hydrated[] = $label;
+            } catch ( Throwable $exception ) {
+                $failed[] = sprintf( '%s: %s', $label, $exception->getMessage() );
+            }
+        }
+
+        $status = empty( $missing ) && empty( $failed ) ? 'pass' : 'fail';
+        $message = $status === 'pass'
+            ? sprintf( '%d core services hydrated successfully.', count( $hydrated ) )
+            : trim( implode( ' ', array_filter( [
+                empty( $missing ) ? '' : 'Missing services: ' . implode( ', ', $missing ) . '.',
+                empty( $failed ) ? '' : 'Failed services: ' . implode( '; ', $failed ) . '.',
+            ] ) ) );
+
+        return [
+            'status' => $status,
+            'message' => $message,
+            'recommendation' => $status === 'pass' ? '' : 'Run auto-remediate to reload core services and inspect service boot failures.',
+            'hydrated' => $hydrated,
+            'missing' => $missing,
+            'failed' => $failed,
+        ];
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_help_service_status' ) ) {
+    function metis_settings_health_help_service_status(): array {
+        if ( function_exists( 'metis_register_core_services' ) ) {
+            metis_register_core_services();
+        }
+
+        $manifest_base = defined( 'METIS_MODULES_PATH' ) ? (string) METIS_MODULES_PATH : metis_settings_root_path() . '/system/modules';
+        $seed_base = defined( 'METIS_SRC_PATH' ) ? (string) METIS_SRC_PATH : metis_settings_root_path() . '/system/src';
+        $manifest_path = rtrim( $manifest_base, '/\\' ) . '/help/module.json';
+        $seed_path = rtrim( $seed_base, '/\\' ) . '/Metis/Core/Help/Seeds/HelpDocumentsSeed.php';
+        $problems = [];
+        $route_count = 0;
+
+        if ( ! is_file( $manifest_path ) ) {
+            $problems[] = 'Help module manifest is missing.';
+        } else {
+            $manifest = json_decode( (string) @file_get_contents( $manifest_path ), true );
+            if ( ! is_array( $manifest ) ) {
+                $problems[] = 'Help module manifest is invalid JSON.';
+            } else {
+                $routes = (array) ( $manifest['routes'] ?? [] );
+                $route_count = count( $routes );
+                $route_names = [];
+                foreach ( $routes as $route ) {
+                    if ( is_array( $route ) && isset( $route['name'] ) ) {
+                        $route_names[] = (string) $route['name'];
+                    }
+                }
+                foreach ( [ 'help.index', 'help.search', 'help.article', 'help.category' ] as $required_route ) {
+                    if ( ! in_array( $required_route, $route_names, true ) ) {
+                        $problems[] = sprintf( 'Required help route "%s" is not registered.', $required_route );
+                    }
+                }
+            }
+        }
+
+        if ( ! is_file( $seed_path ) ) {
+            $problems[] = 'Help document seed file is missing.';
+        }
+
+        if ( ! class_exists( '\Metis\Core\HelpSearchStore' ) ) {
+            $problems[] = 'HelpSearchStore is not loadable.';
+        }
+
+        if ( class_exists( '\Metis\Core\Application' ) && ! \Metis\Core\Application::has_service( 'help' ) ) {
+            $problems[] = 'Help service is not registered.';
+        }
+
+        $article_found = false;
+        $category_count = 0;
+        if ( class_exists( '\Metis\Core\HelpSearchStore' ) ) {
+            try {
+                $store = new \Metis\Core\HelpSearchStore();
+                $article_found = is_array( $store->articleBySlug( 'editing-a-user', false ) );
+                $tree = $store->navigationTree();
+                $category_count = is_array( $tree ) ? count( $tree ) : 0;
+                if ( ! $article_found ) {
+                    $problems[] = 'Seeded article "editing-a-user" is not available.';
+                }
+            } catch ( Throwable $exception ) {
+                $problems[] = 'Help search store failed: ' . $exception->getMessage();
+            }
+        }
+
+        $status = empty( $problems ) ? 'pass' : 'fail';
+
+        return [
+            'status' => $status,
+            'message' => $status === 'pass'
+                ? sprintf( 'Help service is hydrated with %d routes and %d populated categories.', $route_count, $category_count )
+                : implode( ' ', $problems ),
+            'recommendation' => $status === 'pass' ? '' : 'Run auto-remediate to seed help documents, rebuild the search index, and reload route caches.',
+            'article_found' => $article_found,
+            'category_count' => $category_count,
+            'route_count' => $route_count,
+            'problems' => $problems,
+        ];
+    }
+}
+
+if ( ! function_exists( 'metis_settings_health_hermes_library_status' ) ) {
+    function metis_settings_health_hermes_library_status(): array {
+        if ( function_exists( 'metis_register_core_services' ) ) {
+            metis_register_core_services();
+        }
+
+        if ( ! class_exists( '\Metis\Core\Application' ) || ! \Metis\Core\Application::has_service( 'hermes_library' ) ) {
+            return [
+                'status' => 'fail',
+                'message' => 'Hermes definition library service is not registered.',
+                'recommendation' => 'Run auto-remediate to reload core services and rebuild Hermes definition caches.',
+            ];
+        }
+
+        try {
+            $library_service = \Metis\Core\Application::service( 'hermes_library' );
+            if ( ! is_object( $library_service ) || ! method_exists( $library_service, 'library' ) ) {
+                return [
+                    'status' => 'fail',
+                    'message' => 'Hermes definition library service does not expose the library loader.',
+                    'recommendation' => 'Verify HermesDefinitionLibrary deployment and service registration.',
+                ];
+            }
+
+            $library = (array) $library_service->library();
+            $manifest = (array) ( $library['manifest'] ?? [] );
+            $context_packs = (array) ( $library['context_packs'] ?? [] );
+            $playbooks = (array) ( $library['playbooks'] ?? [] );
+            $missions = (array) ( $library['missions'] ?? [] );
+            $dynamic_layer = (array) ( $library['dynamic_layer'] ?? [] );
+
+            $expected_context = count( (array) ( $manifest['context_packs'] ?? [] ) );
+            $expected_playbooks = count( (array) ( $manifest['playbooks'] ?? [] ) );
+            $expected_missions = count( (array) ( $manifest['missions'] ?? [] ) );
+            $problems = [];
+
+            if ( $expected_context < 1 || count( $context_packs ) < $expected_context ) {
+                $problems[] = sprintf( 'Context packs loaded %d/%d.', count( $context_packs ), $expected_context );
+            }
+            if ( $expected_playbooks < 1 || count( $playbooks ) < $expected_playbooks ) {
+                $problems[] = sprintf( 'Playbooks loaded %d/%d.', count( $playbooks ), $expected_playbooks );
+            }
+            if ( $expected_missions < 1 || count( $missions ) < $expected_missions ) {
+                $problems[] = sprintf( 'Missions loaded %d/%d.', count( $missions ), $expected_missions );
+            }
+
+            foreach ( [ 'system', 'backup', 'permissions' ] as $required_context_pack ) {
+                if ( ! isset( $context_packs[ $required_context_pack ] ) ) {
+                    $problems[] = sprintf( 'Required context pack "%s" is missing.', $required_context_pack );
+                }
+            }
+            foreach ( [ 'system_health_diagnostics', 'permission_diagnostics' ] as $required_playbook ) {
+                if ( ! isset( $playbooks[ $required_playbook ] ) ) {
+                    $problems[] = sprintf( 'Required playbook "%s" is missing.', $required_playbook );
+                }
+            }
+            if ( empty( $dynamic_layer['schema'] ) || ! is_array( $dynamic_layer['schema'] ) ) {
+                $problems[] = 'Hermes dynamic context schema did not hydrate.';
+            }
+
+            $status = empty( $problems ) ? 'pass' : 'fail';
+
+            return [
+                'status' => $status,
+                'message' => $status === 'pass'
+                    ? sprintf( 'Hermes library hydrated %d context packs, %d playbooks, and %d missions.', count( $context_packs ), count( $playbooks ), count( $missions ) )
+                    : implode( ' ', $problems ),
+                'recommendation' => $status === 'pass' ? '' : 'Run auto-remediate to clear Hermes caches and reload deployed definitions.',
+                'context_packs' => count( $context_packs ),
+                'playbooks' => count( $playbooks ),
+                'missions' => count( $missions ),
+                'problems' => $problems,
+            ];
+        } catch ( Throwable $exception ) {
+            return [
+                'status' => 'fail',
+                'message' => 'Hermes definition library failed to load: ' . $exception->getMessage(),
+                'recommendation' => 'Verify system/config/hermes manifests and run auto-remediate to rebuild Hermes caches.',
+            ];
+        }
+    }
+}
+
 if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
     function metis_settings_build_scheduler_snapshot( string $timezone, string $date_format, string $time_format ): array {
         $timezone = metis_settings_normalize_timezone( $timezone );
@@ -1516,6 +1756,36 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                 ? 'Core cron and operation workers are registered for queue processing.'
                 : 'Missing queue workers: ' . implode( ', ', $missing_workers ) . '.',
             empty( $missing_workers ) ? '' : 'Load core services before draining the queue so scheduled work has executable workers.'
+        );
+
+        $service_hydration = metis_settings_health_service_hydration_status();
+        $add_check(
+            'core_service_hydration',
+            'Core Service Hydration',
+            'resilience',
+            (string) ( $service_hydration['status'] ?? 'fail' ),
+            (string) ( $service_hydration['message'] ?? 'Core service hydration could not be verified.' ),
+            (string) ( $service_hydration['recommendation'] ?? 'Run auto-remediate and inspect service boot failures.' )
+        );
+
+        $help_service = metis_settings_health_help_service_status();
+        $add_check(
+            'help_service_hydration',
+            'Help Service Hydration',
+            'resilience',
+            (string) ( $help_service['status'] ?? 'fail' ),
+            (string) ( $help_service['message'] ?? 'Help service hydration could not be verified.' ),
+            (string) ( $help_service['recommendation'] ?? 'Run auto-remediate to rebuild help service data.' )
+        );
+
+        $hermes_library = metis_settings_health_hermes_library_status();
+        $add_check(
+            'hermes_definition_library',
+            'Hermes Definition Library',
+            'security',
+            (string) ( $hermes_library['status'] ?? 'fail' ),
+            (string) ( $hermes_library['message'] ?? 'Hermes definition library hydration could not be verified.' ),
+            (string) ( $hermes_library['recommendation'] ?? 'Run auto-remediate to rebuild Hermes definition caches.' )
         );
 
         $system_cron_tasks = Metis_Cron_Manager::registered_tasks();

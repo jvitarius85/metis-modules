@@ -489,6 +489,22 @@ function metis_router_configure_middleware( Metis_Http_Router $router ): void {
     $router->push_global_middleware( 'request.normalize' );
 }
 
+function metis_request_path_strip_legacy_system_prefix( string $path ): string {
+    $path = '/' . ltrim( $path, '/' );
+    if ( $path === '/system' || ! str_starts_with( $path, '/system/' ) ) {
+        return $path;
+    }
+
+    $candidate = '/' . ltrim( substr( $path, strlen( '/system' ) ), '/' );
+    foreach ( [ '/admin', '/api', '/ajax', '/media', '/account', '/auth', '/login', '/logout', '/profile' ] as $app_prefix ) {
+        if ( $candidate === $app_prefix || str_starts_with( $candidate, $app_prefix . '/' ) ) {
+            return $candidate;
+        }
+    }
+
+    return $path;
+}
+
 function metis_request_path_relative_to_site(): string {
     $candidates = [
         (string) ( $_SERVER['REQUEST_URI'] ?? '' ),
@@ -532,6 +548,8 @@ function metis_request_path_relative_to_site(): string {
             $req_path = '/' . ltrim( substr( $req_path, strlen( $script_prefix ) ), '/' );
         }
     }
+
+    $req_path = metis_request_path_strip_legacy_system_prefix( $req_path );
 
     return '/' . ltrim($req_path, '/');
 }

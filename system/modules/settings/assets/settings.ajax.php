@@ -465,6 +465,111 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         $add_failure( 'cache.rebuild', 'Cache rebuild failed: ' . $e->getMessage() );
     }
 
+    try {
+        if ( $check_failing( 'core_service_hydration' ) ) {
+            if ( function_exists( 'metis_register_core_services' ) ) {
+                metis_register_core_services();
+            }
+
+            CacheService::clearGroup( 'modules' );
+            if ( \Metis\Core\Application::has_service( 'modules' ) ) {
+                $modules = \Metis\Core\Application::service( 'modules' );
+                if ( is_object( $modules ) && method_exists( $modules, 'reload' ) ) {
+                    $modules->reload();
+                }
+            }
+
+            $hydrated = [];
+            $missing = [];
+            foreach ( metis_settings_health_service_targets() as $service_key => $label ) {
+                $service_key = (string) $service_key;
+                $label = (string) $label;
+                if ( ! \Metis\Core\Application::has_service( $service_key ) ) {
+                    $missing[] = $label;
+                    continue;
+                }
+
+                $service = \Metis\Core\Application::service( $service_key );
+                if ( is_object( $service ) ) {
+                    $hydrated[] = $label;
+                } else {
+                    $missing[] = $label;
+                }
+            }
+
+            $actions[] = [
+                'action' => 'services.hydrate',
+                'result' => [
+                    'hydrated' => $hydrated,
+                    'missing' => $missing,
+                ],
+            ];
+        }
+    } catch ( Throwable $e ) {
+        $add_failure( 'services.hydrate', 'Core-service hydration remediation failed: ' . $e->getMessage() );
+    }
+
+    try {
+        if ( $check_failing( 'help_service_hydration' ) ) {
+            if ( function_exists( 'metis_register_core_services' ) ) {
+                metis_register_core_services();
+            }
+
+            if ( ! class_exists( '\Metis\Core\HelpSearchStore' ) ) {
+                throw new RuntimeException( 'HelpSearchStore is not loadable.' );
+            }
+
+            $store = new \Metis\Core\HelpSearchStore();
+            $seeded = $store->runSeeder( true );
+            $indexed = $store->rebuildSearchIndex();
+            CacheService::clearGroup( 'fragments' );
+
+            $actions[] = [
+                'action' => 'help.seed_and_index',
+                'result' => [
+                    'seeded' => $seeded,
+                    'indexed_articles' => $indexed,
+                ],
+            ];
+        }
+    } catch ( Throwable $e ) {
+        $add_failure( 'help.seed_and_index', 'Help-service remediation failed: ' . $e->getMessage() );
+    }
+
+    try {
+        if ( $check_failing( 'hermes_definition_library' ) ) {
+            if ( function_exists( 'metis_register_core_services' ) ) {
+                metis_register_core_services();
+            }
+
+            CacheService::clearGroup( 'hermes' );
+            if ( ! \Metis\Core\Application::has_service( 'hermes_library' ) ) {
+                throw new RuntimeException( 'Hermes definition library service is not registered.' );
+            }
+
+            $library_service = \Metis\Core\Application::service( 'hermes_library' );
+            if ( ! is_object( $library_service ) || ! method_exists( $library_service, 'library' ) ) {
+                throw new RuntimeException( 'Hermes definition library service is not loadable.' );
+            }
+
+            if ( method_exists( $library_service, 'cacheKey' ) ) {
+                CacheService::forget( (string) $library_service->cacheKey() );
+            }
+            $library = (array) $library_service->library();
+
+            $actions[] = [
+                'action' => 'hermes.definitions.reload',
+                'result' => [
+                    'context_packs' => count( (array) ( $library['context_packs'] ?? [] ) ),
+                    'playbooks' => count( (array) ( $library['playbooks'] ?? [] ) ),
+                    'missions' => count( (array) ( $library['missions'] ?? [] ) ),
+                ],
+            ];
+        }
+    } catch ( Throwable $e ) {
+        $add_failure( 'hermes.definitions.reload', 'Hermes-definition remediation failed: ' . $e->getMessage() );
+    }
+
     if ( \Metis\Core\Application::has_service( 'operations' ) ) {
         try {
             if (
