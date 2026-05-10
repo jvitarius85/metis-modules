@@ -44,6 +44,7 @@ Run:
 ```bash
 php system/tools/security_scan.php
 php system/tools/test_suite.php --filter=governance
+php system/tests/operational_governance_test.php
 ```
 
 Both commands must pass before deployment.

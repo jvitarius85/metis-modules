@@ -3,12 +3,16 @@ declare(strict_types=1);
 
 namespace Metis\Core\Cache;
 
+use Metis\Core\Services\FileService;
+
 final class FileCache {
     private const GROUPS = [ 'api', 'query', 'modules', 'hermes', 'fragments' ];
 
     private string $basePath;
+    private FileService $files;
 
     public function __construct(?string $basePath = null) {
+        $this->files = new FileService();
         $root = \defined('METIS_PATH') ? (string) \METIS_PATH : dirname(__DIR__, 4) . '/';
         $this->basePath = rtrim(str_replace('\\', '/', $basePath ?? ($root . 'storage/runtime/cache')), '/') . '/';
         $this->ensureDirectories();
@@ -23,19 +27,19 @@ final class FileCache {
         $raw = @file_get_contents($path);
         $payload = is_string($raw) ? json_decode($raw, true) : null;
         if (!is_array($payload)) {
-            @unlink($path);
+            $this->removeFile($path);
             return null;
         }
 
         $expires = (int) ($payload['expires'] ?? 0);
         if ($expires > 0 && $expires < time()) {
-            @unlink($path);
+            $this->removeFile($path);
             return null;
         }
 
         $version = (int) ($payload['version'] ?? 0);
         if ($version !== 2 || !array_key_exists('data', $payload)) {
-            @unlink($path);
+            $this->removeFile($path);
             return null;
         }
 
@@ -58,23 +62,13 @@ final class FileCache {
         }
 
         $path = $this->pathFor($group, $key);
-        $temp = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
-
-        if (@file_put_contents($temp, $encoded, LOCK_EX) === false) {
-            throw new \RuntimeException(sprintf('Unable to write cache file [%s].', $temp));
-        }
-
-        @chmod($temp, 0644);
-        if (!@rename($temp, $path)) {
-            @unlink($temp);
-            throw new \RuntimeException(sprintf('Unable to move cache file into place [%s].', $path));
-        }
+        $this->files->write($path, $encoded);
     }
 
     public function forget(string $group, string $key): void {
         $path = $this->pathFor($group, $key);
         if (is_file($path)) {
-            @unlink($path);
+            $this->removeFile($path);
         }
     }
 
@@ -86,7 +80,7 @@ final class FileCache {
 
         foreach ((array) glob($path . '*.cache') as $file) {
             if (is_file($file)) {
-                @unlink($file);
+                $this->removeFile((string) $file);
             }
         }
     }
@@ -102,7 +96,7 @@ final class FileCache {
             foreach ((array) glob($path . '*.cache') as $file) {
                 $filename = basename((string) $file, '.cache');
                 if ($prefix === '' || $filename === $prefix || str_starts_with($filename, $prefix . '_')) {
-                    @unlink($file);
+                    $this->removeFile((string) $file);
                 }
             }
         }
@@ -156,8 +150,12 @@ final class FileCache {
     }
 
     private function ensureDirectory(string $path): void {
-        if (!is_dir($path) && !mkdir($path, 0755, true) && !is_dir($path)) {
-            throw new \RuntimeException(sprintf('Unable to create cache directory [%s].', $path));
+        $this->files->ensureDirectory($path);
+    }
+
+    private function removeFile(string $path): void {
+        if (is_file($path)) {
+            $this->files->remove($path);
         }
     }
 }

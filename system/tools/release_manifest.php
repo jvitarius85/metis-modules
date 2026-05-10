@@ -1,14 +1,16 @@
 <?php
 declare(strict_types=1);
 
-if ( PHP_SAPI !== 'cli' ) {
-    fwrite( STDERR, "This tool must be run from the command line.\n" );
-    exit( 1 );
-}
-
 $root = dirname( __DIR__, 2 );
 
+if ( ! defined( 'METIS_PATH' ) ) {
+    define( 'METIS_PATH', rtrim( $root, '/\\' ) . '/' );
+}
+
+require_once $root . '/system/src/Metis/Core/Runtime/CliToolGuard.php';
+require_once $root . '/system/src/Metis/Core/Services/FileService.php';
 require_once $root . '/system/src/Metis/Core/Version.php';
+metis_require_cli_tool();
 
 function metis_release_manifest_usage(): never {
     $script = 'php system/tools/release_manifest.php';
@@ -76,15 +78,12 @@ function metis_release_manifest_read( string $path ): array {
 }
 
 function metis_release_manifest_write( string $path, array $manifest ): void {
-    $dir = dirname( $path );
-    if ( ! is_dir( $dir ) && ! mkdir( $dir, 0775, true ) && ! is_dir( $dir ) ) {
-        throw new RuntimeException( 'Could not create manifest directory.' );
-    }
-
     $json = json_encode( $manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
-    if ( ! is_string( $json ) || file_put_contents( $path, $json . PHP_EOL, LOCK_EX ) === false ) {
+    if ( ! is_string( $json ) ) {
         throw new RuntimeException( 'Could not write release manifest.' );
     }
+
+    ( new \Metis\Core\Services\FileService() )->write( $path, $json . PHP_EOL );
 }
 
 $command = (string) ( $argv[1] ?? '' );

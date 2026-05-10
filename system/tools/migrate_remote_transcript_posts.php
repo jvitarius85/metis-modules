@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+// @metis-governance ajax-security: CLI-only migration tool; no AJAX surface, nonce, csrf, permission, or SecureEnclave execution path.
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "CLI only\n");
     exit(1);

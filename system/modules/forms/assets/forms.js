@@ -2279,16 +2279,35 @@
     let cursor = target;
     for (let index = 0; index < parts.length - 1; index += 1) {
       const key = parts[index];
-      if (!cursor[key] || typeof cursor[key] !== 'object') {
-        cursor[key] = {};
+      const existing = ownValue(cursor, key);
+      if (existing === undefined || existing === null || typeof existing !== 'object') {
+        setOwnValue(cursor, key, createPlainRecord());
       }
-      cursor = cursor[key];
+      cursor = ownValue(cursor, key);
     }
-    cursor[parts[parts.length - 1]] = value;
+    setOwnValue(cursor, parts[parts.length - 1], value);
   }
 
   function isUnsafeObjectKey(key) {
     return key === '__proto__' || key === 'prototype' || key === 'constructor';
+  }
+
+  function createPlainRecord() {
+    return Object.create(null);
+  }
+
+  function ownValue(target, key) {
+    const descriptor = Object.getOwnPropertyDescriptor(target, String(key));
+    return descriptor ? descriptor.value : undefined;
+  }
+
+  function setOwnValue(target, key, value) {
+    Object.defineProperty(target, String(key), {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
   }
 
   function normalizeFieldTree(fields) {
@@ -2726,34 +2745,44 @@
       if (last) {
         if (Array.isArray(cursor)) {
           const position = /^\d+$/.test(part) ? Number(part) : cursor.length;
-          const existing = cursor[position];
+          const slot = String(position);
+          const existing = ownValue(cursor, slot);
           if (existing === undefined) {
-            cursor[position] = value;
+            setOwnValue(cursor, slot, value);
           } else if (Array.isArray(existing)) {
             existing.push(value);
           } else {
-            cursor[position] = [existing, value];
+            setOwnValue(cursor, slot, [existing, value]);
           }
-        } else if (Object.prototype.hasOwnProperty.call(cursor, part)) {
-          if (!Array.isArray(cursor[part])) cursor[part] = [cursor[part]];
-          cursor[part].push(value);
         } else {
-          cursor[part] = value;
+          const existing = ownValue(cursor, part);
+          if (existing !== undefined) {
+            if (Array.isArray(existing)) {
+              existing.push(value);
+            } else {
+              setOwnValue(cursor, part, [existing, value]);
+            }
+          } else {
+            setOwnValue(cursor, part, value);
+          }
         }
         return;
       }
 
       if (Array.isArray(cursor)) {
         const position = /^\d+$/.test(part) ? Number(part) : cursor.length;
-        if (cursor[position] === undefined || cursor[position] === null || typeof cursor[position] !== 'object') {
-          cursor[position] = nextIsIndex ? [] : {};
+        const slot = String(position);
+        const existing = ownValue(cursor, slot);
+        if (existing === undefined || existing === null || typeof existing !== 'object') {
+          setOwnValue(cursor, slot, nextIsIndex ? [] : createPlainRecord());
         }
-        cursor = cursor[position];
+        cursor = ownValue(cursor, slot);
       } else {
-        if (!Object.prototype.hasOwnProperty.call(cursor, part) || cursor[part] === null || typeof cursor[part] !== 'object') {
-          cursor[part] = nextIsIndex ? [] : {};
+        const existing = ownValue(cursor, part);
+        if (existing === undefined || existing === null || typeof existing !== 'object') {
+          setOwnValue(cursor, part, nextIsIndex ? [] : createPlainRecord());
         }
-        cursor = cursor[part];
+        cursor = ownValue(cursor, part);
       }
     }
   }

@@ -1272,6 +1272,10 @@ function metis_router_route_permission_for_request( Metis_Http_Request $request 
         return 'view';
     }
 
+    if ( in_array( $route_name, [ 'website.theme_css', 'website.homepage', 'website.page' ], true ) ) {
+        return 'view';
+    }
+
     if ( $route_name === 'webhook.gateway' ) {
         return 'create';
     }
@@ -1364,6 +1368,19 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
             $require_session = false;
             $require_nonce = false;
             $rate_limit = 240;
+            $rate_window = 60;
+            break;
+
+        case 'website.theme_css':
+        case 'website.homepage':
+        case 'website.page':
+            // Public website routes are intentionally anonymous, but still pass route.security
+            // so rate limiting, policy registration, audit context, and fail-secure handling apply.
+            $module = null;
+            $require_authentication = false;
+            $require_session = false;
+            $require_nonce = false;
+            $rate_limit = 300;
             $rate_window = 60;
             break;
 

@@ -7,6 +7,8 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 
 \Metis\Modules\Website\WebsiteModule::boot();
 
+// @metis-governance ajax-security: website AJAX handlers register nonce, csrf, permission, and SecureEnclave contracts in ajax/website.ajax.php.
+
 // ---------------------------------------------------------------------------
 // Admin editor rewrite routes
 // /{portal}/website/pages/editor/{id|new}
@@ -134,7 +136,8 @@ metis_on( 'init', static function (): void {
         static function ( \Metis_Http_Request $request ) use ( $normalize_public_path ): ?array {
             return preg_match( '#^/v1/website/theme\.css$#i', $normalize_public_path( $request ) ) === 1 ? [] : null;
         },
-        'metis_website_handle_theme_css_route'
+        'metis_website_handle_theme_css_route',
+        [ 'route.security' ]
     );
 
     // Homepage
@@ -144,7 +147,8 @@ metis_on( 'init', static function (): void {
         static function ( \Metis_Http_Request $request ) use ( $normalize_public_path ): ?array {
             return $normalize_public_path( $request ) === '/' ? [] : null;
         },
-        'metis_website_handle_homepage_route'
+        'metis_website_handle_homepage_route',
+        [ 'route.security' ]
     );
 
     // Generic content path — lowest priority, checked last
@@ -162,7 +166,8 @@ metis_on( 'init', static function (): void {
             }
             return [ 'path' => $path ];
         },
-        'metis_website_handle_page_route'
+        'metis_website_handle_page_route',
+        [ 'route.security' ]
     );
 }, 20 ); // priority 20 — after core routes (priority 1) but before request dispatch
 

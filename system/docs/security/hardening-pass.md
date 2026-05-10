@@ -12,16 +12,22 @@ This pass tightened Metis around privileged runtime behavior without changing th
 - Direct `storage/` access is blocked in Apache rules. Media must be served through the front controller.
 - Sensitive tool scripts now have runtime CLI guards, including backup, restore, docs generation, and repair utilities.
 - `$_REQUEST` has been removed from non-vendor PHP so cookies cannot be mixed into request action or nonce lookup paths.
+- Raw request superglobal approvals are empty; `RequestRuntime.php` is the only SAPI request boundary.
+- CLI subprocess execution now routes through `ProcessRunner` with explicit CLI security, audit, and permission context.
+- Public website routes now attach route security policies so anonymous page/CSS rendering is rate-limited and audited through the same route policy path.
+- `FileService` now validates managed roots and audits writes, copies, removes, and permission changes without logging raw path values.
 - `system/tools/security_scan.php` provides a repo-local automated hardening scan with centralized, file-specific approved legacy exceptions.
 - `system/tests/security_governance_test.php` asserts the app-key, media, process, scanner, and Hermes governance contracts.
+- `system/tests/operational_governance_test.php` asserts process context enforcement, managed file operations, and public website route policy wiring.
 - Governance allowlists live in `system/config/governance.php`; scan changes must be reviewed as boundary changes and must not use broad module/tool/core prefixes.
 
 ## Approved Gateways
 
 - Nonce and signing key access: `metis_runtime_require_app_key()`.
 - Media/file serving: `metis_kernel_handle_public_storage_request()`, media storage class helpers, and upload helpers in `UploadsRuntime.php`.
-- DB access: `DatabaseService`, `MetisRuntimeDbConnection`, core schema/migration/install code, and explicit module repository/service layers.
-- Process execution: release, recovery, integrity, finance import services, and CLI tools only.
+- DB access: `DatabaseService`, `MetisRuntimeDbConnection`, core schema/migration/install code, and explicit module repository/service layers that call the DB service.
+- Process execution: `ProcessRunner` only.
+- File writes/removes: `FileService` or storage runtimes with managed-root validation and audit evidence.
 - Privileged AJAX and route writes: router request security, AJAX controller registry, Secure Enclave policies, permission checks, and audit logging.
 
 ## Deployment Rules
@@ -51,6 +57,7 @@ Run:
 find . -name "*.php" -not -path "./system/vendor/*" -print0 | xargs -0 -n1 php -l
 php system/tools/security_scan.php
 php system/tests/security_governance_test.php
+php system/tests/operational_governance_test.php
 php system/tests/system_audit_test.php
 php system/tools/test_suite.php
 ```
@@ -66,6 +73,6 @@ system/vendor/bin/psalm || true
 
 ## Remaining Risks
 
-- Direct superglobal usage still exists in legacy module AJAX/view code. New code should use the request abstraction, and the scan centralizes the approved legacy paths.
-- Some module SQL and process execution remains in established service/tool layers. New raw SQL or process calls must be added only through approved gateways or the scan should fail.
+- Some legacy module views and AJAX handlers still contain SQL statement text. Existing calls must execute through `DatabaseService`; follow-up extraction should move statement construction into repositories/services.
+- Some domain-specific file operations remain in older storage/runtime services. New privileged writes should route through `FileService` or audited storage helpers.
 - Protected/private media has token, expiration, permission, and audit hooks at the serving boundary. Existing modules still need to opt into protected/private storage where their domain data requires it.

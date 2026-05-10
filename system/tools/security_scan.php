@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once dirname( __DIR__ ) . '/src/Metis/Core/Runtime/CliToolGuard.php';
+require_once dirname( __DIR__ ) . '/src/Metis/Core/Runtime/CliProcessContext.php';
+require_once dirname( __DIR__ ) . '/src/Metis/Core/Services/ProcessRunner.php';
 metis_require_cli_tool();
 
 $root = dirname( __DIR__, 2 );
@@ -45,12 +47,17 @@ $record = static function ( string $check, string $message ) use ( &$failures ):
 };
 
 $syntax_failures = 0;
+$process_runner = new \Metis\Core\Services\ProcessRunner();
 foreach ( $php_files as $path ) {
-    $cmd = 'php -l ' . escapeshellarg( $path ) . ' 2>&1';
-    exec( $cmd, $out, $code );
-    if ( $code !== 0 ) {
+    $lint = $process_runner->run(
+        [ 'php', '-l', $path ],
+        $root,
+        metis_cli_process_context( 'security_scan.php_lint', 'system.security.scan', [ 'tool' => 'security_scan.php' ] ),
+        30
+    );
+    if ( (int) $lint['exit_code'] !== 0 ) {
         $syntax_failures++;
-        $record( 'php-lint', $rel( $path ) . ': ' . trim( implode( ' ', $out ) ) );
+        $record( 'php-lint', $rel( $path ) . ': ' . trim( (string) $lint['stdout'] . ' ' . (string) $lint['stderr'] ) );
     }
 }
 echo $syntax_failures === 0 ? "PASS php-lint\n" : "FAIL php-lint ({$syntax_failures})\n";

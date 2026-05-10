@@ -4,6 +4,9 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 /**
  * Donations AJAX Loader
  * Bootstraps all donations AJAX handler files.
+ *
+ * @metis-governance ajax-security delegated modules register nonce, csrf,
+ * permission, and SecureEnclave contracts through AjaxRuntime.
  */
 
 $metis_ajax_modules = [

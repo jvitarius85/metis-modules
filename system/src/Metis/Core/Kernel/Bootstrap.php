@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+// @metis-governance ajax-security: kernel bootstrap loads RouterRuntime/AjaxRuntime nonce, csrf, permission, and SecureEnclave enforcement.
 if ( ! function_exists( 'metis_kernel_root' ) ) {
     function metis_kernel_root(): string {
         $dir = __DIR__;

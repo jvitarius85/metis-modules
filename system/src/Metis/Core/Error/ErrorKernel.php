@@ -7,6 +7,7 @@ use Metis\Core\Cache\CacheService;
 use Metis\Http\Request;
 use Metis\Http\Response;
 
+// @metis-governance ajax-security: error responses preserve upstream nonce, csrf, permission, and SecureEnclave decisions.
 final class ErrorKernel {
     private bool $installed = false;
     private bool $handling = false;

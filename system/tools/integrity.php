@@ -20,6 +20,7 @@ $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
 
 require_once $root . '/src/Metis/Core/CoreBootstrap.php';
+require_once $root . '/src/Metis/Core/Services/FileService.php';
 metis_define_system_version( dirname( $root ) . '/' );
 metis_core_bootstrap( 'standalone_bootstrap' );
 
@@ -64,6 +65,7 @@ function metis_integrity_cli_relative_to_root( string $path ): string {
 }
 
 function metis_integrity_cli_write_config( string $private_key_path, string $public_key_path ): void {
+    $files = new \Metis\Core\Services\FileService();
     $config_path = METIS_CONFIG_PATH . 'integrity.php';
     $config = [
         'require_signature' => true,
@@ -71,19 +73,20 @@ function metis_integrity_cli_write_config( string $private_key_path, string $pub
         'public_key_path' => metis_integrity_cli_relative_to_root( $public_key_path ),
     ];
     $payload = "<?php\nreturn " . var_export( $config, true ) . ";\n";
-    file_put_contents( $config_path, $payload, LOCK_EX );
+    $files->write( $config_path, $payload );
     metis_standalone_invalidate_config_cache();
     metis_standalone_compiled_config( true );
 }
 
 function metis_integrity_cli_keygen( string $private_key_path, string $public_key_path ): array {
+    $files = new \Metis\Core\Services\FileService();
     $private_dir = dirname( $private_key_path );
     $public_dir = dirname( $public_key_path );
     if ( ! is_dir( $private_dir ) ) {
-        mkdir( $private_dir, 0775, true );
+        $files->ensureDirectory( $private_dir );
     }
     if ( ! is_dir( $public_dir ) ) {
-        mkdir( $public_dir, 0775, true );
+        $files->ensureDirectory( $public_dir );
     }
 
     $resource = openssl_pkey_new( [
@@ -104,10 +107,10 @@ function metis_integrity_cli_keygen( string $private_key_path, string $public_ke
         throw new RuntimeException( 'Failed to export public key.' );
     }
 
-    file_put_contents( $private_key_path, $private_key, LOCK_EX );
-    chmod( $private_key_path, 0600 );
-    file_put_contents( $public_key_path, (string) $details['key'], LOCK_EX );
-    chmod( $public_key_path, 0644 );
+    $files->write( $private_key_path, $private_key );
+    $files->setPermissions( $private_key_path, 0600 );
+    $files->write( $public_key_path, (string) $details['key'] );
+    $files->setPermissions( $public_key_path, 0644 );
 
     metis_integrity_cli_write_config( $private_key_path, $public_key_path );
 

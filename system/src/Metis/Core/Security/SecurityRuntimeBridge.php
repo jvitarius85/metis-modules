@@ -319,6 +319,9 @@ function metis_security_register_route_policies(): void {
     $register( new Metis_Security_Policy( 'route.newsletter_click.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.newsletter_unsubscribe.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.newsletter_manage.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.website_theme_css', null, 'view', false, false, false, null, 300, 60 ) );
+    $register( new Metis_Security_Policy( 'route.website_homepage', null, 'view', false, false, false, null, 300, 60 ) );
+    $register( new Metis_Security_Policy( 'route.website_page', null, 'view', false, false, false, null, 300, 60 ) );
 
     foreach ( [ 'view', 'edit', 'delete' ] as $permission ) {
         $register( new Metis_Security_Policy( 'route.contacts_carddav.contacts.' . $permission, 'contacts', $permission, true, false, false, null, 300, 60 ) );

@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This script must be run from the command line.\n");
-    exit(1);
-}
+require_once __DIR__ . '/../src/Metis/Core/Runtime/CliToolGuard.php';
+metis_require_cli_tool();
+require_once __DIR__ . '/../src/Metis/Core/Runtime/StandaloneBootstrap.php';
+require_once __DIR__ . '/../src/Metis/Services/DatabaseService.php';
 
 $args = $argv;
 array_shift($args);
@@ -35,36 +35,34 @@ $pass = (string) ($config['password'] ?? '');
 $name = (string) ($config['database'] ?? '');
 $prefix = (string) ($config['prefix'] ?? 'metis_');
 
-$mysqli = mysqli_init();
-if (!$mysqli) {
-    fwrite(STDERR, "Failed to initialize MySQL client.\n");
-    exit(1);
-}
+$db = new \Metis\Services\DatabaseService(
+    new \MetisRuntimeDbConnection(
+        $user,
+        $pass,
+        $name,
+        $host . ':' . $port,
+        $prefix
+    )
+);
 
-mysqli_report(MYSQLI_REPORT_OFF);
-$connected = @$mysqli->real_connect($host, $user, $pass, $name, $port);
-if (!$connected) {
-    fwrite(STDERR, "Database connection failed: " . mysqli_connect_error() . "\n");
-    exit(1);
-}
-
-$resolve_table = static function (mysqli $db, string $bare, string $legacy) use ($name): ?string {
+$resolve_table = static function (\Metis\Services\DatabaseService $db, string $bare, string $legacy): ?string {
     foreach ([$bare, $legacy] as $candidate) {
-        $sql = "SHOW TABLES FROM `" . $db->real_escape_string($name) . "` LIKE '" . $db->real_escape_string($candidate) . "'";
-        $result = $db->query($sql);
-        if ($result instanceof mysqli_result) {
-            $row = $result->fetch_row();
-            $result->free();
-            if (is_array($row) && isset($row[0]) && $row[0] === $candidate) {
-                return $candidate;
-            }
+        if (preg_match('/^[A-Za-z0-9_]+$/', $candidate) !== 1) {
+            continue;
+        }
+        $exists = (int) $db->scalar(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s',
+            [$candidate]
+        );
+        if ($exists > 0) {
+            return $candidate;
         }
     }
     return null;
 };
 
-$peopleTable = $resolve_table($mysqli, 'metis_people', $prefix . 'metis_people');
-$authTable = $resolve_table($mysqli, 'metis_auth_users', $prefix . 'metis_auth_users');
+$peopleTable = $resolve_table($db, 'metis_people', $prefix . 'metis_people');
+$authTable = $resolve_table($db, 'metis_auth_users', $prefix . 'metis_auth_users');
 
 if ($peopleTable === null) {
     fwrite(STDERR, "Could not find the Metis people table.\n");
@@ -80,15 +78,10 @@ $personSql = "SELECT id, pid, email, display_name, requires_2fa, totp_enabled, p
                  OR LOWER(workspace_email) = ?
                  OR pid = ?
               LIMIT 1";
-$personStmt = $mysqli->prepare($personSql);
-if (!$personStmt) {
-    fwrite(STDERR, "Failed to prepare person lookup.\n");
-    exit(1);
-}
-$personStmt->bind_param('sss', $identifierLower, $identifierLower, $identifierUpper);
-$personStmt->execute();
-$person = $personStmt->get_result()?->fetch_assoc() ?: null;
-$personStmt->close();
+$person = $db->fetchOne(
+    str_replace('?', '%s', $personSql),
+    [$identifierLower, $identifierLower, $identifierUpper]
+);
 
 if (!$person && $authTable !== null) {
     $authSql = "SELECT a.person_id, a.user_login, a.user_email
@@ -96,27 +89,17 @@ if (!$person && $authTable !== null) {
                 WHERE LOWER(a.user_login) = ?
                    OR LOWER(a.user_email) = ?
                 LIMIT 1";
-    $authStmt = $mysqli->prepare($authSql);
-    if ($authStmt) {
-        $authStmt->bind_param('ss', $identifierLower, $identifierLower);
-        $authStmt->execute();
-        $auth = $authStmt->get_result()?->fetch_assoc() ?: null;
-        $authStmt->close();
+    $auth = $db->fetchOne(
+        str_replace('?', '%s', $authSql),
+        [$identifierLower, $identifierLower]
+    );
 
-        if (is_array($auth) && (int) ($auth['person_id'] ?? 0) > 0) {
-            $personByIdSql = "SELECT id, pid, email, display_name, requires_2fa, totp_enabled, passkey_enabled
-                              FROM `{$peopleTable}`
-                              WHERE id = ?
-                              LIMIT 1";
-            $personByIdStmt = $mysqli->prepare($personByIdSql);
-            if ($personByIdStmt) {
-                $personId = (int) $auth['person_id'];
-                $personByIdStmt->bind_param('i', $personId);
-                $personByIdStmt->execute();
-                $person = $personByIdStmt->get_result()?->fetch_assoc() ?: null;
-                $personByIdStmt->close();
-            }
-        }
+    if (is_array($auth) && (int) ($auth['person_id'] ?? 0) > 0) {
+        $personByIdSql = "SELECT id, pid, email, display_name, requires_2fa, totp_enabled, passkey_enabled
+                          FROM `{$peopleTable}`
+                          WHERE id = %d
+                          LIMIT 1";
+        $person = $db->fetchOne($personByIdSql, [(int) $auth['person_id']]);
     }
 }
 
@@ -132,17 +115,10 @@ $updateSql = "UPDATE `{$peopleTable}`
                   passkey_enabled = 0,
                   totp_secret_enc = NULL,
                   updated_at = NOW()
-              WHERE id = ?";
-$updateStmt = $mysqli->prepare($updateSql);
-if (!$updateStmt) {
-    fwrite(STDERR, "Failed to prepare MFA reset update.\n");
-    exit(1);
-}
+              WHERE id = %d";
 
 $personId = (int) $person['id'];
-$updateStmt->bind_param('i', $personId);
-$ok = $updateStmt->execute();
-$updateStmt->close();
+$ok = $db->executePrepared($updateSql, [$personId]);
 
 if (!$ok) {
     fwrite(STDERR, "Failed to reset MFA for person #{$personId}.\n");

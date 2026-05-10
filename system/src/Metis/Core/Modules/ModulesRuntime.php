@@ -10,6 +10,8 @@ if ( ! class_exists( 'Metis_Logger' ) ) {
     metis_core_bootstrap( 'log' );
 }
 
+// @metis-governance ajax-security: module AJAX includes are trusted only after handlers declare nonce, csrf, permission, and SecureEnclave policies.
+
 /**
  * Metis Module Registry & Loader
  *

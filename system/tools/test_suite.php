@@ -1,12 +1,11 @@
 <?php
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This tool must be run from the command line.\n");
-    exit(1);
-}
-
 $root = dirname(__DIR__);
+require_once $root . '/src/Metis/Core/Runtime/CliToolGuard.php';
+require_once $root . '/src/Metis/Core/Runtime/CliProcessContext.php';
+require_once $root . '/src/Metis/Core/Services/ProcessRunner.php';
+metis_require_cli_tool();
 
 final class MetisTestSuiteCli {
     /** @var array<string, mixed> */
@@ -145,31 +144,20 @@ final class MetisTestSuiteCli {
      * @return array{exit_code:int, output:string}
      */
     private function runCommand(array $command, string $cwd): array {
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
+        $result = ( new \Metis\Core\Services\ProcessRunner() )->run(
+            $command,
+            $cwd,
+            metis_cli_process_context( 'test_suite.run_test', 'system.tests.execute', [ 'tool' => 'test_suite.php' ] )
+        );
 
-        $process = proc_open($command, $descriptors, $pipes, $cwd);
-        if (!is_resource($process)) {
-            throw new RuntimeException('Failed to execute command: ' . implode(' ', $command));
-        }
-
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        $output = trim((string) $stdout);
-        $stderr = trim((string) $stderr);
+        $output = trim((string) $result['stdout']);
+        $stderr = trim((string) $result['stderr']);
         if ($stderr !== '') {
             $output = $output === '' ? $stderr : $output . PHP_EOL . $stderr;
         }
 
         return [
-            'exit_code' => proc_close($process),
+            'exit_code' => (int) $result['exit_code'],
             'output' => $output,
         ];
     }

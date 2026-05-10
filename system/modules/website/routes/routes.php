@@ -6,6 +6,8 @@ declare(strict_types=1);
  *
  * Handles public-facing routes for pages, posts, and blog index.
  * Slug params are passed as route attributes, not query parameters.
+ * Public permission policy and middleware are attached in website/bootstrap.php
+ * via route.security before these render-only handlers are invoked.
  */
 
 if ( ! defined( 'METIS_ROOT' ) ) {

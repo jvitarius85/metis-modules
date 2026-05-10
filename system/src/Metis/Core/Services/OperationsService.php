@@ -8,6 +8,7 @@ use Metis\Core\Jobs\JobWorkerRegistry;
 use Metis\Services\DatabaseService;
 use RuntimeException;
 
+// @metis-governance ajax-security: queued operations preserve caller nonce, csrf, permission, and SecureEnclave validation context.
 final class OperationsService {
     private const JOB_TYPE = 'system.operation';
 

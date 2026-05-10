@@ -69,6 +69,7 @@ final class FileService {
     }
 
     public function ensureDirectory(string $path): string {
+        $path = $this->managedPath($path);
         if (!is_dir($path) && !mkdir($path, 0775, true) && !is_dir($path)) {
             throw new \RuntimeException(sprintf('Unable to create directory [%s].', $path));
         }
@@ -93,9 +94,12 @@ final class FileService {
         $path = $this->managedPath($path);
         $this->ensureDirectory(dirname($path));
 
-        if (@file_put_contents($path, $contents, LOCK_EX) === false) {
+        $this->auditFileOperation('file_write_attempted', $path, ['bytes' => strlen($contents)]);
+        if (!$this->writeNative($path, $contents)) {
+            $this->auditFileOperation('file_write_failed', $path, ['bytes' => strlen($contents)]);
             throw new \RuntimeException(sprintf('Unable to write file [%s].', $path));
         }
+        $this->auditFileOperation('file_write_completed', $path, ['bytes' => strlen($contents)]);
     }
 
     public function readJson(string $path, array $default = []): array {
@@ -117,11 +121,17 @@ final class FileService {
     }
 
     public function copy(string $source, string $destination): void {
+        $destination = $this->managedPath($destination);
         $this->ensureDirectory(dirname($destination));
 
+        $this->auditFileOperation('file_copy_attempted', $destination, [
+            'source_hash' => hash('sha256', str_replace('\\', '/', $source)),
+        ]);
         if (!@copy($source, $destination)) {
+            $this->auditFileOperation('file_copy_failed', $destination);
             throw new \RuntimeException(sprintf('Unable to copy [%s] to [%s].', $source, $destination));
         }
+        $this->auditFileOperation('file_copy_completed', $destination);
     }
 
     public function remove(string $path): void {
@@ -148,8 +158,26 @@ final class FileService {
         }
 
         if (file_exists($path) && !@unlink($path)) {
+            $this->auditFileOperation('file_remove_failed', $path);
             throw new \RuntimeException(sprintf('Unable to remove file [%s].', $path));
         }
+        $this->auditFileOperation('file_remove_completed', $path);
+    }
+
+    public function setPermissions(string $path, int $mode): void {
+        $path = $this->managedPath($path);
+        $this->auditFileOperation('file_permission_change_attempted', $path, [
+            'mode' => decoct($mode),
+        ]);
+        if (!@chmod($path, $mode)) {
+            $this->auditFileOperation('file_permission_change_failed', $path, [
+                'mode' => decoct($mode),
+            ]);
+            throw new \RuntimeException(sprintf('Unable to change permissions for [%s].', $path));
+        }
+        $this->auditFileOperation('file_permission_change_completed', $path, [
+            'mode' => decoct($mode),
+        ]);
     }
 
     public function hashFile(string $path, string $algo = 'sha256'): string {
@@ -203,5 +231,64 @@ final class FileService {
 
         sort($result);
         return $result;
+    }
+
+    private function writeNative(string $path, string $contents): bool {
+        try {
+            $file = new \SplFileObject($path, 'c+b');
+            if (!$file->flock(LOCK_EX)) {
+                return false;
+            }
+
+            if (!$file->ftruncate(0)) {
+                $file->flock(LOCK_UN);
+                return false;
+            }
+
+            $bytes = strlen($contents);
+            $written = 0;
+            while ($written < $bytes) {
+                $chunk = substr($contents, $written);
+                $result = $file->fwrite($chunk);
+                if ($result === false || $result < 1) {
+                    $file->flock(LOCK_UN);
+                    return false;
+                }
+                $written += $result;
+            }
+            $file->fflush();
+            $file->flock(LOCK_UN);
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function auditFileOperation(string $event, string $path, array $context = []): void {
+        $payload = [
+            'module' => 'system',
+            'resource' => [
+                'type' => 'file',
+                'id' => hash('sha256', str_replace('\\', '/', $path)),
+            ],
+            'context' => $context + [
+                'path_hash' => hash('sha256', str_replace('\\', '/', $path)),
+                'extension' => strtolower((string) pathinfo($path, PATHINFO_EXTENSION)),
+            ],
+        ];
+
+        if (\function_exists('metis_audit_log_activity')) {
+            try {
+                \metis_audit_log_activity($event, $payload);
+                return;
+            } catch (\Throwable) {
+                // Fall through to runtime logger when audit storage is unavailable.
+            }
+        }
+
+        if (\class_exists('\Metis_Logger')) {
+            \Metis_Logger::info($event, $payload['context']);
+        }
     }
 }

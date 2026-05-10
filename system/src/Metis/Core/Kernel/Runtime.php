@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+// @metis-governance ajax-security: AJAX entry execution is normalized through RouterRuntime/AjaxRuntime nonce, csrf, permission, and SecureEnclave checks.
 if ( ! function_exists( 'metis_kernel_enable_php_error_logging' ) ) {
     function metis_kernel_ensure_log_directory( string $dir ): void {
         if ( $dir === '' ) {

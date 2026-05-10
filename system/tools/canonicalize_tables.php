@@ -1,14 +1,13 @@
 <?php
 declare(strict_types=1);
 
-if ( PHP_SAPI !== 'cli' ) {
-    fwrite( STDERR, "This tool must be run from the command line.\n" );
-    exit( 1 );
-}
-
 $root = dirname( __DIR__ );
 
+require_once $root . '/src/Metis/Core/Runtime/CliToolGuard.php';
+metis_require_cli_tool();
 require_once $root . '/src/Metis/Core/TablesRegistry.php';
+require_once $root . '/src/Metis/Core/Runtime/StandaloneBootstrap.php';
+require_once $root . '/src/Metis/Services/DatabaseService.php';
 
 $args = $argv;
 array_shift( $args );
@@ -62,27 +61,28 @@ if ( $database === '' || $username === '' ) {
 
 Metis_Tables::init( (string) ( $config['prefix'] ?? '' ) );
 
-$dsn = sprintf( 'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database );
-$pdo = new PDO(
-    $dsn,
-    $username,
-    $password,
-    [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]
+$GLOBALS['metis_runtime_config'] = array_merge( (array) ( $GLOBALS['metis_runtime_config'] ?? [] ), [
+    'db_charset' => 'utf8mb4',
+] );
+$db = new \Metis\Services\DatabaseService(
+    new \MetisRuntimeDbConnection(
+        $username,
+        $password,
+        $database,
+        $host . ':' . $port,
+        (string) ( $config['prefix'] ?? '' )
+    )
 );
 
-$tableExists = static function ( string $table ) use ( $pdo ): bool {
-    $stmt = $pdo->prepare(
-        'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?'
-    );
-    $stmt->execute( [ $table ] );
-    return (int) $stmt->fetchColumn() > 0;
+$tableExists = static function ( string $table ) use ( $db ): bool {
+    return (int) $db->scalar(
+        'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s',
+        [ $table ]
+    ) > 0;
 };
 
-$fetchCount = static function ( string $table ) use ( $pdo ): int {
-    return (int) $pdo->query( "SELECT COUNT(*) FROM `{$table}`" )->fetchColumn();
+$fetchCount = static function ( string $table ) use ( $db ): int {
+    return (int) $db->scalar( "SELECT COUNT(*) FROM `{$table}`" );
 };
 
 $summary = [
@@ -92,21 +92,21 @@ $summary = [
     'migrations' => [],
 ];
 
-$runSql = static function ( string $sql ) use ( $apply, $pdo ): void {
+$runSql = static function ( string $sql ) use ( $apply, $db ): void {
     if ( ! $apply ) {
         return;
     }
-    $pdo->exec( $sql );
+    $db->execute( $sql );
 };
 
-$ensureCanonicalTable = static function ( string $table, string $sql ) use ( $apply, $pdo, $tableExists ): void {
+$ensureCanonicalTable = static function ( string $table, string $sql ) use ( $apply, $db, $tableExists ): void {
     if ( $tableExists( $table ) ) {
         return;
     }
     if ( ! $apply ) {
         return;
     }
-    $pdo->exec( $sql );
+    $db->execute( $sql );
 };
 
 $emailUsageCanonical = Metis_Tables::get( 'email_usage_daily' );
@@ -329,7 +329,7 @@ foreach ( $migrations as $migration ) {
         }
 
         if ( $apply && $tableExists( $legacy ) ) {
-            $pdo->exec( "DROP TABLE `{$legacy}`" );
+            $db->execute( "DROP TABLE `{$legacy}`" );
             $entry['dropped_legacy'] = true;
             $existsLegacy = false;
         }

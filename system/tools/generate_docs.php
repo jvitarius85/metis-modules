@@ -2,25 +2,31 @@
 declare(strict_types=1);
 
 require_once dirname( __DIR__ ) . '/src/Metis/Core/Runtime/CliToolGuard.php';
+require_once dirname( __DIR__ ) . '/src/Metis/Core/Services/FileService.php';
 metis_require_cli_tool();
 
 $root = dirname( __DIR__ );
+$metis_docs_files = new \Metis\Core\Services\FileService();
 $docsRoot = $root . '/docs';
 $modulesRoot = $root . '/modules';
 $srcModulesRoot = $root . '/src/Metis/Modules';
 
 function metis_docs_mkdir( string $path ): void {
+    global $metis_docs_files;
+
     if ( file_exists( $path ) && ! is_dir( $path ) ) {
-        unlink( $path );
+        $metis_docs_files->remove( $path );
     }
     if ( ! is_dir( $path ) ) {
-        mkdir( $path, 0775, true );
+        $metis_docs_files->ensureDirectory( $path );
     }
 }
 
 function metis_docs_write( string $path, string $content ): void {
+    global $metis_docs_files;
+
     metis_docs_mkdir( dirname( $path ) );
-    file_put_contents( $path, $content );
+    $metis_docs_files->write( $path, $content );
 }
 
 function metis_docs_json( string $path, array $payload ): void {

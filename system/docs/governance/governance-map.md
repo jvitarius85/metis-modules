@@ -14,9 +14,11 @@ Metis governance is enforced through a small number of approved boundaries. New 
 
 - Request input: request/runtime helpers, router request objects, AJAX controller contracts, and explicit module legacy paths listed in `system/config/governance.php`.
 - Media: `storage/public-media` for raw public media; `storage/protected-media` and `storage/private-records` for tokenized permission-checked access.
-- SQL: database service, runtime DB connection, schema/install/migration tooling, and explicit module repository/service layers.
-- Process execution: `Metis\Core\Services\ProcessRunner` plus CLI tools guarded by `metis_require_cli_tool()`.
+- SQL: `Metis\Services\DatabaseService`, runtime DB bootstrap, schema/install layers, and module repositories/services that call the DB service. CLI tools must use the DB service when they need database access.
+- Process execution: `Metis\Core\Services\ProcessRunner` with explicit security, audit, and permission context. CLI tools use `metis_require_cli_tool()` plus `metis_cli_process_context(...)` before invoking the runner.
+- Filesystem writes: `Metis\Core\Services\FileService` or storage runtimes that enforce a managed root and audit the operation.
 - Hermes: `HermesToolRegistry`, `HermesToolExecutor`, `HermesPermissionValidator`, and `EnclaveToolRuntime`.
+- Public website routes: anonymous route policies attached through `route.security`, with route-level rate limiting and audit/error context.
 
 ## Drift Detection
 
@@ -32,6 +34,10 @@ Metis governance is enforced through a small number of approved boundaries. New 
 - raw superglobal usage outside approved layers.
 - raw SQL outside approved layers.
 - process execution outside approved layers.
+- native DB access outside approved layers.
+- unsafe serialization outside approved layers.
+- route/AJAX security contract drift.
+- process context propagation.
 
 Approved layers live in `system/config/governance.php` so additions are visible and reviewable. Entries should be file-specific; broad module, tool, Hermes, and core prefixes are treated as governance drift.
 
@@ -39,8 +45,9 @@ Approved layers live in `system/config/governance.php` so additions are visible 
 
 `php system/tests/security_governance_test.php` statically verifies the central app-key, media, process execution, scanner, and Hermes governance contracts that should remain difficult to bypass accidentally.
 
+`php system/tests/operational_governance_test.php` verifies process context rejection/approval, managed file writes/removal, and public website route policy wiring.
+
 ## Deferred Governance Debt
 
-- Legacy module AJAX/view code still contains direct `$_GET`, `$_POST`, and `$_FILES` access. This is allowed only through the current governance registry and should shrink over time.
-- Some module SQL remains in established service layers. New SQL should be added to repositories/services and use prepared helpers.
+- Some legacy module views and AJAX handlers still contain SQL statement text. These calls must execute through `DatabaseService`; follow-up extraction should move statement construction into repositories/services.
 - Protected/private media adoption is enforced at the serving boundary; domain modules still need to choose protected/private roots for sensitive data.

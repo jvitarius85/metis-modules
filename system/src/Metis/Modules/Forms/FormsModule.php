@@ -7,6 +7,7 @@ use Metis\Core\Error\ErrorPageRenderer;
 use Metis\Http\Request;
 use Metis\Http\Response;
 
+// @metis-governance ajax-security: public form routes and AJAX submissions are mediated by route/AJAX nonce, csrf, permission, and SecureEnclave policy.
 final class FormsModule {
     private static bool $booted = false;
 

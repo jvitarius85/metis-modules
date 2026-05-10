@@ -8,7 +8,7 @@ final class ProcessRunner {
      * @param array<int,string> $command
      * @return array{exit_code:int,stdout:string,stderr:string}
      */
-    public function run( array $command, ?string $cwd = null, array $context = [] ): array {
+    public function run( array $command, ?string $cwd = null, array $context = [], int $timeoutSeconds = 0 ): array {
         $validated = $this->validateCommand( $command );
         if ( $validated === [] ) {
             return [ 'exit_code' => 1, 'stdout' => '', 'stderr' => 'Process command is not allowed.' ];
@@ -48,24 +48,52 @@ final class ProcessRunner {
         }
 
         \fclose( $pipes[0] );
-        $stdout = \stream_get_contents( $pipes[1] );
-        $stderr = \stream_get_contents( $pipes[2] );
+        $stdout = '';
+        $stderr = '';
+        $timedOut = false;
+        $startedAt = \time();
+
+        if ( $timeoutSeconds > 0 ) {
+            \stream_set_blocking( $pipes[1], false );
+            \stream_set_blocking( $pipes[2], false );
+            while ( true ) {
+                $status = \proc_get_status( $process );
+                $stdout .= (string) \stream_get_contents( $pipes[1] );
+                $stderr .= (string) \stream_get_contents( $pipes[2] );
+
+                if ( ! (bool) ( $status['running'] ?? false ) ) {
+                    break;
+                }
+
+                if ( ( \time() - $startedAt ) >= $timeoutSeconds ) {
+                    $timedOut = true;
+                    \proc_terminate( $process, 9 );
+                    break;
+                }
+
+                \usleep( 50000 );
+            }
+        } else {
+            $stdout = \stream_get_contents( $pipes[1] );
+            $stderr = \stream_get_contents( $pipes[2] );
+        }
+
         \fclose( $pipes[1] );
         \fclose( $pipes[2] );
         $exitCode = \proc_close( $process );
 
         $result = [
-            'exit_code' => \is_int( $exitCode ) ? $exitCode : 1,
+            'exit_code' => $timedOut ? 124 : ( \is_int( $exitCode ) ? $exitCode : 1 ),
             'stdout' => \is_string( $stdout ) ? $stdout : '',
-            'stderr' => \is_string( $stderr ) ? $stderr : '',
+            'stderr' => ( \is_string( $stderr ) ? $stderr : '' ) . ( $timedOut ? "\nProcess timed out." : '' ),
         ];
 
         $this->audit(
-            $result['exit_code'] === 0 ? 'process_execution_completed' : 'process_execution_failed',
+            $timedOut ? 'process_execution_timeout' : ( $result['exit_code'] === 0 ? 'process_execution_completed' : 'process_execution_failed' ),
             $validated,
             $workingDirectory,
             $context + [ 'exit_code' => $result['exit_code'] ],
-            $result['exit_code'] === 0 ? 'completed' : 'failed'
+            $timedOut ? 'blocked' : ( $result['exit_code'] === 0 ? 'completed' : 'failed' )
         );
 
         return $result;

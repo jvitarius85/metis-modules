@@ -83,7 +83,7 @@ final class UpdateService {
         ] as $path) {
             if (is_dir($path)) {
                 foreach ($this->files->listFilesRecursive($path) as $file) {
-                    @unlink($file);
+                    $this->files->remove($file);
                 }
             }
         }

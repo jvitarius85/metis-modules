@@ -1,12 +1,11 @@
 <?php
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This tool must be run from the command line.\n");
-    exit(1);
-}
-
 $root = dirname(__DIR__);
+require_once $root . '/src/Metis/Core/Runtime/CliToolGuard.php';
+require_once $root . '/src/Metis/Core/Runtime/CliProcessContext.php';
+require_once $root . '/src/Metis/Core/Services/ProcessRunner.php';
+metis_require_cli_tool();
 
 final class MetisSecurityAuditCli {
     /** @var array<string, mixed> */
@@ -502,60 +501,16 @@ final class MetisSecurityAuditCli {
 
     /** @return array{exit_code: int, output: string} */
     private function runCommand(array $command, string $cwd, int $timeoutSeconds = 60): array {
-        $descriptorSpec = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-
-        $process = proc_open($command, $descriptorSpec, $pipes, $cwd);
-        if (!is_resource($process)) {
-            return [
-                'exit_code' => 1,
-                'output' => 'Failed to start process: ' . implode(' ', $command),
-            ];
-        }
-
-        fclose($pipes[0]);
-        stream_set_blocking($pipes[1], false);
-        stream_set_blocking($pipes[2], false);
-
-        $stdout = '';
-        $stderr = '';
-        $startedAt = time();
-
-        while (true) {
-            $status = proc_get_status($process);
-            $stdout .= stream_get_contents($pipes[1]) ?: '';
-            $stderr .= stream_get_contents($pipes[2]) ?: '';
-
-            if (!$status['running']) {
-                break;
-            }
-
-            if ((time() - $startedAt) >= $timeoutSeconds) {
-                proc_terminate($process, 9);
-                break;
-            }
-
-            usleep(100000);
-        }
-
-        $stdout .= stream_get_contents($pipes[1]) ?: '';
-        $stderr .= stream_get_contents($pipes[2]) ?: '';
-
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        $exitCode = proc_close($process);
-        if ((time() - $startedAt) >= $timeoutSeconds && $exitCode === -1) {
-            $stderr .= PHP_EOL . 'Process timed out after ' . $timeoutSeconds . ' seconds.';
-            $exitCode = 124;
-        }
+        $result = ( new \Metis\Core\Services\ProcessRunner() )->run(
+            $command,
+            $cwd,
+            metis_cli_process_context( 'security_audit.run_command', 'system.security.audit', [ 'tool' => 'security_audit.php' ] ),
+            $timeoutSeconds
+        );
 
         return [
-            'exit_code' => $exitCode,
-            'output' => trim($stdout . PHP_EOL . $stderr),
+            'exit_code' => (int) $result['exit_code'],
+            'output' => trim((string) $result['stdout'] . PHP_EOL . (string) $result['stderr']),
         ];
     }
 

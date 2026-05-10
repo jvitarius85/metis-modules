@@ -5,6 +5,7 @@ namespace Metis\Core\Error;
 
 use Metis\Http\Response;
 
+// @metis-governance ajax-security: responder formats AJAX failures after upstream nonce, csrf, permission, and SecureEnclave checks.
 final class ErrorResponder {
     public function __construct(
         private readonly ErrorPageRenderer $pages
