@@ -211,15 +211,24 @@ if ( $tool_failures === [] ) {
 }
 
 $superglobal_hits = [];
+$request_boundary_hits = [];
 $raw_sql_hits = [];
+$native_db_hits = [];
 $process_hits = [];
+$serialization_hits = [];
 foreach ( $php_files as $path ) {
     $relative = $rel( $path );
     $contents = (string) file_get_contents( $path );
 
-    if ( ! $is_approved( $relative, 'superglobals' ) && preg_match_all( '/\\$_(?:GET|POST|REQUEST|FILES|COOKIE)|php:\\/\\/input/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+    if ( ! $is_approved( $relative, 'superglobals' ) && preg_match_all( '/\\$_(?:GET|POST|REQUEST|FILES|COOKIE)\\b/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
         foreach ( $matches[0] as $match ) {
             $superglobal_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] ) . ' ' . $match[0];
+        }
+    }
+
+    if ( ! $is_approved( $relative, 'request_boundary' ) && preg_match_all( '/(?:\\$GLOBALS\\s*\\[\\s*[\'"]_(?:GET|POST|REQUEST|FILES|COOKIE)[\'"]\\s*\\]|php:\\/\\/input)/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+        foreach ( $matches[0] as $match ) {
+            $request_boundary_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] ) . ' ' . $match[0];
         }
     }
 
@@ -229,17 +238,32 @@ foreach ( $php_files as $path ) {
         }
     }
 
+    if ( ! $is_approved( $relative, 'native_db' ) && preg_match_all( '/(?:new\\s+PDO\\b|mysqli_(?:init|report|options|real_connect|connect_errno|connect_error)|->connection\\s*\\(|\\$GLOBALS\\s*\\[\\s*[\'"]metis_db_connection[\'"]\\s*\\]|\\$pdo->|\\$mysqli->|\\$db_connection->query\\s*\\()/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+        foreach ( $matches[0] as $match ) {
+            $native_db_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] ) . ' ' . trim( $match[0] );
+        }
+    }
+
     if ( ! $is_approved( $relative, 'process' ) && preg_match_all( '/(?:shell_exec\\s*\\(|proc_open\\s*\\(|passthru\\s*\\(|popen\\s*\\(|\\bexec\\s*\\(|\\bsystem\\s*\\()/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
         foreach ( $matches[0] as $match ) {
             $process_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] ) . ' ' . $match[0];
+        }
+    }
+
+    if ( ! $is_approved( $relative, 'serialization' ) && preg_match_all( '/\\b(?:unserialize|maybe_unserialize)\\s*\\(/', $contents, $matches, PREG_OFFSET_CAPTURE ) ) {
+        foreach ( $matches[0] as $match ) {
+            $serialization_hits[] = $relative . ':' . $line_no( $contents, (int) $match[1] ) . ' ' . $match[0];
         }
     }
 }
 
 foreach ( [
     'raw-superglobals' => $superglobal_hits,
+    'request-boundary' => $request_boundary_hits,
     'raw-sql' => $raw_sql_hits,
+    'native-db-access' => $native_db_hits,
     'process-execution' => $process_hits,
+    'serialization-boundary' => $serialization_hits,
 ] as $check => $hits ) {
     if ( $hits === [] ) {
         echo 'PASS ' . $check . "\n";

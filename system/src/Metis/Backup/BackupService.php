@@ -911,7 +911,7 @@ final class BackupService {
             throw new \RuntimeException( 'The database snapshot could not be read.' );
         }
 
-        $dbh = $this->database()->connection()->dbh ?? null;
+        $dbh = $this->database()->nativeMysqli();
         if ( ! $dbh instanceof \mysqli ) {
             throw new \RuntimeException( 'Restore requires an available mysqli connection.' );
         }
@@ -1078,16 +1078,7 @@ final class BackupService {
         }
 
         $escaped = \is_scalar( $value ) ? (string) $value : $this->encode( $value );
-        $connection = $this->database()->connection();
-        if ( \is_object( $connection ) && \method_exists( $connection, '_real_escape' ) ) {
-            $escaped = $connection->_real_escape( $escaped );
-        } elseif ( \is_object( $connection ) && \method_exists( $connection, 'real_escape_string' ) ) {
-            $escaped = $connection->real_escape_string( $escaped );
-        } elseif ( \is_object( $connection ) && property_exists( $connection, 'dbh' ) && $connection->dbh instanceof \mysqli ) {
-            $escaped = $connection->dbh->real_escape_string( $escaped );
-        } else {
-            $escaped = addslashes( $escaped );
-        }
+        $escaped = $this->database()->escapeString( $escaped );
 
         return "'" . $escaped . "'";
     }

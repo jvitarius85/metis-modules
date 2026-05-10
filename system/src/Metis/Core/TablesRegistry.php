@@ -179,10 +179,13 @@ final class Metis_Tables {
     public static function init( ?string $prefix = null ): void {
         if ( $prefix !== null && $prefix !== "" ) {
             self::$prefix = $prefix;
-        } elseif ( isset( $GLOBALS["metis_db_connection"] ) && is_object( $GLOBALS["metis_db_connection"] ) ) {
-            $db_prefix = (string) ( $GLOBALS["metis_db_connection"]->prefix ?? "" );
-            if ( $db_prefix !== "" ) {
-                self::$prefix = $db_prefix;
+        } elseif ( function_exists( "metis_resolve_db_service" ) ) {
+            try {
+                $db_prefix = metis_resolve_db_service()->prefix();
+                if ( $db_prefix !== "" ) {
+                    self::$prefix = $db_prefix;
+                }
+            } catch ( Throwable ) {
             }
         }
 

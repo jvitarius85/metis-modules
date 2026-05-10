@@ -12,7 +12,7 @@ final class SchemaManager {
         }
 
         $db = \metis_db();
-        $charset_collate = $db->connection()->get_charset_collate();
+        $charset_collate = $db->get_charset_collate();
 
         $mailboxes = \Metis_Tables::get( 'communications_inbound_mailboxes' );
         $messages = \Metis_Tables::get( 'communications_inbound_messages' );

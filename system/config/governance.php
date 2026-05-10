@@ -4,7 +4,24 @@ declare(strict_types=1);
 return [
     'approved_layers' => [
         'superglobals' => [
+        ],
+        'request_boundary' => [
             'system/src/Metis/Core/Runtime/RequestRuntime.php',
+        ],
+        'native_db' => [
+            'system/src/Metis/Services/DatabaseService.php',
+            'system/src/Metis/Core/CoreBootstrap.php',
+            'system/src/Metis/Core/Runtime/StandaloneApplicationBootstrap.php',
+            'system/src/Metis/Core/Runtime/StandaloneBootstrap.php',
+            'system/tools/canonicalize_tables.php',
+            'system/tools/migrate_remote_transcript_posts.php',
+            'system/tools/repair_website_post_text_encoding.php',
+            'system/tools/reset_mfa.php',
+            'system/tools/security_scan.php',
+        ],
+        'serialization' => [
+            'system/src/Metis/Core/Serialization/LegacyPhpSerializedPayload.php',
+            'system/src/Metis/Core/SettingsService.php',
         ],
         'raw_sql' => [
             'system/src/Metis/Core/CoreBootstrap.php',
@@ -58,6 +75,7 @@ return [
     'forbidden_runtime_patterns' => [
         'eval',
         'request_superglobal',
+        'native_db_access',
         'static_app_key_fallback',
     ],
 ];

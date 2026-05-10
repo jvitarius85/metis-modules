@@ -640,7 +640,10 @@ function metis_auth_decrypt_secret( string $encoded ): string {
 
     foreach ( $keys as $key ) {
         $plain = openssl_decrypt( $cipher, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
-        if ( is_string( $plain ) && $plain !== '' ) {
+        if ( $plain === false ) {
+            continue;
+        }
+        if ( $plain !== '' ) {
             return $plain;
         }
     }

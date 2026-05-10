@@ -241,6 +241,10 @@ final class CredentialService {
         }
 
         $plain = openssl_decrypt( $cipher, self::OPENSSL_ALGO, self::keyMaterial(), OPENSSL_RAW_DATA, $iv );
-        return is_string( $plain ) ? $plain : '';
+        if ( $plain === false ) {
+            return '';
+        }
+
+        return $plain;
     }
 }

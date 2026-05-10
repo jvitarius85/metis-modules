@@ -11,7 +11,7 @@ final class SchemaManager {
             return;
         }
 
-        $charset_collate = \metis_db()->connection()->get_charset_collate();
+        $charset_collate = \metis_db()->get_charset_collate();
         $sessions_table  = \Metis_Tables::get( 'hermes_sessions' );
         $messages_table  = \Metis_Tables::get( 'hermes_messages' );
         $actions_table   = \Metis_Tables::get( 'hermes_actions' );

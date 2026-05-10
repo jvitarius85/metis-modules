@@ -19,8 +19,7 @@ final class EntityId {
         $prefixes = \Metis_Tables::get('entity_prefixes');
         $sequences = \Metis_Tables::get('id_sequences');
         $registry = \Metis_Tables::get('entity_registry');
-        $connection = $this->db()->connection();
-        $charset = method_exists($connection, 'get_charset_collate') ? (string) $connection->get_charset_collate() : '';
+        $charset = $this->db()->get_charset_collate();
 
         \metis_db_delta("CREATE TABLE {$prefixes} (
             entity_type VARCHAR(64) PRIMARY KEY,

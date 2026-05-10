@@ -19,10 +19,7 @@ final class PasskeyService {
             return;
         }
 
-        $connection = $this->database()->connection();
-        $charset = is_object($connection) && method_exists($connection, 'get_charset_collate')
-            ? (string) $connection->get_charset_collate()
-            : '';
+        $charset = $this->database()->get_charset_collate();
         $passkeysTable = \Metis_Tables::get('people_passkeys');
         $challengesTable = \Metis_Tables::get('people_auth_challenges');
 

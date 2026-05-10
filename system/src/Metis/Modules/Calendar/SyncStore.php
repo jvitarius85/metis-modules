@@ -12,7 +12,7 @@ final class SyncStore {
         }
 
         $db               = self::db();
-        $charset          = $db->connection()->get_charset_collate();
+        $charset          = $db->get_charset_collate();
         $events_table     = \Metis_Tables::get( 'calendar_events' );
         $sync_state_table = \Metis_Tables::get( 'calendar_sync_state' );
 

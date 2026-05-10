@@ -11,7 +11,7 @@ final class GrandyStashSchemaManager {
             return;
         }
 
-        $charset_collate = \metis_db()->connection()->get_charset_collate();
+        $charset_collate = \metis_db()->get_charset_collate();
 
         // New tables must come first (tickets references facilities)
         self::createFacilitiesTable( $charset_collate );

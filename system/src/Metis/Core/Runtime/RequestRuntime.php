@@ -13,20 +13,41 @@ function metis_runtime_doing_ajax(): bool {
     return defined( 'DOING_AJAX' ) && DOING_AJAX;
 }
 
+function metis_sapi_input_array( int $type ): array {
+    $input = filter_input_array( $type, FILTER_UNSAFE_RAW );
+    if ( is_array( $input ) ) {
+        return $input;
+    }
+
+    $fallbacks = [
+        INPUT_GET => '_GET',
+        INPUT_POST => '_POST',
+        INPUT_COOKIE => '_COOKIE',
+    ];
+    $fallback_key = $fallbacks[ $type ] ?? '';
+    $fallback = $fallback_key !== '' ? ( $GLOBALS[ $fallback_key ] ?? [] ) : [];
+    return is_array( $fallback ) ? $fallback : [];
+}
+
+function metis_sapi_files_array(): array {
+    $files = $GLOBALS['_FILES'] ?? [];
+    return is_array( $files ) ? $files : [];
+}
+
 function metis_request_get(): array {
-    return is_array( $_GET ) ? $_GET : [];
+    return metis_sapi_input_array( INPUT_GET );
 }
 
 function metis_request_post(): array {
-    return is_array( $_POST ) ? $_POST : [];
+    return metis_sapi_input_array( INPUT_POST );
 }
 
 function metis_request_files(): array {
-    return is_array( $_FILES ) ? $_FILES : [];
+    return metis_sapi_files_array();
 }
 
 function metis_request_cookie(): array {
-    return is_array( $_COOKIE ) ? $_COOKIE : [];
+    return metis_sapi_input_array( INPUT_COOKIE );
 }
 
 function metis_request_raw_body(): string {

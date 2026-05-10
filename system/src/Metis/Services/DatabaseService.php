@@ -32,12 +32,43 @@ final class DatabaseService {
         return \Metis_Tables::get( $key );
     }
 
+    public function prefix(): string {
+        $connection = $this->connection();
+        return (string) ( $connection->prefix ?? '' );
+    }
+
+    public function get_charset_collate(): string {
+        $connection = $this->connection();
+        return \method_exists( $connection, 'get_charset_collate' )
+            ? (string) $connection->get_charset_collate()
+            : 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+    }
+
+    public function lastError(): string {
+        $connection = $this->connection();
+        return isset( $connection->last_error ) ? (string) $connection->last_error : '';
+    }
+
+    public function isAvailable(): bool {
+        try {
+            $this->connection();
+            return true;
+        } catch ( \Throwable ) {
+            return false;
+        }
+    }
+
     public function prepare( string $query, mixed ...$arguments ): mixed {
         return $this->connection()->prepare( $query, ...$arguments );
     }
 
     public function execute( string $query ): int|bool {
         return $this->runWithReconnect( fn (): int|bool => $this->connection()->query( $query ) );
+    }
+
+    public function executePrepared( string $query, array $arguments = [] ): int|bool {
+        $prepared = $arguments === [] ? $query : $this->prepare( $query, ...$arguments );
+        return $this->execute( (string) $prepared );
     }
 
     public function fetchOne( string $query, array $arguments = [] ): ?array {
@@ -85,6 +116,33 @@ final class DatabaseService {
 
     public function lastInsertId(): int {
         return (int) ( $this->connection()->insert_id ?? 0 );
+    }
+
+    public function nativeMysqli(): ?object {
+        $connection = $this->connection();
+        if ( \class_exists( \mysqli::class ) && $connection instanceof \mysqli ) {
+            return $connection;
+        }
+
+        $handle = $connection->dbh ?? null;
+        return \class_exists( \mysqli::class ) && $handle instanceof \mysqli ? $handle : null;
+    }
+
+    public function escapeString( string $value ): string {
+        $connection = $this->connection();
+        if ( \method_exists( $connection, '_real_escape' ) ) {
+            return (string) $connection->_real_escape( $value );
+        }
+        if ( \method_exists( $connection, 'real_escape_string' ) ) {
+            return (string) $connection->real_escape_string( $value );
+        }
+
+        $handle = $this->nativeMysqli();
+        if ( $handle !== null && \method_exists( $handle, 'real_escape_string' ) ) {
+            return (string) $handle->real_escape_string( $value );
+        }
+
+        return addslashes( $value );
     }
 
     public function reconnect(): bool {
@@ -149,7 +207,4 @@ final class DatabaseService {
         return false;
     }
 
-    public function __call( string $method, array $arguments ): mixed {
-        return $this->connection()->{$method}( ...$arguments );
-    }
 }

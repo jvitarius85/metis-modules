@@ -1009,30 +1009,13 @@ final class NavigationService {
             return false;
         }
 
-        try {
-            $this->db->connection();
-        } catch ( \Throwable ) {
-            return false;
-        }
-
-        return true;
+        return $this->db->isAvailable();
     }
 
     private function charsetCollate(): string {
         try {
             if ( \method_exists( $this->db, 'get_charset_collate' ) ) {
                 $charset = (string) $this->db->get_charset_collate();
-                if ( $charset !== '' ) {
-                    return $charset;
-                }
-            }
-        } catch ( \Throwable ) {
-        }
-
-        try {
-            $connection = $this->db->connection();
-            if ( \is_object( $connection ) && \method_exists( $connection, 'get_charset_collate' ) ) {
-                $charset = (string) $connection->get_charset_collate();
                 if ( $charset !== '' ) {
                     return $charset;
                 }

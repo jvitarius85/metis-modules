@@ -33,24 +33,13 @@ final class FileCache {
             return null;
         }
 
-        $encoded = (string) ($payload['data'] ?? '');
-        if ($encoded === '') {
-            return null;
-        }
-
-        $decoded = base64_decode($encoded, true);
-        if (!is_string($decoded)) {
+        $version = (int) ($payload['version'] ?? 0);
+        if ($version !== 2 || !array_key_exists('data', $payload)) {
             @unlink($path);
             return null;
         }
 
-        $value = @unserialize($decoded, [ 'allowed_classes' => false ]);
-        if ($value === false && $decoded !== 'b:0;') {
-            @unlink($path);
-            return null;
-        }
-
-        return $value;
+        return $payload['data'];
     }
 
     public function set(string $group, string $key, mixed $value, int $ttl = 3600): void {
@@ -58,8 +47,9 @@ final class FileCache {
         $this->ensureDirectory($groupPath);
 
         $payload = [
+            'version' => 2,
             'expires' => $ttl > 0 ? time() + $ttl : 0,
-            'data' => base64_encode(serialize($value)),
+            'data' => $value,
         ];
 
         $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES);

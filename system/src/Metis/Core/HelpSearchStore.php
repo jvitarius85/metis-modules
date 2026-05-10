@@ -22,7 +22,7 @@ final class HelpSearchStore {
         }
 
         $db = $this->db();
-        $charset = $db->connection()->get_charset_collate();
+        $charset = $db->get_charset_collate();
         $categories = \Metis_Tables::get( 'help_categories' );
         $articles = \Metis_Tables::get( 'help_articles' );
         $searchIndex = \Metis_Tables::get( 'help_search_index' );

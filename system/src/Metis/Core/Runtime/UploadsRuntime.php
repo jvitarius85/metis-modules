@@ -156,11 +156,7 @@ function metis_media_ensure_schema(): void {
     }
 
     $table = metis_media_table_name();
-    $charset_collate = '';
-    $conn = metis_db()->connection();
-    if ( is_object( $conn ) && method_exists( $conn, 'get_charset_collate' ) ) {
-        $charset_collate = (string) $conn->get_charset_collate();
-    }
+    $charset_collate = metis_db()->get_charset_collate();
     if ( $charset_collate === '' ) {
         $charset_collate = 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
     }

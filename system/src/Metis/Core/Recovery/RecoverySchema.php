@@ -110,9 +110,8 @@ final class RecoverySchema {
     }
 
     private static function charsetCollate(): string {
-        $connection = $GLOBALS['metis_db_connection'] ?? null;
-        if (is_object($connection) && method_exists($connection, 'get_charset_collate')) {
-            return (string) $connection->get_charset_collate();
+        if (function_exists('metis_db')) {
+            return \metis_db()->get_charset_collate();
         }
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
     }
@@ -138,11 +137,7 @@ final class RecoverySchema {
                 return;
             }
 
-            $prefix = '';
-            $connection = $GLOBALS['metis_db_connection'] ?? null;
-            if (is_object($connection) && isset($connection->prefix)) {
-                $prefix = (string) $connection->prefix;
-            }
+            $prefix = function_exists('metis_db') ? \metis_db()->prefix() : '';
             if ($prefix === '') {
                 $prefix = 'metis_';
             }

@@ -19,7 +19,7 @@ final class SchemaManager {
         }
 
         $db = self::db();
-        $charset_collate         = $db->connection()->get_charset_collate();
+        $charset_collate         = $db->get_charset_collate();
         $committees_table        = \Metis_Tables::get( 'board_committees' );
         $meetings_table          = \Metis_Tables::get( 'board_meetings' );
         $decisions_table         = \Metis_Tables::get( 'board_decisions' );

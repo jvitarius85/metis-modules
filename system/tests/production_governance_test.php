@@ -31,7 +31,9 @@ $scanner = $read( 'tools/security_scan.php' );
 $governance = require $root . '/config/governance.php';
 
 $superglobalApprovals = (array) ( $governance['approved_layers']['superglobals'] ?? [] );
-$assert( $superglobalApprovals === [ 'system/src/Metis/Core/Runtime/RequestRuntime.php' ], 'Raw request superglobals must be approved only in RequestRuntime.' );
+$assert( $superglobalApprovals === [], 'Raw request superglobals must not require production allowlist entries.' );
+$requestBoundaryApprovals = (array) ( $governance['approved_layers']['request_boundary'] ?? [] );
+$assert( $requestBoundaryApprovals === [ 'system/src/Metis/Core/Runtime/RequestRuntime.php' ], 'SAPI request boundary must be approved only in RequestRuntime.' );
 
 $rawSqlApprovals = (array) ( $governance['approved_layers']['raw_sql'] ?? [] );
 foreach ( $rawSqlApprovals as $approvedPath ) {
@@ -71,6 +73,9 @@ $assert( str_contains( $processRunner, 'redactContext' ), 'ProcessRunner audit c
 
 foreach ( [ 'sensitive-media-storage', 'process-context', 'route-middleware-governance', 'ajax-security-contracts', 'hermes-governance' ] as $scanRule ) {
     $assert( str_contains( $scanner, $scanRule ), 'Security scanner missing production governance rule: ' . $scanRule . '.' );
+}
+foreach ( [ 'request-boundary', 'native-db-access', 'serialization-boundary' ] as $scanRule ) {
+    $assert( str_contains( $scanner, $scanRule ), 'Security scanner missing hardening rule: ' . $scanRule . '.' );
 }
 
 $deploymentDocs = [

@@ -1020,8 +1020,7 @@ function metis_sync_state_ensure_schema(): void {
     }
 
     $table   = Metis_Tables::get( 'sync_state' );
-    $connection = metis_db()->connection();
-    $charset = method_exists( $connection, 'get_charset_collate' ) ? (string) $connection->get_charset_collate() : '';
+    $charset = metis_db()->get_charset_collate();
 
     metis_db_delta(
         "CREATE TABLE {$table} (

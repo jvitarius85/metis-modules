@@ -187,8 +187,7 @@ function metis_website_ajax_author_full_name( int $user_id ): string {
 
 function metis_website_ajax_users_table(): string {
     $db = metis_db();
-    $connection = $db->connection();
-    $prefix = is_object( $connection ) && isset( $connection->prefix ) ? (string) $connection->prefix : '';
+    $prefix = $db->prefix();
     $candidates = [];
     if ( $prefix !== '' ) {
         $prefixed = $prefix . 'users';

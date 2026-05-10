@@ -40,6 +40,34 @@ final class FileService {
         ];
     }
 
+    private function managedPath(string $path): string {
+        $normalized = str_replace('\\', '/', $path);
+        if (!str_starts_with($normalized, '/')) {
+            $normalized = $this->rootPath($normalized);
+        }
+
+        $root = rtrim($this->rootPath(), '/');
+        $realRoot = realpath($root);
+        $parent = dirname($normalized);
+        $existingParent = $parent;
+        while (!is_dir($existingParent) && dirname($existingParent) !== $existingParent) {
+            $existingParent = dirname($existingParent);
+        }
+        $realParent = realpath($existingParent);
+
+        if (!is_string($realRoot) || !is_string($realParent)) {
+            throw new \RuntimeException(sprintf('Refusing unmanaged file path [%s].', $path));
+        }
+
+        $realRoot = rtrim(str_replace('\\', '/', $realRoot), '/') . '/';
+        $realParent = rtrim(str_replace('\\', '/', $realParent), '/') . '/';
+        if (!str_starts_with($realParent, $realRoot)) {
+            throw new \RuntimeException(sprintf('Refusing unmanaged file path [%s].', $path));
+        }
+
+        return $normalized;
+    }
+
     public function ensureDirectory(string $path): string {
         if (!is_dir($path) && !mkdir($path, 0775, true) && !is_dir($path)) {
             throw new \RuntimeException(sprintf('Unable to create directory [%s].', $path));
@@ -62,6 +90,7 @@ final class FileService {
     }
 
     public function write(string $path, string $contents): void {
+        $path = $this->managedPath($path);
         $this->ensureDirectory(dirname($path));
 
         if (@file_put_contents($path, $contents, LOCK_EX) === false) {
@@ -96,6 +125,7 @@ final class FileService {
     }
 
     public function remove(string $path): void {
+        $path = $this->managedPath($path);
         if (is_dir($path) && !is_link($path)) {
             $items = scandir($path);
             if ($items === false) {
@@ -123,6 +153,7 @@ final class FileService {
     }
 
     public function hashFile(string $path, string $algo = 'sha256'): string {
+        $path = $this->managedPath($path);
         $hash = @hash_file($algo, $path);
         if (!is_string($hash)) {
             throw new \RuntimeException(sprintf('Unable to hash file [%s].', $path));

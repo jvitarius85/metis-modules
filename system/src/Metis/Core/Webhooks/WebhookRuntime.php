@@ -104,8 +104,7 @@ function metis_webhook_ensure_schema(): void {
     }
 
     $table = Metis_Tables::get( 'webhook_events' );
-    $connection = metis_db()->connection();
-    $charset_collate = method_exists( $connection, 'get_charset_collate' ) ? (string) $connection->get_charset_collate() : '';
+    $charset_collate = metis_db()->get_charset_collate();
 
     $sql = "CREATE TABLE {$table} (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

@@ -1905,7 +1905,7 @@ metis_ajax_register_handler( 'metis_board_drive_set_meeting_folder', function ()
         Metis_Logger::error('Board folder assign failed', [
             'meeting_id' => $meeting_id,
             'folder_id' => $folder_id,
-            'db_error' => (string) ($db->connection()->last_error ?? ''),
+            'db_error' => $db->lastError(),
         ]);
         metis_runtime_send_json_error('Failed to set meeting folder.', 500);
     }
@@ -2290,7 +2290,7 @@ metis_ajax_register_handler( 'metis_board_assign_calendar_event', function () {
         Metis_Logger::error('Board calendar assign failed', [
             'meeting_id' => $meeting_id,
             'event_id' => $event_id,
-            'db_error' => (string) ($db->connection()->last_error ?? ''),
+            'db_error' => $db->lastError(),
         ]);
         metis_runtime_send_json_error('Failed to assign calendar event.', 500);
     }
@@ -2954,7 +2954,7 @@ metis_ajax_register_handler( 'metis_board_update_decision', function () {
         Metis_Logger::error('Board decision update failed', [
             'decision_id' => $decision_id,
             'payload' => $payload,
-            'db_error' => (string) ($db->connection()->last_error ?? ''),
+            'db_error' => $db->lastError(),
         ]);
         metis_runtime_send_json_error('Failed to update decision.', 500);
     }

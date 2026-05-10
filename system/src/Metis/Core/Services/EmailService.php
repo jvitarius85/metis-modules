@@ -221,11 +221,11 @@ final class EmailService {
                 [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
             );
             if ( $inserted === false ) {
-                $lastError = (string) ( $db->connection()->last_error ?? 'Unknown email event insert failure.' );
+                $lastError = $db->lastError() !== '' ? $db->lastError() : 'Unknown email event insert failure.';
                 throw new \RuntimeException( $lastError );
             }
 
-            $prepared = $db->prepare(
+            $upserted = $db->executePrepared(
                 "INSERT INTO {$table} (
                     usage_date, module_slug, sent_count, failed_count, last_provider, last_sent_at, last_failed_at
                  ) VALUES (%s, %s, %d, %d, %s, %s, %s)
@@ -235,17 +235,18 @@ final class EmailService {
                     last_provider = VALUES(last_provider),
                     last_sent_at = CASE WHEN VALUES(sent_count) > 0 THEN VALUES(last_sent_at) ELSE last_sent_at END,
                     last_failed_at = CASE WHEN VALUES(failed_count) > 0 THEN VALUES(last_failed_at) ELSE last_failed_at END",
-                $date,
-                $moduleSlug,
-                $sent,
-                $failed,
-                $provider,
-                $sent > 0 ? $timestamp : null,
-                $failed > 0 ? $timestamp : null
+                [
+                    $date,
+                    $moduleSlug,
+                    $sent,
+                    $failed,
+                    $provider,
+                    $sent > 0 ? $timestamp : null,
+                    $failed > 0 ? $timestamp : null,
+                ]
             );
-            $upserted = $db->execute( (string) $prepared );
             if ( $upserted === false ) {
-                $lastError = (string) ( $db->connection()->last_error ?? 'Unknown email usage upsert failure.' );
+                $lastError = $db->lastError() !== '' ? $db->lastError() : 'Unknown email usage upsert failure.';
                 throw new \RuntimeException( $lastError );
             }
         } catch ( \Throwable $e ) {

@@ -39,9 +39,12 @@ class Core_Settings_Service {
         if ( self::$booted ) return;
 
         $prefix = '';
-        $db_connection = $GLOBALS['metis_db_connection'] ?? null;
-        if ( is_object( $db_connection ) && isset( $db_connection->prefix ) ) {
-            $prefix = (string) $db_connection->prefix;
+        try {
+            if ( function_exists( 'metis_resolve_db_service' ) ) {
+                $prefix = metis_resolve_db_service()->prefix();
+            }
+        } catch ( \Throwable ) {
+            $prefix = '';
         }
 
         // Table name is self-contained and can be resolved before the service container is fully ready.

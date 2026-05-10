@@ -256,18 +256,21 @@ function get_user_by( string $field, string|int $value ): MetisUser|false {
     }
 
     try {
-        $db         = metis_db();
-        $connection = $db->connection();
+        $db = metis_db();
+        if ( ! $db->isAvailable() ) {
+            return false;
+        }
     } catch ( Throwable ) {
         return false;
     }
 
-    if ( ! is_object( $connection ) || ! isset( $connection->prefix ) ) {
+    $prefix = $db->prefix();
+    if ( $prefix === '' ) {
         return false;
     }
 
     $candidates = [];
-    $prefixed = (string) $connection->prefix . 'users';
+    $prefixed = $prefix . 'users';
     if ( $prefixed !== 'users' ) {
         $candidates[] = $prefixed;
     }

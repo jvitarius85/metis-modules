@@ -12,7 +12,7 @@ final class SchemaManager {
         }
 
         $db = \metis_db();
-        $charset = $db->connection()->get_charset_collate();
+        $charset = $db->get_charset_collate();
 
         $forms = \Metis_Tables::get( 'forms' );
         $versions = \Metis_Tables::get( 'form_versions' );

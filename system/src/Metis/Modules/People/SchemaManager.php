@@ -91,7 +91,7 @@ final class SchemaManager {
         $workspace_security_actions_table = \Metis_Tables::get( 'people_workspace_security_actions' );
         $workspace_sync_jobs_table = \Metis_Tables::get( 'people_workspace_sync_jobs' );
         $positions_table = \Metis_Tables::get( 'people_positions' );
-        $charset_collate = $db->connection()->get_charset_collate();
+        $charset_collate = $db->get_charset_collate();
 
 
         $people_sql = "CREATE TABLE {$people_table} (

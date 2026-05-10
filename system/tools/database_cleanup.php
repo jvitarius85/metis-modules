@@ -43,13 +43,13 @@ $defaultLegacyCmsTables = [
     $legacyPrefix . 'term_taxonomy',
 ];
 
-$database = $GLOBALS['metis_db_connection'] ?? null;
-if (!is_object($database)) {
+$database = function_exists('metis_db') ? metis_db() : null;
+if (!$database instanceof \Metis\Services\DatabaseService || !$database->isAvailable()) {
     fwrite(STDERR, "Database connection is not available.\n");
     exit(1);
 }
 
-$tables = array_map('strval', $database->get_col('SHOW TABLES') ?: []);
+$tables = array_map('strval', $database->column('SHOW TABLES') ?: []);
 $metisTables = array_values(class_exists('Metis_Tables') ? Metis_Tables::definitions() : []);
 $metisTables = array_map('strval', $metisTables);
 
@@ -116,7 +116,7 @@ if ($apply) {
         }
 
         $table = (string) $candidate['table'];
-        $database->query("DROP TABLE IF EXISTS `{$table}`");
+        $database->execute("DROP TABLE IF EXISTS `{$table}`");
         $removed[] = $table;
 
         if (function_exists('metis_audit_log_activity')) {

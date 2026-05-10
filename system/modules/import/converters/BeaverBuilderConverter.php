@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Import\Converters;
 
+use Metis\Core\Serialization\LegacyPhpSerializedPayload;
+
 /**
  * Beaver Builder → Metis Block Converter
  *
@@ -30,8 +32,9 @@ final class BeaverBuilderConverter {
     public static function convert( string $bb_data ): array {
         self::$report = [ 'converted' => 0, 'fallbacks' => 0, 'warnings' => [] ];
 
-        // BB data is PHP-serialized
-        $nodes = @unserialize( $bb_data, [ 'allowed_classes' => false ] );
+        // Beaver Builder legacy exports are PHP-serialized arrays. Decode only
+        // arrays and reject serialized objects/classes before conversion.
+        $nodes = LegacyPhpSerializedPayload::decodeArray( $bb_data );
 
         if ( ! is_array( $nodes ) ) {
             self::$report['warnings'][] = 'Could not deserialize Beaver Builder data.';

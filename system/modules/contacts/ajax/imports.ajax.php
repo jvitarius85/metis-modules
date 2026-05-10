@@ -107,7 +107,7 @@ metis_ajax_register_handler( 'metis_contacts_merge_duplicates', function () {
 
     $rollback = static function ( string $message, array $data = [] ) use ( $db ) {
         $db->execute( 'ROLLBACK' );
-        $db_error = trim( (string) ( $db->connection()->last_error ?? '' ) );
+        $db_error = trim( $db->lastError() );
         if ( $db_error !== '' ) {
             $data['db_error'] = $db_error;
         }

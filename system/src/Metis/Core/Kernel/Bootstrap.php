@@ -303,8 +303,8 @@ if ( ! function_exists( 'metis_kernel_handle_public_storage_request' ) ) {
         // Public token lookups require DB-backed token resolution.
         // This request path runs before the normal kernel dispatch boot sequence,
         // so ensure standalone boot has initialized the runtime connection.
-        $db_connection = $GLOBALS['metis_db_connection'] ?? null;
-        if ( ! is_object( $db_connection ) && function_exists( 'metis_standalone_boot' ) ) {
+        $db_available = function_exists( 'metis_resolve_db_service' ) && metis_resolve_db_service()->isAvailable();
+        if ( ! $db_available && function_exists( 'metis_standalone_boot' ) ) {
             metis_standalone_boot();
         }
 

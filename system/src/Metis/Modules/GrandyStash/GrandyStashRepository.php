@@ -305,8 +305,7 @@ final class GrandyStashRepository {
         if ( $insert_result === false || ! is_array( $row ) || (int) ( $row['id'] ?? 0 ) < 1 ) {
             $last_error = '';
             try {
-                $connection = $db->connection();
-                $last_error = is_object( $connection ) && isset( $connection->last_error ) ? trim( (string) $connection->last_error ) : '';
+                $last_error = trim( $db->lastError() );
             } catch ( \Throwable ) {
                 $last_error = '';
             }

@@ -14,7 +14,7 @@ final class SchemaManager {
         self::$schemaReady = true;
 
         $db = \metis_db();
-        $charsetCollate = $db->connection()->get_charset_collate();
+        $charsetCollate = $db->get_charset_collate();
 
         $orgModeTable = \Metis_Tables::get( 'finance_v2_org_mode' );
         $fiscalSettingsTable = \Metis_Tables::get( 'finance_v2_fiscal_settings' );

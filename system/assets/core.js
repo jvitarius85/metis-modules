@@ -2279,7 +2279,12 @@ Metis.accessibility = (function() {
         try {
             var raw = window.localStorage.getItem(String(config().storageKey || ''));
             if (raw) {
-                resolved = Object.assign(resolved, JSON.parse(raw) || {});
+                var parsed = JSON.parse(raw) || {};
+                ['profile'].concat(toggles).forEach(function(key) {
+                    if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+                        resolved[key] = parsed[key];
+                    }
+                });
             }
         } catch (e) {}
         return apply(resolved);

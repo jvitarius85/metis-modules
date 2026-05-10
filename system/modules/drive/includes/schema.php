@@ -4,7 +4,7 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 function metis_drive_ensure_schema(): void {
     static $done = false;
     if ( $done ) return;
-    $charset          = metis_db()->connection()->get_charset_collate();
+    $charset          = metis_db()->get_charset_collate();
     $audit_table      = Metis_Tables::get( 'drive_audit' );
     $user_folders     = Metis_Tables::get( 'drive_user_folders' );
     $items_table      = Metis_Tables::get( 'drive_items' );

@@ -97,8 +97,7 @@ function metis_audit_ensure_schema(): void {
         return;
     }
 
-    $connection      = metis_db()->connection();
-    $charset_collate = method_exists( $connection, 'get_charset_collate' ) ? (string) $connection->get_charset_collate() : '';
+    $charset_collate = metis_db()->get_charset_collate();
     $activity_table  = Metis_Tables::get( 'audit_activity' );
     $security_table  = Metis_Tables::get( 'audit_security' );
 
@@ -200,7 +199,7 @@ function metis_audit_write( string $channel, string $action_type, array $args = 
         Metis_Logger::error( 'Audit log write failed', [
             'channel' => $channel,
             'action'  => $action_type,
-            'db_error'=> (string) ( $db->connection()->last_error ?? '' ),
+            'db_error'=> $db->lastError(),
         ] );
     }
 }

@@ -105,8 +105,7 @@ final class Metis_Runtime_Database_Gateway implements Metis_Security_Database_Ga
     }
 
     public function execute( string $statement, array $params = [], array $context = [] ): mixed {
-        $query = ! empty( $params ) ? metis_db()->prepare( $statement, ...$params ) : $statement;
-        return metis_db()->execute( $query );
+        return metis_db()->executePrepared( $statement, $params );
     }
 }
 

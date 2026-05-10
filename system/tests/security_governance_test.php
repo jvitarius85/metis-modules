@@ -80,7 +80,11 @@ $assert( str_contains( $processRunner, 'audit_context' ), 'ProcessRunner must re
 $assert( str_contains( $processRunner, 'permission_context' ), 'ProcessRunner must require permission context.' );
 
 $assert( is_array( $governance['approved_layers']['superglobals'] ?? null ), 'Governance config must define approved superglobal layers.' );
+$assert( ( $governance['approved_layers']['superglobals'] ?? null ) === [], 'Raw superglobal approvals must remain empty.' );
+$assert( ( $governance['approved_layers']['request_boundary'] ?? [] ) === [ 'system/src/Metis/Core/Runtime/RequestRuntime.php' ], 'Request SAPI bridge must remain isolated to RequestRuntime.' );
 $assert( is_array( $governance['approved_layers']['raw_sql'] ?? null ), 'Governance config must define approved raw SQL layers.' );
+$assert( is_array( $governance['approved_layers']['native_db'] ?? null ), 'Governance config must define approved native DB layers.' );
+$assert( is_array( $governance['approved_layers']['serialization'] ?? null ), 'Governance config must define approved serialization layers.' );
 $assert( is_array( $governance['approved_layers']['process'] ?? null ), 'Governance config must define approved process layers.' );
 $broadApprovalPrefixes = [
     'system/enclave/',

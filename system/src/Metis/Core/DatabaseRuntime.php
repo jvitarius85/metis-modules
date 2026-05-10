@@ -16,8 +16,7 @@ function metis_core_db_charset_collate(): string {
 }
 
 function metis_core_db_prefix(): string {
-    $connection = metis_core_db()->connection();
-    return (string) ( $connection->prefix ?? '' );
+    return metis_core_db()->prefix();
 }
 
 // -------------------------------------------------------------------------

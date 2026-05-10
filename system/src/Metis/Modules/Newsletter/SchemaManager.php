@@ -51,7 +51,7 @@ final class SchemaManager {
 
         $db = self::db();
 
-        $charset_collate   = $db->connection()->get_charset_collate();
+        $charset_collate   = $db->get_charset_collate();
         $lists_table       = \Metis_Tables::get( 'newsletter_lists' );
         $subs_table        = \Metis_Tables::get( 'newsletter_subs' );
         $templates_table   = \Metis_Tables::get( 'newsletter_templates' );

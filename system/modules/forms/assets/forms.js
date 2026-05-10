@@ -2275,7 +2275,7 @@
 
   function setValueAtPath(target, path, value) {
     const parts = String(path || '').split('.').filter(Boolean);
-    if (!parts.length) return;
+    if (!parts.length || parts.some(isUnsafeObjectKey)) return;
     let cursor = target;
     for (let index = 0; index < parts.length - 1; index += 1) {
       const key = parts[index];
@@ -2285,6 +2285,10 @@
       cursor = cursor[key];
     }
     cursor[parts[parts.length - 1]] = value;
+  }
+
+  function isUnsafeObjectKey(key) {
+    return key === '__proto__' || key === 'prototype' || key === 'constructor';
   }
 
   function normalizeFieldTree(fields) {
@@ -2714,6 +2718,7 @@
     let cursor = target;
     for (let index = 0; index < parts.length; index += 1) {
       const part = parts[index];
+      if (isUnsafeObjectKey(part)) return;
       const last = index === parts.length - 1;
       const next = parts[index + 1];
       const nextIsIndex = /^\d+$/.test(String(next || ''));

@@ -19,7 +19,7 @@ final class SchemaManager {
         }
 
         $db = self::db();
-        $charset_collate = $db->connection()->get_charset_collate();
+        $charset_collate = $db->get_charset_collate();
 
         // Get table names from registry
         $pages_table = \Metis_Tables::get( 'website_pages' );

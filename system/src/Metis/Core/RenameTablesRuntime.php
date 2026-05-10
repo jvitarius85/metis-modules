@@ -26,7 +26,7 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 function metis_get_rename_map(): array {
     $map = [];
-    $prefix = (string) ( metis_db()->connection()->prefix ?? '' );
+    $prefix = metis_db()->prefix();
 
     foreach ( Metis_Tables::definitions() as $bare_name ) {
         $map[ $prefix . $bare_name ] = $bare_name;
@@ -82,7 +82,7 @@ function metis_run_table_renames(): array {
         $result = $db->execute( "RENAME TABLE `{$old}` TO `{$new}`" );
 
         if ( $result === false ) {
-            $error_detail = (string) ( $db->connection()->last_error ?? '' );
+            $error_detail = $db->lastError();
             $errors[] = "{$old} → {$new}: Rename failed. Review logs for details.";
             Metis_Logger::error( "Table rename failed: {$old} → {$new}", [ 'error' => ( $error_detail !== '' ? $error_detail : 'Unknown error' ) ] );
         } else {
@@ -227,7 +227,7 @@ metis_on( 'metis_admin_init', function () {
 
         $db    = metis_db();
         $table = metis_text_clean( (string) ( metis_request_post()['table'] ?? metis_request_get()['table'] ?? '' ) );
-        $prefix = (string) ( $db->connection()->prefix ?? '' );
+        $prefix = $db->prefix();
         if ( ! $table || ! preg_match( '/(^|_)metis_/', $table ) || ! str_starts_with( $table, $prefix ) ) {
             metis_runtime_die( 'Invalid table parameter. Must be a prefixed metis table.', 'Error', [ 'response' => 400 ] );
         }
@@ -263,7 +263,7 @@ metis_on( 'metis_admin_init', function () {
 
         $db     = metis_db();
         $old    = metis_text_clean( (string) ( metis_request_post()['table'] ?? metis_request_get()['table'] ?? '' ) );
-        $prefix = (string) ( $db->connection()->prefix ?? '' );
+        $prefix = $db->prefix();
         if ( ! $old || ! preg_match( '/(^|_)metis_/', $old ) || ! str_starts_with( $old, $prefix ) ) {
             metis_runtime_die( 'Invalid table parameter. Must be a prefixed metis table.', 'Error', [ 'response' => 400 ] );
         }
