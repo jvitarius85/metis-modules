@@ -73,8 +73,8 @@ extract( $ctx, EXTR_SKIP );
                                     <code><?php echo metis_escape_html( (string) ( $job_row['job_code'] ?? '' ) ); ?></code>
                                 </td>
                                 <td><?php echo metis_escape_html( ucfirst( (string) ( $job_row['status'] ?? 'unknown' ) ) ); ?></td>
-                                <td><?php echo metis_escape_html( (string) ( $job_row['available_at'] ?: '-' ) ); ?></td>
-                                <td><?php echo metis_escape_html( (string) ( $job_row['completed_at'] ?: $job_row['failed_at'] ?: '-' ) ); ?></td>
+                                <td><?php echo metis_escape_html( (string) ( $job_row['started_at_display'] ?? 'Pending' ) ); ?></td>
+                                <td><?php echo metis_escape_html( (string) ( $job_row['finished_at_display'] ?? '-' ) ); ?></td>
                                 <td>
                                     <?php if ( (string) ( $job_row['last_error'] ?? '' ) !== '' ) : ?>
                                         <div class="metis-help" style="color:#b91c1c;"><?php echo metis_escape_html( 'Operation failed. Review logs for details.' ); ?></div>

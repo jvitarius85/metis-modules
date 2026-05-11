@@ -29,6 +29,7 @@ $communicationsAttachments = $read( 'src/Metis/Modules/CommunicationsInbound/Att
 $finance = $read( 'src/Metis/Modules/Finance/FinanceV2Service.php' );
 $scanner = $read( 'tools/security_scan.php' );
 $settingsBootstrap = $read( 'modules/settings/views/_settings_bootstrap.php' );
+$settingsJobsTasks = $read( 'modules/settings/views/jobs_tasks.php' );
 $settingsAjax = $read( 'modules/settings/assets/settings.ajax.php' );
 $settingsCss = $read( 'modules/settings/assets/settings.css' );
 $settingsJs = $read( 'modules/settings/assets/settings.js' );
@@ -172,6 +173,9 @@ $assert( str_contains( $settingsJs, 'renderBackupLiveStatus' ) && str_contains( 
 $assert( str_contains( $settingsJs, 'metis-status-chip is-' ) && str_contains( $settingsJs, 'metis-backup-archive-link' ), 'Backup history rows must use Metis status chips and action styling.' );
 $assert( str_contains( $settingsCss, '.metis-backup-alert' ) && str_contains( $settingsCss, '.metis-backup-progress' ), 'Backup UI must style backup failure alerts and live progress.' );
 $assert( str_contains( $settingsCss, '.metis-backup-history-table' ) && str_contains( $settingsCss, '.metis-backup-run-id' ), 'Backup history table must use compact Metis table styling.' );
+$assert( str_contains( $settingsBootstrap, "'recent_async_jobs'," ), 'Settings context must expose recent async jobs to the Jobs & Tasks view.' );
+$assert( str_contains( $settingsBootstrap, "'started_at_display'" ) && str_contains( $settingsBootstrap, "'finished_at_display'" ), 'Scheduler snapshots must format recent job timestamps with runtime display settings.' );
+$assert( str_contains( $settingsJobsTasks, '$recent_async_jobs' ) && str_contains( $settingsJobsTasks, 'metis-premium-table metis-scheduler-history-table' ), 'Jobs & Tasks recent jobs panel must render returned queue history in Metis table styling.' );
 
 if ( preg_match( '/function metis_settings_health_security_offense_clause\\(\\): string \\{(?P<body>.*?)\\n\\}/s', $settingsBootstrap, $match ) === 1 ) {
     $offenseClause = strtolower( (string) ( $match['body'] ?? '' ) );

@@ -125,40 +125,46 @@ extract( $ctx, EXTR_SKIP );
         <div class="metis-settings-header"><h2>Recent System Jobs</h2></div>
         <div class="metis-settings-body">
             <div class="metis-table-wrap">
-                <table class="metis-table">
+                <table class="metis-premium-table metis-scheduler-history-table">
                     <thead>
-                        <tr>
-                            <th>Job</th>
-                            <th>Type</th>
-                            <th>Queue</th>
-                            <th>Status</th>
-                            <th>Attempts</th>
-                            <th>Started</th>
-                            <th>Finished</th>
-                            <th>Result</th>
+                        <tr class="metis-premium-row metis-premium-header">
+                            <th class="metis-premium-cell" scope="col">Job</th>
+                            <th class="metis-premium-cell" scope="col">Type</th>
+                            <th class="metis-premium-cell" scope="col">Queue</th>
+                            <th class="metis-premium-cell" scope="col">Status</th>
+                            <th class="metis-premium-cell" scope="col">Attempts</th>
+                            <th class="metis-premium-cell" scope="col">Started</th>
+                            <th class="metis-premium-cell" scope="col">Finished</th>
+                            <th class="metis-premium-cell" scope="col">Result</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if ( empty( $recent_async_jobs ) ) : ?>
-                            <tr><td colspan="8">No system jobs have been queued yet.</td></tr>
+                            <tr class="metis-premium-row"><td class="metis-premium-cell" colspan="8">No system jobs have been queued yet.</td></tr>
                         <?php else : ?>
                             <?php foreach ( $recent_async_jobs as $job_row ) : ?>
                                 <?php
-                                $job_label = (string) ( $job_row['label'] ?: $job_row['task'] ?: $job_row['operation'] ?: $job_row['job_type'] ?: 'System job' );
-                                $finished_at = (string) ( $job_row['completed_at'] ?: $job_row['failed_at'] ?: '' );
+                                $job_label = (string) ( $job_row['job_label'] ?? $job_row['label'] ?? $job_row['task'] ?? $job_row['operation'] ?? $job_row['job_type'] ?? 'System job' );
+                                $finished_at = (string) ( $job_row['finished_at_display'] ?? '' );
+                                $status = strtolower( (string) ( $job_row['status'] ?? 'unknown' ) );
+                                $status_class = preg_replace( '/[^a-z0-9_-]+/', '-', $status ) ?: 'unknown';
                                 ?>
-                                <tr>
-                                    <td>
+                                <tr class="metis-premium-row">
+                                    <td class="metis-premium-cell">
                                         <strong><?php echo metis_escape_html( $job_label ); ?></strong><br>
                                         <code><?php echo metis_escape_html( (string) ( $job_row['job_code'] ?? '' ) ); ?></code>
                                     </td>
-                                    <td><code><?php echo metis_escape_html( (string) ( $job_row['job_type'] ?? '' ) ); ?></code></td>
-                                    <td><?php echo metis_escape_html( ucfirst( (string) ( $job_row['queue_name'] ?? 'system' ) ) ); ?></td>
-                                    <td><?php echo metis_escape_html( ucfirst( (string) ( $job_row['status'] ?? 'unknown' ) ) ); ?></td>
-                                    <td><?php echo metis_escape_html( (string) ( (int) ( $job_row['attempts'] ?? 0 ) ) . ' / ' . (string) ( (int) ( $job_row['max_attempts'] ?? 0 ) ) ); ?></td>
-                                    <td><?php echo metis_escape_html( (string) ( $job_row['started_at'] ?: $job_row['available_at'] ?: '-' ) ); ?></td>
-                                    <td><?php echo metis_escape_html( $finished_at !== '' ? $finished_at : '-' ); ?></td>
-                                    <td>
+                                    <td class="metis-premium-cell"><code><?php echo metis_escape_html( (string) ( $job_row['job_type'] ?? '' ) ); ?></code></td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( ucfirst( (string) ( $job_row['queue_name'] ?? 'system' ) ) ); ?></td>
+                                    <td class="metis-premium-cell">
+                                        <span class="metis-status-chip is-<?php echo metis_escape_attr( $status_class ); ?>">
+                                            <?php echo metis_escape_html( ucfirst( $status ) ); ?>
+                                        </span>
+                                    </td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( (int) ( $job_row['attempts'] ?? 0 ) ) . ' / ' . (string) ( (int) ( $job_row['max_attempts'] ?? 0 ) ) ); ?></td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $job_row['started_at_display'] ?? 'Pending' ) ); ?></td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( $finished_at !== '' ? $finished_at : '-' ); ?></td>
+                                    <td class="metis-premium-cell">
                                         <?php if ( (string) ( $job_row['last_error'] ?? '' ) !== '' ) : ?>
                                             <span class="metis-help"><?php echo metis_escape_html( (string) $job_row['last_error'] ); ?></span>
                                         <?php elseif ( ! empty( $job_row['result'] ) ) : ?>

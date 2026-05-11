@@ -1423,12 +1423,6 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
         $recent_async_jobs = \Metis\Core\Application::has_service( 'operations' )
             ? metis_operations()->recentJobs( 20 )
             : [];
-        $operations_recent_jobs = array_values( array_filter( $recent_async_jobs, static function ( array $row ): bool {
-            return (string) ( $row['job_type'] ?? '' ) === 'system.operation';
-        } ) );
-        $system_cron_recent_jobs = array_values( array_filter( $recent_async_jobs, static function ( array $row ): bool {
-            return (string) ( $row['job_type'] ?? '' ) === 'system.cron.task';
-        } ) );
 
         $task_association_map = [];
         $system_cron_task_rows = [];
@@ -1456,21 +1450,29 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
             $task_association_map[ $task_slug ] = metis_settings_scheduler_task_association( $task_slug, $task_config );
         }
 
-        $system_cron_recent_jobs = array_map( static function ( array $job_row ) use ( $date_format, $time_format, $timezone, $task_association_map, $system_cron_tasks ): array {
+        $recent_async_jobs = array_map( static function ( array $job_row ) use ( $date_format, $time_format, $timezone, $task_association_map, $system_cron_tasks ): array {
             $started_raw = (string) ( $job_row['started_at'] ?: $job_row['available_at'] ?: '' );
             $finished_raw = (string) ( $job_row['completed_at'] ?: $job_row['failed_at'] ?: '' );
             $reserved_until_raw = (string) ( $job_row['reserved_until'] ?? '' );
             $task_slug = metis_key_clean( (string) ( $job_row['task'] ?? '' ) );
             $task_label = '';
-            if ( $task_slug !== '' && isset( $system_cron_tasks[ $task_slug ] ) ) {
+            if ( (string) ( $job_row['job_type'] ?? '' ) === 'system.cron.task' && $task_slug !== '' && isset( $system_cron_tasks[ $task_slug ] ) ) {
                 $task_label = (string) ( $system_cron_tasks[ $task_slug ]['label'] ?? '' );
             }
             if ( $task_label === '' && $task_slug !== '' ) {
                 $task_label = metis_settings_humanize_slug( $task_slug );
             }
-            if ( $task_label === '' ) {
+            if ( $task_label === '' && (string) ( $job_row['job_type'] ?? '' ) === 'system.cron.task' ) {
                 $task_label = (string) ( $job_row['label'] ?? 'Cron Task' );
             }
+            $job_label = (string) (
+                $job_row['label']
+                ?: $task_label
+                ?: $job_row['operation']
+                ?: $job_row['task']
+                ?: $job_row['job_type']
+                ?: 'System job'
+            );
             $job_row['started_at_display'] = $started_raw !== ''
                 ? metis_settings_format_datetime_display( $started_raw, $date_format, $time_format, $timezone )
                 : 'Pending';
@@ -1482,8 +1484,16 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
                 : '';
             $job_row['task_label'] = $task_label;
             $job_row['association'] = (string) ( $task_association_map[ $task_slug ] ?? 'Scheduled cron callback' );
+            $job_row['job_label'] = $job_label;
             return $job_row;
-        }, $system_cron_recent_jobs );
+        }, $recent_async_jobs );
+
+        $operations_recent_jobs = array_values( array_filter( $recent_async_jobs, static function ( array $row ): bool {
+            return (string) ( $row['job_type'] ?? '' ) === 'system.operation';
+        } ) );
+        $system_cron_recent_jobs = array_values( array_filter( $recent_async_jobs, static function ( array $row ): bool {
+            return (string) ( $row['job_type'] ?? '' ) === 'system.cron.task';
+        } ) );
 
         return [
             'system_cron_tasks' => $system_cron_tasks,
@@ -4121,6 +4131,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'system_cron_header',
             'system_cron_task_rows',
             'queue_summary',
+            'recent_async_jobs',
             'performance_security_report',
             'operations_recent_jobs',
             'system_cron_recent_jobs',
