@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Metis\Core;
 
 final class Version {
-    public const CURRENT = '26.5.8.7';
+    public const CURRENT = '26.5.8.8';
 
     public static function sourcePath(?string $root = null): string {
         $base = $root;
