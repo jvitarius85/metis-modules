@@ -634,7 +634,9 @@ final class ThemeService {
         $menu_chevron_type = self::sanitizeMenuChevronType( (string) ( $menu_chevron['type'] ?? 'chevron' ) );
         $menu_chevron_animation_v2 = self::sanitizeMenuChevronAnimationV2( (string) ( $menu_chevron['animation'] ?? 'rotate' ) );
 
-        $menu_style = self::sanitizeMenuStyle( self::legacyMenuStyleFromLayout( $menu_layout ) );
+        $menu_style = self::sanitizeMenuStyle(
+            (string) ( $menu_comp['style'] ?? ( $global_settings['menu_style'] ?? self::legacyMenuStyleFromLayout( $menu_layout ) ) )
+        );
         $menu_vertical_align = self::sanitizeMenuVerticalAlign( (string) ( $menu_comp['vertical_align'] ?? 'center' ) );
         $menu_item_radius = max( 0, min( 30, (int) ( $menu_comp['item_radius'] ?? 10 ) ) );
         $menu_button_variant = self::sanitizeMenuButtonVariant( (string) ( $menu_comp['button_variant'] ?? 'primary' ) );
@@ -991,6 +993,7 @@ final class ThemeService {
             'h_clean',
             'h_pill',
             'h_underline',
+            'h_glide',
             'v_sidebar_clean',
             'v_sidebar_cards',
             'v_sidebar_compact',
@@ -1006,6 +1009,9 @@ final class ThemeService {
         if ( str_starts_with( $legacy, 'v_sidebar_' ) ) {
             return 'sidebar_overlay';
         }
+        if ( $legacy === 'h_glide' ) {
+            return 'glide_gradient';
+        }
         if ( $legacy === 'h_underline' ) {
             return 'minimal_topbar';
         }
@@ -1017,6 +1023,7 @@ final class ThemeService {
         return match ( $normalized ) {
             'sidebar_overlay' => 'v_sidebar_clean',
             'minimal_topbar' => 'h_underline',
+            'glide_gradient' => 'h_glide',
             default => 'h_clean',
         };
     }
@@ -1030,7 +1037,7 @@ final class ThemeService {
         } elseif ( $layout === 'sidebar' ) {
             $layout = 'sidebar_overlay';
         }
-        $allowed = [ 'horizontal_clean', 'centered_logo', 'split_nav', 'minimal_topbar', 'sidebar_overlay' ];
+        $allowed = [ 'horizontal_clean', 'centered_logo', 'split_nav', 'minimal_topbar', 'glide_gradient', 'sidebar_overlay' ];
         if ( ! in_array( $layout, $allowed, true ) ) {
             return 'horizontal_clean';
         }

@@ -501,6 +501,54 @@
     grid-template-columns: minmax(220px, 1.8fr) minmax(220px, 1.8fr) minmax(110px, .9fr) minmax(145px, 1.05fr) minmax(145px, 1.05fr) minmax(150px, 1.2fr);
 }
 
+.metis-failed-logins-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #d8def8;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.metis-failed-logins-table {
+    margin: 0;
+    min-width: 920px;
+}
+
+.metis-failed-logins-table thead,
+.metis-failed-logins-table tr.metis-premium-header {
+    position: static;
+    top: auto;
+}
+
+.metis-failed-logins-table .metis-premium-row,
+.metis-failed-logins-table .metis-premium-header {
+    grid-template-columns: minmax(140px, .9fr) minmax(170px, 1.05fr) minmax(180px, 1.1fr) minmax(240px, 1.5fr) minmax(130px, .8fr) minmax(70px, .45fr);
+    align-items: start;
+}
+
+.metis-failed-logins-table .metis-premium-cell {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+}
+
+.metis-failed-logins-table .metis-premium-header .metis-premium-cell {
+    white-space: nowrap;
+}
+
+.metis-failed-logins-source details {
+    margin-top: 4px;
+}
+
+.metis-failed-logins-source summary {
+    cursor: pointer;
+    color: #334155;
+    font-weight: 600;
+}
+
+.metis-failed-logins-empty {
+    grid-column: 1 / -1;
+}
+
 .metis-finance-mode-grid {
     display: grid;
     gap: 12px;

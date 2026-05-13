@@ -234,7 +234,17 @@ $menu_layout_options = [
     'centered_logo' => 'Centered Logo',
     'split_nav' => 'Split Navigation',
     'minimal_topbar' => 'Minimal Topbar',
+    'glide_gradient' => 'Glide Gradient',
     'sidebar_overlay' => 'Sidebar Overlay',
+];
+$menu_style_options = [
+    'h_clean' => 'Clean',
+    'h_pill' => 'Pill',
+    'h_underline' => 'Underline',
+    'h_glide' => 'Glide Gradient',
+    'v_sidebar_clean' => 'Sidebar Clean',
+    'v_sidebar_cards' => 'Sidebar Cards',
+    'v_sidebar_compact' => 'Sidebar Compact',
 ];
 $menu_alignment_options = [
     'left' => 'Left',
@@ -289,10 +299,15 @@ $spacing = array_merge( $spacing_defaults, is_array( $spacing ) ? $spacing : [] 
 $global_styles = array_replace_recursive( $global_defaults, is_array( $global_styles ) ? $global_styles : [] );
 $custom = array_replace_recursive( $custom_defaults, is_array( $custom ) ? $custom : [] );
 $menu_config = is_array( $global_styles['components']['menu_config'] ?? null ) ? $global_styles['components']['menu_config'] : [];
+$menu_component = is_array( $global_styles['components']['menu'] ?? null ) ? $global_styles['components']['menu'] : [];
 $menu_desktop = is_array( $menu_config['desktop'] ?? null ) ? $menu_config['desktop'] : [];
 $menu_dropdown = is_array( $menu_config['dropdown'] ?? null ) ? $menu_config['dropdown'] : [];
 $menu_mobile = is_array( $menu_config['mobile'] ?? null ) ? $menu_config['mobile'] : [];
 $menu_chevron = is_array( $menu_config['chevron'] ?? null ) ? $menu_config['chevron'] : [];
+$menu_visual_style = (string) ( $menu_component['style'] ?? ( $global_styles['global_settings']['menu_style'] ?? 'h_clean' ) );
+if ( ! isset( $menu_style_options[ $menu_visual_style ] ) ) {
+    $menu_visual_style = 'h_clean';
+}
 $menu_chevron_type = (string) ( $menu_chevron['type'] ?? 'chevron' );
 $menu_chevron_animation = (string) ( $menu_chevron['animation'] ?? 'rotate' );
 $menu_chevron_style = 'none';
@@ -653,6 +668,14 @@ foreach ( $line_height_options as $value => $label ) {
                                 <select id="metis-theme-menu-layout" class="metis-input">
                                     <?php foreach ( $menu_layout_options as $layout_value => $layout_label ) : ?>
                                         <option value="<?php echo metis_escape_attr( $layout_value ); ?>"<?php echo ( (string) ( $menu_config['layout'] ?? 'horizontal_clean' ) === (string) $layout_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $layout_label ); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="metis-theme-field">
+                                <label class="metis-theme-label">Menu style</label>
+                                <select id="metis-theme-menu-style" class="metis-input">
+                                    <?php foreach ( $menu_style_options as $style_value => $style_label ) : ?>
+                                        <option value="<?php echo metis_escape_attr( $style_value ); ?>"<?php echo ( $menu_visual_style === (string) $style_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $style_label ); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -1345,12 +1368,16 @@ function applyMenuLivePreview() {
     if (!$live.length) return;
     ensureObjectPath(state, ['global_styles', 'components', 'menu_config'], {});
     var menuConfig = state.global_styles.components.menu_config || {};
+    var menuComponent = (state.global_styles.components.menu && typeof state.global_styles.components.menu === 'object')
+        ? state.global_styles.components.menu
+        : {};
     var menuDesktop = menuConfig.desktop || {};
     var menuDropdown = menuConfig.dropdown || {};
     var menuMobile = menuConfig.mobile || {};
     var menuChevron = menuConfig.chevron || {};
 
     var layout = String(menuConfig.layout || 'horizontal_clean');
+    var menuStyle = normalizeMenuStyleOption(menuComponent.style || ((state.global_styles.global_settings || {}).menu_style || ''), layout);
     var alignment = String(menuConfig.alignment || 'left');
     var container = String(menuConfig.container || 'contained');
     var fontSize = parseInt(menuDesktop.font_size, 10);
@@ -1368,6 +1395,7 @@ function applyMenuLivePreview() {
     var chevronAnimation = String(menuChevron.animation || 'none');
 
     var classes = ['metis-theme-menu-live'];
+    if (menuStyle) classes.push('metis-menu-style-' + menuStyle);
     if (layout) classes.push('metis-menu-layout-' + layout);
     if (alignment) classes.push('metis-menu-align-' + alignment);
     if (container) classes.push('metis-menu-container-' + container);
@@ -1455,6 +1483,28 @@ function normalizeMenuSubHoverAnimationOption(raw) {
 function normalizeMenuActiveStyleOption(raw) {
     var v = String(raw || 'text').toLowerCase();
     return (v === 'text' || v === 'underline' || v === 'pill') ? v : 'text';
+}
+
+function menuStyleFromLayout(layout) {
+    var value = String(layout || 'horizontal_clean').toLowerCase();
+    if (value === 'sidebar_overlay') return 'v_sidebar_clean';
+    if (value === 'minimal_topbar') return 'h_underline';
+    if (value === 'glide_gradient') return 'h_glide';
+    return 'h_clean';
+}
+
+function normalizeMenuStyleOption(raw, layout) {
+    var value = String(raw || '').toLowerCase();
+    var allowed = {
+        h_clean: true,
+        h_pill: true,
+        h_underline: true,
+        h_glide: true,
+        v_sidebar_clean: true,
+        v_sidebar_cards: true,
+        v_sidebar_compact: true
+    };
+    return allowed[value] ? value : menuStyleFromLayout(layout);
 }
 
 function parseColor(v, fallback) {
@@ -1582,6 +1632,9 @@ function collectThemeData() {
         chevronAnimation = 'rotate';
     }
     out.global_styles.components.menu_config.layout = String($('#metis-theme-menu-layout').val() || 'horizontal_clean');
+    var selectedMenuStyle = normalizeMenuStyleOption($('#metis-theme-menu-style').val(), out.global_styles.components.menu_config.layout);
+    out.global_styles.components.menu.style = selectedMenuStyle;
+    out.global_styles.global_settings.menu_style = selectedMenuStyle;
     out.global_styles.components.menu_config.alignment = String($('#metis-theme-menu-alignment').val() || 'left');
     out.global_styles.components.menu_config.container = String($('#metis-theme-menu-container').val() || 'contained');
     out.global_styles.components.menu_config.desktop = {
@@ -1826,6 +1879,9 @@ function syncFormFromState() {
     var menuConfig = (state.global_styles.components && state.global_styles.components.menu_config)
         ? state.global_styles.components.menu_config
         : {};
+    var menuComponent = (state.global_styles.components && state.global_styles.components.menu)
+        ? state.global_styles.components.menu
+        : {};
     var menuDesktop = menuConfig.desktop || {};
     var menuDropdown = menuConfig.dropdown || {};
     var menuMobile = menuConfig.mobile || {};
@@ -1837,6 +1893,7 @@ function syncFormFromState() {
         chevronStyle = 'rotate';
     }
     $('#metis-theme-menu-layout').val(String(menuConfig.layout || 'horizontal_clean'));
+    $('#metis-theme-menu-style').val(normalizeMenuStyleOption(menuComponent.style || ((state.global_styles.global_settings || {}).menu_style || ''), String(menuConfig.layout || 'horizontal_clean')));
     $('#metis-theme-menu-alignment').val(String(menuConfig.alignment || 'left'));
     $('#metis-theme-menu-container').val(String(menuConfig.container || 'contained'));
     $('#metis-theme-menu-font-size').val(String(menuDesktop.font_size || 14));
@@ -2085,7 +2142,11 @@ function initNav() {
     });
 }
 
-$(document).on('input change', '.metis-theme-color, .metis-theme-spacing, .metis-theme-element-input, #metis-theme-body-font, #metis-theme-heading-font, #metis-theme-base-size, #metis-theme-line-height, #metis-theme-heading-weight, #metis-theme-max-width, #metis-theme-container-width, #metis-theme-spacing-preset, #metis-theme-bp-sm, #metis-theme-bp-md, #metis-theme-bp-lg, #metis-theme-bp-xl, #metis-theme-title-format, #metis-theme-btn-radius, #metis-theme-card-radius, #metis-theme-form-radius, #metis-theme-form-border, #metis-theme-link-underline, #metis-theme-menu-layout, #metis-theme-menu-alignment, #metis-theme-menu-container, #metis-theme-menu-font-size, #metis-theme-menu-spacing, #metis-theme-menu-hover-style, #metis-theme-menu-active-style, #metis-theme-menu-dropdown-behavior, #metis-theme-menu-dropdown-animation, #metis-theme-menu-mobile-type, #metis-theme-menu-chevron-style, #metis-theme-custom-css, #metis-theme-token-editor', function() {
+$(document).on('change', '#metis-theme-menu-layout', function() {
+    $('#metis-theme-menu-style').val(menuStyleFromLayout($(this).val()));
+});
+
+$(document).on('input change', '.metis-theme-color, .metis-theme-spacing, .metis-theme-element-input, #metis-theme-body-font, #metis-theme-heading-font, #metis-theme-base-size, #metis-theme-line-height, #metis-theme-heading-weight, #metis-theme-max-width, #metis-theme-container-width, #metis-theme-spacing-preset, #metis-theme-bp-sm, #metis-theme-bp-md, #metis-theme-bp-lg, #metis-theme-bp-xl, #metis-theme-title-format, #metis-theme-btn-radius, #metis-theme-card-radius, #metis-theme-form-radius, #metis-theme-form-border, #metis-theme-link-underline, #metis-theme-menu-layout, #metis-theme-menu-style, #metis-theme-menu-alignment, #metis-theme-menu-container, #metis-theme-menu-font-size, #metis-theme-menu-spacing, #metis-theme-menu-hover-style, #metis-theme-menu-active-style, #metis-theme-menu-dropdown-behavior, #metis-theme-menu-dropdown-animation, #metis-theme-menu-mobile-type, #metis-theme-menu-chevron-style, #metis-theme-custom-css, #metis-theme-token-editor', function() {
     if (this.id === 'metis-theme-spacing-preset') {
         applySpacingPreset($(this).val());
         syncFormFromState();

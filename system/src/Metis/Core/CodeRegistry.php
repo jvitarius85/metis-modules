@@ -86,6 +86,157 @@ namespace Metis\Core {
             return $summary;
         }
 
+        /**
+         * Search registry-backed entity records by code fragments and safe label fields.
+         *
+         * The code registry remains the authority for returned objects. Matching table rows
+         * that do not resolve through the registry are intentionally ignored so keyword lookup
+         * cannot expose unregistered records.
+         *
+         * @return array<int, array<string, mixed>>
+         */
+        public static function search( string $query, int $limit = 10 ): array {
+            self::init();
+            if (
+                ! \function_exists( 'metis_entity_id_service' )
+                || ! \function_exists( 'metis_db' )
+                || ! \class_exists( '\Metis_Tables' )
+                || ! \class_exists( '\Metis\Core\EntityCatalog' )
+            ) {
+                return [];
+            }
+
+            $query = self::normalize_search_query( $query );
+            if ( $query === '' || strlen( str_replace( ' ', '', $query ) ) < 3 ) {
+                return [];
+            }
+
+            $limit = max( 1, min( 25, $limit ) );
+            $pattern = '%' . strtoupper( $query ) . '%';
+            $db = \metis_db();
+            $service = \metis_entity_id_service();
+            if ( ! is_object( $service ) || ! method_exists( $service, 'tableExists' ) || ! method_exists( $service, 'columnExists' ) ) {
+                return [];
+            }
+
+            $matches = [];
+            $seen = [];
+            $append = static function ( string $entity_uid, string $matched_on = 'code' ) use ( &$matches, &$seen, $limit ): void {
+                if ( count( $matches ) >= $limit ) {
+                    return;
+                }
+
+                $entity_uid = strtoupper( trim( $entity_uid ) );
+                if ( $entity_uid === '' || isset( $seen[ $entity_uid ] ) ) {
+                    return;
+                }
+
+                $candidate = self::resolve( $entity_uid );
+                if ( ! is_array( $candidate ) ) {
+                    return;
+                }
+
+                $seen[ $entity_uid ] = true;
+                $candidate['match_type'] = 'keyword';
+                $candidate['matched_on'] = $matched_on;
+                $matches[] = $candidate;
+            };
+
+            try {
+                $registry_table = \Metis_Tables::get( 'entity_registry' );
+                if ( is_string( $registry_table ) && $registry_table !== '' && $service->tableExists( $registry_table ) ) {
+                    $rows = $db->fetchAll(
+                        "SELECT entity_uid
+                         FROM {$registry_table}
+                         WHERE UPPER(entity_uid) LIKE %s
+                         ORDER BY entity_uid ASC
+                         LIMIT %d",
+                        [ $pattern, $limit ]
+                    );
+
+                    foreach ( (array) $rows as $row ) {
+                        if ( is_array( $row ) ) {
+                            $append( (string) ( $row['entity_uid'] ?? '' ), 'code' );
+                        }
+                    }
+                }
+            } catch ( \Throwable ) {
+                // Keyword lookup is best-effort; exact code lookup still works if this path is unavailable.
+            }
+
+            foreach ( \Metis\Core\EntityCatalog::definitions() as $entity_type => $definition ) {
+                if ( count( $matches ) >= $limit ) {
+                    break;
+                }
+                if ( ! is_array( $definition ) ) {
+                    continue;
+                }
+
+                $table_key = (string) ( $definition['table_key'] ?? '' );
+                $uid_column = (string) ( $definition['uid_column'] ?? '' );
+                if ( $table_key === '' || $uid_column === '' || ! \Metis_Tables::has( $table_key ) ) {
+                    continue;
+                }
+
+                $table = \Metis_Tables::get( $table_key );
+                if ( ! is_string( $table ) || $table === '' || ! $service->tableExists( $table ) || ! $service->columnExists( $table, $uid_column ) ) {
+                    continue;
+                }
+
+                $searchable_columns = self::searchable_columns( $table, $definition, $service );
+                if ( $searchable_columns === [] ) {
+                    continue;
+                }
+
+                $clauses = [];
+                $params = [];
+                foreach ( $searchable_columns as $column ) {
+                    $clauses[] = "UPPER(COALESCE({$column}, '')) LIKE %s";
+                    $params[] = $pattern;
+                }
+
+                if ( $service->columnExists( $table, 'first_name' ) && $service->columnExists( $table, 'last_name' ) ) {
+                    $clauses[] = "UPPER(CONCAT_WS(' ', first_name, last_name)) LIKE %s";
+                    $params[] = $pattern;
+                }
+
+                $where = trim( (string) ( $definition['where'] ?? '' ) );
+                $order_column = $service->columnExists( $table, 'id' ) ? 'id' : $uid_column;
+                $order_direction = $order_column === 'id' ? 'DESC' : 'ASC';
+                $query_limit = min( 50, max( 10, $limit * 3 ) );
+                $params[] = $query_limit;
+
+                $sql = "SELECT {$uid_column} AS entity_uid
+                        FROM {$table}
+                        WHERE {$uid_column} IS NOT NULL
+                          AND {$uid_column} <> ''
+                          AND (" . implode( ' OR ', $clauses ) . ')';
+                if ( $where !== '' ) {
+                    $sql .= " AND ({$where})";
+                }
+                $sql .= " ORDER BY {$order_column} {$order_direction} LIMIT %d";
+
+                try {
+                    $rows = $db->fetchAll( $sql, $params );
+                } catch ( \Throwable ) {
+                    continue;
+                }
+
+                foreach ( (array) $rows as $row ) {
+                    if ( ! is_array( $row ) ) {
+                        continue;
+                    }
+
+                    $append( (string) ( $row['entity_uid'] ?? '' ), (string) $entity_type );
+                    if ( count( $matches ) >= $limit ) {
+                        break 2;
+                    }
+                }
+            }
+
+            return $matches;
+        }
+
         public static function resolve( string $code ): ?array {
             self::init();
             if ( ! \function_exists( 'metis_entity_resolver' ) ) {
@@ -149,6 +300,66 @@ namespace Metis\Core {
             $entity_type = class_exists( '\Metis\Core\EntityCatalog' ) ? \Metis\Core\EntityCatalog::entityTypeForPrefix( $prefix ) : null;
             $definition = is_string( $entity_type ) ? \Metis\Core\EntityCatalog::definition( $entity_type ) : null;
             return (string) ( $definition['description'] ?? strtoupper( $prefix ) );
+        }
+
+        private static function normalize_search_query( string $query ): string {
+            $query = preg_replace( '/[\x00-\x1F\x7F]+/', ' ', $query ) ?? '';
+            $query = preg_replace( '/[^A-Za-z0-9 @.-]+/', ' ', $query ) ?? '';
+            $query = preg_replace( '/\s+/', ' ', $query ) ?? '';
+            return trim( $query );
+        }
+
+        /**
+         * @param array<string, mixed> $definition
+         * @return array<int, string>
+         */
+        private static function searchable_columns( string $table, array $definition, object $service ): array {
+            $candidates = [
+                (string) ( $definition['uid_column'] ?? '' ),
+                ...array_map( 'strval', (array) ( $definition['legacy_columns'] ?? [] ) ),
+                'display_name',
+                'first_name',
+                'last_name',
+                'email',
+                'name',
+                'title',
+                'subject',
+                'label',
+                'slug',
+                'cname',
+                'provider_ref',
+                'batch_name',
+                'batch_code',
+                'transaction_uid',
+                'campaign_code',
+                'template_code',
+                'list_key',
+                'meeting_code',
+                'page_title',
+                'post_title',
+                'banner_title',
+                'role_name',
+                'role_key',
+                'permission_key',
+                'permission_label',
+                'event_title',
+                'form_uuid',
+                'submission_key',
+            ];
+
+            $columns = [];
+            foreach ( $candidates as $column ) {
+                $column = trim( (string) $column );
+                if ( $column === '' || isset( $columns[ $column ] ) || preg_match( '/^[A-Za-z0-9_]+$/', $column ) !== 1 ) {
+                    continue;
+                }
+
+                if ( method_exists( $service, 'columnExists' ) && $service->columnExists( $table, $column ) ) {
+                    $columns[ $column ] = true;
+                }
+            }
+
+            return array_keys( $columns );
         }
 
         /**
@@ -304,6 +515,10 @@ namespace {
 
             public static function resolve( string $code ): ?array {
                 return \Metis\Core\CodeRegistry::resolve( $code );
+            }
+
+            public static function search( string $query, int $limit = 10 ): array {
+                return \Metis\Core\CodeRegistry::search( $query, $limit );
             }
 
             public static function rehydrate( bool $sync_legacy_columns = true ): array {

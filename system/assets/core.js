@@ -3293,7 +3293,7 @@ Metis.codeSearch = (function() {
 
     var debounceTimer = null;
     var lastQuery     = '';
-    var MIN_CODE_LENGTH = 4;
+    var MIN_CODE_LENGTH = 3;
     var MIN_NUMERIC_LENGTH = 2;
 
     function escHtml(str) {

@@ -2242,8 +2242,9 @@ a.metis-chip:hover,
     right: 0;
     min-width: 300px;
     max-width: 420px;
-    max-height: none;
-    overflow: visible;
+    max-height: min(430px, calc(100vh - 120px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--metis-surface);
     border: 1px solid var(--metis-border);
     border-radius: var(--metis-radius);

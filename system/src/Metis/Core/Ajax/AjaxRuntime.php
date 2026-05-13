@@ -519,8 +519,8 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
         metis_runtime_send_json_error( [ 'message' => 'A lookup code is required.' ], 422 );
     }
 
-    $max_candidates = 24;
-    $max_results = 5;
+    $max_candidates = 75;
+    $max_results = 25;
     $matches = [];
     $seen_codes = [];
     $append_match = static function ( ?array $entry ) use ( &$matches, &$seen_codes ): void {
@@ -540,17 +540,21 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
             'entity_type' => (string) ( $entry['entity_type'] ?? '' ),
             'label' => (string) ( $entry['label'] ?? $entry_code ),
             'url' => (string) ( $entry['resolve_url'] ?? $entry['url'] ?? '' ),
+            'match_type' => (string) ( $entry['match_type'] ?? 'code' ),
+            'matched_on' => (string) ( $entry['matched_on'] ?? '' ),
         ];
     };
 
     $score_match = static function ( array $match, string $query ): int {
         $candidate_code = strtoupper( trim( (string) ( $match['code'] ?? '' ) ) );
+        $candidate_label = strtoupper( trim( (string) ( $match['label'] ?? '' ) ) );
         $query = strtoupper( trim( $query ) );
-        if ( $candidate_code === '' || $query === '' ) {
+        if ( ( $candidate_code === '' && $candidate_label === '' ) || $query === '' ) {
             return 9999;
         }
 
         $candidate_norm = preg_replace( '/[^A-Z0-9]/', '', $candidate_code ) ?? '';
+        $label_norm = preg_replace( '/[^A-Z0-9]/', '', $candidate_label ) ?? '';
         $query_norm = preg_replace( '/[^A-Z0-9*]/', '', $query ) ?? '';
         $query_plain = str_replace( '*', '', $query_norm );
         $score = 1000;
@@ -561,10 +565,13 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
         if ( $query_plain !== '' && $candidate_norm === $query_plain ) {
             return 10;
         }
+        if ( $query_plain !== '' && $label_norm === $query_plain ) {
+            return 15;
+        }
 
         if ( strpos( $query, '*' ) !== false ) {
             $pattern = '/^' . str_replace( '\*', '.*', preg_quote( $query_norm, '/' ) ) . '$/';
-            if ( preg_match( $pattern, $candidate_norm ) === 1 ) {
+            if ( preg_match( $pattern, $candidate_norm ) === 1 || preg_match( $pattern, $label_norm ) === 1 ) {
                 $score -= 250;
             }
         }
@@ -575,6 +582,13 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
                 $score -= 220;
             } elseif ( $pos !== false ) {
                 $score -= (150 - min( 120, (int) $pos ));
+            }
+
+            $label_pos = strpos( $label_norm, $query_plain );
+            if ( $label_pos === 0 ) {
+                $score -= 240;
+            } elseif ( $label_pos !== false ) {
+                $score -= (170 - min( 120, (int) $label_pos ));
             }
         }
 
@@ -603,7 +617,13 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
         }
 
         if ( $query_plain !== '' ) {
-            $score += abs( strlen( $candidate_norm ) - strlen( $query_plain ) );
+            $length_delta = $candidate_norm !== ''
+                ? abs( strlen( $candidate_norm ) - strlen( $query_plain ) )
+                : 0;
+            if ( $label_norm !== '' ) {
+                $length_delta = min( $length_delta, abs( strlen( $label_norm ) - strlen( $query_plain ) ) );
+            }
+            $score += $length_delta;
         }
 
         return $score;
@@ -789,6 +809,25 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
                         }
 
                         $candidate = Metis_Code_Registry::resolve( strtoupper( trim( (string) $row['entity_uid'] ) ) );
+                        if ( is_array( $candidate ) ) {
+                            $append_match( $candidate );
+                            if ( ! is_array( $resolved ) ) {
+                                $resolved = $candidate;
+                            }
+                        }
+
+                        if ( count( $matches ) >= $max_candidates ) {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ( count( $matches ) < $max_candidates && class_exists( 'Metis_Code_Registry' ) ) {
+                $keyword_lookup = strtoupper( preg_replace( '/[^A-Z0-9 @.-]/', ' ', $code ) ?? '' );
+                $keyword_plain = preg_replace( '/[^A-Z0-9]/', '', $keyword_lookup ) ?? '';
+                if ( strlen( $keyword_plain ) >= 3 ) {
+                    foreach ( Metis_Code_Registry::search( $keyword_lookup, $max_candidates - count( $matches ) ) as $candidate ) {
                         if ( is_array( $candidate ) ) {
                             $append_match( $candidate );
                             if ( ! is_array( $resolved ) ) {
