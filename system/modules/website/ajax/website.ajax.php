@@ -3504,6 +3504,161 @@ metis_ajax_register_handler( 'metis_website_template_delete', function (): void 
 // Theme
 // ---------------------------------------------------------------------------
 
+function metis_website_ajax_theme_json_encode( array $value ): string {
+    if ( function_exists( 'metis_json_encode' ) ) {
+        return (string) metis_json_encode( $value, JSON_UNESCAPED_SLASHES );
+    }
+    $encoded = json_encode( $value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+    return is_string( $encoded ) ? $encoded : '{}';
+}
+
+/**
+ * @return array<string,mixed>
+ */
+function metis_website_ajax_theme_storage_from_row( array $row ): array {
+    return [
+        'global_styles' => metis_website_ajax_decode_json_array( isset( $row['global_styles_json'] ) ? (string) $row['global_styles_json'] : '' ),
+        'typography' => metis_website_ajax_decode_json_array( isset( $row['typography_json'] ) ? (string) $row['typography_json'] : '' ),
+        'colors' => metis_website_ajax_decode_json_array( isset( $row['color_palette_json'] ) ? (string) $row['color_palette_json'] : '' ),
+        'spacing' => metis_website_ajax_decode_json_array( isset( $row['spacing_json'] ) ? (string) $row['spacing_json'] : '' ),
+        'custom_tokens' => metis_website_ajax_decode_json_array( isset( $row['custom_tokens_json'] ) ? (string) $row['custom_tokens_json'] : '' ),
+    ];
+}
+
+/**
+ * @param array<string,mixed> $storage
+ * @return array<string,string>
+ */
+function metis_website_ajax_theme_storage_to_payload( array $storage ): array {
+    return [
+        'global_styles_json' => metis_website_ajax_theme_json_encode( is_array( $storage['global_styles'] ?? null ) ? $storage['global_styles'] : [] ),
+        'typography_json' => metis_website_ajax_theme_json_encode( is_array( $storage['typography'] ?? null ) ? $storage['typography'] : [] ),
+        'color_palette_json' => metis_website_ajax_theme_json_encode( is_array( $storage['colors'] ?? null ) ? $storage['colors'] : [] ),
+        'spacing_json' => metis_website_ajax_theme_json_encode( is_array( $storage['spacing'] ?? null ) ? $storage['spacing'] : [] ),
+        'custom_tokens_json' => metis_website_ajax_theme_json_encode( is_array( $storage['custom_tokens'] ?? null ) ? $storage['custom_tokens'] : [] ),
+    ];
+}
+
+/**
+ * @return array<string,true>
+ */
+function metis_website_ajax_theme_patch_allowlist(): array {
+    return array_fill_keys( [
+        'colors',
+        'typography',
+        'spacing',
+        'custom_tokens',
+        'global_styles.layout',
+        'global_styles.layout_tokens',
+        'global_styles.global_settings.title_format',
+        'global_styles.global_settings.site_layout_profile',
+        'global_styles.global_settings.newsletter_layout_profile',
+        'global_styles.global_settings.branding_color_bindings',
+        'global_styles.global_settings.footer_background_binding',
+        'global_styles.global_settings.menu_style',
+        'global_styles.components.buttons',
+        'global_styles.components.cards',
+        'global_styles.components.forms',
+        'global_styles.components.links',
+        'global_styles.components.menu',
+        'global_styles.components.menu_config',
+        'global_styles.components.footer',
+        'global_styles.elements',
+        'global_styles.advanced',
+    ], true );
+}
+
+/**
+ * @return array<int,string>
+ */
+function metis_website_ajax_theme_patch_paths( ?string $raw_paths ): array {
+    $allowed = metis_website_ajax_theme_patch_allowlist();
+    $paths = [];
+    foreach ( explode( ',', (string) $raw_paths ) as $raw_path ) {
+        $path = trim( preg_replace( '/[^A-Za-z0-9_.-]/', '', $raw_path ) ?? '' );
+        if ( $path === '' || ! isset( $allowed[ $path ] ) ) {
+            continue;
+        }
+        $paths[ $path ] = $path;
+    }
+    return array_values( $paths );
+}
+
+/**
+ * @param array<string,mixed> $source
+ * @param array<int,string> $segments
+ */
+function metis_website_ajax_theme_get_path( array $source, array $segments, mixed &$value ): bool {
+    $cursor = $source;
+    foreach ( $segments as $segment ) {
+        if ( ! is_array( $cursor ) || ! array_key_exists( $segment, $cursor ) ) {
+            $value = null;
+            return false;
+        }
+        $cursor = $cursor[ $segment ];
+    }
+    $value = $cursor;
+    return true;
+}
+
+/**
+ * @param array<string,mixed> $target
+ * @param array<int,string> $segments
+ */
+function metis_website_ajax_theme_set_path( array &$target, array $segments, mixed $value ): void {
+    $cursor =& $target;
+    $last = array_pop( $segments );
+    foreach ( $segments as $segment ) {
+        if ( ! isset( $cursor[ $segment ] ) || ! is_array( $cursor[ $segment ] ) ) {
+            $cursor[ $segment ] = [];
+        }
+        $cursor =& $cursor[ $segment ];
+    }
+    if ( $last !== null ) {
+        $cursor[ $last ] = $value;
+    }
+}
+
+/**
+ * @param array<string,mixed> $target
+ * @param array<int,string> $segments
+ */
+function metis_website_ajax_theme_unset_path( array &$target, array $segments ): void {
+    $cursor =& $target;
+    $last = array_pop( $segments );
+    foreach ( $segments as $segment ) {
+        if ( ! isset( $cursor[ $segment ] ) || ! is_array( $cursor[ $segment ] ) ) {
+            return;
+        }
+        $cursor =& $cursor[ $segment ];
+    }
+    if ( $last !== null && is_array( $cursor ) && array_key_exists( $last, $cursor ) ) {
+        unset( $cursor[ $last ] );
+    }
+}
+
+/**
+ * @param array<string,mixed> $base
+ * @param array<string,mixed> $patch
+ * @param array<int,string> $paths
+ * @return array<string,mixed>
+ */
+function metis_website_ajax_theme_apply_patch( array $base, array $patch, array $paths ): array {
+    foreach ( $paths as $path ) {
+        $segments = array_values( array_filter( explode( '.', $path ), static fn( string $segment ): bool => $segment !== '' ) );
+        if ( $segments === [] ) {
+            continue;
+        }
+        $value = null;
+        if ( metis_website_ajax_theme_get_path( $patch, $segments, $value ) ) {
+            metis_website_ajax_theme_set_path( $base, $segments, $value );
+        } else {
+            metis_website_ajax_theme_unset_path( $base, $segments );
+        }
+    }
+    return $base;
+}
+
 metis_ajax_register_handler( 'metis_website_theme_get', function (): void {
     metis_website_ajax_verify_nonce();
     metis_website_ajax_require_permission( 'website.view' );
@@ -3517,6 +3672,7 @@ metis_ajax_register_handler( 'metis_website_theme_save', function (): void {
     metis_website_ajax_require_permission( 'website.manage_theme' );
 
     $id = isset( metis_request_post()['id'] ) ? (int) metis_request_post()['id'] : 0;
+    $save_mode = metis_key_clean( (string) ( metis_website_ajax_post_string( 'theme_save_mode' ) ?? 'full' ) );
 
     $data = [
         'global_styles_json' => metis_website_ajax_post_string( 'global_styles_json', false ),
@@ -3525,6 +3681,23 @@ metis_ajax_register_handler( 'metis_website_theme_save', function (): void {
         'spacing_json'       => metis_website_ajax_post_string( 'spacing_json', false ),
         'custom_tokens_json' => metis_website_ajax_post_string( 'custom_tokens_json', false ),
     ];
+
+    if ( $save_mode === 'patch' && $id > 0 ) {
+        $row = ThemeService::getById( $id );
+        if ( ! is_array( $row ) ) {
+            metis_runtime_send_json_error( 'Theme could not be loaded for patch save.', 404 );
+        }
+
+        $patch = metis_website_ajax_decode_json_array( metis_website_ajax_post_string( 'theme_patch_json', false ) ?? '' );
+        $paths = metis_website_ajax_theme_patch_paths( metis_website_ajax_post_string( 'theme_patch_paths' ) );
+        if ( $patch === [] || $paths === [] ) {
+            metis_runtime_send_json_error( 'Theme patch save requires allowed changed sections.', 422 );
+        }
+
+        $storage = metis_website_ajax_theme_storage_from_row( $row );
+        $storage = metis_website_ajax_theme_apply_patch( $storage, $patch, $paths );
+        $data = metis_website_ajax_theme_storage_to_payload( $storage );
+    }
 
     if ( $id > 0 ) {
         $ok = ThemeService::update( $id, $data );

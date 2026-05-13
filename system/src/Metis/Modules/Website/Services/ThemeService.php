@@ -466,7 +466,8 @@ final class ThemeService {
         $typography = self::decodeJsonObject( $data['typography_json'] ?? null );
         $colors = self::decodeJsonObject( $data['color_palette_json'] ?? null );
         $spacing = self::decodeJsonObject( $data['spacing_json'] ?? null );
-        $custom_tokens = self::decodeJsonObject( $data['custom_tokens_json'] ?? null );
+        $custom_tokens_root = self::decodeJsonObject( $data['custom_tokens_json'] ?? null );
+        $custom_tokens = is_array( $custom_tokens_root['tokens'] ?? null ) ? $custom_tokens_root['tokens'] : $custom_tokens_root;
 
         $normalized = self::normalizeThemeParts( $global_styles, $typography, $colors, $spacing, $custom_tokens );
 
@@ -514,6 +515,7 @@ final class ThemeService {
         return [
             'id' => (int) ( $row['id'] ?? 0 ),
             'global_settings' => $normalized['global_styles']['global_settings'],
+            'layout' => $normalized['global_styles']['layout'],
             'layout_tokens' => $normalized['global_styles']['layout_tokens'],
             'elements' => $normalized['global_styles']['elements'],
             'components' => $normalized['global_styles']['components'],
@@ -530,6 +532,7 @@ final class ThemeService {
         return [
             'id' => 0,
             'global_settings' => $normalized['global_styles']['global_settings'],
+            'layout' => $normalized['global_styles']['layout'],
             'layout_tokens' => $normalized['global_styles']['layout_tokens'],
             'elements' => $normalized['global_styles']['elements'],
             'components' => $normalized['global_styles']['components'],
@@ -580,8 +583,14 @@ final class ThemeService {
         $custom_fonts = self::sanitizeCustomFonts( is_array( $typography['custom_fonts'] ?? null ) ? $typography['custom_fonts'] : [] );
 
         $layout = is_array( $global_styles['layout'] ?? null ) ? $global_styles['layout'] : [];
-        $container_content = max( 640, min( 1600, (int) ( $layout['container_width'] ?? 860 ) ) ) . 'px';
-        $container_site = max( 720, min( 1920, (int) ( $layout['max_width'] ?? 1200 ) ) ) . 'px';
+        $container_content_px = max( 640, min( 1600, (int) ( $layout['container_width'] ?? 860 ) ) );
+        $container_site_px = max( 720, min( 1920, (int) ( $layout['max_width'] ?? 1200 ) ) );
+        $container_content = $container_content_px . 'px';
+        $container_site = $container_site_px . 'px';
+        $spacing_preset = metis_key_clean( (string) ( $layout['spacing_preset'] ?? 'balanced' ) );
+        if ( ! in_array( $spacing_preset, [ 'compact', 'balanced', 'airy' ], true ) ) {
+            $spacing_preset = 'balanced';
+        }
 
         $components = is_array( $global_styles['components'] ?? null ) ? $global_styles['components'] : [];
         $button_comp = is_array( $components['buttons'] ?? null ) ? $components['buttons'] : [];
@@ -709,6 +718,11 @@ final class ThemeService {
                 'footer_background' => $footer_background,
                 'footer_background_binding' => $footer_background_binding,
                 'branding_color_bindings' => $branding_bindings,
+            ],
+            'layout' => [
+                'max_width' => $container_site_px,
+                'container_width' => $container_content_px,
+                'spacing_preset' => $spacing_preset,
             ],
             'layout_tokens' => [
                 'container_widths' => [

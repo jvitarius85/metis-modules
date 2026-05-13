@@ -22,6 +22,7 @@ $spacing    = is_array( $theme['spacing'] ?? null ) ? $theme['spacing'] : [];
 $custom     = is_array( $theme['custom_tokens'] ?? null ) ? $theme['custom_tokens'] : [];
 $global_styles = [
     'global_settings' => is_array( $theme['global_settings'] ?? null ) ? $theme['global_settings'] : [],
+    'layout'          => is_array( $theme['layout'] ?? null ) ? $theme['layout'] : [],
     'layout_tokens'   => is_array( $theme['layout_tokens'] ?? null ) ? $theme['layout_tokens'] : [],
     'elements'        => is_array( $theme['elements'] ?? null ) ? $theme['elements'] : [],
     'components'      => is_array( $theme['components'] ?? null ) ? $theme['components'] : [],
@@ -295,11 +296,16 @@ $custom_defaults = [
     'tokens' => [],
 ];
 
+$custom_input = is_array( $custom ) ? $custom : [];
+if ( ! isset( $custom_input['tokens'] ) || ! is_array( $custom_input['tokens'] ) ) {
+    $custom_input = [ 'tokens' => $custom_input ];
+}
+
 $colors = array_merge( $color_defaults, is_array( $colors ) ? $colors : [] );
 $typography = array_merge( $typography_defaults, is_array( $typography ) ? $typography : [] );
 $spacing = array_merge( $spacing_defaults, is_array( $spacing ) ? $spacing : [] );
 $global_styles = array_replace_recursive( $global_defaults, is_array( $global_styles ) ? $global_styles : [] );
-$custom = array_replace_recursive( $custom_defaults, is_array( $custom ) ? $custom : [] );
+$custom = array_replace_recursive( $custom_defaults, $custom_input );
 $menu_config = is_array( $global_styles['components']['menu_config'] ?? null ) ? $global_styles['components']['menu_config'] : [];
 $menu_component = is_array( $global_styles['components']['menu'] ?? null ) ? $global_styles['components']['menu'] : [];
 $menu_desktop = is_array( $menu_config['desktop'] ?? null ) ? $menu_config['desktop'] : [];
@@ -910,8 +916,141 @@ var state = {
 applyBrandingColorBindings(defaults);
 applyBrandingColorBindings(state);
 
+var themeDirtyPaths = {};
+var themeForceFullSave = false;
+
 function deepClone(v) {
     return JSON.parse(JSON.stringify(v || {}));
+}
+
+function markThemeDirtyPath(path) {
+    var key = String(path || '').trim();
+    if (!key) return;
+    themeDirtyPaths[key] = true;
+}
+
+function markThemeDirtyPaths(paths) {
+    (paths || []).forEach(markThemeDirtyPath);
+}
+
+function markThemeDirtySection(section) {
+    var target = String(section || '').trim();
+    if (target === 'colors') {
+        markThemeDirtyPaths([
+            'colors',
+            'global_styles.global_settings.branding_color_bindings',
+            'global_styles.global_settings.footer_background_binding',
+            'global_styles.components.footer'
+        ]);
+        return;
+    }
+    if (target === 'typography') {
+        markThemeDirtyPath('typography');
+        return;
+    }
+    if (target === 'layout') {
+        markThemeDirtyPaths([
+            'spacing',
+            'global_styles.layout',
+            'global_styles.layout_tokens',
+            'global_styles.global_settings.title_format',
+            'global_styles.global_settings.site_layout_profile',
+            'global_styles.global_settings.newsletter_layout_profile'
+        ]);
+        return;
+    }
+    if (target === 'components') {
+        markThemeDirtyPaths([
+            'global_styles.components.buttons',
+            'global_styles.components.cards',
+            'global_styles.components.forms',
+            'global_styles.components.links'
+        ]);
+        return;
+    }
+    if (target === 'menu') {
+        markThemeDirtyPaths([
+            'global_styles.components.menu',
+            'global_styles.components.menu_config',
+            'global_styles.global_settings.menu_style'
+        ]);
+        return;
+    }
+    if (target === 'elements') {
+        markThemeDirtyPath('global_styles.elements');
+        return;
+    }
+    if (target === 'advanced') {
+        markThemeDirtyPaths([
+            'global_styles.advanced',
+            'custom_tokens'
+        ]);
+    }
+}
+
+function markThemeDirtyFromInput(input) {
+    var $input = $(input);
+    if (!$input.length) return;
+    var id = String(input && input.id ? input.id : '');
+    var section = String($input.closest('.metis-theme-card').data('section') || '');
+    var colorKey = String($input.data('key') || '');
+    if ($input.hasClass('metis-theme-color') || $input.hasClass('metis-theme-color-binding')) {
+        if (colorKey === 'footer_background') {
+            markThemeDirtyPaths([
+                'global_styles.global_settings.footer_background_binding',
+                'global_styles.components.footer'
+            ]);
+        } else {
+            markThemeDirtyPaths([
+                'colors',
+                'global_styles.global_settings.branding_color_bindings'
+            ]);
+        }
+        return;
+    }
+    if ($input.hasClass('metis-theme-menu-color-input') || $input.hasClass('metis-theme-menu-color-binding') || id.indexOf('metis-theme-menu-') === 0) {
+        markThemeDirtySection('menu');
+        return;
+    }
+    if ($input.hasClass('metis-theme-element-input') && section === 'components') {
+        markThemeDirtySection('components');
+        return;
+    }
+    if ($input.hasClass('metis-theme-element-input') || $input.hasClass('metis-theme-box4-input') || $input.hasClass('metis-theme-border-width') || $input.hasClass('metis-theme-border-style') || $input.hasClass('metis-theme-border-color') || $input.hasClass('metis-theme-textdec-type') || $input.hasClass('metis-theme-textdec-color') || $input.hasClass('metis-theme-color-token') || $input.hasClass('metis-theme-fontsize-range')) {
+        markThemeDirtyPath('global_styles.elements');
+        return;
+    }
+    markThemeDirtySection(section);
+}
+
+function clearThemeSaveDirtyState() {
+    themeDirtyPaths = {};
+    themeForceFullSave = false;
+}
+
+function normalizeThemeForEditor(incoming) {
+    var src = (incoming && typeof incoming === 'object') ? incoming : {};
+    var globalStyles = src.global_styles && typeof src.global_styles === 'object'
+        ? src.global_styles
+        : {
+            global_settings: src.global_settings || {},
+            layout: src.layout || {},
+            layout_tokens: src.layout_tokens || {},
+            elements: src.elements || {},
+            components: src.components || {},
+            advanced: { custom_css: src.custom_css || '' }
+        };
+    var customTokens = src.custom_tokens && typeof src.custom_tokens === 'object' ? src.custom_tokens : {};
+    if (!customTokens.tokens || typeof customTokens.tokens !== 'object') {
+        customTokens = { tokens: customTokens };
+    }
+    return {
+        colors: Object.assign({}, defaults.colors, src.colors || {}),
+        typography: Object.assign({}, defaults.typography, src.typography || {}),
+        spacing: Object.assign({}, defaults.spacing, src.spacing || {}),
+        global_styles: $.extend(true, {}, defaults.global_styles, globalStyles),
+        custom_tokens: $.extend(true, {}, defaults.custom_tokens, customTokens)
+    };
 }
 
 function applyBrandingColorBindings(target) {
@@ -2171,6 +2310,7 @@ $(document).on('change', '#metis-theme-menu-layout', function() {
 });
 
 $(document).on('input change', '.metis-theme-color, .metis-theme-spacing, .metis-theme-element-input, #metis-theme-body-font, #metis-theme-heading-font, #metis-theme-base-size, #metis-theme-line-height, #metis-theme-heading-weight, #metis-theme-max-width, #metis-theme-container-width, #metis-theme-spacing-preset, #metis-theme-bp-sm, #metis-theme-bp-md, #metis-theme-bp-lg, #metis-theme-bp-xl, #metis-theme-title-format, #metis-theme-btn-radius, #metis-theme-card-radius, #metis-theme-form-radius, #metis-theme-form-border, #metis-theme-link-underline, #metis-theme-menu-layout, #metis-theme-menu-style, #metis-theme-menu-alignment, #metis-theme-menu-container, #metis-theme-menu-font-size, #metis-theme-menu-spacing, #metis-theme-menu-hover-style, #metis-theme-menu-active-style, #metis-theme-menu-dropdown-behavior, #metis-theme-menu-dropdown-animation, #metis-theme-menu-mobile-type, #metis-theme-menu-chevron-style, #metis-theme-custom-css, #metis-theme-token-editor', function() {
+    markThemeDirtyFromInput(this);
     if (this.id === 'metis-theme-spacing-preset') {
         applySpacingPreset($(this).val());
         syncFormFromState();
@@ -2188,12 +2328,14 @@ $(document).on('click', '.metis-theme-box4-link', function() {
         .text(linked ? 'Unlinked' : 'Linked');
     var $box = $btn.closest('.metis-theme-box4');
     syncBoxControlToHidden($box);
+    markThemeDirtyFromInput($box.find('input[type="hidden"], .metis-theme-box4-input').get(0) || this);
     applyPreview();
 });
 
 $(document).on('input change', '.metis-theme-box4-input', function() {
     var $box = $(this).closest('.metis-theme-box4');
     syncBoxControlToHidden($box);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2201,6 +2343,7 @@ $(document).on('input change', '.metis-theme-border-width, .metis-theme-border-s
     var el = String($(this).data('element') || '');
     if (!el) return;
     syncBorderControlToHidden(el);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2208,6 +2351,7 @@ $(document).on('input change', '.metis-theme-textdec-type, .metis-theme-textdec-
     var el = String($(this).data('element') || '');
     if (!el) return;
     syncTextDecorationControlToHidden(el);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2216,6 +2360,7 @@ $(document).on('input change', '.metis-theme-color-token', function() {
     var prop = String($(this).data('prop') || '');
     if (!el || !prop) return;
     syncColorTokenControlToHidden(el, prop);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2223,6 +2368,7 @@ $(document).on('input change', '.metis-theme-fontsize-range', function() {
     var el = String($(this).data('element') || '');
     if (!el) return;
     syncFontSizeToHidden(el);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2246,6 +2392,7 @@ $(document).on('input', '.metis-theme-menu-color-input', function() {
     var key = String($(this).data('menu-color-key') || '');
     if (!key) return;
     syncMenuColorUi(key);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2268,6 +2415,7 @@ $(document).on('change', '.metis-theme-menu-color-binding', function() {
         $(inputId).prop('disabled', false);
     }
     syncMenuColorUi(key);
+    markThemeDirtyFromInput(this);
     applyPreview();
 });
 
@@ -2291,6 +2439,7 @@ $(document).on('change', '.metis-theme-color-binding', function() {
     var key = String($(this).data('key') || '');
     var binding = String($(this).val() || '');
     if (!key) return;
+    markThemeDirtyFromInput(this);
     if (key === 'footer_background') {
         ensureObjectPath(state, ['global_styles', 'global_settings'], {});
         ensureObjectPath(state, ['global_styles', 'components', 'footer'], {});
@@ -2448,6 +2597,7 @@ $('#metis-theme-custom-font-file').on('change', function() {
         ensureObjectPath(state, ['typography', 'custom_fonts'], {});
         var key = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
         state.typography.custom_fonts[key] = { name: name, data: dataUrl, format: format };
+        markThemeDirtyPath('typography');
 
         if ($('#metis-theme-body-font option[value="' + name + '"]').length === 0) {
             $('<option>').val(name).text(name).css('font-family', name).appendTo('#metis-theme-body-font');
@@ -2474,6 +2624,8 @@ $('#metis-theme-reset-btn').on('click', function() {
         };
         applyBrandingColorBindings(state);
         syncFormFromState();
+        themeForceFullSave = true;
+        themeDirtyPaths = {};
         themeToast('Theme form reset to defaults.', 'success');
     });
 });
@@ -2483,15 +2635,23 @@ $('#metis-theme-save-btn').on('click', function() {
 
     var id = $('#metis-theme-id').val();
     var ajaxCfg = themeAjaxConfig('metis_website_theme_save');
+    var dirtyPaths = Object.keys(themeDirtyPaths);
+    var saveMode = (!id || themeForceFullSave || dirtyPaths.length === 0) ? 'full' : 'patch';
     var payload = {
         action: 'metis_website_theme_save',
         nonce: ajaxCfg.nonce,
-        color_palette_json: JSON.stringify(state.colors),
-        typography_json: JSON.stringify(state.typography),
-        spacing_json: JSON.stringify(state.spacing),
-        global_styles_json: JSON.stringify(state.global_styles),
-        custom_tokens_json: JSON.stringify(state.custom_tokens)
+        theme_save_mode: saveMode
     };
+    if (saveMode === 'patch') {
+        payload.theme_patch_json = JSON.stringify(state);
+        payload.theme_patch_paths = dirtyPaths.join(',');
+    } else {
+        payload.color_palette_json = JSON.stringify(state.colors);
+        payload.typography_json = JSON.stringify(state.typography);
+        payload.spacing_json = JSON.stringify(state.spacing);
+        payload.global_styles_json = JSON.stringify(state.global_styles);
+        payload.custom_tokens_json = JSON.stringify(state.custom_tokens);
+    }
     if (id) payload.id = id;
 
     var $btn = $('#metis-theme-save-btn');
@@ -2505,9 +2665,13 @@ $('#metis-theme-save-btn').on('click', function() {
             $btn.prop('disabled', false).text('Save & Activate');
             if (resp && resp.success) {
                 if (resp.data && resp.data.theme) {
-                    state = deepClone(resp.data.theme);
+                    if (resp.data.theme.id) {
+                        $('#metis-theme-id').val(String(resp.data.theme.id));
+                    }
+                    state = normalizeThemeForEditor(resp.data.theme);
                     syncFormFromState();
                 }
+                clearThemeSaveDirtyState();
                 saveVersionSnapshot({
                     label: 'Saved ' + ((window.Metis && Metis.time && typeof Metis.time.format === 'function') ? Metis.time.format(new Date(), { empty: '' }) : new Date().toLocaleString()),
                     data: deepClone(state)
@@ -2565,15 +2729,11 @@ $('#metis-theme-import-file').on('change', function() {
             if (!incoming || typeof incoming !== 'object') {
                 throw new Error('Invalid import format');
             }
-            state = {
-                colors: Object.assign({}, defaults.colors, incoming.colors || {}),
-                typography: Object.assign({}, defaults.typography, incoming.typography || {}),
-                spacing: Object.assign({}, defaults.spacing, incoming.spacing || {}),
-                global_styles: $.extend(true, {}, defaults.global_styles, incoming.global_styles || {}),
-                custom_tokens: $.extend(true, {}, defaults.custom_tokens, incoming.custom_tokens || {})
-            };
+            state = normalizeThemeForEditor(incoming);
             applyBrandingColorBindings(state);
             syncFormFromState();
+            themeForceFullSave = true;
+            themeDirtyPaths = {};
             themeToast('Theme imported into form. Save to activate.', 'success');
         } catch (_e) {
             themeToast('Could not import theme file.', 'error');
@@ -2595,15 +2755,11 @@ $('#metis-theme-version-apply-btn').on('click', function() {
         themeToast('Snapshot is invalid.', 'error');
         return;
     }
-    state = {
-        colors: Object.assign({}, defaults.colors, item.data.colors || {}),
-        typography: Object.assign({}, defaults.typography, item.data.typography || {}),
-        spacing: Object.assign({}, defaults.spacing, item.data.spacing || {}),
-        global_styles: $.extend(true, {}, defaults.global_styles, item.data.global_styles || {}),
-        custom_tokens: $.extend(true, {}, defaults.custom_tokens, item.data.custom_tokens || {})
-    };
+    state = normalizeThemeForEditor(item.data);
     applyBrandingColorBindings(state);
     syncFormFromState();
+    themeForceFullSave = true;
+    themeDirtyPaths = {};
     themeToast('Snapshot applied. Save to activate.', 'success');
 });
 
@@ -2614,6 +2770,7 @@ rebuildStyledSelects();
 renderCustomFontList();
 renderVersionOptions();
 syncFormFromState();
+clearThemeSaveDirtyState();
 
 })();
 </script>
