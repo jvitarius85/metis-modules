@@ -4932,9 +4932,9 @@ final class WebsiteRenderer {
 
         $rules = [
             $scope . '{padding:0;border-radius:var(--metis-menu-dropdown-radius,12px);background:linear-gradient(90deg,var(--metis-color-primary,#485bc7) 0%,var(--metis-color-accent,#ff7542) 100%);box-shadow:inset .1rem .1rem .5rem rgba(0,0,0,.15),0 12px 28px rgba(15,23,42,.13);text-transform:uppercase;overflow:visible;}',
-            $list . '{display:flex;flex-wrap:nowrap;gap:0;align-items:stretch;justify-content:space-around;width:100%;overflow:visible;}',
-            $item . '{position:relative;display:flex;align-items:stretch;justify-content:center;flex:1 1 0;min-width:0;z-index:1;}',
-            $item . ':last-child::after{content:"";position:absolute;top:0;bottom:0;width:100%;right:50%;margin-right:-50%;border-radius:var(--metis-menu-dropdown-radius,12px);background:rgba(0,0,0,.1);z-index:0;transition:right 350ms cubic-bezier(1,.49,.09,1.29);pointer-events:none;}',
+            $list . '{--metis-glide-count:1;--metis-glide-index:0;position:relative;display:flex !important;flex-wrap:nowrap !important;gap:0 !important;align-items:stretch !important;justify-content:space-around !important;width:100%;overflow:visible;}',
+            $list . '::after{content:"";position:absolute;top:0;bottom:0;left:0;width:calc(100% / var(--metis-glide-count,1));border-radius:var(--metis-menu-dropdown-radius,12px);background:rgba(0,0,0,.1);z-index:0;transform:translateX(calc(var(--metis-glide-index,0) * 100%));transition:transform 350ms cubic-bezier(1,.49,.09,1.29);pointer-events:none;}',
+            $item . '{position:relative;display:flex !important;align-items:stretch !important;justify-content:center !important;flex:1 1 0 !important;min-width:0;z-index:1;}',
             $list . ':hover > .metis-shell-menu-item:first-child > .metis-shell-menu-link,' . $list . ':focus-within > .metis-shell-menu-item:first-child > .metis-shell-menu-link,' . $list . ':hover > .metis-shell-menu-item:first-child > .metis-shell-menu-btn,' . $list . ':focus-within > .metis-shell-menu-item:first-child > .metis-shell-menu-btn{opacity:.6;}',
             $item . ':first-child > .metis-shell-menu-link,' . $item . ':first-child > .metis-shell-menu-btn{opacity:1;}',
             $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn{opacity:1 !important;}',
@@ -4948,9 +4948,9 @@ final class WebsiteRenderer {
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:block;width:100%;min-height:0;padding:.85rem .7rem;border:0;border-radius:.25rem;background:var(--metis-color-accent,#ff7542) !important;color:rgba(255,255,255,.68) !important;text-align:center;font-weight:500;letter-spacing:0;text-transform:none;opacity:1;box-shadow:inset 0 0 0 3rem rgba(0,0,0,0);transition:250ms ease all;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:focus-visible{box-shadow:inset 0 0 0 3rem rgba(0,0,0,.1);color:#fff !important;}',
             $mobile_scope . '{background:linear-gradient(180deg,var(--metis-color-primary,#485bc7) 0%,var(--metis-color-accent,#ff7542) 100%);}',
-            $mobile_list . '{flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;}',
-            $mobile_item . '{display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;text-align:center;}',
-            $mobile_item . ':last-child::after{display:none;}',
+            $mobile_list . '{flex-direction:column !important;flex-wrap:nowrap !important;align-items:stretch !important;justify-content:flex-start !important;}',
+            $mobile_list . '::after{display:none;}',
+            $mobile_item . '{display:flex !important;flex:0 0 auto !important;flex-direction:column;align-items:stretch;text-align:center;}',
             $mobile_item . ' > .metis-shell-menu-link,' . $mobile_item . ' > .metis-shell-menu-btn{min-height:0;padding:1rem 2.75rem 1rem 1rem;opacity:1;}',
             $mobile_item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $mobile_item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{position:absolute;right:1.25rem;top:50%;transform:rotate(45deg) translateY(-50%);}',
             $mobile_item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $mobile_item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
@@ -4961,21 +4961,9 @@ final class WebsiteRenderer {
             '@media (prefers-reduced-motion: reduce){' . $scope . ' *{transition:none !important;}}',
         ];
 
-        for ( $count = 2; $count <= 12; $count++ ) {
-            $default_right = 50 + ( 100 * ( $count - 1 ) );
-            $rules[] = $item . ':first-child:nth-last-child(' . $count . ') ~ .metis-shell-menu-item:last-child::after{right:' . $default_right . '%;}';
-            for ( $position = 1; $position <= $count; $position++ ) {
-                $right = 50 + ( 100 * ( $count - $position ) );
-                if ( $position === 1 ) {
-                    $rules[] = $item . ':first-child:nth-last-child(' . $count . '):is(:hover,:focus-within) ~ .metis-shell-menu-item:last-child::after{right:' . $right . '%;}';
-                    continue;
-                }
-                if ( $position === $count ) {
-                    $rules[] = $item . ':first-child:nth-last-child(' . $count . ') ~ .metis-shell-menu-item:last-child:is(:hover,:focus-within)::after{right:' . $right . '%;}';
-                    continue;
-                }
-                $rules[] = $item . ':first-child:nth-last-child(' . $count . ') ~ .metis-shell-menu-item:nth-child(' . $position . '):is(:hover,:focus-within) ~ .metis-shell-menu-item:last-child::after{right:' . $right . '%;}';
-            }
+        for ( $count = 1; $count <= 12; $count++ ) {
+            $rules[] = $list . ':has(> .metis-shell-menu-item:nth-child(' . $count . '):last-child){--metis-glide-count:' . $count . ';}';
+            $rules[] = $list . ':has(> .metis-shell-menu-item:nth-child(' . $count . '):is(:hover,:focus-within)){--metis-glide-index:' . ( $count - 1 ) . ';}';
         }
 
         for ( $position = 1; $position <= 12; $position++ ) {

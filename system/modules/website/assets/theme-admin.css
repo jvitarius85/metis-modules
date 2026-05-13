@@ -509,10 +509,12 @@
   --metis-glide-count:5;
   --metis-glide-index:0;
   position:relative;
+  display:flex !important;
   width:100%;
   gap:0 !important;
   align-items:stretch !important;
-  flex-wrap:nowrap;
+  justify-content:space-around !important;
+  flex-wrap:nowrap !important;
   overflow:visible;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list::after {
@@ -557,10 +559,10 @@
   opacity:.6;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list > .metis-shell-menu-item {
-  display:flex;
-  flex:1 1 0;
-  align-items:stretch;
-  justify-content:center;
+  display:flex !important;
+  flex:1 1 0 !important;
+  align-items:stretch !important;
+  justify-content:center !important;
   min-width:0;
   z-index:1;
 }
