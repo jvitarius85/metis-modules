@@ -498,19 +498,26 @@
   border-bottom-color:var(--metis-color-primary,#485bc7);
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-template-menu {
+  --metis-glide-primary:color-mix(in srgb,var(--metis-color-primary,#485bc7) 76%,#475569);
+  --metis-glide-accent:color-mix(in srgb,var(--metis-color-accent,#ff7542) 58%,#475569);
   padding:0;
   border-radius:var(--metis-menu-dropdown-radius,12px);
-  background:linear-gradient(90deg,var(--metis-color-primary,#485bc7) 0%,var(--metis-color-accent,#ff7542) 100%);
-  box-shadow:inset .1rem .1rem .5rem rgba(0,0,0,.15),0 12px 28px rgba(15,23,42,.13);
+  background:linear-gradient(90deg,#4350a4 0%,#a8584b 100%);
+  background:linear-gradient(90deg,var(--metis-glide-primary) 0%,var(--metis-glide-accent) 100%);
+  box-shadow:inset .1rem .1rem .5rem rgba(0,0,0,.16),0 12px 28px rgba(15,23,42,.13);
   overflow:visible;
   text-transform:uppercase;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list {
   --metis-glide-count:5;
   --metis-glide-index:0;
+  --metis-glide-left:0px;
+  --metis-glide-width:calc(100% / var(--metis-glide-count,5));
   position:relative;
   display:flex !important;
-  width:100%;
+  width:max-content;
+  min-width:100%;
+  max-width:none;
   gap:0 !important;
   align-items:stretch !important;
   justify-content:space-around !important;
@@ -520,12 +527,13 @@
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list::after {
   content:"";
   position:absolute;
-  inset:0 auto 0 0;
-  width:calc(100% / var(--metis-glide-count,5));
+  top:0;
+  bottom:0;
+  left:var(--metis-glide-left,0px);
+  width:var(--metis-glide-width,calc(100% / var(--metis-glide-count,5)));
   border-radius:var(--metis-menu-dropdown-radius,12px);
-  background:rgba(0,0,0,.1);
-  transform:translateX(calc(var(--metis-glide-index,0) * 100%));
-  transition:transform 350ms cubic-bezier(1,.49,.09,1.29);
+  background:rgba(0,0,0,.12);
+  transition:left 350ms cubic-bezier(1,.49,.09,1.29),width 350ms cubic-bezier(1,.49,.09,1.29);
   pointer-events:none;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list:has(> .metis-shell-menu-item:nth-child(1):last-child) { --metis-glide-count:1; }
@@ -560,7 +568,7 @@
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list > .metis-shell-menu-item {
   display:flex !important;
-  flex:1 1 0 !important;
+  flex:0 0 auto !important;
   align-items:stretch !important;
   justify-content:center !important;
   min-width:0;
@@ -577,18 +585,21 @@
   position:relative;
   z-index:1;
   width:100%;
+  min-width:max-content;
   min-height:58px;
-  padding:0 .85rem;
+  padding:0 1.08rem;
   border:0;
   border-radius:0;
   background:transparent !important;
   box-shadow:none !important;
   color:var(--metis-color-button_text,#fff) !important;
-  font-weight:500;
-  letter-spacing:.04em;
+  font-weight:650;
+  letter-spacing:.035em;
   text-transform:uppercase;
   text-align:center;
-  opacity:.7;
+  white-space:nowrap;
+  opacity:.9;
+  text-shadow:0 1px 1px rgba(0,0,0,.28);
   transition:opacity 250ms ease,color 250ms ease,background-color 250ms ease,box-shadow 250ms ease;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub {
@@ -643,19 +654,155 @@
   padding:.85rem .7rem;
   border:0;
   border-radius:.25rem;
-  background:var(--metis-color-accent,#ff7542) !important;
-  color:rgba(255,255,255,.68) !important;
+  background:var(--metis-glide-accent,var(--metis-color-accent,#ff7542)) !important;
+  color:rgba(255,255,255,.86) !important;
   text-align:center;
-  font-weight:500;
+  font-weight:550;
   letter-spacing:0;
   text-transform:none;
+  white-space:nowrap;
   opacity:1;
+  text-shadow:0 1px 1px rgba(0,0,0,.22);
   box-shadow:inset 0 0 0 3rem rgba(0,0,0,0);
   transition:250ms ease all;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover {
   box-shadow:inset 0 0 0 3rem rgba(0,0,0,.1);
+  color:#fff !important;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-template-menu {
+  --metis-marker-bg:color-mix(in srgb,var(--metis-color-primary,#485bc7) 84%,#1f2937);
+  --metis-marker-accent:color-mix(in srgb,var(--metis-color-accent,#ff7542) 84%,#111827);
+  padding:0;
+  border-radius:var(--metis-menu-dropdown-radius,10px);
+  background:#485bc7;
+  background:var(--metis-marker-bg);
+  box-shadow:0 12px 24px rgba(15,23,42,.13);
+  overflow:visible;
+  text-transform:uppercase;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list {
+  --metis-marker-left:0px;
+  --metis-marker-width:120px;
+  position:relative;
+  display:flex !important;
+  width:max-content;
+  min-width:100%;
+  max-width:none;
+  gap:0 !important;
+  align-items:stretch !important;
+  justify-content:flex-start !important;
+  flex-wrap:nowrap !important;
+  overflow:visible;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list::after {
+  content:"";
+  position:absolute;
+  left:var(--metis-marker-left,0px);
+  bottom:0;
+  width:var(--metis-marker-width,120px);
+  height:6px;
+  border-radius:999px 999px 0 0;
+  background:var(--metis-marker-accent);
+  z-index:4;
+  transition:left .35s ease,width .35s ease;
+  pointer-events:none;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item {
+  display:flex !important;
+  flex:0 0 auto !important;
+  align-items:stretch !important;
+  justify-content:center !important;
+  min-width:120px;
+  z-index:5;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-link,
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-btn {
+  position:relative;
+  z-index:5;
+  width:100%;
+  min-width:max-content;
+  min-height:50px;
+  padding:0 1.25rem 6px;
+  border:0;
+  border-radius:0;
+  background:transparent !important;
+  box-shadow:none !important;
+  color:var(--metis-color-button_text,#fff) !important;
+  font-weight:650;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  text-align:center;
+  white-space:nowrap;
+  opacity:.9;
+  text-shadow:0 1px 1px rgba(0,0,0,.22);
+  transition:opacity .18s ease,color .18s ease;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item:is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link,
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item:is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn {
+  opacity:1;
+  color:var(--metis-color-button_text,#fff) !important;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub {
+  position:absolute;
+  top:100%;
+  left:0;
+  width:100%;
+  min-width:max(100%,180px);
+  max-height:0;
+  z-index:1200;
+  visibility:visible;
+  opacity:1;
+  pointer-events:none;
+  transform:none;
+  border:0;
+  border-radius:0 0 var(--metis-menu-dropdown-radius,10px) var(--metis-menu-dropdown-radius,10px);
+  background:transparent;
+  box-shadow:none;
+  padding:0;
+  overflow:hidden;
+  transition:max-height 0s .5s;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item:is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub {
+  max-height:32rem;
+  pointer-events:auto;
+  transition:max-height 0s;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item {
+  display:block !important;
+  width:100%;
+  min-width:0;
+  transform:translateY(-110%);
+  transition:transform .5s .1s ease;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item:is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub > .metis-shell-menu-item {
+  transform:translateY(0);
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn {
+  display:flex;
+  width:100%;
+  min-width:0;
+  min-height:0;
+  padding:.82rem .85rem;
+  border:0;
+  border-radius:0;
+  background:var(--metis-marker-accent) !important;
+  color:rgba(255,255,255,.9) !important;
+  text-align:center;
+  justify-content:center;
+  font-weight:600;
+  letter-spacing:.01em;
+  text-transform:none;
+  white-space:nowrap;
+  opacity:1;
+  text-shadow:0 1px 1px rgba(0,0,0,.2);
+  transition:box-shadow .2s ease,color .2s ease;
+}
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,
+.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-shell-menu-list > .metis-shell-menu-item > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover {
+  box-shadow:inset 0 0 0 999px rgba(0,0,0,.12);
   color:#fff !important;
 }
 .metis-theme-menu-live.metis-menu-style-v_sidebar_clean .metis-template-menu,

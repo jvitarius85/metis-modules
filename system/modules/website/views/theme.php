@@ -235,6 +235,7 @@ $menu_layout_options = [
     'split_nav' => 'Split Navigation',
     'minimal_topbar' => 'Minimal Topbar',
     'glide_gradient' => 'Glide Gradient',
+    'marker_dropdown' => 'Marker Dropdown',
     'sidebar_overlay' => 'Sidebar Overlay',
 ];
 $menu_style_options = [
@@ -242,6 +243,7 @@ $menu_style_options = [
     'h_pill' => 'Pill',
     'h_underline' => 'Underline',
     'h_glide' => 'Glide Gradient',
+    'h_marker_dropdown' => 'Marker Dropdown',
     'v_sidebar_clean' => 'Sidebar Clean',
     'v_sidebar_cards' => 'Sidebar Cards',
     'v_sidebar_compact' => 'Sidebar Compact',
@@ -1363,6 +1365,25 @@ function applyElementLivePreviews() {
     });
 }
 
+function syncThemeGlideMenuItem($item) {
+    if (!$item || !$item.length) return;
+    var item = $item.get(0);
+    var list = $item.closest('.metis-shell-menu-list').get(0);
+    if (!item || !list) return;
+    list.style.setProperty('--metis-glide-left', item.offsetLeft + 'px');
+    list.style.setProperty('--metis-glide-width', item.offsetWidth + 'px');
+    list.style.setProperty('--metis-marker-left', item.offsetLeft + 'px');
+    list.style.setProperty('--metis-marker-width', item.offsetWidth + 'px');
+}
+
+function resetThemeGlideMenuPreview() {
+    var $list = $('#metis-theme-menu-live .metis-template-menu > .metis-shell-menu-list').first();
+    if (!$list.length) return;
+    var $item = $list.children('.metis-shell-menu-item.is-active, .metis-shell-menu-item.is-active-ancestor').first();
+    if (!$item.length) $item = $list.children('.metis-shell-menu-item').first();
+    syncThemeGlideMenuItem($item);
+}
+
 function applyMenuLivePreview() {
     var $live = $('#metis-theme-menu-live');
     if (!$live.length) return;
@@ -1414,6 +1435,7 @@ function applyMenuLivePreview() {
     $live.find('.metis-shell-menu-item').removeClass('is-active');
     $live.find('.metis-shell-menu-item').eq(1).addClass('is-active');
     $live.find('.metis-shell-menu-item.has-children').removeClass('is-open');
+    resetThemeGlideMenuPreview();
 }
 
 function ensureObjectPath(root, path, fallback) {
@@ -1490,6 +1512,7 @@ function menuStyleFromLayout(layout) {
     if (value === 'sidebar_overlay') return 'v_sidebar_clean';
     if (value === 'minimal_topbar') return 'h_underline';
     if (value === 'glide_gradient') return 'h_glide';
+    if (value === 'marker_dropdown') return 'h_marker_dropdown';
     return 'h_clean';
 }
 
@@ -1500,6 +1523,7 @@ function normalizeMenuStyleOption(raw, layout) {
         h_pill: true,
         h_underline: true,
         h_glide: true,
+        h_marker_dropdown: true,
         v_sidebar_clean: true,
         v_sidebar_cards: true,
         v_sidebar_compact: true
@@ -2384,9 +2408,18 @@ $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-item.has-child
     e.preventDefault();
     var $item = $(this).closest('.metis-shell-menu-item.has-children');
     if (!$item.length) return;
+    syncThemeGlideMenuItem($item);
     var willOpen = !$item.hasClass('is-open');
     $('#metis-theme-menu-live .metis-shell-menu-item.has-children').removeClass('is-open');
     if (willOpen) $item.addClass('is-open');
+});
+
+$(document).on('mouseenter focusin', '#metis-theme-menu-live .metis-template-menu > .metis-shell-menu-list > .metis-shell-menu-item', function() {
+    syncThemeGlideMenuItem($(this));
+});
+
+$(document).on('mouseleave', '#metis-theme-menu-live .metis-template-menu > .metis-shell-menu-list', function() {
+    resetThemeGlideMenuPreview();
 });
 
 $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-link, #metis-theme-menu-live .metis-shell-menu-btn', function(e) {
@@ -2395,7 +2428,11 @@ $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-link, #metis-t
     if ($target.closest('.metis-shell-menu-item').hasClass('has-children')) return;
     var $live = $('#metis-theme-menu-live');
     $live.find('.metis-shell-menu-link, .metis-shell-menu-btn').removeClass('is-active');
+    $live.find('.metis-shell-menu-item').removeClass('is-active');
     $target.addClass('is-active');
+    var $item = $target.closest('.metis-shell-menu-item');
+    $item.addClass('is-active');
+    syncThemeGlideMenuItem($item);
 });
 
 $('#metis-theme-custom-font-file').on('change', function() {

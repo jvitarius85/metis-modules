@@ -994,6 +994,7 @@ final class ThemeService {
             'h_pill',
             'h_underline',
             'h_glide',
+            'h_marker_dropdown',
             'v_sidebar_clean',
             'v_sidebar_cards',
             'v_sidebar_compact',
@@ -1012,6 +1013,9 @@ final class ThemeService {
         if ( $legacy === 'h_glide' ) {
             return 'glide_gradient';
         }
+        if ( $legacy === 'h_marker_dropdown' ) {
+            return 'marker_dropdown';
+        }
         if ( $legacy === 'h_underline' ) {
             return 'minimal_topbar';
         }
@@ -1024,6 +1028,7 @@ final class ThemeService {
             'sidebar_overlay' => 'v_sidebar_clean',
             'minimal_topbar' => 'h_underline',
             'glide_gradient' => 'h_glide',
+            'marker_dropdown' => 'h_marker_dropdown',
             default => 'h_clean',
         };
     }
@@ -1037,7 +1042,7 @@ final class ThemeService {
         } elseif ( $layout === 'sidebar' ) {
             $layout = 'sidebar_overlay';
         }
-        $allowed = [ 'horizontal_clean', 'centered_logo', 'split_nav', 'minimal_topbar', 'glide_gradient', 'sidebar_overlay' ];
+        $allowed = [ 'horizontal_clean', 'centered_logo', 'split_nav', 'minimal_topbar', 'glide_gradient', 'marker_dropdown', 'sidebar_overlay' ];
         if ( ! in_array( $layout, $allowed, true ) ) {
             return 'horizontal_clean';
         }
