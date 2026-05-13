@@ -127,21 +127,47 @@ final class OperationsService {
         return $summary;
     }
 
-    public function recentJobs( int $limit = 20, array $jobTypes = [ 'system.cron.task', self::JOB_TYPE, 'hermes.diagnostics', 'hermes.diagnostics.full' ] ): array {
+    public function countJobs( array $jobTypes = [ 'system.cron.task', self::JOB_TYPE, 'hermes.diagnostics', 'hermes.diagnostics.full' ] ): int {
+        $this->jobs->recoverExpiredProcessingJobs();
+
+        $jobTypes = array_values( array_filter( array_map( 'strval', $jobTypes ) ) );
+        if ( $jobTypes === [] ) {
+            return 0;
+        }
+
+        $placeholders = implode( ', ', array_fill( 0, count( $jobTypes ), '%s' ) );
+        $table = \Metis_Tables::get( 'job_queue' );
+
+        return max( 0, (int) $this->db->scalar(
+            "SELECT COUNT(*)
+             FROM {$table}
+             WHERE job_type IN ({$placeholders})",
+            $jobTypes
+        ) );
+    }
+
+    public function recentJobs( int $limit = 20, array $jobTypes = [ 'system.cron.task', self::JOB_TYPE, 'hermes.diagnostics', 'hermes.diagnostics.full' ], int $offset = 0 ): array {
         $this->jobs->recoverExpiredProcessingJobs();
 
         $limit = max( 1, min( 100, $limit ) );
+        $offset = max( 0, min( 10000, $offset ) );
+        $jobTypes = array_values( array_filter( array_map( 'strval', $jobTypes ) ) );
+        if ( $jobTypes === [] ) {
+            return [];
+        }
+
         $placeholders = implode( ', ', array_fill( 0, count( $jobTypes ), '%s' ) );
         $args = array_values( $jobTypes );
         $args[] = $limit;
+        $args[] = $offset;
 
         $table = \Metis_Tables::get( 'job_queue' );
         $rows = $this->db->fetchAll(
-            "SELECT id, job_code, queue_name, job_type, status, attempts, max_attempts, payload_json, result_json, last_error, created_by, available_at, reserved_at, reserved_until, started_at, completed_at, failed_at
+            "SELECT id, job_code, queue_name, job_type, status, attempts, max_attempts, payload_json, result_json, last_error, created_by, available_at, reserved_at, reserved_until, started_at, completed_at, failed_at, created_at
              FROM {$table}
              WHERE job_type IN ({$placeholders})
-             ORDER BY CASE WHEN status IN ('failed', 'processing', 'queued') THEN 0 ELSE 1 END, id DESC
-             LIMIT %d",
+             ORDER BY COALESCE(started_at, available_at, created_at) DESC, id DESC
+             LIMIT %d OFFSET %d",
             $args
         );
 
@@ -180,9 +206,11 @@ final class OperationsService {
                 'started_at'   => (string) ( $row['started_at'] ?? '' ),
                 'completed_at' => (string) ( $row['completed_at'] ?? '' ),
                 'failed_at'    => (string) ( $row['failed_at'] ?? '' ),
+                'created_at'    => (string) ( $row['created_at'] ?? '' ),
                 'last_error'   => $public_last_error,
                 'payload'      => $payload,
                 'result'       => $result,
+                'result_summary' => $this->summarizeJobResult( $job_type, (string) ( $row['status'] ?? '' ), $result, $public_last_error ),
             ];
         }, $rows );
     }
@@ -368,6 +396,92 @@ final class OperationsService {
     private function decodeJson( string $json ): array {
         $decoded = json_decode( $json, true );
         return is_array( $decoded ) ? $decoded : [];
+    }
+
+    private function summarizeJobResult( string $jobType, string $status, array $result, string $publicLastError = '' ): string {
+        if ( $publicLastError !== '' ) {
+            return $publicLastError;
+        }
+
+        $status = strtolower( trim( $status ) );
+        if ( $result === [] ) {
+            return in_array( $status, [ 'queued', 'processing' ], true ) ? 'Waiting for result.' : 'No result details recorded.';
+        }
+
+        $message = $this->firstScalarValue( $result, [ 'message', 'error', 'status_message' ] );
+        $detail = $this->firstArrayValue( $result, [ 'result', 'summary', 'data' ] );
+        $detailMessage = $detail !== [] ? $this->firstScalarValue( $detail, [ 'message', 'error', 'status_message' ] ) : '';
+        $parts = [];
+
+        $resultStatus = $this->firstScalarValue( $result, [ 'status', 'outcome' ] );
+        if ( $resultStatus === '' && $detail !== [] ) {
+            $resultStatus = $this->firstScalarValue( $detail, [ 'status', 'outcome' ] );
+        }
+        if ( $resultStatus !== '' ) {
+            $parts[] = 'Status: ' . $resultStatus;
+        } elseif ( $status !== '' ) {
+            $parts[] = 'Status: ' . $status;
+        }
+
+        if ( $message !== '' ) {
+            $parts[] = $message;
+        } elseif ( $detailMessage !== '' ) {
+            $parts[] = $detailMessage;
+        }
+
+        $metricSource = $detail !== [] ? $detail : $result;
+        foreach ( [ 'processed', 'completed', 'failed', 'sent', 'queued', 'deleted_rows', 'imported', 'batches', 'job_id', 'job_code' ] as $key ) {
+            if ( ! array_key_exists( $key, $metricSource ) || is_array( $metricSource[ $key ] ) || is_object( $metricSource[ $key ] ) ) {
+                continue;
+            }
+            $value = trim( (string) $metricSource[ $key ] );
+            if ( $value === '' ) {
+                continue;
+            }
+            $parts[] = ucwords( str_replace( '_', ' ', $key ) ) . ': ' . $value;
+        }
+
+        if ( $parts === [] && $jobType !== '' ) {
+            $parts[] = 'Completed ' . $jobType . '.';
+        }
+
+        $summaryParts = array_filter( array_map(
+            static fn ( string $part ): string => rtrim( trim( $part ), ". \t\n\r\0\x0B" ),
+            array_slice( array_values( array_unique( $parts ) ), 0, 5 )
+        ) );
+
+        return $summaryParts !== [] ? implode( '. ', $summaryParts ) . '.' : 'No result details recorded.';
+    }
+
+    /**
+     * @param array<int,string> $keys
+     */
+    private function firstScalarValue( array $payload, array $keys ): string {
+        foreach ( $keys as $key ) {
+            if ( ! array_key_exists( $key, $payload ) || is_array( $payload[ $key ] ) || is_object( $payload[ $key ] ) ) {
+                continue;
+            }
+            $value = trim( (string) $payload[ $key ] );
+            if ( $value !== '' ) {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<int,string> $keys
+     * @return array<string,mixed>
+     */
+    private function firstArrayValue( array $payload, array $keys ): array {
+        foreach ( $keys as $key ) {
+            if ( isset( $payload[ $key ] ) && is_array( $payload[ $key ] ) ) {
+                return $payload[ $key ];
+            }
+        }
+
+        return [];
     }
 
     private function runCronTaskOperation( array $payload ): array {

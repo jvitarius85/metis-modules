@@ -1531,6 +1531,25 @@ document.addEventListener('DOMContentLoaded', function () {
         return Metis.ajax.nonceFor(action, fallback);
     }
 
+    function schedulerCsrfAction(action) {
+        const requestedAction = String(action || '').trim();
+        return requestedAction ? ('metis_ajax:' + requestedAction) : '';
+    }
+
+    function schedulerAuthRejected(error) {
+        const message = String((error && error.message) || '').toLowerCase();
+        return message.indexOf('authentication is required') !== -1
+            || message.indexOf('invalid session') !== -1
+            || message.indexOf('session expired') !== -1;
+    }
+
+    function stopSchedulerPolling() {
+        if (schedulerPollTimer) {
+            window.clearInterval(schedulerPollTimer);
+            schedulerPollTimer = null;
+        }
+    }
+
     function escapeHtml(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[ch];
@@ -1552,6 +1571,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
         body.append('metis_action_nonce', schedulerNonce(action));
+        body.append('metis_csrf_action', schedulerCsrfAction(action));
         return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.');
     }
 
@@ -1561,6 +1581,7 @@ document.addEventListener('DOMContentLoaded', function () {
         body.append('action', action);
         body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
         body.append('metis_action_nonce', schedulerNonce(action));
+        body.append('metis_csrf_action', schedulerCsrfAction(action));
         return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.');
     }
 
@@ -1843,7 +1864,10 @@ document.addEventListener('DOMContentLoaded', function () {
         return fetchSchedulerSnapshot().then(function (data) {
             applySchedulerSnapshot(data || {});
             return data;
-        }).catch(function () {
+        }).catch(function (error) {
+            if (schedulerAuthRejected(error)) {
+                stopSchedulerPolling();
+            }
             return null;
         }).finally(function () {
             schedulerRefreshInFlight = false;
@@ -1940,6 +1964,7 @@ document.addEventListener('DOMContentLoaded', function () {
             body.append('task_slug', taskSlug);
             body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
             body.append('metis_action_nonce', schedulerNonce(action));
+            body.append('metis_csrf_action', schedulerCsrfAction(action));
 
             const originalLabel = button.textContent;
             button.disabled = true;

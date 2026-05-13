@@ -124,6 +124,18 @@ extract( $ctx, EXTR_SKIP );
     <div class="metis-settings-card">
         <div class="metis-settings-header"><h2>Recent System Jobs</h2></div>
         <div class="metis-settings-body">
+            <?php
+            $jobs_pagination = is_array( $recent_async_jobs_pagination ?? null ) ? $recent_async_jobs_pagination : [];
+            $jobs_total = max( 0, (int) ( $jobs_pagination['total'] ?? count( (array) ( $recent_async_jobs ?? [] ) ) ) );
+            $jobs_total_pages = max( 1, (int) ( $jobs_pagination['total_pages'] ?? 1 ) );
+            $jobs_page = max( 1, (int) ( $jobs_pagination['page'] ?? 1 ) );
+            $jobs_from = max( 0, (int) ( $jobs_pagination['from'] ?? ( $jobs_total > 0 ? 1 : 0 ) ) );
+            $jobs_to = max( 0, (int) ( $jobs_pagination['to'] ?? count( (array) ( $recent_async_jobs ?? [] ) ) ) );
+            $jobs_has_prev = ! empty( $jobs_pagination['has_prev'] );
+            $jobs_has_next = ! empty( $jobs_pagination['has_next'] );
+            $jobs_prev_url = $jobs_has_prev ? metis_add_query_arg( [ 'jobs_page' => (int) ( $jobs_pagination['prev_page'] ?? max( 1, $jobs_page - 1 ) ) ] ) : '';
+            $jobs_next_url = $jobs_has_next ? metis_add_query_arg( [ 'jobs_page' => (int) ( $jobs_pagination['next_page'] ?? min( $jobs_total_pages, $jobs_page + 1 ) ) ] ) : '';
+            ?>
             <div class="metis-table-wrap">
                 <table class="metis-premium-table metis-scheduler-history-table">
                     <thead>
@@ -167,8 +179,8 @@ extract( $ctx, EXTR_SKIP );
                                     <td class="metis-premium-cell">
                                         <?php if ( (string) ( $job_row['last_error'] ?? '' ) !== '' ) : ?>
                                             <span class="metis-help"><?php echo metis_escape_html( (string) $job_row['last_error'] ); ?></span>
-                                        <?php elseif ( ! empty( $job_row['result'] ) ) : ?>
-                                            <code><?php echo metis_escape_html( substr( metis_json_encode( (array) $job_row['result'] ) ?: '{}', 0, 160 ) ); ?></code>
+                                        <?php elseif ( (string) ( $job_row['result_summary'] ?? '' ) !== '' ) : ?>
+                                            <span class="metis-help"><?php echo metis_escape_html( (string) $job_row['result_summary'] ); ?></span>
                                         <?php else : ?>
                                             <span class="metis-help">Pending result</span>
                                         <?php endif; ?>
@@ -179,6 +191,24 @@ extract( $ctx, EXTR_SKIP );
                     </tbody>
                 </table>
             </div>
+            <?php if ( $jobs_total > 0 ) : ?>
+                <nav class="metis-pagination" aria-label="Recent system jobs pagination">
+                    <span class="metis-pagination-info">
+                        <?php echo metis_escape_html( sprintf( 'Showing %d-%d of %d jobs', $jobs_from, $jobs_to, $jobs_total ) ); ?>
+                    </span>
+                    <?php if ( $jobs_has_prev ) : ?>
+                        <a class="metis-btn metis-btn-xs metis-btn-ghost" href="<?php echo metis_escape_url( $jobs_prev_url ); ?>">Previous</a>
+                    <?php else : ?>
+                        <span class="metis-btn metis-btn-xs metis-btn-ghost" aria-disabled="true">Previous</span>
+                    <?php endif; ?>
+                    <span class="metis-pagination-info"><?php echo metis_escape_html( sprintf( 'Page %d of %d', $jobs_page, $jobs_total_pages ) ); ?></span>
+                    <?php if ( $jobs_has_next ) : ?>
+                        <a class="metis-btn metis-btn-xs metis-btn-ghost" href="<?php echo metis_escape_url( $jobs_next_url ); ?>">Next</a>
+                    <?php else : ?>
+                        <span class="metis-btn metis-btn-xs metis-btn-ghost" aria-disabled="true">Next</span>
+                    <?php endif; ?>
+                </nav>
+            <?php endif; ?>
         </div>
     </div>
 

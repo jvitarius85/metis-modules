@@ -1040,7 +1040,10 @@ if ( ! function_exists( 'metis_settings_health_security_offense_clause' ) ) {
     function metis_settings_health_security_offense_clause(): string {
         return "
             (
-                LOWER(action_type) = 'login_failed'
+                LOWER(action_type) = 'auth_failed_login'
+                OR LOWER(action_type) = 'auth_login_throttled'
+                OR LOWER(action_type) = 'login_failed'
+                OR LOWER(action_type) = 'login_failure'
                 OR LOWER(action_type) = 'invalid_cron_secret'
                 OR LOWER(action_type) = 'cron_secret_missing'
                 OR LOWER(action_type) LIKE '%brute%'
@@ -1411,8 +1414,107 @@ if ( ! function_exists( 'metis_settings_health_hermes_library_status' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_health_code_lookup_status' ) ) {
+    function metis_settings_health_code_lookup_status(): array {
+        if ( ! class_exists( '\Metis\Core\EntityCatalog' ) || ! function_exists( 'metis_entity_id_service' ) || ! class_exists( 'Metis_Tables' ) ) {
+            return [
+                'status' => 'fail',
+                'message' => 'Code lookup registry cannot be inspected because entity services are unavailable.',
+                'recommendation' => 'Verify core service registration, then run auto-remediate to rehydrate code lookup data.',
+            ];
+        }
+
+        try {
+            $service = metis_entity_id_service();
+            $service->ensureSchema();
+            $db = metis_db();
+            $registry_table = Metis_Tables::get( 'entity_registry' );
+            $entity_rows = 0;
+            $registry_rows = 0;
+            $entity_types = 0;
+            $missing_columns = [];
+
+            foreach ( \Metis\Core\EntityCatalog::definitions() as $entity_type => $definition ) {
+                $table_key = (string) ( $definition['table_key'] ?? '' );
+                $uid_column = (string) ( $definition['uid_column'] ?? '' );
+                if ( $table_key === '' || $uid_column === '' || ! Metis_Tables::has( $table_key ) ) {
+                    continue;
+                }
+
+                $table = Metis_Tables::get( $table_key );
+                if ( ! $service->tableExists( $table ) || ! $service->columnExists( $table, 'id' ) ) {
+                    continue;
+                }
+
+                $entity_types++;
+                if ( ! $service->columnExists( $table, $uid_column ) ) {
+                    $missing_columns[] = $table . '.' . $uid_column;
+                    continue;
+                }
+
+                $where = trim( (string) ( $definition['where'] ?? '' ) );
+                $count_sql = "SELECT COUNT(1) FROM {$table} WHERE id > 0";
+                if ( $where !== '' ) {
+                    $count_sql .= " AND ({$where})";
+                }
+
+                $row_count = (int) $db->scalar( $count_sql );
+                $entity_rows += $row_count;
+                $registry_rows += (int) $db->scalar(
+                    "SELECT COUNT(1)
+                     FROM {$registry_table}
+                     WHERE entity_type = %s
+                       AND entity_table = %s",
+                    [ (string) $entity_type, $table ]
+                );
+            }
+
+            $registry_gap = max( 0, $entity_rows - $registry_rows );
+            if ( ! empty( $missing_columns ) ) {
+                return [
+                    'status' => 'fail',
+                    'message' => 'Code lookup registry is missing UID columns: ' . implode( ', ', array_slice( $missing_columns, 0, 5 ) ) . ( count( $missing_columns ) > 5 ? ', ...' : '' ) . '.',
+                    'recommendation' => 'Run auto-remediate to repair entity schema and rehydrate code lookup records.',
+                ];
+            }
+
+            if ( $entity_rows > 0 && $registry_rows < 1 ) {
+                return [
+                    'status' => 'fail',
+                    'message' => sprintf( 'Code lookup registry has no rows for %s code-backed entity records.', number_format( $entity_rows ) ),
+                    'recommendation' => 'Run auto-remediate to rehydrate the central code lookup registry.',
+                ];
+            }
+
+            $status = $registry_gap > 0 ? 'warn' : 'pass';
+
+            return [
+                'status' => $status,
+                'message' => $entity_rows < 1
+                    ? sprintf( 'Code lookup schema is present; no code-backed entity rows were found across %d entity types.', $entity_types )
+                    : sprintf(
+                        'Code lookup registry covers %s of %s code-backed entity records across %d entity types.',
+                        number_format( min( $registry_rows, $entity_rows ) ),
+                        number_format( $entity_rows ),
+                        $entity_types
+                    ),
+                'recommendation' => $status === 'pass' ? '' : 'Run auto-remediate to rehydrate missing code lookup registry rows.',
+                'entity_rows' => $entity_rows,
+                'registry_rows' => $registry_rows,
+                'registry_gap' => $registry_gap,
+            ];
+        } catch ( Throwable $exception ) {
+            return [
+                'status' => 'fail',
+                'message' => 'Code lookup inspection failed: ' . $exception->getMessage(),
+                'recommendation' => 'Review database connectivity and run auto-remediate after the data layer is healthy.',
+            ];
+        }
+    }
+}
+
 if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
-    function metis_settings_build_scheduler_snapshot( string $timezone, string $date_format, string $time_format ): array {
+    function metis_settings_build_scheduler_snapshot( string $timezone, string $date_format, string $time_format, int $recent_jobs_page = 1, int $recent_jobs_per_page = 20 ): array {
         $timezone = metis_settings_normalize_timezone( $timezone );
         $date_format = trim( $date_format ) !== '' ? $date_format : 'm/d/y';
         $time_format = trim( $time_format ) !== '' ? $time_format : 'g:i:s a';
@@ -1420,8 +1522,22 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
         $queue_summary = \Metis\Core\Application::has_service( 'operations' )
             ? metis_operations()->queueSummary()
             : [ 'cron' => [], 'operations' => [] ];
+        $recent_job_types = [ 'system.cron.task', 'system.operation', 'hermes.diagnostics', 'hermes.diagnostics.full' ];
+        $recent_jobs_per_page = max( 5, min( 50, $recent_jobs_per_page ) );
+        $recent_jobs_total = \Metis\Core\Application::has_service( 'operations' )
+            ? metis_operations()->countJobs( $recent_job_types )
+            : 0;
+        $recent_jobs_total_pages = max( 1, (int) ceil( $recent_jobs_total / $recent_jobs_per_page ) );
+        $recent_jobs_page = max( 1, min( $recent_jobs_total_pages, $recent_jobs_page ) );
+        $recent_jobs_offset = ( $recent_jobs_page - 1 ) * $recent_jobs_per_page;
         $recent_async_jobs = \Metis\Core\Application::has_service( 'operations' )
-            ? metis_operations()->recentJobs( 20 )
+            ? metis_operations()->recentJobs( $recent_jobs_per_page, $recent_job_types, $recent_jobs_offset )
+            : [];
+        $operations_recent_jobs = \Metis\Core\Application::has_service( 'operations' )
+            ? metis_operations()->recentJobs( 20, [ 'system.operation' ] )
+            : [];
+        $system_cron_recent_jobs = \Metis\Core\Application::has_service( 'operations' )
+            ? metis_operations()->recentJobs( 20, [ 'system.cron.task' ] )
             : [];
 
         $task_association_map = [];
@@ -1450,55 +1566,68 @@ if ( ! function_exists( 'metis_settings_build_scheduler_snapshot' ) ) {
             $task_association_map[ $task_slug ] = metis_settings_scheduler_task_association( $task_slug, $task_config );
         }
 
-        $recent_async_jobs = array_map( static function ( array $job_row ) use ( $date_format, $time_format, $timezone, $task_association_map, $system_cron_tasks ): array {
-            $started_raw = (string) ( $job_row['started_at'] ?: $job_row['available_at'] ?: '' );
-            $finished_raw = (string) ( $job_row['completed_at'] ?: $job_row['failed_at'] ?: '' );
-            $reserved_until_raw = (string) ( $job_row['reserved_until'] ?? '' );
-            $task_slug = metis_key_clean( (string) ( $job_row['task'] ?? '' ) );
-            $task_label = '';
-            if ( (string) ( $job_row['job_type'] ?? '' ) === 'system.cron.task' && $task_slug !== '' && isset( $system_cron_tasks[ $task_slug ] ) ) {
-                $task_label = (string) ( $system_cron_tasks[ $task_slug ]['label'] ?? '' );
-            }
-            if ( $task_label === '' && $task_slug !== '' ) {
-                $task_label = metis_settings_humanize_slug( $task_slug );
-            }
-            if ( $task_label === '' && (string) ( $job_row['job_type'] ?? '' ) === 'system.cron.task' ) {
-                $task_label = (string) ( $job_row['label'] ?? 'Cron Task' );
-            }
-            $job_label = (string) (
-                $job_row['label']
-                ?: $task_label
-                ?: $job_row['operation']
-                ?: $job_row['task']
-                ?: $job_row['job_type']
-                ?: 'System job'
-            );
-            $job_row['started_at_display'] = $started_raw !== ''
-                ? metis_settings_format_datetime_display( $started_raw, $date_format, $time_format, $timezone )
-                : 'Pending';
-            $job_row['finished_at_display'] = $finished_raw !== ''
-                ? metis_settings_format_datetime_display( $finished_raw, $date_format, $time_format, $timezone )
-                : '-';
-            $job_row['reserved_until_display'] = $reserved_until_raw !== ''
-                ? metis_settings_format_datetime_display( $reserved_until_raw, $date_format, $time_format, $timezone )
-                : '';
-            $job_row['task_label'] = $task_label;
-            $job_row['association'] = (string) ( $task_association_map[ $task_slug ] ?? 'Scheduled cron callback' );
-            $job_row['job_label'] = $job_label;
-            return $job_row;
-        }, $recent_async_jobs );
+        $format_job_rows = static function ( array $job_rows ) use ( $date_format, $time_format, $timezone, $task_association_map, $system_cron_tasks ): array {
+            return array_map( static function ( array $job_row ) use ( $date_format, $time_format, $timezone, $task_association_map, $system_cron_tasks ): array {
+                $started_raw = (string) ( $job_row['started_at'] ?: $job_row['available_at'] ?: '' );
+                $finished_raw = (string) ( $job_row['completed_at'] ?: $job_row['failed_at'] ?: '' );
+                $reserved_until_raw = (string) ( $job_row['reserved_until'] ?? '' );
+                $task_slug = metis_key_clean( (string) ( $job_row['task'] ?? '' ) );
+                $task_label = '';
+                if ( (string) ( $job_row['job_type'] ?? '' ) === 'system.cron.task' && $task_slug !== '' && isset( $system_cron_tasks[ $task_slug ] ) ) {
+                    $task_label = (string) ( $system_cron_tasks[ $task_slug ]['label'] ?? '' );
+                }
+                if ( $task_label === '' && $task_slug !== '' ) {
+                    $task_label = metis_settings_humanize_slug( $task_slug );
+                }
+                if ( $task_label === '' && (string) ( $job_row['job_type'] ?? '' ) === 'system.cron.task' ) {
+                    $task_label = (string) ( $job_row['label'] ?? 'Cron Task' );
+                }
+                $job_label = (string) (
+                    $job_row['label']
+                    ?: $task_label
+                    ?: $job_row['operation']
+                    ?: $job_row['task']
+                    ?: $job_row['job_type']
+                    ?: 'System job'
+                );
+                $job_row['started_at_display'] = $started_raw !== ''
+                    ? metis_settings_format_datetime_display( $started_raw, $date_format, $time_format, $timezone )
+                    : 'Pending';
+                $job_row['finished_at_display'] = $finished_raw !== ''
+                    ? metis_settings_format_datetime_display( $finished_raw, $date_format, $time_format, $timezone )
+                    : '-';
+                $job_row['reserved_until_display'] = $reserved_until_raw !== ''
+                    ? metis_settings_format_datetime_display( $reserved_until_raw, $date_format, $time_format, $timezone )
+                    : '';
+                $job_row['task_label'] = $task_label;
+                $job_row['association'] = (string) ( $task_association_map[ $task_slug ] ?? 'Scheduled cron callback' );
+                $job_row['job_label'] = $job_label;
+                return $job_row;
+            }, $job_rows );
+        };
 
-        $operations_recent_jobs = array_values( array_filter( $recent_async_jobs, static function ( array $row ): bool {
-            return (string) ( $row['job_type'] ?? '' ) === 'system.operation';
-        } ) );
-        $system_cron_recent_jobs = array_values( array_filter( $recent_async_jobs, static function ( array $row ): bool {
-            return (string) ( $row['job_type'] ?? '' ) === 'system.cron.task';
-        } ) );
+        $recent_async_jobs = $format_job_rows( $recent_async_jobs );
+        $operations_recent_jobs = $format_job_rows( $operations_recent_jobs );
+        $system_cron_recent_jobs = $format_job_rows( $system_cron_recent_jobs );
+        $recent_async_jobs_count = count( $recent_async_jobs );
+        $recent_async_jobs_pagination = [
+            'page' => $recent_jobs_page,
+            'per_page' => $recent_jobs_per_page,
+            'total' => $recent_jobs_total,
+            'total_pages' => $recent_jobs_total_pages,
+            'from' => $recent_jobs_total > 0 ? $recent_jobs_offset + 1 : 0,
+            'to' => $recent_jobs_total > 0 ? min( $recent_jobs_total, $recent_jobs_offset + $recent_async_jobs_count ) : 0,
+            'has_prev' => $recent_jobs_page > 1,
+            'has_next' => $recent_jobs_page < $recent_jobs_total_pages,
+            'prev_page' => max( 1, $recent_jobs_page - 1 ),
+            'next_page' => min( $recent_jobs_total_pages, $recent_jobs_page + 1 ),
+        ];
 
         return [
             'system_cron_tasks' => $system_cron_tasks,
             'queue_summary' => $queue_summary,
             'recent_async_jobs' => $recent_async_jobs,
+            'recent_async_jobs_pagination' => $recent_async_jobs_pagination,
             'operations_recent_jobs' => $operations_recent_jobs,
             'system_cron_recent_jobs' => $system_cron_recent_jobs,
             'system_cron_task_rows' => $system_cron_task_rows,
@@ -1783,6 +1912,16 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             (string) ( $hermes_library['status'] ?? 'fail' ),
             (string) ( $hermes_library['message'] ?? 'Hermes definition library hydration could not be verified.' ),
             (string) ( $hermes_library['recommendation'] ?? 'Run auto-remediate to rebuild Hermes definition caches.' )
+        );
+
+        $code_lookup = metis_settings_health_code_lookup_status();
+        $add_check(
+            'code_lookup_registry',
+            'Code Lookup Registry',
+            'resilience',
+            (string) ( $code_lookup['status'] ?? 'fail' ),
+            (string) ( $code_lookup['message'] ?? 'Code lookup registry could not be verified.' ),
+            (string) ( $code_lookup['recommendation'] ?? 'Run auto-remediate to rehydrate code lookup records.' )
         );
 
         $system_cron_tasks = Metis_Cron_Manager::registered_tasks();
@@ -2243,7 +2382,10 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                 "SELECT
                     SUM(
                         CASE
-                            WHEN LOWER(action_type) = 'login_failed'
+                            WHEN LOWER(action_type) = 'auth_failed_login'
+                                OR LOWER(action_type) = 'auth_login_throttled'
+                                OR LOWER(action_type) = 'login_failed'
+                                OR LOWER(action_type) = 'login_failure'
                                 OR LOWER(action_type) LIKE '%brute%'
                                 OR LOWER(action_type) LIKE '%credential%'
                             THEN 1 ELSE 0
@@ -2275,7 +2417,10 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
                  FROM {$security_table}
                  WHERE occurred_at >= %s
                    AND (
-                        LOWER(action_type) = 'login_failed'
+                        LOWER(action_type) = 'auth_failed_login'
+                        OR LOWER(action_type) = 'auth_login_throttled'
+                        OR LOWER(action_type) = 'login_failed'
+                        OR LOWER(action_type) = 'login_failure'
                         OR LOWER(action_type) LIKE '%brute%'
                         OR LOWER(action_type) LIKE '%credential%'
                    )
@@ -3011,6 +3156,118 @@ if ( ! function_exists( 'metis_settings_build_logging_viewer_state' ) ) {
             'logging_total_pages',
             'logging_entries'
         );
+    }
+}
+
+if ( ! function_exists( 'metis_settings_build_failed_login_snapshot' ) ) {
+    function metis_settings_build_failed_login_snapshot( string $date_format, string $time_format, string $timezone, int $limit = 25 ): array {
+        $snapshot = [
+            'rows' => [],
+            'count_24h' => 0,
+            'count_7d' => 0,
+            'error' => '',
+        ];
+
+        if ( ! class_exists( 'Metis_Tables' ) ) {
+            $snapshot['error'] = 'Audit table registry is unavailable.';
+            return $snapshot;
+        }
+
+        try {
+            if ( function_exists( 'metis_audit_ensure_schema' ) ) {
+                metis_audit_ensure_schema();
+            }
+
+            $table = Metis_Tables::get( 'audit_security' );
+            $events = [
+                'auth_failed_login',
+                'auth_login_throttled',
+                'login_failed',
+                'login_failure',
+                'primary_auth_user_failed',
+                'primary_password_failed',
+            ];
+            $placeholders = implode( ', ', array_fill( 0, count( $events ), '%s' ) );
+            $limit = max( 5, min( 100, $limit ) );
+            $cutoff_24h = metis_settings_recent_cutoff( 1 );
+            $cutoff_7d = metis_settings_recent_cutoff( 7 );
+
+            $snapshot['count_24h'] = (int) metis_db()->scalar(
+                "SELECT COUNT(1)
+                 FROM {$table}
+                 WHERE occurred_at >= %s
+                   AND LOWER(action_type) IN ({$placeholders})",
+                array_merge( [ $cutoff_24h ], $events )
+            );
+            $snapshot['count_7d'] = (int) metis_db()->scalar(
+                "SELECT COUNT(1)
+                 FROM {$table}
+                 WHERE occurred_at >= %s
+                   AND LOWER(action_type) IN ({$placeholders})",
+                array_merge( [ $cutoff_7d ], $events )
+            );
+
+            $rows = metis_db()->fetchAll(
+                "SELECT id, occurred_at, action_type, severity, outcome, resource_label, ip_address, user_agent, context_json
+                 FROM {$table}
+                 WHERE occurred_at >= %s
+                   AND LOWER(action_type) IN ({$placeholders})
+                 ORDER BY occurred_at DESC, id DESC
+                 LIMIT %d",
+                array_merge( [ $cutoff_7d ], $events, [ $limit ] )
+            ) ?: [];
+
+            foreach ( $rows as $row ) {
+                if ( ! is_array( $row ) ) {
+                    continue;
+                }
+
+                $context = [];
+                $context_raw = (string) ( $row['context_json'] ?? '' );
+                if ( $context_raw !== '' ) {
+                    $decoded = json_decode( $context_raw, true );
+                    $context = is_array( $decoded ) ? $decoded : [];
+                }
+
+                $account = trim( (string) ( $row['resource_label'] ?? '' ) );
+                if ( $account === '' ) {
+                    $account = trim( (string) ( $context['username'] ?? $context['identifier'] ?? $context['subject'] ?? '' ) );
+                }
+                $request_context = is_array( $context['request'] ?? null ) ? (array) $context['request'] : [];
+                if ( $account === '' && isset( $request_context['identifier'] ) ) {
+                    $account = trim( (string) $request_context['identifier'] );
+                }
+
+                $subject_failures = isset( $context['subject_failures'] ) ? (int) $context['subject_failures'] : null;
+                $ip_failures = isset( $context['ip_failures'] ) ? (int) $context['ip_failures'] : null;
+                $score = isset( $context['score'] ) ? (int) $context['score'] : null;
+                $attempts = [];
+                if ( $subject_failures !== null ) {
+                    $attempts[] = 'Subject ' . $subject_failures;
+                }
+                if ( $ip_failures !== null ) {
+                    $attempts[] = 'IP ' . $ip_failures;
+                }
+
+                $snapshot['rows'][] = [
+                    'id' => (int) ( $row['id'] ?? 0 ),
+                    'occurred_at' => (string) ( $row['occurred_at'] ?? '' ),
+                    'occurred_at_display' => metis_settings_format_datetime_display( (string) ( $row['occurred_at'] ?? '' ), $date_format, $time_format, $timezone ),
+                    'event' => (string) ( $row['action_type'] ?? '' ),
+                    'severity' => (string) ( $row['severity'] ?? '' ),
+                    'outcome' => (string) ( $row['outcome'] ?? '' ),
+                    'account' => $account !== '' ? $account : 'Unknown',
+                    'ip_address' => (string) ( $row['ip_address'] ?? '' ),
+                    'user_agent' => (string) ( $row['user_agent'] ?? '' ),
+                    'attempts' => implode( ' / ', $attempts ),
+                    'risk_score' => $score,
+                ];
+            }
+        } catch ( Throwable $exception ) {
+            $snapshot['error'] = 'Failed login snapshot failed: ' . $exception->getMessage();
+        }
+
+        return $snapshot;
     }
 }
 
@@ -3771,8 +4028,10 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $logging_total_entries = 0;
         $logging_total_pages = 1;
         $logging_entries = [];
+        $failed_login_snapshot = [ 'rows' => [], 'count_24h' => 0, 'count_7d' => 0, 'error' => '' ];
         if ( metis_settings_should_load_logging_state( $section ) ) {
             extract( metis_settings_build_logging_viewer_state( metis_request_post() ), EXTR_OVERWRITE );
+            $failed_login_snapshot = metis_settings_build_failed_login_snapshot( (string) $date_format, (string) $time_format, (string) $timezone, 25 );
         }
 
         $menu_modules = [];
@@ -3878,6 +4137,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $system_cron_tasks = [];
         $queue_summary = [ 'cron' => [], 'operations' => [] ];
         $recent_async_jobs = [];
+        $recent_async_jobs_pagination = [];
         $operations_recent_jobs = [];
         $system_cron_recent_jobs = [];
         $operations_command_catalog = [];
@@ -3886,10 +4146,15 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $system_version = [ 'metis_version' => '', 'build' => '', 'modules' => [] ];
         $system_cron_task_rows = [];
         if ( metis_settings_should_load_scheduler_snapshot( $section ) ) {
-            $scheduler_snapshot = metis_settings_build_scheduler_snapshot( (string) $timezone, (string) $date_format, (string) $time_format );
+            $recent_jobs_page = metis_settings_section_matches( $section, [ 'jobs_tasks' ] )
+                ? max( 1, metis_request_id( 'jobs_page', 1, 'get' ) )
+                : 1;
+            $recent_jobs_per_page = metis_settings_section_matches( $section, [ 'jobs_tasks' ] ) ? 10 : 20;
+            $scheduler_snapshot = metis_settings_build_scheduler_snapshot( (string) $timezone, (string) $date_format, (string) $time_format, $recent_jobs_page, $recent_jobs_per_page );
             $system_cron_tasks = (array) ( $scheduler_snapshot['system_cron_tasks'] ?? [] );
             $queue_summary = (array) ( $scheduler_snapshot['queue_summary'] ?? [ 'cron' => [], 'operations' => [] ] );
             $recent_async_jobs = (array) ( $scheduler_snapshot['recent_async_jobs'] ?? [] );
+            $recent_async_jobs_pagination = (array) ( $scheduler_snapshot['recent_async_jobs_pagination'] ?? [] );
             $operations_recent_jobs = (array) ( $scheduler_snapshot['operations_recent_jobs'] ?? [] );
             $system_cron_recent_jobs = (array) ( $scheduler_snapshot['system_cron_recent_jobs'] ?? [] );
             $system_cron_task_rows = (array) ( $scheduler_snapshot['system_cron_task_rows'] ?? [] );
@@ -4061,6 +4326,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'logging_total_entries',
             'logging_total_pages',
             'logging_entries',
+            'failed_login_snapshot',
             'menu_modules',
             'workspace_impersonation_admin',
             'workspace_customer_id',
@@ -4132,6 +4398,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'system_cron_task_rows',
             'queue_summary',
             'recent_async_jobs',
+            'recent_async_jobs_pagination',
             'performance_security_report',
             'operations_recent_jobs',
             'system_cron_recent_jobs',

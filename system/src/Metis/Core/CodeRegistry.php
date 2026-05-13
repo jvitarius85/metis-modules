@@ -63,6 +63,29 @@ namespace Metis\Core {
             return (bool) \metis_entity_id_service()->register( $entityType, $id, strtoupper( trim( $code ) ) );
         }
 
+        /**
+         * Rebuild the lookup registry from canonical entity catalog definitions.
+         *
+         * @return array<string, mixed>
+         */
+        public static function rehydrate( bool $sync_legacy_columns = true ): array {
+            self::init();
+            if ( ! \function_exists( 'metis_entity_id_service' ) ) {
+                return [
+                    'ok' => false,
+                    'updated_rows' => 0,
+                    'registry_rows' => 0,
+                    'entities' => [],
+                    'message' => 'Entity ID service is unavailable.',
+                ];
+            }
+
+            $summary = (array) \metis_entity_id_service()->migrateExistingRecords( $sync_legacy_columns );
+            $summary['ok'] = true;
+
+            return $summary;
+        }
+
         public static function resolve( string $code ): ?array {
             self::init();
             if ( ! \function_exists( 'metis_entity_resolver' ) ) {
@@ -281,6 +304,10 @@ namespace {
 
             public static function resolve( string $code ): ?array {
                 return \Metis\Core\CodeRegistry::resolve( $code );
+            }
+
+            public static function rehydrate( bool $sync_legacy_columns = true ): array {
+                return \Metis\Core\CodeRegistry::rehydrate( $sync_legacy_columns );
             }
         }
     }

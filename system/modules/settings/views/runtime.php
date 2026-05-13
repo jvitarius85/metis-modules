@@ -193,6 +193,68 @@ $summarize_log_row_message = static function ( string $level, string $message, a
     </div>
 
     <div class="metis-settings-card">
+        <div class="metis-settings-header"><h2>Failed Logins</h2></div>
+        <div class="metis-settings-body">
+            <?php
+            $failed_login_rows = array_values( (array) ( $failed_login_snapshot['rows'] ?? [] ) );
+            $failed_login_error = trim( (string) ( $failed_login_snapshot['error'] ?? '' ) );
+            ?>
+            <div class="metis-help" style="margin-bottom:10px;">
+                <?php echo metis_escape_html( number_format( (int) ( $failed_login_snapshot['count_24h'] ?? 0 ) ) ); ?> failed login events in the last 24 hours.
+                <?php echo metis_escape_html( number_format( (int) ( $failed_login_snapshot['count_7d'] ?? 0 ) ) ); ?> in the last 7 days.
+            </div>
+            <?php if ( $failed_login_error !== '' ) : ?>
+                <div class="metis-help" style="margin-bottom:10px;color:#b42318;"><?php echo metis_escape_html( $failed_login_error ); ?></div>
+            <?php endif; ?>
+            <div style="overflow:auto;border:1px solid #d8def8;border-radius:10px;background:#fff;">
+                <table class="metis-premium-table" style="margin:0;min-width:920px;">
+                    <thead>
+                        <tr class="metis-premium-row metis-premium-header">
+                            <th class="metis-premium-cell" scope="col">Time</th>
+                            <th class="metis-premium-cell" scope="col">Event</th>
+                            <th class="metis-premium-cell" scope="col">Account</th>
+                            <th class="metis-premium-cell" scope="col">Source</th>
+                            <th class="metis-premium-cell" scope="col">Attempts</th>
+                            <th class="metis-premium-cell" scope="col">Risk</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ( empty( $failed_login_rows ) ) : ?>
+                            <tr class="metis-premium-row">
+                                <td class="metis-premium-cell" colspan="6">No failed login events found in the retained audit window.</td>
+                            </tr>
+                        <?php else : ?>
+                            <?php foreach ( $failed_login_rows as $failed_login_row ) : ?>
+                                <?php
+                                $event = metis_settings_humanize_slug( (string) ( $failed_login_row['event'] ?? '' ) );
+                                $risk_score = $failed_login_row['risk_score'] ?? null;
+                                $user_agent = trim( (string) ( $failed_login_row['user_agent'] ?? '' ) );
+                                ?>
+                                <tr class="metis-premium-row">
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $failed_login_row['occurred_at_display'] ?? '' ) ); ?></td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( $event !== '' ? $event : 'Login failure' ); ?></td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $failed_login_row['account'] ?? 'Unknown' ) ); ?></td>
+                                    <td class="metis-premium-cell">
+                                        <?php echo metis_escape_html( (string) ( $failed_login_row['ip_address'] ?? '' ) ?: 'Unknown' ); ?>
+                                        <?php if ( $user_agent !== '' ) : ?>
+                                            <details style="margin-top:4px;">
+                                                <summary style="cursor:pointer;color:#334155;font-weight:600;">User agent</summary>
+                                                <div class="metis-help" style="margin-top:4px;white-space:normal;"><?php echo metis_escape_html( $user_agent ); ?></div>
+                                            </details>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $failed_login_row['attempts'] ?? '' ) ?: '-' ); ?></td>
+                                    <td class="metis-premium-cell"><?php echo $risk_score === null ? '-' : metis_escape_html( (string) $risk_score ); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="metis-settings-card">
         <div class="metis-settings-header"><h2>Log Viewer</h2></div>
         <div class="metis-settings-body">
             <div class="metis-field metis-runtime-log-toolbar">

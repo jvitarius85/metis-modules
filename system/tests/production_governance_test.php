@@ -29,6 +29,7 @@ $communicationsAttachments = $read( 'src/Metis/Modules/CommunicationsInbound/Att
 $finance = $read( 'src/Metis/Modules/Finance/FinanceV2Service.php' );
 $scanner = $read( 'tools/security_scan.php' );
 $settingsBootstrap = $read( 'modules/settings/views/_settings_bootstrap.php' );
+$settingsRuntime = $read( 'modules/settings/views/runtime.php' );
 $settingsJobsTasks = $read( 'modules/settings/views/jobs_tasks.php' );
 $settingsAjax = $read( 'modules/settings/assets/settings.ajax.php' );
 $settingsCss = $read( 'modules/settings/assets/settings.css' );
@@ -37,6 +38,8 @@ $helpersRuntime = $read( 'src/Metis/Core/Runtime/HelpersRuntime.php' );
 $coreBootstrap = $read( 'src/Metis/Core/CoreBootstrap.php' );
 $assetsRuntime = $read( 'src/Metis/Core/AssetsRuntime.php' );
 $coreJs = $read( 'assets/core.js' );
+$ajaxRuntime = $read( 'src/Metis/Core/Ajax/AjaxRuntime.php' );
+$codeRegistry = $read( 'src/Metis/Core/CodeRegistry.php' );
 $loggerRuntime = $read( 'src/Metis/Core/LoggerRuntime.php' );
 $boardSupport = $read( 'src/Metis/Modules/Board/Support.php' );
 $contactsSupport = $read( 'src/Metis/Modules/Contacts/Support.php' );
@@ -123,6 +126,14 @@ $assert( str_contains( $settingsBootstrap, 'function metis_settings_health_servi
 $assert( str_contains( $settingsBootstrap, 'core_service_hydration' ), 'System health must report core service hydration.' );
 $assert( str_contains( $settingsBootstrap, 'help_service_hydration' ) && str_contains( $settingsBootstrap, 'editing-a-user' ), 'System health must report Help service and seeded article hydration.' );
 $assert( str_contains( $settingsBootstrap, 'hermes_definition_library' ) && str_contains( $settingsBootstrap, 'system_health_diagnostics' ), 'System health must report Hermes context pack and playbook hydration.' );
+$assert( str_contains( $settingsBootstrap, 'code_lookup_registry' ) && str_contains( $settingsBootstrap, 'metis_settings_health_code_lookup_status' ), 'System health must report code lookup registry hydration.' );
+$assert( str_contains( $codeRegistry, 'function rehydrate' ) && str_contains( $codeRegistry, 'migrateExistingRecords' ), 'Code registry must expose a central rehydration API backed by EntityId migration.' );
+$assert( str_contains( $settingsAjax, 'code_lookup.rehydrate' ) && str_contains( $settingsAjax, 'CodeRegistry::rehydrate( true )' ), 'System health remediation must rehydrate the code lookup registry.' );
+$assert( str_contains( $ajaxRuntime, 'metis_rehydrate_code_lookup' ) && str_contains( $ajaxRuntime, "'found' => false" ), 'Core AJAX must expose governed code lookup rehydration and return 200-level lookup misses.' );
+$assert( ! str_contains( $ajaxRuntime, "Code not found.' ], 404" ), 'Code lookup misses must not surface as AJAX 404 failures.' );
+$assert( str_contains( $coreJs, "r.success && (!r.data || r.data.found !== false)" ) && str_contains( $coreJs, "metis_csrf_action" ), 'Core code search must handle lookup misses without AJAX errors and send explicit CSRF action metadata.' );
+$assert( str_contains( $settingsBootstrap, 'metis_settings_build_failed_login_snapshot' ) && str_contains( $settingsBootstrap, 'auth_failed_login' ), 'Runtime settings must expose recent failed login audit events.' );
+$assert( str_contains( $settingsRuntime, 'Failed Logins' ) && str_contains( $settingsRuntime, 'failed_login_snapshot' ), 'Runtime settings must render a dedicated Failed Logins panel.' );
 $assert( str_contains( $settingsAjax, 'metis_settings_health_filesystem_targets()' ), 'System health remediation must reuse canonical filesystem target metadata.' );
 $assert( str_contains( $settingsAjax, 'metis_settings_health_filesystem_check_id( $label )' ), 'System health remediation must derive filesystem check IDs from canonical labels.' );
 $assert( str_contains( $settingsAjax, 'services.hydrate' ), 'System health remediation must attempt core service hydration repair.' );
@@ -174,8 +185,15 @@ $assert( str_contains( $settingsJs, 'metis-status-chip is-' ) && str_contains( $
 $assert( str_contains( $settingsCss, '.metis-backup-alert' ) && str_contains( $settingsCss, '.metis-backup-progress' ), 'Backup UI must style backup failure alerts and live progress.' );
 $assert( str_contains( $settingsCss, '.metis-backup-history-table' ) && str_contains( $settingsCss, '.metis-backup-run-id' ), 'Backup history table must use compact Metis table styling.' );
 $assert( str_contains( $settingsBootstrap, "'recent_async_jobs'," ), 'Settings context must expose recent async jobs to the Jobs & Tasks view.' );
+$assert( str_contains( $settingsBootstrap, "'recent_async_jobs_pagination'," ) && str_contains( $settingsBootstrap, "metis_request_id( 'jobs_page'" ), 'Jobs & Tasks history must expose governed pagination from typed request helpers.' );
 $assert( str_contains( $settingsBootstrap, "'started_at_display'" ) && str_contains( $settingsBootstrap, "'finished_at_display'" ), 'Scheduler snapshots must format recent job timestamps with runtime display settings.' );
+$assert( str_contains( $operationsService, 'countJobs' ) && str_contains( $operationsService, 'ORDER BY COALESCE(started_at, available_at, created_at) DESC, id DESC' ) && str_contains( $operationsService, 'LIMIT %d OFFSET %d' ), 'Recent system jobs must be queryable newest-first with bounded pagination.' );
+$assert( str_contains( $operationsService, "'result_summary'" ) && str_contains( $operationsService, 'summarizeJobResult' ), 'Recent system jobs must expose sanitized result summaries instead of raw JSON payloads.' );
 $assert( str_contains( $settingsJobsTasks, '$recent_async_jobs' ) && str_contains( $settingsJobsTasks, 'metis-premium-table metis-scheduler-history-table' ), 'Jobs & Tasks recent jobs panel must render returned queue history in Metis table styling.' );
+$assert( str_contains( $settingsJobsTasks, 'metis-pagination' ) && str_contains( $settingsJobsTasks, '$recent_async_jobs_pagination' ), 'Jobs & Tasks recent jobs panel must render pagination controls.' );
+$assert( ! str_contains( $settingsJobsTasks, 'metis_json_encode( (array) $job_row[\'result\']' ), 'Jobs & Tasks recent jobs panel must not render raw result JSON.' );
+$assert( str_contains( $settingsJs, 'schedulerCsrfAction' ) && str_contains( $settingsJs, "metis_csrf_action', schedulerCsrfAction(action)" ), 'Scheduler live polling must send explicit AJAX CSRF action metadata.' );
+$assert( str_contains( $settingsJs, 'schedulerAuthRejected' ) && str_contains( $settingsJs, 'stopSchedulerPolling' ), 'Scheduler live polling must stop retrying after session integrity/auth rejects.' );
 
 if ( preg_match( '/function metis_settings_health_security_offense_clause\\(\\): string \\{(?P<body>.*?)\\n\\}/s', $settingsBootstrap, $match ) === 1 ) {
     $offenseClause = strtolower( (string) ( $match['body'] ?? '' ) );

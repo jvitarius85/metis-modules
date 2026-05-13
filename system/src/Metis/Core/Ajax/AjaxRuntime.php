@@ -486,9 +486,16 @@ function metis_core_register_ajax_controllers(): void {
     metis_ajax_register_controller( 'metis_resolve_code', [
         'module' => 'portal',
         'permission' => 'view',
+        'nonce_action' => 'metis_core',
         'schema' => [
             'code' => [ 'type' => 'string', 'required' => true ],
         ],
+    ] );
+
+    metis_ajax_register_controller( 'metis_rehydrate_code_lookup', [
+        'module' => 'settings',
+        'permission' => 'edit',
+        'schema' => [],
     ] );
 
     metis_ajax_register_controller( 'metis_quick_action_form', [
@@ -828,10 +835,20 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
     }
 
     if ( ! is_array( $resolved ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Code not found.' ], 404 );
+        metis_runtime_send_json_success( [
+            'found' => false,
+            'message' => 'Code not found.',
+            'code' => $code,
+            'entity_uid' => $code,
+            'entity_type' => '',
+            'label' => '',
+            'url' => '',
+            'matches' => [],
+        ] );
     }
 
     metis_runtime_send_json_success( [
+        'found' => true,
         'code' => (string) ( $resolved['code'] ?? $code ),
         'entity_uid' => (string) ( $resolved['code'] ?? $code ),
         'entity_type' => (string) ( $resolved['entity_type'] ?? '' ),
@@ -840,6 +857,48 @@ metis_ajax_register_handler( 'metis_resolve_code', function () {
         'matches' => array_slice( $matches, 0, $max_results ),
     ] );
 } );
+
+metis_ajax_register_handler( 'metis_rehydrate_code_lookup', function () {
+    if ( ! metis_user_logged_in() || ! metis_current_user_can( 'manage_options' ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+
+    if ( ! class_exists( 'Metis_Code_Registry' ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Code registry is unavailable.' ], 500 );
+    }
+
+    try {
+        $summary = Metis_Code_Registry::rehydrate( true );
+        if ( function_exists( 'metis_audit_log_security' ) ) {
+            metis_audit_log_security( 'code_lookup_rehydrated', [
+                'module' => 'settings',
+                'severity' => 'info',
+                'outcome' => 'success',
+                'resource' => [
+                    'type' => 'entity_registry',
+                    'id' => 'metis_entity_registry',
+                    'label' => 'Code Lookup Registry',
+                ],
+                'context' => [
+                    'updated_rows' => (int) ( $summary['updated_rows'] ?? 0 ),
+                    'registry_rows' => (int) ( $summary['registry_rows'] ?? 0 ),
+                ],
+            ] );
+        }
+
+        metis_runtime_send_json_success( [
+            'message' => 'Code lookup registry rehydrated.',
+            'summary' => $summary,
+        ] );
+    } catch ( Throwable $exception ) {
+        metis_runtime_send_json_error( [
+            'message' => 'Code lookup rehydration failed: ' . $exception->getMessage(),
+        ], 500 );
+    }
+}, [
+    'module' => 'settings',
+    'permission' => 'edit',
+] );
 
 metis_ajax_register_handler( 'metis_quick_action_form', function () {
     if ( ! function_exists( 'metis_quick_actions_service' ) ) {

@@ -102,13 +102,16 @@ Metis.ajax = {
     formData(action, data) {
         const fd = new FormData();
         const payload = data && typeof data === 'object' ? data : {};
-        const actionNonce = this.nonceFor(action || payload.action, payload.metis_action_nonce);
+        const resolvedAction = action || payload.action || '';
+        const actionNonce = this.nonceFor(resolvedAction, payload.metis_action_nonce);
         const legacyNonce = payload.nonce ?? this.nonce;
-        fd.append('action', action || payload.action || '');
+        const csrfAction = payload.metis_csrf_action || (resolvedAction ? ('metis_ajax:' + resolvedAction) : '');
+        fd.append('action', resolvedAction);
+        if (csrfAction) fd.append('metis_csrf_action', csrfAction);
         if (actionNonce) fd.append('metis_action_nonce', actionNonce);
         if (legacyNonce) fd.append('nonce', legacyNonce);
         Object.entries(payload).forEach(([k, v]) => {
-            if (k === 'action' || k === 'nonce' || k === 'metis_action_nonce') return;
+            if (k === 'action' || k === 'nonce' || k === 'metis_action_nonce' || k === 'metis_csrf_action') return;
             fd.append(k, v);
         });
         return fd;
@@ -3369,7 +3372,7 @@ Metis.codeSearch = (function() {
 
         Metis.ajax.post({ action: 'metis_resolve_code', code: code, fuzzy: strict ? 0 : 1 })
             .then(function(r) {
-                if (r.success) {
+                if (r.success && (!r.data || r.data.found !== false)) {
                     showResult(result, r.data);
                 } else {
                     if (strict) {

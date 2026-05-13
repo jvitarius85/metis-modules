@@ -593,6 +593,27 @@ metis_ajax_register_handler( 'metis_settings_checker_remediate', function () {
         $add_failure( 'hermes.definitions.reload', 'Hermes-definition remediation failed: ' . $e->getMessage() );
     }
 
+    try {
+        if ( $check_failing( 'code_lookup_registry' ) ) {
+            if ( ! class_exists( '\Metis\Core\CodeRegistry' ) ) {
+                throw new RuntimeException( 'CodeRegistry is not loadable.' );
+            }
+
+            $summary = \Metis\Core\CodeRegistry::rehydrate( true );
+            CacheService::clearGroup( 'entity' );
+            $actions[] = [
+                'action' => 'code_lookup.rehydrate',
+                'result' => [
+                    'updated_rows' => (int) ( $summary['updated_rows'] ?? 0 ),
+                    'registry_rows' => (int) ( $summary['registry_rows'] ?? 0 ),
+                    'entities' => count( (array) ( $summary['entities'] ?? [] ) ),
+                ],
+            ];
+        }
+    } catch ( Throwable $e ) {
+        $add_failure( 'code_lookup.rehydrate', 'Code-lookup rehydration failed: ' . $e->getMessage() );
+    }
+
     if ( \Metis\Core\Application::has_service( 'operations' ) ) {
         try {
             if (
