@@ -615,6 +615,7 @@ foreach ( $line_height_options as $value => $label ) {
                 </div>
                 <div class="metis-theme-field metis-theme-span-2 metis-theme-menu-preview-row">
                     <label class="metis-theme-label">Live preview</label>
+                    <?php echo \Metis\Modules\Website\Services\WebsiteRenderer::renderThemeMenuPreviewCss(); ?>
                     <div class="metis-theme-menu-live" id="metis-theme-menu-live">
                         <?php echo \Metis\Modules\Website\Services\WebsiteRenderer::renderThemeMenuPreviewHtml(); ?>
                     </div>
@@ -1342,7 +1343,7 @@ var menuPresetDefinitions = {
         layout: 'glide_gradient',
         alignment: 'center',
         container: 'contained',
-        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'none', active_style: 'none' },
+        desktop: { font_size: 19, item_spacing: 'normal', hover_style: 'none', active_style: 'none' },
         dropdown: { behavior: 'hover', animation: 'scale', radius: 8 },
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'none', animation: 'none' }

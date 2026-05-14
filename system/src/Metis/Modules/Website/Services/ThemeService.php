@@ -995,7 +995,7 @@ final class ThemeService {
             'h_glide' => [
                 'layout' => 'glide_gradient',
                 'alignment' => 'center',
-                'desktop' => [ 'hover_style' => 'none', 'active_style' => 'none' ],
+                'desktop' => [ 'font_size' => 19, 'hover_style' => 'none', 'active_style' => 'none' ],
                 'dropdown' => [ 'animation' => 'scale', 'radius' => 8 ],
                 'chevron' => [ 'type' => 'none', 'animation' => 'none' ],
             ],
