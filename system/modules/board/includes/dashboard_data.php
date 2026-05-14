@@ -87,6 +87,27 @@ if ( ! function_exists( 'metis_board_fetch_dashboard_announcements' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_board_fetch_dashboard_bylaws' ) ) {
+    function metis_board_fetch_dashboard_bylaws(): array {
+        $bylaws_table = Metis_Tables::get( 'board_bylaws' );
+        if ( ! function_exists( 'metis_board_table_exists' ) || ! metis_board_table_exists( $bylaws_table ) ) {
+            return [];
+        }
+
+        $db = metis_db();
+        $row = $db->fetchOne(
+            "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
+                    signed_pdf_title, status, effective_date, approved_at, updated_at
+             FROM {$bylaws_table}
+             WHERE status = 'active'
+             ORDER BY (effective_date IS NULL), effective_date DESC, updated_at DESC, id DESC
+             LIMIT 1"
+        );
+
+        return is_array( $row ) ? $row : [];
+    }
+}
+
 if ( ! function_exists( 'metis_board_fetch_dashboard_people_options' ) ) {
     function metis_board_fetch_dashboard_people_options(): array {
         $db = metis_db();

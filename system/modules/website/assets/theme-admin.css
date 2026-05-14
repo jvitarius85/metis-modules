@@ -635,11 +635,12 @@
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-template-menu {
   --metis-glide-primary:var(--metis-color-primary,#485bc7);
   --metis-glide-accent:var(--metis-color-accent,#ff7542);
-  --metis-glide-menu-width:68rem;
-  flex:1 1 auto;
+  --metis-glide-menu-width:62rem;
+  flex:0 1 var(--metis-glide-menu-width);
   min-width:0;
   width:min(100%,var(--metis-glide-menu-width)) !important;
   max-width:100%;
+  margin-left:auto !important;
   padding:0 !important;
   border:0 !important;
   border-radius:.5rem !important;

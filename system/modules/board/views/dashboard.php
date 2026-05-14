@@ -36,6 +36,7 @@ if ($can_manage && $has_newsletter_lists) {
 $open_actions = metis_board_fetch_dashboard_open_actions(12);
 
 $recent_announcements = metis_board_fetch_dashboard_announcements(10);
+$bylaws = metis_board_fetch_dashboard_bylaws();
 
 $board_people = [];
 if ($can_manage) {
@@ -54,6 +55,20 @@ $open_action_count = (int) ( $kpis['open_action_count'] ?? 0 );
 $committee_count = (int) ( $kpis['committee_count'] ?? 0 );
 $compliance_overdue = (int) ( $kpis['compliance_overdue'] ?? 0 );
 $decision_count = (int) ( $kpis['decision_count'] ?? 0 );
+$bylaws_id = (int) ( $bylaws['id'] ?? 0 );
+$bylaws_title = (string) ( $bylaws['title'] ?? 'Bylaws' );
+$bylaws_source_text = (string) ( $bylaws['source_text'] ?? '' );
+$bylaws_formatted_html = (string) ( $bylaws['formatted_html'] ?? '' );
+$bylaws_signed_pdf_url = (string) ( $bylaws['signed_pdf_url'] ?? '' );
+$bylaws_signed_pdf_file_id = (string) ( $bylaws['signed_pdf_file_id'] ?? '' );
+$bylaws_signed_pdf_title = (string) ( $bylaws['signed_pdf_title'] ?? 'Signed bylaws PDF' );
+$bylaws_effective_date = (string) ( $bylaws['effective_date'] ?? '' );
+$bylaws_approved_at = (string) ( $bylaws['approved_at'] ?? '' );
+$bylaws_updated_at = (string) ( $bylaws['updated_at'] ?? '' );
+$bylaws_effective_label = $bylaws_effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($bylaws_effective_date, null, null, null, '—') : ($bylaws_effective_date !== '' ? $bylaws_effective_date : '—');
+$bylaws_approved_label = $bylaws_approved_at !== '' ? metis_board_format_datetime($bylaws_approved_at) : '—';
+$bylaws_updated_label = $bylaws_updated_at !== '' ? metis_board_format_datetime($bylaws_updated_at) : '—';
+$bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', substr($bylaws_approved_at, 0, 16)) : '';
 ?>
 
 <div class="metis-board"
@@ -217,6 +232,39 @@ $decision_count = (int) ( $kpis['decision_count'] ?? 0 );
         </table>
     </section>
 
+    <section class="metis-premium-wrap metis-board-dashboard-section metis-board-bylaws-section">
+        <header class="metis-board-dashboard-section__head">
+            <div>
+                <h2>Bylaws</h2>
+                <div id="metis-board-bylaws-meta" class="metis-board-bylaws-meta">
+                    <span>Effective: <strong><?php echo metis_escape_html($bylaws_effective_label); ?></strong></span>
+                    <span>Approved: <strong><?php echo metis_escape_html($bylaws_approved_label); ?></strong></span>
+                    <span>Updated: <strong><?php echo metis_escape_html($bylaws_updated_label); ?></strong></span>
+                </div>
+            </div>
+            <div class="metis-board-bylaws-actions">
+                <a id="metis-board-bylaws-signed-link"
+                   class="metis-btn metis-btn-ghost metis-btn-xs"
+                   href="<?php echo metis_escape_url($bylaws_signed_pdf_url); ?>"
+                   target="_blank"
+                   rel="noopener"
+                   <?php if ($bylaws_signed_pdf_url === '') : ?>hidden<?php endif; ?>>
+                    Open Signed PDF
+                </a>
+                <?php if ($can_manage) : ?>
+                    <button id="metis-board-edit-bylaws" class="metis-btn metis-btn-xs" type="button"><?php echo $bylaws_id > 0 ? 'Edit Bylaws' : 'Add Bylaws'; ?></button>
+                <?php endif; ?>
+            </div>
+        </header>
+        <div id="metis-board-bylaws-display" class="metis-board-bylaws-display">
+            <?php if ($bylaws_formatted_html !== '') : ?>
+                <?php echo metis_runtime_kses_post($bylaws_formatted_html); ?>
+            <?php else : ?>
+                <div class="metis-empty-state">No bylaws have been saved yet.</div>
+            <?php endif; ?>
+        </div>
+    </section>
+
     <section class="metis-premium-wrap metis-board-dashboard-section">
         <header class="metis-board-dashboard-section__head">
             <h2>Announcements</h2>
@@ -322,6 +370,40 @@ $decision_count = (int) ( $kpis['decision_count'] ?? 0 );
             <div class="metis-field metis-field-half"><label for="metis-board-announcement-publish">Publish At</label><input id="metis-board-announcement-publish" class="metis-input" type="datetime-local"></div>
             <div class="metis-field metis-field-full"><label for="metis-board-announcement-body">Body (HTML)</label><textarea id="metis-board-announcement-body" class="metis-input" rows="6"></textarea></div>
             <div class="metis-form-actions"><button type="button" class="metis-btn metis-btn-ghost metis-board-cancel">Cancel</button><button type="submit" class="metis-btn">Save Announcement</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="metis-board-bylaws-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-board-bylaws-modal">
+        <h2 class="metis-modal-title">Board Bylaws</h2>
+        <form id="metis-board-bylaws-form" class="metis-form-grid">
+            <input type="hidden" id="metis-board-bylaws-id" value="<?php echo metis_escape_attr((string) $bylaws_id); ?>">
+            <div class="metis-field metis-field-half"><label for="metis-board-bylaws-title">Title</label><input id="metis-board-bylaws-title" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr($bylaws_title); ?>" required></div>
+            <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-effective">Effective Date</label><input id="metis-board-bylaws-effective" class="metis-input" type="date" value="<?php echo metis_escape_attr($bylaws_effective_date); ?>"></div>
+            <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-approved">Approved At</label><input id="metis-board-bylaws-approved" class="metis-input" type="datetime-local" value="<?php echo metis_escape_attr($bylaws_approved_input); ?>"></div>
+            <div class="metis-field metis-field-half"><label for="metis-board-bylaws-pdf-url">Signed PDF Link</label><input id="metis-board-bylaws-pdf-url" class="metis-input" type="url" maxlength="255" value="<?php echo metis_escape_attr($bylaws_signed_pdf_url); ?>"></div>
+            <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-pdf-id">PDF File ID</label><input id="metis-board-bylaws-pdf-id" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr($bylaws_signed_pdf_file_id); ?>"></div>
+            <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-pdf-title">PDF Label</label><input id="metis-board-bylaws-pdf-title" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr($bylaws_signed_pdf_title); ?>"></div>
+            <div class="metis-field metis-field-full"><label for="metis-board-bylaws-source">Pasted Bylaws Text</label><textarea id="metis-board-bylaws-source" class="metis-input metis-board-bylaws-source" rows="14" required><?php echo metis_escape_html($bylaws_source_text); ?></textarea></div>
+            <div class="metis-field metis-field-full">
+                <div class="metis-form-actions metis-form-actions-between">
+                    <button type="button" id="metis-board-format-bylaws" class="metis-btn metis-btn-ghost">Auto-format Preview</button>
+                    <div>
+                        <button type="button" class="metis-btn metis-btn-ghost metis-board-cancel">Cancel</button>
+                        <button type="submit" class="metis-btn">Save Bylaws</button>
+                    </div>
+                </div>
+            </div>
+            <div class="metis-field metis-field-full">
+                <div id="metis-board-bylaws-format-preview" class="metis-board-bylaws-format-preview">
+                    <?php if ($bylaws_formatted_html !== '') : ?>
+                        <?php echo metis_runtime_kses_post($bylaws_formatted_html); ?>
+                    <?php else : ?>
+                        <div class="metis-muted">Formatted preview will appear here.</div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </form>
     </div>
 </div>

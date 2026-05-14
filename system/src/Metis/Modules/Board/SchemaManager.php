@@ -28,6 +28,7 @@ final class SchemaManager {
         $documents_table         = \Metis_Tables::get( 'board_documents' );
         $compliance_table        = \Metis_Tables::get( 'board_compliance' );
         $announcements_table     = \Metis_Tables::get( 'board_announcements' );
+        $bylaws_table            = \Metis_Tables::get( 'board_bylaws' );
         $agenda_templates_table  = \Metis_Tables::get( 'board_agenda_templates' );
         $decision_templates_table= \Metis_Tables::get( 'board_decision_templates' );
 
@@ -203,6 +204,28 @@ final class SchemaManager {
             KEY publish_at (publish_at)
         ) {$charset_collate};";
 
+        $sql_bylaws = "CREATE TABLE {$bylaws_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            bylaw_code VARCHAR(16) DEFAULT NULL,
+            title VARCHAR(191) NOT NULL DEFAULT 'Bylaws',
+            source_text LONGTEXT DEFAULT NULL,
+            formatted_html LONGTEXT DEFAULT NULL,
+            signed_pdf_file_id VARCHAR(191) DEFAULT NULL,
+            signed_pdf_url VARCHAR(255) DEFAULT NULL,
+            signed_pdf_title VARCHAR(191) DEFAULT NULL,
+            status VARCHAR(24) NOT NULL DEFAULT 'active',
+            effective_date DATE DEFAULT NULL,
+            approved_at DATETIME DEFAULT NULL,
+            created_by_person_id BIGINT UNSIGNED DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY bylaw_code (bylaw_code),
+            KEY status (status),
+            KEY effective_date (effective_date),
+            KEY updated_at (updated_at)
+        ) {$charset_collate};";
+
         $sql_agenda_templates = "CREATE TABLE {$agenda_templates_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             template_code VARCHAR(16) DEFAULT NULL,
@@ -244,6 +267,7 @@ final class SchemaManager {
         \metis_db_delta( $sql_documents );
         \metis_db_delta( $sql_compliance );
         \metis_db_delta( $sql_announcements );
+        \metis_db_delta( $sql_bylaws );
         \metis_db_delta( $sql_agenda_templates );
         \metis_db_delta( $sql_decision_templates );
         self::ensureRequiredColumns( $committees_table, $meetings_table, $decisions_table );

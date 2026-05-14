@@ -124,6 +124,7 @@ final class Metis_Tables {
         "board_documents" => "metis_board_documents",
         "board_compliance" => "metis_board_compliance",
         "board_announcements" => "metis_board_announcements",
+        "board_bylaws" => "metis_board_bylaws",
         "board_agenda_templates" => "metis_board_agenda_templates",
         "board_decision_templates" => "metis_board_decision_templates",
         "website_pages" => "metis_website_pages",

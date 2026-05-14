@@ -365,6 +365,95 @@ function metis_board_can_resolve_action_item(array $action_item): bool {
     return $current_person_id === (int) ($action_item['owner_person_id'] ?? 0);
 }
 
+function metis_board_fetch_bylaws_summary(int $bylaw_id = 0): array {
+    $table = Metis_Tables::get('board_bylaws');
+    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) {
+        return [];
+    }
+
+    $db = metis_db();
+    if ($bylaw_id > 0) {
+        $row = $db->fetchOne(
+            "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
+                    signed_pdf_title, status, effective_date, approved_at, updated_at
+             FROM {$table}
+             WHERE id = %d
+             LIMIT 1",
+            [ $bylaw_id ]
+        );
+    } else {
+        $row = $db->fetchOne(
+            "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
+                    signed_pdf_title, status, effective_date, approved_at, updated_at
+             FROM {$table}
+             WHERE status = 'active'
+             ORDER BY (effective_date IS NULL), effective_date DESC, updated_at DESC, id DESC
+             LIMIT 1"
+        );
+    }
+
+    if (!is_array($row)) {
+        return [];
+    }
+
+    $effective_date = (string) ($row['effective_date'] ?? '');
+    $approved_at = (string) ($row['approved_at'] ?? '');
+    $updated_at = (string) ($row['updated_at'] ?? '');
+
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'bylaw_code' => (string) ($row['bylaw_code'] ?? ''),
+        'title' => (string) ($row['title'] ?? 'Bylaws'),
+        'source_text' => (string) ($row['source_text'] ?? ''),
+        'formatted_html' => (string) ($row['formatted_html'] ?? ''),
+        'signed_pdf_file_id' => (string) ($row['signed_pdf_file_id'] ?? ''),
+        'signed_pdf_url' => (string) ($row['signed_pdf_url'] ?? ''),
+        'signed_pdf_title' => (string) ($row['signed_pdf_title'] ?? ''),
+        'status' => (string) ($row['status'] ?? 'active'),
+        'effective_date' => $effective_date,
+        'effective_date_label' => $effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($effective_date, null, null, null, '—') : ($effective_date !== '' ? $effective_date : '—'),
+        'approved_at' => $approved_at,
+        'approved_at_label' => $approved_at !== '' ? metis_board_format_datetime($approved_at) : '—',
+        'updated_at' => $updated_at,
+        'updated_at_label' => $updated_at !== '' ? metis_board_format_datetime($updated_at) : '—',
+    ];
+}
+
+function metis_board_normalize_bylaws_date(string $value): ?string {
+    $value = trim($value);
+    if ($value === '') {
+        return null;
+    }
+    $ts = strtotime($value);
+    if (!$ts) {
+        metis_runtime_send_json_error('Effective date is invalid.', 422);
+    }
+    return gmdate('Y-m-d', $ts);
+}
+
+function metis_board_normalize_bylaws_datetime(string $value): ?string {
+    $value = trim($value);
+    if ($value === '') {
+        return null;
+    }
+    $ts = strtotime($value);
+    if (!$ts) {
+        metis_runtime_send_json_error('Approved date is invalid.', 422);
+    }
+    return gmdate('Y-m-d H:i:s', $ts);
+}
+
+function metis_board_normalize_pdf_url(string $url): string {
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        metis_runtime_send_json_error('Signed PDF link must be a valid URL.', 422);
+    }
+    return $url;
+}
+
 function metis_board_register_ajax_controllers(): void {
     $actions = [
         'metis_board_save_committee' => 'edit',
@@ -373,6 +462,8 @@ function metis_board_register_ajax_controllers(): void {
         'metis_board_save_action_item' => 'edit',
         'metis_board_resolve_action_item' => 'view',
         'metis_board_save_announcement' => 'edit',
+        'metis_board_format_bylaws' => 'edit',
+        'metis_board_save_bylaws' => 'edit',
         'metis_board_prepare_meeting_workspace' => 'edit',
         'metis_board_generate_packet_pdf' => 'edit',
         'metis_board_get_workflow_templates' => 'view',
@@ -734,6 +825,112 @@ metis_ajax_register_handler( 'metis_board_save_announcement', function () {
     ]);
 });
 
+metis_ajax_register_handler( 'metis_board_format_bylaws', function () {
+    metis_board_ajax_verify(true);
+
+    $post = metis_request_post();
+    $title = metis_text_clean(metis_runtime_unslash($post['title'] ?? 'Bylaws'));
+    $source_text = trim((string) metis_runtime_unslash($post['source_text'] ?? ''));
+    if ($source_text === '') {
+        metis_runtime_send_json_error('Paste bylaws text before formatting.', 422);
+    }
+    if (strlen($source_text) > 500000) {
+        metis_runtime_send_json_error('Bylaws text is too large to format safely.', 422);
+    }
+
+    $formatted = \Metis\Modules\Board\BylawsFormatter::format($source_text, $title !== '' ? $title : 'Bylaws');
+    metis_runtime_send_json_success([
+        'formatted' => $formatted,
+    ]);
+});
+
+metis_ajax_register_handler( 'metis_board_save_bylaws', function () {
+    metis_board_ajax_verify(true);
+
+    $db = metis_db();
+    $table = Metis_Tables::get('board_bylaws');
+    $post = metis_request_post();
+
+    $bylaw_id = (int) ($post['bylaw_id'] ?? 0);
+    $title = metis_text_clean(metis_runtime_unslash($post['title'] ?? 'Bylaws'));
+    $source_text = trim((string) metis_runtime_unslash($post['source_text'] ?? ''));
+    $signed_pdf_url = metis_board_normalize_pdf_url((string) metis_runtime_unslash($post['signed_pdf_url'] ?? ''));
+    $signed_pdf_file_id = metis_text_clean(metis_runtime_unslash($post['signed_pdf_file_id'] ?? ''));
+    $signed_pdf_title = metis_text_clean(metis_runtime_unslash($post['signed_pdf_title'] ?? 'Signed bylaws PDF'));
+    $effective_date = metis_board_normalize_bylaws_date(metis_text_clean(metis_runtime_unslash($post['effective_date'] ?? '')));
+    $approved_at = metis_board_normalize_bylaws_datetime(metis_text_clean(metis_runtime_unslash($post['approved_at'] ?? '')));
+
+    if ($title === '') {
+        $title = 'Bylaws';
+    }
+    if ($source_text === '') {
+        metis_runtime_send_json_error('Bylaws text is required.', 422);
+    }
+    if (strlen($source_text) > 500000) {
+        metis_runtime_send_json_error('Bylaws text is too large to save safely.', 422);
+    }
+    if ($signed_pdf_file_id === '' && $signed_pdf_url !== '') {
+        $signed_pdf_file_id = metis_board_extract_google_id($signed_pdf_url, 'drive_file');
+    }
+    if ($signed_pdf_title === '') {
+        $signed_pdf_title = 'Signed bylaws PDF';
+    }
+
+    $formatted = \Metis\Modules\Board\BylawsFormatter::format($source_text, $title);
+    $payload = [
+        'title' => $title,
+        'source_text' => $source_text,
+        'formatted_html' => (string) ($formatted['html'] ?? ''),
+        'signed_pdf_file_id' => $signed_pdf_file_id !== '' ? $signed_pdf_file_id : null,
+        'signed_pdf_url' => $signed_pdf_url !== '' ? $signed_pdf_url : null,
+        'signed_pdf_title' => $signed_pdf_title,
+        'status' => 'active',
+        'effective_date' => $effective_date,
+        'approved_at' => $approved_at,
+    ];
+
+    if ($bylaw_id > 0) {
+        $ok = $db->update(
+            $table,
+            $payload,
+            [ 'id' => $bylaw_id ],
+            [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ],
+            [ '%d' ]
+        );
+        if ($ok === false) {
+            metis_runtime_send_json_error('Failed to update bylaws.', 500);
+        }
+    } else {
+        $db->execute("UPDATE {$table} SET status = 'archived' WHERE status = 'active'");
+        $payload['bylaw_code'] = metis_board_generate_code('BB', $table, 'bylaw_code');
+        $payload['created_by_person_id'] = metis_board_current_person_id();
+        $ok = $db->insert(
+            $table,
+            $payload,
+            [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' ]
+        );
+        if (!$ok) {
+            metis_runtime_send_json_error('Failed to save bylaws.', 500);
+        }
+        $bylaw_id = (int) $db->lastInsertId();
+    }
+
+    if (function_exists('metis_audit_log_activity')) {
+        metis_audit_log_activity('board_bylaws_saved', [
+            'bylaw_id' => $bylaw_id,
+            'bylaw_code' => (string) ($payload['bylaw_code'] ?? ''),
+            'has_signed_pdf' => $signed_pdf_url !== '' || $signed_pdf_file_id !== '',
+            'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
+        ]);
+    }
+
+    metis_portal_dashboard_forget_all();
+    metis_runtime_send_json_success([
+        'bylaw_id' => $bylaw_id,
+        'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
+    ]);
+});
+
 function metis_board_drive_cfg(): array {
     $cfg = metis_board_workspace_settings();
     if (empty($cfg['ok'])) return $cfg;
@@ -781,6 +978,15 @@ function metis_board_extract_google_id(string $input, string $kind = ''): string
 
     if ($kind === 'drive_folder') {
         if (preg_match('#/folders/([^/?]+)#', (string) ($parts['path'] ?? ''), $m)) {
+            return trim((string) ($m[1] ?? ''));
+        }
+        if (!empty($query['id'])) {
+            return trim((string) $query['id']);
+        }
+    }
+
+    if ($kind === 'drive_file') {
+        if (preg_match('#/file/d/([^/?]+)#', (string) ($parts['path'] ?? ''), $m)) {
             return trim((string) ($m[1] ?? ''));
         }
         if (!empty($query['id'])) {
