@@ -230,68 +230,17 @@ $global_defaults = [
     ],
 ];
 
-$menu_layout_options = [
-    'horizontal_clean' => 'Horizontal Clean',
-    'centered_logo' => 'Centered Logo',
-    'split_nav' => 'Split Navigation',
-    'minimal_topbar' => 'Minimal Topbar',
-    'glide_gradient' => 'Glide Gradient',
-    'marker_dropdown' => 'Marker Dropdown',
-    'sidebar_overlay' => 'Sidebar Overlay',
-];
 $menu_style_options = [
     'h_clean' => 'Clean',
     'h_pill' => 'Pill',
     'h_underline' => 'Underline',
+    'h_solid_bar' => 'Solid Bar',
     'h_glide' => 'Glide Gradient',
     'h_marker_dropdown' => 'Marker Dropdown',
     'v_sidebar_clean' => 'Sidebar Clean',
     'v_sidebar_cards' => 'Sidebar Cards',
     'v_sidebar_compact' => 'Sidebar Compact',
 ];
-$menu_alignment_options = [
-    'left' => 'Left',
-    'center' => 'Center',
-    'right' => 'Right',
-];
-$menu_container_options = [
-    'contained' => 'Contained',
-    'full' => 'Full width',
-];
-$menu_spacing_options = [
-    'tight' => 'Tight',
-    'normal' => 'Normal',
-    'wide' => 'Wide',
-];
-$menu_hover_style_options = [
-    'underline' => 'Underline',
-    'fill' => 'Fill',
-    'none' => 'None',
-];
-$menu_active_style_options = [
-    'pill' => 'Pill',
-    'underline' => 'Underline',
-    'none' => 'None',
-];
-$menu_dropdown_behavior_options = [
-    'hover' => 'Hover',
-    'click' => 'Click',
-];
-$menu_dropdown_animation_options = [
-    'none' => 'None',
-    'fade' => 'Fade',
-    'scale' => 'Scale',
-];
-$menu_mobile_menu_type_options = [
-    'slide' => 'Slide-in',
-    'overlay' => 'Overlay',
-];
-$menu_chevron_style_options = [
-    'none' => 'None',
-    'arrow' => 'Arrow',
-    'rotate' => 'Rotate',
-];
-
 $custom_defaults = [
     'tokens' => [],
 ];
@@ -306,23 +255,10 @@ $typography = array_merge( $typography_defaults, is_array( $typography ) ? $typo
 $spacing = array_merge( $spacing_defaults, is_array( $spacing ) ? $spacing : [] );
 $global_styles = array_replace_recursive( $global_defaults, is_array( $global_styles ) ? $global_styles : [] );
 $custom = array_replace_recursive( $custom_defaults, $custom_input );
-$menu_config = is_array( $global_styles['components']['menu_config'] ?? null ) ? $global_styles['components']['menu_config'] : [];
 $menu_component = is_array( $global_styles['components']['menu'] ?? null ) ? $global_styles['components']['menu'] : [];
-$menu_desktop = is_array( $menu_config['desktop'] ?? null ) ? $menu_config['desktop'] : [];
-$menu_dropdown = is_array( $menu_config['dropdown'] ?? null ) ? $menu_config['dropdown'] : [];
-$menu_mobile = is_array( $menu_config['mobile'] ?? null ) ? $menu_config['mobile'] : [];
-$menu_chevron = is_array( $menu_config['chevron'] ?? null ) ? $menu_config['chevron'] : [];
 $menu_visual_style = (string) ( $menu_component['style'] ?? ( $global_styles['global_settings']['menu_style'] ?? 'h_clean' ) );
 if ( ! isset( $menu_style_options[ $menu_visual_style ] ) ) {
     $menu_visual_style = 'h_clean';
-}
-$menu_chevron_type = (string) ( $menu_chevron['type'] ?? 'chevron' );
-$menu_chevron_animation = (string) ( $menu_chevron['animation'] ?? 'rotate' );
-$menu_chevron_style = 'none';
-if ( $menu_chevron_type === 'arrow' ) {
-    $menu_chevron_style = 'arrow';
-} elseif ( $menu_chevron_type !== 'none' && $menu_chevron_animation === 'rotate' ) {
-    $menu_chevron_style = 'rotate';
 }
 
 $current_heading_weight = (string) ( $typography['heading_weight'] ?? $typography_defaults['heading_weight'] );
@@ -669,117 +605,13 @@ foreach ( $line_height_options as $value => $label ) {
             <div class="metis-theme-grid metis-theme-grid-wide">
                 <div class="metis-theme-span-2 metis-theme-menu-group-wrap">
                     <div class="metis-theme-menu-group">
-                        <div class="metis-theme-menu-group-title">Layout</div>
+                        <div class="metis-theme-menu-group-title">Preset</div>
                         <div class="metis-theme-grid">
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Menu layout</label>
-                                <select id="metis-theme-menu-layout" class="metis-input">
-                                    <?php foreach ( $menu_layout_options as $layout_value => $layout_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $layout_value ); ?>"<?php echo ( (string) ( $menu_config['layout'] ?? 'horizontal_clean' ) === (string) $layout_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $layout_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="metis-theme-field">
+                            <div class="metis-theme-field metis-theme-span-2">
                                 <label class="metis-theme-label">Menu style</label>
                                 <select id="metis-theme-menu-style" class="metis-input">
                                     <?php foreach ( $menu_style_options as $style_value => $style_label ) : ?>
                                         <option value="<?php echo metis_escape_attr( $style_value ); ?>"<?php echo ( $menu_visual_style === (string) $style_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $style_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Alignment</label>
-                                <select id="metis-theme-menu-alignment" class="metis-input">
-                                    <?php foreach ( $menu_alignment_options as $align_value => $align_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $align_value ); ?>"<?php echo ( (string) ( $menu_config['alignment'] ?? 'left' ) === (string) $align_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $align_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Container</label>
-                                <select id="metis-theme-menu-container" class="metis-input">
-                                    <?php foreach ( $menu_container_options as $container_value => $container_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $container_value ); ?>"<?php echo ( (string) ( $menu_config['container'] ?? 'contained' ) === (string) $container_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $container_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="metis-theme-menu-group">
-                        <div class="metis-theme-menu-group-title">Desktop</div>
-                        <div class="metis-theme-grid">
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Font size (px)</label>
-                                <input type="number" id="metis-theme-menu-font-size" class="metis-input" min="11" max="28" value="<?php echo metis_escape_attr( (string) ( $menu_desktop['font_size'] ?? 14 ) ); ?>">
-                            </div>
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Item spacing</label>
-                                <select id="metis-theme-menu-spacing" class="metis-input">
-                                    <?php foreach ( $menu_spacing_options as $spacing_value => $spacing_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $spacing_value ); ?>"<?php echo ( (string) ( $menu_desktop['item_spacing'] ?? 'normal' ) === (string) $spacing_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $spacing_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Hover style</label>
-                                <select id="metis-theme-menu-hover-style" class="metis-input">
-                                    <?php foreach ( $menu_hover_style_options as $hover_value => $hover_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $hover_value ); ?>"<?php echo ( (string) ( $menu_desktop['hover_style'] ?? 'fill' ) === (string) $hover_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $hover_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Active style</label>
-                                <select id="metis-theme-menu-active-style" class="metis-input">
-                                    <?php foreach ( $menu_active_style_options as $active_style_value => $active_style_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $active_style_value ); ?>"<?php echo ( (string) ( $menu_desktop['active_style'] ?? 'underline' ) === (string) $active_style_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $active_style_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="metis-theme-menu-group">
-                        <div class="metis-theme-menu-group-title">Dropdown</div>
-                        <div class="metis-theme-grid">
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Behavior</label>
-                                <select id="metis-theme-menu-dropdown-behavior" class="metis-input">
-                                    <?php foreach ( $menu_dropdown_behavior_options as $behavior_value => $behavior_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $behavior_value ); ?>"<?php echo ( (string) ( $menu_dropdown['behavior'] ?? 'hover' ) === (string) $behavior_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $behavior_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Animation</label>
-                                <select id="metis-theme-menu-dropdown-animation" class="metis-input">
-                                    <?php foreach ( $menu_dropdown_animation_options as $animation_value => $animation_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $animation_value ); ?>"<?php echo ( (string) ( $menu_dropdown['animation'] ?? 'fade' ) === (string) $animation_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $animation_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="metis-theme-menu-group">
-                        <div class="metis-theme-menu-group-title">Mobile</div>
-                        <div class="metis-theme-grid">
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Menu type</label>
-                                <select id="metis-theme-menu-mobile-type" class="metis-input">
-                                    <?php foreach ( $menu_mobile_menu_type_options as $mobile_value => $mobile_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $mobile_value ); ?>"<?php echo ( (string) ( $menu_mobile['menu_type'] ?? 'slide' ) === (string) $mobile_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $mobile_label ); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="metis-theme-menu-group">
-                        <div class="metis-theme-menu-group-title">Chevron</div>
-                        <div class="metis-theme-grid">
-                            <div class="metis-theme-field">
-                                <label class="metis-theme-label">Style</label>
-                                <select id="metis-theme-menu-chevron-style" class="metis-input">
-                                    <?php foreach ( $menu_chevron_style_options as $chevron_value => $chevron_label ) : ?>
-                                        <option value="<?php echo metis_escape_attr( $chevron_value ); ?>"<?php echo ( (string) ( $menu_chevron_style ?? 'none' ) === (string) $chevron_value ) ? ' selected' : ''; ?>><?php echo metis_escape_html( $chevron_label ); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -1008,7 +840,7 @@ function markThemeDirtyFromInput(input) {
         }
         return;
     }
-    if ($input.hasClass('metis-theme-menu-color-input') || $input.hasClass('metis-theme-menu-color-binding') || id.indexOf('metis-theme-menu-') === 0) {
+    if (id === 'metis-theme-menu-style') {
         markThemeDirtySection('menu');
         return;
     }
@@ -1504,55 +1336,125 @@ function applyElementLivePreviews() {
     });
 }
 
-function syncThemeGlideMenuItem($item) {
-    if (!$item || !$item.length) return;
-    var item = $item.get(0);
-    var list = $item.closest('.metis-shell-menu-list').get(0);
-    if (!item || !list) return;
-    list.style.setProperty('--metis-glide-left', item.offsetLeft + 'px');
-    list.style.setProperty('--metis-glide-width', item.offsetWidth + 'px');
-    list.style.setProperty('--metis-marker-left', item.offsetLeft + 'px');
-    list.style.setProperty('--metis-marker-width', item.offsetWidth + 'px');
-}
-
 function resetThemeGlideMenuPreview() {
     var $list = $('#metis-theme-menu-live .metis-template-menu > .metis-shell-menu-list').first();
     if (!$list.length) return;
-    var $item = $list.children('.metis-shell-menu-item.is-active, .metis-shell-menu-item.is-active-ancestor').first();
-    if (!$item.length) $item = $list.children('.metis-shell-menu-item').first();
-    syncThemeGlideMenuItem($item);
+    $list.children('.metis-shell-menu-item.has-children').removeClass('is-open');
+}
+
+var menuPresetDefinitions = {
+    h_clean: {
+        layout: 'horizontal_clean',
+        alignment: 'left',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'underline' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    h_pill: {
+        layout: 'horizontal_clean',
+        alignment: 'left',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'pill' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    h_underline: {
+        layout: 'minimal_topbar',
+        alignment: 'left',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'underline', active_style: 'underline' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    h_solid_bar: {
+        layout: 'horizontal_clean',
+        alignment: 'center',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'none' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 0 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    h_glide: {
+        layout: 'glide_gradient',
+        alignment: 'center',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'none', active_style: 'none' },
+        dropdown: { behavior: 'hover', animation: 'scale', radius: 8 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'none', animation: 'none' }
+    },
+    h_marker_dropdown: {
+        layout: 'marker_dropdown',
+        alignment: 'center',
+        container: 'contained',
+        desktop: { font_size: 13, item_spacing: 'normal', hover_style: 'none', active_style: 'none' },
+        dropdown: { behavior: 'hover', animation: 'slide', radius: 0 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'none', animation: 'none' }
+    },
+    v_sidebar_clean: {
+        layout: 'sidebar_overlay',
+        alignment: 'left',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'underline', active_style: 'underline' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    v_sidebar_cards: {
+        layout: 'sidebar_overlay',
+        alignment: 'left',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'pill' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    v_sidebar_compact: {
+        layout: 'sidebar_overlay',
+        alignment: 'left',
+        container: 'contained',
+        desktop: { font_size: 12, item_spacing: 'tight', hover_style: 'underline', active_style: 'underline' },
+        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    }
+};
+
+function menuPresetForStyle(style) {
+    var normalized = normalizeMenuStyleOption(style);
+    return $.extend(true, {}, menuPresetDefinitions[normalized]);
 }
 
 function applyMenuLivePreview() {
     var $live = $('#metis-theme-menu-live');
     if (!$live.length) return;
     ensureObjectPath(state, ['global_styles', 'components', 'menu_config'], {});
-    var menuConfig = state.global_styles.components.menu_config || {};
     var menuComponent = (state.global_styles.components.menu && typeof state.global_styles.components.menu === 'object')
         ? state.global_styles.components.menu
         : {};
-    var menuDesktop = menuConfig.desktop || {};
-    var menuDropdown = menuConfig.dropdown || {};
-    var menuMobile = menuConfig.mobile || {};
-    var menuChevron = menuConfig.chevron || {};
 
-    var layout = String(menuConfig.layout || 'horizontal_clean');
-    var menuStyle = normalizeMenuStyleOption(menuComponent.style || ((state.global_styles.global_settings || {}).menu_style || ''), layout);
-    var alignment = String(menuConfig.alignment || 'left');
-    var container = String(menuConfig.container || 'contained');
-    var fontSize = parseInt(menuDesktop.font_size, 10);
-    if (!Number.isFinite(fontSize)) fontSize = 14;
-    fontSize = Math.max(11, Math.min(28, fontSize));
-    var spacing = String(menuDesktop.item_spacing || 'normal');
+    var menuStyle = normalizeMenuStyleOption(menuComponent.style || ((state.global_styles.global_settings || {}).menu_style || ''), '');
+    var preset = menuPresetForStyle(menuStyle);
+    var layout = String(preset.layout || 'horizontal_clean');
+    var alignment = String(preset.alignment || 'left');
+    var container = String(preset.container || 'contained');
+    var fontSize = parseInt((preset.desktop || {}).font_size, 10);
+    var spacing = String((preset.desktop || {}).item_spacing || 'normal');
     var gap = 16;
     if (spacing === 'tight') gap = 10;
     if (spacing === 'wide') gap = 24;
 
-    var dropdownBehavior = String(menuDropdown.behavior || 'hover');
-    var dropdownAnimation = String(menuDropdown.animation || 'fade');
-    var mobileType = String(menuMobile.menu_type || 'slide');
-    var chevronType = String(menuChevron.type || 'chevron');
-    var chevronAnimation = String(menuChevron.animation || 'none');
+    var dropdownBehavior = String((preset.dropdown || {}).behavior || 'hover');
+    var dropdownAnimation = String((preset.dropdown || {}).animation || 'fade');
+    var mobileType = 'slide';
+    var chevronType = String((preset.chevron || {}).type || 'chevron');
+    var chevronAnimation = String((preset.chevron || {}).animation || 'none');
 
     var classes = ['metis-theme-menu-live'];
     if (menuStyle) classes.push('metis-menu-style-' + menuStyle);
@@ -1646,71 +1548,26 @@ function normalizeMenuActiveStyleOption(raw) {
     return (v === 'text' || v === 'underline' || v === 'pill') ? v : 'text';
 }
 
-function menuStyleFromLayout(layout) {
-    var value = String(layout || 'horizontal_clean').toLowerCase();
-    if (value === 'sidebar_overlay') return 'v_sidebar_clean';
-    if (value === 'minimal_topbar') return 'h_underline';
-    if (value === 'glide_gradient') return 'h_glide';
-    if (value === 'marker_dropdown') return 'h_marker_dropdown';
-    return 'h_clean';
-}
-
-function normalizeMenuStyleOption(raw, layout) {
+function normalizeMenuStyleOption(raw) {
     var value = String(raw || '').toLowerCase();
     var allowed = {
         h_clean: true,
         h_pill: true,
         h_underline: true,
+        h_solid_bar: true,
         h_glide: true,
         h_marker_dropdown: true,
         v_sidebar_clean: true,
         v_sidebar_cards: true,
         v_sidebar_compact: true
     };
-    return allowed[value] ? value : menuStyleFromLayout(layout);
+    return allowed[value] ? value : 'h_clean';
 }
 
 function parseColor(v, fallback) {
     var raw = String(v || '').trim();
     if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw;
     return fallback;
-}
-
-function toColorHex(value) {
-    var raw = String(value || '').trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw;
-    var map = {
-        'var(--metis-color-primary,#485bc7)': state.colors.primary || '#485bc7',
-        'var(--metis-color-accent,#ff7542)': state.colors.accent || '#ff7542',
-        'var(--metis-color-text,#1a1f2b)': state.colors.text || '#1a1f2b',
-        'var(--metis-color-link,#2b59ff)': state.colors.link || '#2b59ff',
-        'var(--metis-color-muted,#64748b)': state.colors.muted || '#64748b',
-        'var(--metis-color-surface,#ffffff)': state.colors.surface || '#ffffff',
-        'var(--metis-color-bg,#ffffff)': state.colors.bg || '#ffffff',
-        'var(--metis-color-border,#d8deea)': state.colors.border || '#d8deea',
-        'var(--metis-color-surface_alt,#f8fafc)': '#f8fafc'
-    };
-    return map[raw] || '#485bc7';
-}
-
-function syncMenuColorUi(key) {
-    var colorMap = {
-        button_bg: { id: 'metis-theme-menu-button-bg', bindingId: 'metis-theme-menu-button-bg-binding', fallback: '#485bc7' },
-        active_color: { id: 'metis-theme-menu-active-color', bindingId: 'metis-theme-menu-active-color-binding', fallback: '#485bc7' },
-        dropdown_highlight: { id: 'metis-theme-menu-dropdown-highlight', bindingId: 'metis-theme-menu-dropdown-highlight-binding', fallback: '#f8fafc' },
-        dropdown_text: { id: 'metis-theme-menu-dropdown-text', bindingId: 'metis-theme-menu-dropdown-text-binding', fallback: '#1a1f2b' },
-        chevron_color: { id: 'metis-theme-menu-chevron-color', bindingId: 'metis-theme-menu-chevron-color-binding', fallback: '#485bc7' }
-    };
-    var cfg = colorMap[key];
-    if (!cfg) return;
-    var binding = String($('#' + cfg.bindingId).val() || '');
-    var color = String($('#' + cfg.id).val() || cfg.fallback);
-    var dotColor = (binding && Object.prototype.hasOwnProperty.call(brandingPalette, binding)) ? String(brandingPalette[binding]) : color;
-    $('.metis-theme-menu-color-dot[data-menu-color-key="' + key + '"]').css('background', dotColor);
-    var label = binding ? String((brandingLabels && brandingLabels[binding]) ? brandingLabels[binding] : binding) : 'Custom / fixed';
-    var $drop = $('.metis-theme-menu-color-dropdown[data-menu-color-key="' + key + '"]');
-    $drop.find('.metis-theme-binding-dot').css('background', dotColor);
-    $drop.find('.metis-theme-binding-text').text(label);
 }
 
 function normalizeUnit(value, fallback) {
@@ -1785,38 +1642,11 @@ function collectThemeData() {
     out.global_styles.components.forms.border = Math.max(0, parseInt($('#metis-theme-form-border').val(), 10) || 1);
     out.global_styles.components.links.underline = ($('#metis-theme-link-underline').val() === '1') ? 1 : 0;
     ensureObjectPath(out, ['global_styles', 'components', 'menu_config'], {});
-    var chevronStyle = String($('#metis-theme-menu-chevron-style').val() || 'none');
-    var chevronType = 'none';
-    var chevronAnimation = 'none';
-    if (chevronStyle === 'arrow') {
-        chevronType = 'arrow';
-    } else if (chevronStyle === 'rotate') {
-        chevronType = 'chevron';
-        chevronAnimation = 'rotate';
-    }
-    out.global_styles.components.menu_config.layout = String($('#metis-theme-menu-layout').val() || 'horizontal_clean');
-    var selectedMenuStyle = normalizeMenuStyleOption($('#metis-theme-menu-style').val(), out.global_styles.components.menu_config.layout);
+    var selectedMenuStyle = normalizeMenuStyleOption($('#metis-theme-menu-style').val(), '');
+    var selectedMenuPreset = menuPresetForStyle(selectedMenuStyle);
     out.global_styles.components.menu.style = selectedMenuStyle;
     out.global_styles.global_settings.menu_style = selectedMenuStyle;
-    out.global_styles.components.menu_config.alignment = String($('#metis-theme-menu-alignment').val() || 'left');
-    out.global_styles.components.menu_config.container = String($('#metis-theme-menu-container').val() || 'contained');
-    out.global_styles.components.menu_config.desktop = {
-        font_size: Math.max(11, Math.min(28, parseInt($('#metis-theme-menu-font-size').val(), 10) || 14)),
-        item_spacing: String($('#metis-theme-menu-spacing').val() || 'normal'),
-        hover_style: String($('#metis-theme-menu-hover-style').val() || 'fill'),
-        active_style: String($('#metis-theme-menu-active-style').val() || 'underline')
-    };
-    out.global_styles.components.menu_config.dropdown = {
-        behavior: String($('#metis-theme-menu-dropdown-behavior').val() || 'hover'),
-        animation: String($('#metis-theme-menu-dropdown-animation').val() || 'fade')
-    };
-    out.global_styles.components.menu_config.mobile = {
-        menu_type: String($('#metis-theme-menu-mobile-type').val() || 'slide')
-    };
-    out.global_styles.components.menu_config.chevron = {
-        type: chevronType,
-        animation: chevronAnimation
-    };
+    out.global_styles.components.menu_config = $.extend(true, {}, selectedMenuPreset);
     var footerBinding = String($('.metis-theme-color-binding[data-key="footer_background"]').val() || '');
     if (footerBinding && Object.prototype.hasOwnProperty.call(brandingPalette, footerBinding)) {
         out.global_styles.global_settings.footer_background_binding = footerBinding;
@@ -2039,34 +1869,10 @@ function syncFormFromState() {
     $('#metis-theme-form-radius').val(state.global_styles.components.forms.radius);
     $('#metis-theme-form-border').val(state.global_styles.components.forms.border);
     $('#metis-theme-link-underline').val(String(state.global_styles.components.links.underline ? 1 : 0));
-    var menuConfig = (state.global_styles.components && state.global_styles.components.menu_config)
-        ? state.global_styles.components.menu_config
-        : {};
     var menuComponent = (state.global_styles.components && state.global_styles.components.menu)
         ? state.global_styles.components.menu
         : {};
-    var menuDesktop = menuConfig.desktop || {};
-    var menuDropdown = menuConfig.dropdown || {};
-    var menuMobile = menuConfig.mobile || {};
-    var menuChevron = menuConfig.chevron || {};
-    var chevronStyle = 'none';
-    if (String(menuChevron.type || '') === 'arrow') {
-        chevronStyle = 'arrow';
-    } else if (String(menuChevron.type || '') !== 'none' && String(menuChevron.animation || '') === 'rotate') {
-        chevronStyle = 'rotate';
-    }
-    $('#metis-theme-menu-layout').val(String(menuConfig.layout || 'horizontal_clean'));
-    $('#metis-theme-menu-style').val(normalizeMenuStyleOption(menuComponent.style || ((state.global_styles.global_settings || {}).menu_style || ''), String(menuConfig.layout || 'horizontal_clean')));
-    $('#metis-theme-menu-alignment').val(String(menuConfig.alignment || 'left'));
-    $('#metis-theme-menu-container').val(String(menuConfig.container || 'contained'));
-    $('#metis-theme-menu-font-size').val(String(menuDesktop.font_size || 14));
-    $('#metis-theme-menu-spacing').val(String(menuDesktop.item_spacing || 'normal'));
-    $('#metis-theme-menu-hover-style').val(String(menuDesktop.hover_style || 'fill'));
-    $('#metis-theme-menu-active-style').val(String(menuDesktop.active_style || 'underline'));
-    $('#metis-theme-menu-dropdown-behavior').val(String(menuDropdown.behavior || 'hover'));
-    $('#metis-theme-menu-dropdown-animation').val(String(menuDropdown.animation || 'fade'));
-    $('#metis-theme-menu-mobile-type').val(String(menuMobile.menu_type || 'slide'));
-    $('#metis-theme-menu-chevron-style').val(String(chevronStyle));
+    $('#metis-theme-menu-style').val(normalizeMenuStyleOption(menuComponent.style || ((state.global_styles.global_settings || {}).menu_style || ''), ''));
     var footerBgBinding = String((state.global_styles.global_settings && state.global_styles.global_settings.footer_background_binding) ? state.global_styles.global_settings.footer_background_binding : '');
     var footerBg = (footerBgBinding && Object.prototype.hasOwnProperty.call(brandingPalette, footerBgBinding))
         ? String(brandingPalette[footerBgBinding])
@@ -2305,11 +2111,7 @@ function initNav() {
     });
 }
 
-$(document).on('change', '#metis-theme-menu-layout', function() {
-    $('#metis-theme-menu-style').val(menuStyleFromLayout($(this).val()));
-});
-
-$(document).on('input change', '.metis-theme-color, .metis-theme-spacing, .metis-theme-element-input, #metis-theme-body-font, #metis-theme-heading-font, #metis-theme-base-size, #metis-theme-line-height, #metis-theme-heading-weight, #metis-theme-max-width, #metis-theme-container-width, #metis-theme-spacing-preset, #metis-theme-bp-sm, #metis-theme-bp-md, #metis-theme-bp-lg, #metis-theme-bp-xl, #metis-theme-title-format, #metis-theme-btn-radius, #metis-theme-card-radius, #metis-theme-form-radius, #metis-theme-form-border, #metis-theme-link-underline, #metis-theme-menu-layout, #metis-theme-menu-style, #metis-theme-menu-alignment, #metis-theme-menu-container, #metis-theme-menu-font-size, #metis-theme-menu-spacing, #metis-theme-menu-hover-style, #metis-theme-menu-active-style, #metis-theme-menu-dropdown-behavior, #metis-theme-menu-dropdown-animation, #metis-theme-menu-mobile-type, #metis-theme-menu-chevron-style, #metis-theme-custom-css, #metis-theme-token-editor', function() {
+$(document).on('input change', '.metis-theme-color, .metis-theme-spacing, .metis-theme-element-input, #metis-theme-body-font, #metis-theme-heading-font, #metis-theme-base-size, #metis-theme-line-height, #metis-theme-heading-weight, #metis-theme-max-width, #metis-theme-container-width, #metis-theme-spacing-preset, #metis-theme-bp-sm, #metis-theme-bp-md, #metis-theme-bp-lg, #metis-theme-bp-xl, #metis-theme-title-format, #metis-theme-btn-radius, #metis-theme-card-radius, #metis-theme-form-radius, #metis-theme-form-border, #metis-theme-link-underline, #metis-theme-menu-style, #metis-theme-custom-css, #metis-theme-token-editor', function() {
     markThemeDirtyFromInput(this);
     if (this.id === 'metis-theme-spacing-preset') {
         applySpacingPreset($(this).val());
@@ -2386,53 +2188,6 @@ $(document).on('input', '.metis-theme-color', function() {
         updateBindingDropdownUi(key);
     }
     applyPreview();
-});
-
-$(document).on('input', '.metis-theme-menu-color-input', function() {
-    var key = String($(this).data('menu-color-key') || '');
-    if (!key) return;
-    syncMenuColorUi(key);
-    markThemeDirtyFromInput(this);
-    applyPreview();
-});
-
-$(document).on('change', '.metis-theme-menu-color-binding', function() {
-    var key = String($(this).data('menu-color-key') || '');
-    if (!key) return;
-    var binding = String($(this).val() || '');
-    var inputMap = {
-        button_bg: '#metis-theme-menu-button-bg',
-        active_color: '#metis-theme-menu-active-color',
-        dropdown_highlight: '#metis-theme-menu-dropdown-highlight',
-        dropdown_text: '#metis-theme-menu-dropdown-text',
-        chevron_color: '#metis-theme-menu-chevron-color'
-    };
-    var inputId = inputMap[key] || '';
-    if (!inputId) return;
-    if (binding && Object.prototype.hasOwnProperty.call(brandingPalette, binding)) {
-        $(inputId).val(String(brandingPalette[binding])).prop('disabled', true);
-    } else {
-        $(inputId).prop('disabled', false);
-    }
-    syncMenuColorUi(key);
-    markThemeDirtyFromInput(this);
-    applyPreview();
-});
-
-$(document).on('click', '.metis-theme-menu-color-dot', function() {
-    var key = String($(this).data('menu-color-key') || '');
-    if (!key) return;
-    var inputMap = {
-        button_bg: '#metis-theme-menu-button-bg',
-        active_color: '#metis-theme-menu-active-color',
-        dropdown_highlight: '#metis-theme-menu-dropdown-highlight',
-        dropdown_text: '#metis-theme-menu-dropdown-text',
-        chevron_color: '#metis-theme-menu-chevron-color'
-    };
-    var $input = $(inputMap[key] || '');
-    if (!$input.length) return;
-    if ($input.prop('disabled')) return;
-    $input.trigger('click');
 });
 
 $(document).on('change', '.metis-theme-color-binding', function() {
@@ -2518,26 +2273,6 @@ $(document).on('click', '.metis-theme-binding-option', function(e) {
     var $dropdown = $(this).closest('.metis-theme-binding-dropdown');
     var key = String($dropdown.data('key') || '');
     var value = String($(this).data('value') || '');
-    if ($dropdown.hasClass('metis-theme-menu-color-dropdown')) {
-        var menuColorKey = String($dropdown.data('menu-color-key') || '');
-        if (menuColorKey) {
-            var bindingMap = {
-                button_bg: '#metis-theme-menu-button-bg-binding',
-                active_color: '#metis-theme-menu-active-color-binding',
-                dropdown_highlight: '#metis-theme-menu-dropdown-highlight-binding',
-                dropdown_text: '#metis-theme-menu-dropdown-text-binding',
-                chevron_color: '#metis-theme-menu-chevron-color-binding'
-            };
-            var $binding = $(bindingMap[menuColorKey] || '');
-            if (!$binding.length) {
-                closeAllBindingMenus();
-                return;
-            }
-            $binding.val(value).trigger('change');
-        }
-        closeAllBindingMenus();
-        return;
-    }
     if (!key) return;
     $('.metis-theme-color-binding[data-key="' + key + '"]').val(value).trigger('change');
     closeAllBindingMenus();
@@ -2557,18 +2292,9 @@ $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-item.has-child
     e.preventDefault();
     var $item = $(this).closest('.metis-shell-menu-item.has-children');
     if (!$item.length) return;
-    syncThemeGlideMenuItem($item);
     var willOpen = !$item.hasClass('is-open');
     $('#metis-theme-menu-live .metis-shell-menu-item.has-children').removeClass('is-open');
     if (willOpen) $item.addClass('is-open');
-});
-
-$(document).on('mouseenter focusin', '#metis-theme-menu-live .metis-template-menu > .metis-shell-menu-list > .metis-shell-menu-item', function() {
-    syncThemeGlideMenuItem($(this));
-});
-
-$(document).on('mouseleave', '#metis-theme-menu-live .metis-template-menu > .metis-shell-menu-list', function() {
-    resetThemeGlideMenuPreview();
 });
 
 $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-link, #metis-theme-menu-live .metis-shell-menu-btn', function(e) {
@@ -2581,7 +2307,6 @@ $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-link, #metis-t
     $target.addClass('is-active');
     var $item = $target.closest('.metis-shell-menu-item');
     $item.addClass('is-active');
-    syncThemeGlideMenuItem($item);
 });
 
 $('#metis-theme-custom-font-file').on('change', function() {

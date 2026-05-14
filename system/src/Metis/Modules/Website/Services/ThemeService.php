@@ -199,74 +199,46 @@ final class ThemeService {
         }
 
         $menu = is_array( $theme['components']['menu'] ?? null ) ? $theme['components']['menu'] : [];
-        $menu_config = is_array( $theme['components']['menu_config'] ?? null ) ? $theme['components']['menu_config'] : [];
+        $menu_style = self::sanitizeMenuStyle(
+            (string) ( $menu['style'] ?? ( $global_settings['menu_style'] ?? 'h_clean' ) )
+        );
+        $menu_config = self::menuPresetConfig( $menu_style );
+        $menu_layout = (string) ( $menu_config['layout'] ?? 'horizontal_clean' );
+        $menu_alignment = (string) ( $menu_config['alignment'] ?? 'left' );
+        $menu_container = (string) ( $menu_config['container'] ?? 'contained' );
         $menu_desktop = is_array( $menu_config['desktop'] ?? null ) ? $menu_config['desktop'] : [];
         $menu_dropdown_cfg = is_array( $menu_config['dropdown'] ?? null ) ? $menu_config['dropdown'] : [];
-        $menu_mobile_cfg = is_array( $menu_config['mobile'] ?? null ) ? $menu_config['mobile'] : [];
         $menu_chevron_cfg = is_array( $menu_config['chevron'] ?? null ) ? $menu_config['chevron'] : [];
-        $menu_layout = self::sanitizeMenuLayout( (string) ( $menu_config['layout'] ?? self::menuLayoutFromLegacyStyle( (string) ( $menu['style'] ?? 'h_clean' ) ) ) );
-        $menu_alignment = self::sanitizeMenuAlignment( (string) ( $menu_config['alignment'] ?? 'left' ) );
-        $menu_container = self::sanitizeMenuContainer( (string) ( $menu_config['container'] ?? 'contained' ) );
-        $menu_font_size = max( 11, min( 28, (int) ( $menu_desktop['font_size'] ?? $menu['font_size'] ?? 14 ) ) );
+        $menu_font_size = max( 11, min( 28, (int) ( $menu_desktop['font_size'] ?? 14 ) ) );
         $menu_spacing_mode = self::sanitizeMenuSpacingMode(
-            (string) ( $menu_desktop['item_spacing'] ?? $menu_desktop['spacing'] ?? ( $menu['item_spacing'] ?? 'normal' ) )
+            (string) ( $menu_desktop['item_spacing'] ?? 'normal' )
         );
         $menu_item_spacing = self::menuSpacingPixels( $menu_spacing_mode );
         $menu_hover_style = self::sanitizeMenuHoverStyle( (string) ( $menu_desktop['hover_style'] ?? 'fill' ) );
         $menu_active_style_v2 = self::sanitizeMenuDesktopActiveStyle( (string) ( $menu_desktop['active_style'] ?? 'underline' ) );
         $menu_dropdown_behavior = self::sanitizeMenuDropdownBehavior( (string) ( $menu_dropdown_cfg['behavior'] ?? 'hover' ) );
-        $menu_vertical_align = self::sanitizeMenuVerticalAlign( (string) ( $menu['vertical_align'] ?? 'center' ) );
-        $menu_item_radius = max( 0, min( 30, (int) ( $menu['item_radius'] ?? 10 ) ) );
-        $menu_button_radius = max( 0, min( 30, (int) ( $menu['button_radius'] ?? 10 ) ) );
-        $menu_button_padding_x = max( 4, min( 40, (int) ( $menu['button_padding_x'] ?? 14 ) ) );
-        $menu_button_padding_y = max( 4, min( 24, (int) ( $menu['button_padding_y'] ?? 10 ) ) );
-        $menu_dropdown_radius = max( 0, min( 30, (int) ( $menu_dropdown_cfg['radius'] ?? $menu['dropdown_radius'] ?? 10 ) ) );
-        $menu_dropdown_highlight = self::sanitizeCssValue( (string) ( $menu['dropdown_highlight'] ?? 'var(--metis-color-surface_alt,#f8fafc)' ) );
-        if ( $menu_dropdown_highlight === '' ) {
-            $menu_dropdown_highlight = 'var(--metis-color-surface_alt,#f8fafc)';
-        }
-        $menu_dropdown_text = self::sanitizeCssValue( (string) ( $menu['dropdown_text'] ?? 'var(--metis-color-text,#1a1f2b)' ) );
-        if ( $menu_dropdown_text === '' ) {
-            $menu_dropdown_text = 'var(--metis-color-text,#1a1f2b)';
-        }
-        $menu_dropdown_weight = self::sanitizeMenuDropdownWeight( (string) ( $menu['dropdown_weight'] ?? '500' ) );
-        $menu_submenu_open_animation = self::sanitizeMenuSubmenuOpenAnimation( (string) ( $menu_dropdown_cfg['animation'] ?? $menu['submenu_open_animation'] ?? 'fade' ) );
+        $menu_vertical_align = 'center';
+        $menu_item_radius = 10;
+        $menu_button_radius = 10;
+        $menu_button_padding_x = 14;
+        $menu_button_padding_y = 10;
+        $menu_dropdown_radius = max( 0, min( 30, (int) ( $menu_dropdown_cfg['radius'] ?? 10 ) ) );
+        $menu_dropdown_highlight = 'var(--metis-color-surface_alt,#f8fafc)';
+        $menu_dropdown_text = 'var(--metis-color-text,#1a1f2b)';
+        $menu_dropdown_weight = '500';
+        $menu_submenu_open_animation = self::sanitizeMenuSubmenuOpenAnimation( (string) ( $menu_dropdown_cfg['animation'] ?? 'fade' ) );
         $menu_submenu_hover_animation = self::sanitizeMenuSubmenuHoverAnimation( $menu_hover_style );
-        $menu_active_style = self::sanitizeMenuActiveStyle( $menu_active_style_v2 === 'none' ? 'none' : (string) ( $menu['active_style'] ?? $menu_active_style_v2 ) );
-        $menu_active_color = self::sanitizeCssValue( (string) ( $menu['active_color'] ?? 'var(--metis-color-primary,#485bc7)' ) );
-        if ( $menu_active_color === '' ) {
-            $menu_active_color = 'var(--metis-color-primary,#485bc7)';
-        }
-        $menu_chevron_color = self::sanitizeCssValue( (string) ( $menu['chevron_color'] ?? 'var(--metis-color-primary,#485bc7)' ) );
-        if ( $menu_chevron_color === '' ) {
-            $menu_chevron_color = 'var(--metis-color-primary,#485bc7)';
-        }
-        $menu_button_variant = self::sanitizeMenuButtonVariant( (string) ( $menu['button_variant'] ?? 'primary' ) );
-        $menu_button_bg_custom = self::sanitizeCssValue( (string) ( $menu['button_bg'] ?? '' ) );
+        $menu_active_style = self::sanitizeMenuActiveStyle( $menu_active_style_v2 === 'none' ? 'none' : $menu_active_style_v2 );
+        $menu_active_color = 'var(--metis-color-primary,#485bc7)';
+        $menu_chevron_color = 'var(--metis-color-primary,#485bc7)';
         $menu_chevron_animation = self::sanitizeMenuChevronAnimation(
             self::sanitizeMenuChevronAnimationV2( (string) ( $menu_chevron_cfg['animation'] ?? 'rotate' ) ) === 'rotate' ? 'flip' : 'none'
         );
         $menu_chevron_type = self::sanitizeMenuChevronType( (string) ( $menu_chevron_cfg['type'] ?? 'chevron' ) );
-        $menu_mobile_breakpoint = max( 480, min( 1600, (int) ( $menu_mobile_cfg['breakpoint'] ?? 980 ) ) );
-        $menu_mobile_menu_type = self::sanitizeMenuMobileMenuType( (string) ( $menu_mobile_cfg['menu_type'] ?? 'slide' ) );
-        $menu_mobile_button_style = self::sanitizeMenuMobileButtonStyle( (string) ( $menu_mobile_cfg['button_style'] ?? 'rounded' ) );
+        $menu_mobile_breakpoint = 980;
         $menu_button_bg = 'var(--metis-color-primary,#485bc7)';
         $menu_button_text = 'var(--metis-color-button_text,#ffffff)';
         $menu_button_border = 'transparent';
-        if ( $menu_button_variant === 'accent' ) {
-            $menu_button_bg = 'var(--metis-color-accent,#ff7542)';
-            $menu_button_text = 'var(--metis-color-button_text,#ffffff)';
-        } elseif ( $menu_button_variant === 'surface' ) {
-            $menu_button_bg = 'var(--metis-color-surface,#ffffff)';
-            $menu_button_text = 'var(--metis-color-text,#1a1f2b)';
-            $menu_button_border = 'var(--metis-color-border,#d8deea)';
-        } elseif ( $menu_button_variant === 'text' ) {
-            $menu_button_bg = 'var(--metis-color-text,#1a1f2b)';
-            $menu_button_text = 'var(--metis-color-bg,#ffffff)';
-        }
-        if ( $menu_button_bg_custom !== '' ) {
-            $menu_button_bg = $menu_button_bg_custom;
-        }
         $vars[] = '--metis-menu-font-size: ' . $menu_font_size . 'px;';
         $vars[] = '--metis-menu-item-gap: ' . $menu_item_spacing . 'px;';
         $vars[] = '--metis-menu-item-align: ' . self::menuVerticalAlignToCss( $menu_vertical_align ) . ';';
@@ -342,21 +314,11 @@ final class ThemeService {
         } elseif ( $menu_chevron_type === 'arrow' ) {
             $lines[] = '.metis-shell-menu-sub-indicator{width:8px;height:8px;border-right:2px solid currentColor;border-top:2px solid currentColor;border-bottom:0;border-left:0;transform:rotate(135deg) translateY(-1px);}';
         }
-        if ( $menu_mobile_menu_type === 'overlay' ) {
-            $lines[] = 'body.metis-menu-mobile-overlay.metis-nav-open::before{content:"";position:fixed;inset:0;background:rgba(2,8,23,.42);z-index:1300;}';
-            $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-primary{position:fixed;top:0;right:-110%;width:100%;height:100vh;overflow:auto;background:var(--metis-color-surface,#fff);z-index:1400;padding:24px 18px;transition:right .22s ease;}';
-        }
-        if ( $menu_mobile_menu_type !== 'overlay' ) {
-            $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-primary{position:fixed;top:0;right:-110%;width:min(320px,90vw);height:100vh;overflow:auto;background:var(--metis-color-surface,#fff);z-index:1400;padding:24px 18px;box-shadow:-10px 0 24px rgba(2,8,23,.16);transition:right .22s ease;}';
-        }
+        $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-primary{position:fixed;top:0;right:-110%;width:min(320px,90vw);height:100vh;overflow:auto;background:var(--metis-color-surface,#fff);z-index:1400;padding:24px 18px;box-shadow:-10px 0 24px rgba(2,8,23,.16);transition:right .22s ease;}';
         $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-primary .metis-shell-menu-list{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:12px;}';
         $lines[] = 'body.metis-nav-mobile-viewport.metis-nav-open .metis-shell-nav-primary{right:0;}';
         $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-toggle{display:inline-flex !important;}';
-        if ( $menu_mobile_button_style === 'square' ) {
-            $lines[] = '.metis-shell-nav-toggle{border-radius:4px !important;}';
-        } else {
-            $lines[] = '.metis-shell-nav-toggle{border-radius:999px !important;}';
-        }
+        $lines[] = '.metis-shell-nav-toggle{border-radius:999px !important;}';
         if ( $menu_dropdown_behavior === 'click' ) {
             $lines[] = '.metis-shell-menu-item.has-children:hover>.metis-shell-menu-sub,.metis-shell-menu-item.has-children:focus-within>.metis-shell-menu-sub{opacity:0 !important;visibility:hidden !important;pointer-events:none !important;transform:translateY(var(--metis-menu-sub-open-y,-8px)) scale(var(--metis-menu-sub-open-scale,1)) !important;}';
             $lines[] = '.metis-shell-menu-item.has-children.is-open>.metis-shell-menu-sub{opacity:1 !important;visibility:visible !important;pointer-events:auto !important;transform:translateY(0) scale(1) !important;}';
@@ -610,84 +572,62 @@ final class ThemeService {
         $newsletter_layout_profile = LayoutProfileService::sanitizeNewsletterProfile(
             (string) ( $global_settings['newsletter_layout_profile'] ?? LayoutProfileService::defaultNewsletterProfileKey() )
         );
-        $menu_config_input = is_array( $components['menu_config'] ?? null ) ? $components['menu_config'] : [];
-        if ( $menu_config_input === [] && is_array( $menu_comp['config'] ?? null ) ) {
-            $menu_config_input = $menu_comp['config'];
+        $style_seed = trim( (string) ( $menu_comp['style'] ?? ( $global_settings['menu_style'] ?? '' ) ) );
+        if ( $style_seed === '' ) {
+            $style_seed = 'h_clean';
         }
+        $menu_style = self::sanitizeMenuStyle( $style_seed );
+        $menu_preset = self::menuPresetConfig( $menu_style );
+        $menu_layout = (string) $menu_preset['layout'];
+        $menu_alignment = (string) $menu_preset['alignment'];
+        $menu_container = (string) $menu_preset['container'];
+        $menu_desktop = is_array( $menu_preset['desktop'] ?? null ) ? $menu_preset['desktop'] : [];
+        $menu_dropdown = is_array( $menu_preset['dropdown'] ?? null ) ? $menu_preset['dropdown'] : [];
+        $menu_mobile = is_array( $menu_preset['mobile'] ?? null ) ? $menu_preset['mobile'] : [];
+        $menu_chevron = is_array( $menu_preset['chevron'] ?? null ) ? $menu_preset['chevron'] : [];
 
-        $legacy_style_seed = self::sanitizeMenuStyle(
-            (string) ( $menu_comp['style'] ?? ( $global_settings['menu_style'] ?? 'h_clean' ) )
-        );
-        $menu_layout = self::sanitizeMenuLayout( (string) ( $menu_config_input['layout'] ?? self::menuLayoutFromLegacyStyle( $legacy_style_seed ) ) );
-        $menu_alignment = self::sanitizeMenuAlignment( (string) ( $menu_config_input['alignment'] ?? 'left' ) );
-        $menu_container = self::sanitizeMenuContainer( (string) ( $menu_config_input['container'] ?? 'contained' ) );
-        $menu_desktop = is_array( $menu_config_input['desktop'] ?? null ) ? $menu_config_input['desktop'] : [];
-        $menu_dropdown = is_array( $menu_config_input['dropdown'] ?? null ) ? $menu_config_input['dropdown'] : [];
-        $menu_mobile = is_array( $menu_config_input['mobile'] ?? null ) ? $menu_config_input['mobile'] : [];
-        $menu_chevron = is_array( $menu_config_input['chevron'] ?? null ) ? $menu_config_input['chevron'] : [];
-
-        $menu_font_size = max( 11, min( 28, (int) ( $menu_desktop['font_size'] ?? $menu_comp['font_size'] ?? 14 ) ) );
+        $menu_font_size = max( 11, min( 28, (int) ( $menu_desktop['font_size'] ?? 14 ) ) );
         $menu_spacing_mode = self::sanitizeMenuSpacingMode(
-            (string) ( $menu_desktop['item_spacing'] ?? $menu_desktop['spacing'] ?? ( $menu_comp['item_spacing'] ?? 'normal' ) )
+            (string) ( $menu_desktop['item_spacing'] ?? 'normal' )
         );
         $menu_item_spacing = self::menuSpacingPixels( $menu_spacing_mode );
         $menu_hover_style = self::sanitizeMenuHoverStyle( (string) ( $menu_desktop['hover_style'] ?? 'fill' ) );
         $menu_active_style_v2 = self::sanitizeMenuDesktopActiveStyle( (string) ( $menu_desktop['active_style'] ?? 'underline' ) );
         $menu_dropdown_behavior = self::sanitizeMenuDropdownBehavior( (string) ( $menu_dropdown['behavior'] ?? 'hover' ) );
         $menu_dropdown_animation = self::sanitizeMenuDropdownAnimation( (string) ( $menu_dropdown['animation'] ?? 'fade' ) );
-        $menu_dropdown_radius = max( 0, min( 30, (int) ( $menu_dropdown['radius'] ?? $menu_comp['dropdown_radius'] ?? 10 ) ) );
-        $menu_mobile_breakpoint = max( 480, min( 1600, (int) ( $menu_mobile['breakpoint'] ?? 980 ) ) );
-        $menu_mobile_style = self::sanitizeMenuMobileStyle( (string) ( $menu_mobile['style'] ?? 'hamburger' ) );
-        $menu_mobile_menu_type = self::sanitizeMenuMobileMenuType( (string) ( $menu_mobile['menu_type'] ?? 'slide' ) );
-        $menu_mobile_button_style = self::sanitizeMenuMobileButtonStyle( (string) ( $menu_mobile['button_style'] ?? 'rounded' ) );
+        $menu_dropdown_radius = max( 0, min( 30, (int) ( $menu_dropdown['radius'] ?? 10 ) ) );
+        $menu_mobile_breakpoint = 980;
+        $menu_mobile_style = 'hamburger';
+        $menu_mobile_menu_type = 'slide';
+        $menu_mobile_button_style = 'rounded';
         $menu_chevron_type = self::sanitizeMenuChevronType( (string) ( $menu_chevron['type'] ?? 'chevron' ) );
         $menu_chevron_animation_v2 = self::sanitizeMenuChevronAnimationV2( (string) ( $menu_chevron['animation'] ?? 'rotate' ) );
-
-        $menu_style = self::sanitizeMenuStyle(
-            (string) ( $menu_comp['style'] ?? ( $global_settings['menu_style'] ?? self::legacyMenuStyleFromLayout( $menu_layout ) ) )
-        );
-        $menu_vertical_align = self::sanitizeMenuVerticalAlign( (string) ( $menu_comp['vertical_align'] ?? 'center' ) );
-        $menu_item_radius = max( 0, min( 30, (int) ( $menu_comp['item_radius'] ?? 10 ) ) );
-        $menu_button_variant = self::sanitizeMenuButtonVariant( (string) ( $menu_comp['button_variant'] ?? 'primary' ) );
-        $menu_button_radius = max( 0, min( 30, (int) ( $menu_comp['button_radius'] ?? 10 ) ) );
-        $menu_button_padding_x = max( 4, min( 40, (int) ( $menu_comp['button_padding_x'] ?? 14 ) ) );
-        $menu_button_padding_y = max( 4, min( 24, (int) ( $menu_comp['button_padding_y'] ?? 10 ) ) );
-        $menu_button_bg = self::sanitizeCssValue( (string) ( $menu_comp['button_bg'] ?? 'var(--metis-color-primary,#485bc7)' ) );
-        if ( $menu_button_bg === '' ) {
-            $menu_button_bg = 'var(--metis-color-primary,#485bc7)';
-        }
-        $menu_dropdown_highlight = self::sanitizeCssValue( (string) ( $menu_comp['dropdown_highlight'] ?? 'var(--metis-color-surface_alt,#f8fafc)' ) );
-        if ( $menu_dropdown_highlight === '' ) {
-            $menu_dropdown_highlight = 'var(--metis-color-surface_alt,#f8fafc)';
-        }
-        $menu_dropdown_text = self::sanitizeCssValue( (string) ( $menu_comp['dropdown_text'] ?? 'var(--metis-color-text,#1a1f2b)' ) );
-        if ( $menu_dropdown_text === '' ) {
-            $menu_dropdown_text = 'var(--metis-color-text,#1a1f2b)';
-        }
-        $menu_dropdown_weight = self::sanitizeMenuDropdownWeight( (string) ( $menu_comp['dropdown_weight'] ?? '500' ) );
+        $menu_vertical_align = 'center';
+        $menu_item_radius = 10;
+        $menu_button_variant = 'primary';
+        $menu_button_radius = 10;
+        $menu_button_padding_x = 14;
+        $menu_button_padding_y = 10;
+        $menu_button_bg = 'var(--metis-color-primary,#485bc7)';
+        $menu_dropdown_highlight = 'var(--metis-color-surface_alt,#f8fafc)';
+        $menu_dropdown_text = 'var(--metis-color-text,#1a1f2b)';
+        $menu_dropdown_weight = '500';
         $menu_submenu_open_animation = self::sanitizeMenuSubmenuOpenAnimation( $menu_dropdown_animation );
         $menu_submenu_hover_animation = self::sanitizeMenuSubmenuHoverAnimation( $menu_hover_style );
         $menu_active_style = self::sanitizeMenuActiveStyle(
             $menu_active_style_v2 === 'none' ? 'text' : $menu_active_style_v2
         );
-        $menu_active_color = self::sanitizeCssValue( (string) ( $menu_comp['active_color'] ?? 'var(--metis-color-primary,#485bc7)' ) );
-        if ( $menu_active_color === '' ) {
-            $menu_active_color = 'var(--metis-color-primary,#485bc7)';
-        }
-        $menu_chevron_color = self::sanitizeCssValue( (string) ( $menu_comp['chevron_color'] ?? 'var(--metis-color-primary,#485bc7)' ) );
-        if ( $menu_chevron_color === '' ) {
-            $menu_chevron_color = 'var(--metis-color-primary,#485bc7)';
-        }
+        $menu_active_color = 'var(--metis-color-primary,#485bc7)';
+        $menu_chevron_color = 'var(--metis-color-primary,#485bc7)';
         $menu_chevron_animation = self::sanitizeMenuChevronAnimation(
             $menu_chevron_animation_v2 === 'rotate' ? 'flip' : 'none'
         );
         $menu_use_template_css = 0;
-        $menu_bindings = is_array( $menu_comp['bindings'] ?? null ) ? $menu_comp['bindings'] : [];
-        $menu_button_bg_binding = metis_key_clean( (string) ( $menu_bindings['button_bg'] ?? '' ) );
-        $menu_active_color_binding = metis_key_clean( (string) ( $menu_bindings['active_color'] ?? '' ) );
-        $menu_dropdown_highlight_binding = metis_key_clean( (string) ( $menu_bindings['dropdown_highlight'] ?? '' ) );
-        $menu_dropdown_text_binding = metis_key_clean( (string) ( $menu_bindings['dropdown_text'] ?? '' ) );
-        $menu_chevron_color_binding = metis_key_clean( (string) ( $menu_bindings['chevron_color'] ?? '' ) );
+        $menu_button_bg_binding = '';
+        $menu_active_color_binding = '';
+        $menu_dropdown_highlight_binding = '';
+        $menu_dropdown_text_binding = '';
+        $menu_chevron_color_binding = '';
         $branding_bindings = [];
         if ( isset( $global_settings['branding_color_bindings'] ) && is_array( $global_settings['branding_color_bindings'] ) ) {
             foreach ( $global_settings['branding_color_bindings'] as $theme_key => $branding_key ) {
@@ -1007,6 +947,7 @@ final class ThemeService {
             'h_clean',
             'h_pill',
             'h_underline',
+            'h_solid_bar',
             'h_glide',
             'h_marker_dropdown',
             'v_sidebar_clean',
@@ -1019,32 +960,85 @@ final class ThemeService {
         return $style;
     }
 
-    private static function menuLayoutFromLegacyStyle( string $style ): string {
-        $legacy = self::sanitizeMenuStyle( $style );
-        if ( str_starts_with( $legacy, 'v_sidebar_' ) ) {
-            return 'sidebar_overlay';
-        }
-        if ( $legacy === 'h_glide' ) {
-            return 'glide_gradient';
-        }
-        if ( $legacy === 'h_marker_dropdown' ) {
-            return 'marker_dropdown';
-        }
-        if ( $legacy === 'h_underline' ) {
-            return 'minimal_topbar';
-        }
-        return 'horizontal_clean';
-    }
+    /**
+     * Public menu styles are presets. Saved legacy customization is preserved in storage
+     * history, but rendering derives behavior from the selected preset only.
+     *
+     * @return array<string,mixed>
+     */
+    private static function menuPresetConfig( string $style ): array {
+        $style = self::sanitizeMenuStyle( $style );
+        $base = [
+            'style' => $style,
+            'layout' => 'horizontal_clean',
+            'alignment' => 'left',
+            'container' => 'contained',
+            'desktop' => [
+                'font_size' => 14,
+                'item_spacing' => 'normal',
+                'hover_style' => 'fill',
+                'active_style' => 'underline',
+            ],
+            'dropdown' => [
+                'behavior' => 'hover',
+                'animation' => 'fade',
+                'radius' => 10,
+            ],
+            'mobile' => [
+                'breakpoint' => 980,
+                'style' => 'hamburger',
+                'menu_type' => 'slide',
+                'button_style' => 'rounded',
+            ],
+            'chevron' => [
+                'type' => 'chevron',
+                'animation' => 'rotate',
+            ],
+        ];
 
-    private static function legacyMenuStyleFromLayout( string $layout ): string {
-        $normalized = self::sanitizeMenuLayout( $layout );
-        return match ( $normalized ) {
-            'sidebar_overlay' => 'v_sidebar_clean',
-            'minimal_topbar' => 'h_underline',
-            'glide_gradient' => 'h_glide',
-            'marker_dropdown' => 'h_marker_dropdown',
-            default => 'h_clean',
-        };
+        $presets = [
+            'h_clean' => [],
+            'h_pill' => [
+                'desktop' => [ 'active_style' => 'pill' ],
+            ],
+            'h_underline' => [
+                'layout' => 'minimal_topbar',
+                'desktop' => [ 'hover_style' => 'underline', 'active_style' => 'underline' ],
+            ],
+            'h_solid_bar' => [
+                'alignment' => 'center',
+                'desktop' => [ 'hover_style' => 'fill', 'active_style' => 'none' ],
+                'dropdown' => [ 'radius' => 0 ],
+            ],
+            'h_glide' => [
+                'layout' => 'glide_gradient',
+                'alignment' => 'center',
+                'desktop' => [ 'hover_style' => 'none', 'active_style' => 'none' ],
+                'dropdown' => [ 'animation' => 'scale', 'radius' => 8 ],
+                'chevron' => [ 'type' => 'none', 'animation' => 'none' ],
+            ],
+            'h_marker_dropdown' => [
+                'layout' => 'marker_dropdown',
+                'alignment' => 'center',
+                'desktop' => [ 'font_size' => 13, 'hover_style' => 'none', 'active_style' => 'none' ],
+                'dropdown' => [ 'animation' => 'slide', 'radius' => 0 ],
+                'chevron' => [ 'type' => 'none', 'animation' => 'none' ],
+            ],
+            'v_sidebar_clean' => [
+                'layout' => 'sidebar_overlay',
+                'desktop' => [ 'hover_style' => 'underline' ],
+            ],
+            'v_sidebar_cards' => [
+                'layout' => 'sidebar_overlay',
+                'desktop' => [ 'active_style' => 'pill' ],
+            ],
+            'v_sidebar_compact' => [
+                'layout' => 'sidebar_overlay',
+                'desktop' => [ 'font_size' => 12, 'item_spacing' => 'tight', 'hover_style' => 'underline' ],
+            ],
+        ];
+
+        return array_replace_recursive( $base, $presets[ $style ] ?? [], [ 'style' => $style ] );
     }
 
     private static function sanitizeMenuLayout( string $value ): string {
@@ -1125,7 +1119,7 @@ final class ThemeService {
 
     private static function sanitizeMenuDropdownAnimation( string $value ): string {
         $animation = metis_key_clean( strtolower( trim( $value ) ) );
-        if ( ! in_array( $animation, [ 'fade', 'scale', 'none' ], true ) ) {
+        if ( ! in_array( $animation, [ 'fade', 'scale', 'slide', 'none' ], true ) ) {
             return 'fade';
         }
         return $animation;
@@ -1137,27 +1131,6 @@ final class ThemeService {
             return 'hover';
         }
         return $behavior;
-    }
-
-    private static function sanitizeMenuMobileStyle( string $value ): string {
-        $style = metis_key_clean( strtolower( trim( $value ) ) );
-        return $style === 'hamburger' ? 'hamburger' : 'hamburger';
-    }
-
-    private static function sanitizeMenuMobileMenuType( string $value ): string {
-        $type = metis_key_clean( strtolower( trim( $value ) ) );
-        if ( ! in_array( $type, [ 'slide', 'overlay' ], true ) ) {
-            return 'slide';
-        }
-        return $type;
-    }
-
-    private static function sanitizeMenuMobileButtonStyle( string $value ): string {
-        $style = metis_key_clean( strtolower( trim( $value ) ) );
-        if ( ! in_array( $style, [ 'square', 'rounded' ], true ) ) {
-            return 'rounded';
-        }
-        return $style;
     }
 
     private static function sanitizeMenuChevronType( string $value ): string {
@@ -1174,15 +1147,6 @@ final class ThemeService {
             return 'rotate';
         }
         return $animation;
-    }
-
-    private static function sanitizeMenuButtonVariant( string $value ): string {
-        $variant = metis_key_clean( strtolower( trim( $value ) ) );
-        $allowed = [ 'primary', 'accent', 'surface', 'text' ];
-        if ( ! in_array( $variant, $allowed, true ) ) {
-            return 'primary';
-        }
-        return $variant;
     }
 
     private static function sanitizeMenuVerticalAlign( string $value ): string {

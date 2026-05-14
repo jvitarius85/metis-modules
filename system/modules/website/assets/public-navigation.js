@@ -9,13 +9,6 @@
   if (mobileBreakpoint < 480) mobileBreakpoint = 480;
   if (mobileBreakpoint > 1600) mobileBreakpoint = 1600;
 
-  var mobileType = String(body.getAttribute("data-metis-nav-mobile-type") || "slide").toLowerCase();
-  if (mobileType !== "overlay" && mobileType !== "slide") {
-    mobileType = "slide";
-  }
-  if (mobileType === "overlay") {
-    body.classList.add("metis-menu-mobile-overlay");
-  }
   var dropdownBehavior = String(body.getAttribute("data-metis-nav-dropdown-behavior") || "hover").toLowerCase();
   if (dropdownBehavior !== "click" && dropdownBehavior !== "hover") {
     dropdownBehavior = "hover";
@@ -178,94 +171,8 @@
     }
   }
 
-  function setupGlideMenus() {
-    if (
-      !body.classList.contains("metis-menu-style-h_glide") &&
-      !body.classList.contains("metis-menu-style-h_marker_dropdown")
-    ) {
-      return;
-    }
-    var lists = document.querySelectorAll(".metis-shell-nav-primary > .metis-shell-menu-list");
-    if (!lists.length) {
-      return;
-    }
-
-    function topItems(list) {
-      var children = list ? list.children : [];
-      var items = [];
-      for (var i = 0; i < children.length; i++) {
-        if (children[i].classList && children[i].classList.contains("metis-shell-menu-item")) {
-          items.push(children[i]);
-        }
-      }
-      return items;
-    }
-
-    function defaultGlideItem(list) {
-      var active = list.querySelector(":scope > .metis-shell-menu-item.is-active, :scope > .metis-shell-menu-item.is-active-ancestor, :scope > .metis-shell-menu-item > .metis-shell-menu-link[aria-current='page']");
-      if (active && active.classList && active.classList.contains("metis-shell-menu-link")) {
-        active = active.closest(".metis-shell-menu-item");
-      }
-      return active || list.querySelector(":scope > .metis-shell-menu-item");
-    }
-
-    function applyGlide(list, item) {
-      if (!list || !item || body.classList.contains("metis-nav-mobile-viewport")) {
-        return;
-      }
-      list.style.setProperty("--metis-glide-left", item.offsetLeft + "px");
-      list.style.setProperty("--metis-glide-width", item.offsetWidth + "px");
-      list.style.setProperty("--metis-marker-left", item.offsetLeft + "px");
-      list.style.setProperty("--metis-marker-width", item.offsetWidth + "px");
-    }
-
-    function resetGlide(list) {
-      if (!list) {
-        return;
-      }
-      var item = defaultGlideItem(list);
-      if (item) {
-        applyGlide(list, item);
-      }
-    }
-
-    for (var i = 0; i < lists.length; i++) {
-      (function (list) {
-        var items = topItems(list);
-        for (var j = 0; j < items.length; j++) {
-          (function (item) {
-            item.addEventListener("mouseenter", function () {
-              applyGlide(list, item);
-            });
-            item.addEventListener("focusin", function () {
-              applyGlide(list, item);
-            });
-          })(items[j]);
-        }
-        list.addEventListener("mouseleave", function () {
-          resetGlide(list);
-        });
-        list.addEventListener("focusout", function () {
-          window.setTimeout(function () {
-            if (!list.contains(document.activeElement)) {
-              resetGlide(list);
-            }
-          }, 0);
-        });
-        resetGlide(list);
-      })(lists[i]);
-    }
-
-    window.addEventListener("resize", function () {
-      for (var i = 0; i < lists.length; i++) {
-        resetGlide(lists[i]);
-      }
-    }, { passive: true });
-  }
-
   window.addEventListener("scroll", syncCondensedHeader, { passive: true });
   window.addEventListener("resize", syncViewportMode, { passive: true });
   syncViewportMode();
   syncCondensedHeader();
-  setupGlideMenus();
 })();
