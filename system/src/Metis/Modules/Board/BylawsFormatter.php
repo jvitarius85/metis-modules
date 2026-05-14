@@ -21,6 +21,8 @@ final class BylawsFormatter {
         $open_article = false;
         $open_section = false;
         $list_type = '';
+        $article_index = 0;
+        $section_index = 0;
 
         foreach ( $lines as $line ) {
             $line = trim( $line );
@@ -39,10 +41,12 @@ final class BylawsFormatter {
                     $html .= '</section>';
                 }
                 $open_article = true;
+                $article_index++;
+                $section_index = 0;
                 $heading = self::cleanInline( $line );
                 $outline[] = [ 'level' => 'article', 'title' => $heading ];
                 $html .= '<section class="metis-board-bylaws-article">';
-                $html .= '<h3>' . self::escape( $heading ) . '</h3>';
+                $html .= '<h3 id="metis-bylaws-article-' . $article_index . '">' . self::escape( $heading ) . '</h3>';
                 continue;
             }
 
@@ -56,10 +60,11 @@ final class BylawsFormatter {
                     $open_article = true;
                 }
                 $open_section = true;
+                $section_index++;
                 $heading = self::cleanInline( $line );
                 $outline[] = [ 'level' => 'section', 'title' => $heading ];
                 $html .= '<section class="metis-board-bylaws-subsection">';
-                $html .= '<h4>' . self::escape( $heading ) . '</h4>';
+                $html .= '<h4 id="metis-bylaws-article-' . max( 1, $article_index ) . '-section-' . $section_index . '">' . self::escape( $heading ) . '</h4>';
                 continue;
             }
 

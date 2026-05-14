@@ -228,6 +228,14 @@
     padding: 16px 18px;
 }
 
+.metis-board-bylaws-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 14px;
+}
+
 .metis-board-bylaws-format-preview {
     max-height: 420px;
     overflow: auto;
@@ -238,6 +246,7 @@
     gap: 12px;
     color: var(--metis-text);
     line-height: 1.6;
+    max-width: 82ch;
 }
 
 .metis-board-bylaws-document h2,
@@ -271,6 +280,11 @@
     gap: 8px;
 }
 
+.metis-board-bylaws-subsection p,
+.metis-board-bylaws-subsection .metis-board-bylaws-list {
+    margin-left: 2rem;
+}
+
 .metis-board-bylaws-list {
     margin: 0;
     padding-left: 22px;
@@ -283,6 +297,130 @@
 
 .metis-board-bylaws-modal {
     max-width: 1040px;
+}
+
+.metis-board-bylaws-view-modal {
+    width: min(1180px, calc(100vw - 36px));
+    max-width: 1180px;
+    height: min(88vh, 920px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.metis-board-bylaws-view-head,
+.metis-board-bylaws-searchbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.metis-board-bylaws-view-head .metis-modal-title {
+    margin-bottom: 0;
+}
+
+.metis-board-bylaws-searchbar {
+    padding: 12px 0;
+    border-top: 1px solid var(--metis-border);
+    border-bottom: 1px solid var(--metis-border);
+}
+
+.metis-board-bylaws-searchbar .metis-input {
+    flex: 1 1 280px;
+}
+
+.metis-board-bylaws-reader-layout {
+    display: grid;
+    grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+    gap: 18px;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding-top: 16px;
+}
+
+.metis-board-bylaws-toc,
+.metis-board-bylaws-reader {
+    min-height: 0;
+    overflow: auto;
+}
+
+.metis-board-bylaws-toc {
+    border-right: 1px solid var(--metis-border);
+    padding-right: 14px;
+}
+
+.metis-board-bylaws-toc a {
+    display: block;
+    color: var(--metis-text);
+    text-decoration: none;
+    border-radius: 8px;
+    padding: 7px 8px;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+.metis-board-bylaws-toc a:hover,
+.metis-board-bylaws-toc a:focus-visible {
+    background: #eef3ff;
+    color: var(--metis-primary);
+}
+
+.metis-board-bylaws-toc a[data-level="h4"] {
+    padding-left: 22px;
+    color: var(--metis-text-muted);
+}
+
+.metis-board-bylaws-reader {
+    display: flex;
+    justify-content: center;
+    padding: 2px 6px 24px;
+    scroll-behavior: smooth;
+}
+
+.metis-board-bylaws-reader .metis-board-bylaws-document {
+    width: min(82ch, 100%);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 14px;
+    line-height: 1.75;
+}
+
+.metis-board-bylaws-reader mark {
+    background: #fff1a8;
+    color: inherit;
+    border-radius: 3px;
+    padding: 0 2px;
+}
+
+.metis-board-bylaws-reader mark.is-active {
+    background: #ffcc66;
+    outline: 2px solid rgba(255, 117, 66, .35);
+}
+
+@media (max-width: 860px) {
+    .metis-board-bylaws-view-modal {
+        width: calc(100vw - 18px);
+        height: calc(100vh - 18px);
+        padding: 18px;
+    }
+
+    .metis-board-bylaws-reader-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-board-bylaws-toc {
+        max-height: 180px;
+        border-right: 0;
+        border-bottom: 1px solid var(--metis-border);
+        padding-right: 0;
+        padding-bottom: 12px;
+    }
+
+    .metis-board-bylaws-subsection p,
+    .metis-board-bylaws-subsection .metis-board-bylaws-list {
+        margin-left: 1rem;
+    }
 }
 
 .metis-form-actions-between {

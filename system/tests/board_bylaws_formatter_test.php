@@ -35,8 +35,8 @@ $html = (string) ( $formatted['html'] ?? '' );
 $outline = (array) ( $formatted['outline'] ?? [] );
 
 $assert( str_contains( $html, '<article class="metis-board-bylaws-document">' ), 'Formatter should create the bylaws document wrapper.' );
-$assert( str_contains( $html, '<h3>ARTICLE I - Name</h3>' ), 'Formatter should detect article headings.' );
-$assert( str_contains( $html, '<h4>Section 1. Purpose</h4>' ), 'Formatter should detect section headings.' );
+$assert( str_contains( $html, '<h3 id="metis-bylaws-article-1">ARTICLE I - Name</h3>' ), 'Formatter should detect article headings.' );
+$assert( str_contains( $html, '<h4 id="metis-bylaws-article-1-section-1">Section 1. Purpose</h4>' ), 'Formatter should detect section headings.' );
 $assert( str_contains( $html, '<ul class="metis-board-bylaws-list">' ), 'Formatter should preserve unordered list structure.' );
 $assert( str_contains( $html, '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' ), 'Formatter must escape pasted HTML.' );
 $assert( count( $outline ) === 4, 'Formatter should expose article and section outline entries.' );

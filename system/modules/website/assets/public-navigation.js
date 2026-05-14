@@ -44,10 +44,29 @@
   }
 
   function closeOpenSubmenus(exceptItem) {
-    var opened = document.querySelectorAll(".metis-shell-menu-item.has-children.is-open");
+    if (!exceptItem) {
+      var openedAll = document.querySelectorAll(".metis-shell-menu-item.has-children.is-open");
+      for (var a = 0; a < openedAll.length; a++) {
+        openedAll[a].classList.remove("is-open");
+        var triggerAll = openedAll[a].querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn");
+        if (triggerAll) triggerAll.setAttribute("aria-expanded", "false");
+      }
+      return;
+    }
+
+    var parentList = exceptItem.parentElement;
+    if (!parentList) return;
+    var opened = [];
+    for (var c = 0; c < parentList.children.length; c++) {
+      var child = parentList.children[c];
+      if (child !== exceptItem && child.classList && child.classList.contains("metis-shell-menu-item") && child.classList.contains("has-children") && child.classList.contains("is-open")) {
+        opened.push(child);
+      }
+    }
     for (var i = 0; i < opened.length; i++) {
-      if (exceptItem && opened[i] === exceptItem) continue;
       opened[i].classList.remove("is-open");
+      var trigger = opened[i].querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn");
+      if (trigger) trigger.setAttribute("aria-expanded", "false");
     }
   }
 
@@ -143,11 +162,13 @@
           return;
         }
         item.classList.remove("is-open");
+        trigger.setAttribute("aria-expanded", "false");
         return;
       }
 
       closeOpenSubmenus(item);
       item.classList.add("is-open");
+      trigger.setAttribute("aria-expanded", "true");
       return;
     }
 

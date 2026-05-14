@@ -61,6 +61,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const bylawsMeta = document.getElementById('metis-board-bylaws-meta');
     const bylawsSignedLink = document.getElementById('metis-board-bylaws-signed-link');
     const bylawsPreview = document.getElementById('metis-board-bylaws-format-preview');
+    const bylawsViewModal = document.getElementById('metis-board-bylaws-view-modal');
+    const bylawsViewMeta = document.getElementById('metis-board-bylaws-view-meta');
+    const bylawsReader = document.getElementById('metis-board-bylaws-reader');
+    const bylawsToc = document.getElementById('metis-board-bylaws-toc');
+    const bylawsSearch = document.getElementById('metis-board-bylaws-search');
+    const bylawsSearchCount = document.getElementById('metis-board-bylaws-search-count');
+    const bylawsSearchPrev = document.getElementById('metis-board-bylaws-search-prev');
+    const bylawsSearchNext = document.getElementById('metis-board-bylaws-search-next');
     const dashboardActionRowsContainer = document.getElementById('metis-board-dashboard-action-rows');
     const detailActionRowsContainer = document.getElementById('metis-board-action-rows');
     const decisionRowsContainer = document.getElementById('metis-board-decision-rows');
@@ -74,6 +82,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const perPage = 20;
     let sortKey = 'date';
     let sortDir = 'desc';
+    let bylawsReaderOriginalHtml = bylawsReader ? bylawsReader.innerHTML : '';
+    let bylawsSearchMarks = [];
+    let bylawsActiveSearchIndex = -1;
 
     function norm(v) { return String(v || '').toLowerCase().trim(); }
 
@@ -400,26 +411,145 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function bylawsSummaryHtml(payload) {
+        const title = String(payload && payload.title ? payload.title : 'Bylaws');
+        const hasHtml = String(payload && payload.formatted_html ? payload.formatted_html : '').trim() !== '';
+        if (!hasHtml) {
+            return '<div class="metis-empty-state">No bylaws have been saved yet.</div>';
+        }
+        return ''
+            + '<div class="metis-board-bylaws-summary">'
+            + '<strong>' + escHtml(title) + '</strong>'
+            + '<span class="metis-muted">Formatted bylaws are available for review.</span>'
+            + '<button id="metis-board-view-bylaws" class="metis-btn metis-btn-ghost metis-btn-xs" type="button">View Bylaws</button>'
+            + '</div>';
+    }
+
+    function rebuildBylawsToc() {
+        if (!bylawsReader || !bylawsToc) return;
+        const headings = Array.from(bylawsReader.querySelectorAll('.metis-board-bylaws-document h3, .metis-board-bylaws-document h4'));
+        if (!headings.length) {
+            bylawsToc.innerHTML = '<div class="metis-muted">No sections found.</div>';
+            return;
+        }
+        bylawsToc.innerHTML = headings.map(function (heading, index) {
+            if (!heading.id) heading.id = 'metis-bylaws-heading-' + String(index + 1);
+            return '<a href="#' + escHtml(heading.id) + '" data-level="' + escHtml(heading.tagName.toLowerCase()) + '">' + escHtml(heading.textContent || '') + '</a>';
+        }).join('');
+    }
+
+    function setBylawsSearchCount() {
+        if (!bylawsSearchCount) return;
+        if (!bylawsSearchMarks.length) {
+            bylawsSearchCount.textContent = '0 matches';
+            return;
+        }
+        bylawsSearchCount.textContent = String(bylawsActiveSearchIndex + 1) + ' of ' + String(bylawsSearchMarks.length);
+    }
+
+    function setActiveBylawsSearchMatch(index) {
+        if (!bylawsSearchMarks.length) {
+            bylawsActiveSearchIndex = -1;
+            setBylawsSearchCount();
+            return;
+        }
+        bylawsSearchMarks.forEach(function (mark) {
+            mark.classList.remove('is-active');
+        });
+        bylawsActiveSearchIndex = (index + bylawsSearchMarks.length) % bylawsSearchMarks.length;
+        const active = bylawsSearchMarks[bylawsActiveSearchIndex];
+        active.classList.add('is-active');
+        active.scrollIntoView({ block: 'center', inline: 'nearest' });
+        setBylawsSearchCount();
+    }
+
+    function escapeRegExp(value) {
+        return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function applyBylawsSearch() {
+        if (!bylawsReader) return;
+        const query = String(bylawsSearch?.value || '').trim();
+        bylawsReader.innerHTML = bylawsReaderOriginalHtml || '';
+        rebuildBylawsToc();
+        bylawsSearchMarks = [];
+        bylawsActiveSearchIndex = -1;
+        if (query === '') {
+            setBylawsSearchCount();
+            return;
+        }
+
+        const pattern = new RegExp(escapeRegExp(query), 'gi');
+        const walker = document.createTreeWalker(bylawsReader, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+                const text = node.nodeValue || '';
+                if (!text.trim() || !pattern.test(text)) {
+                    pattern.lastIndex = 0;
+                    return NodeFilter.FILTER_REJECT;
+                }
+                pattern.lastIndex = 0;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(function (node) {
+            const text = node.nodeValue || '';
+            const fragment = document.createDocumentFragment();
+            let last = 0;
+            text.replace(pattern, function (match, offset) {
+                if (offset > last) fragment.appendChild(document.createTextNode(text.slice(last, offset)));
+                const mark = document.createElement('mark');
+                mark.textContent = match;
+                fragment.appendChild(mark);
+                bylawsSearchMarks.push(mark);
+                last = offset + match.length;
+                return match;
+            });
+            if (last < text.length) fragment.appendChild(document.createTextNode(text.slice(last)));
+            node.parentNode.replaceChild(fragment, node);
+        });
+        setActiveBylawsSearchMatch(0);
+    }
+
+    function refreshBylawsReader(html) {
+        if (!bylawsReader) return;
+        bylawsReader.innerHTML = String(html || '').trim() !== ''
+            ? String(html || '')
+            : '<div class="metis-empty-state">No bylaws have been saved yet.</div>';
+        bylawsReaderOriginalHtml = bylawsReader.innerHTML;
+        if (bylawsSearch) bylawsSearch.value = '';
+        rebuildBylawsToc();
+        applyBylawsSearch();
+    }
+
     function updateBylawsPanel(payload) {
         if (!payload || typeof payload !== 'object') return;
 
         const formatted = String(payload.formatted_html || '').trim();
         if (bylawsDisplay) {
-            bylawsDisplay.innerHTML = formatted !== ''
-                ? formatted
-                : '<div class="metis-empty-state">No bylaws have been saved yet.</div>';
+            bylawsDisplay.innerHTML = bylawsSummaryHtml(payload);
         }
         if (bylawsPreview) {
             bylawsPreview.innerHTML = formatted !== ''
                 ? formatted
                 : '<div class="metis-muted">Formatted preview will appear here.</div>';
         }
+        refreshBylawsReader(formatted);
         if (bylawsMeta) {
             bylawsMeta.innerHTML = ''
                 + '<span>Effective: <strong>' + escHtml(payload.effective_date_label || '—') + '</strong></span>'
                 + '<span>Approved: <strong>' + escHtml(payload.approved_at_label || '—') + '</strong></span>'
                 + '<span>Updated: <strong>' + escHtml(payload.updated_at_label || '—') + '</strong></span>';
         }
+        if (bylawsViewMeta) {
+            bylawsViewMeta.innerHTML = ''
+                + '<span>Effective: <strong>' + escHtml(payload.effective_date_label || '—') + '</strong></span>'
+                + '<span>Approved: <strong>' + escHtml(payload.approved_at_label || '—') + '</strong></span>'
+                + '<span>Updated: <strong>' + escHtml(payload.updated_at_label || '—') + '</strong></span>';
+        }
+        const viewTitle = document.getElementById('metis-board-bylaws-view-title');
+        if (viewTitle) viewTitle.textContent = String(payload.title || 'Bylaws');
         if (bylawsSignedLink) {
             const url = String(payload.signed_pdf_url || '').trim();
             bylawsSignedLink.href = url || '#';
@@ -2275,6 +2405,36 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.addEventListener('click', function () {
             closeModal(btn.closest('.metis-modal-backdrop'));
         });
+    });
+
+    rebuildBylawsToc();
+
+    bylawsToc?.addEventListener('click', function (event) {
+        const link = event.target.closest('a[href^="#"]');
+        if (!link || !bylawsReader) return;
+        const target = bylawsReader.querySelector(link.getAttribute('href'));
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ block: 'start', inline: 'nearest' });
+    });
+
+    bylawsSearch?.addEventListener('input', applyBylawsSearch);
+    bylawsSearchNext?.addEventListener('click', function () {
+        setActiveBylawsSearchMatch(bylawsActiveSearchIndex + 1);
+    });
+    bylawsSearchPrev?.addEventListener('click', function () {
+        setActiveBylawsSearchMatch(bylawsActiveSearchIndex - 1);
+    });
+
+    bylawsDisplay?.addEventListener('click', function (event) {
+        const btn = event.target.closest('#metis-board-view-bylaws');
+        if (!btn) return;
+        event.preventDefault();
+        refreshBylawsReader(bylawsReaderOriginalHtml);
+        openModal(bylawsViewModal);
+        setTimeout(function () {
+            bylawsSearch?.focus();
+        }, 50);
     });
 
     function dtLocal(sqlDate) {

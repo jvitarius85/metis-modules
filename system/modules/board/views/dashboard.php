@@ -258,7 +258,11 @@ $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', subs
         </header>
         <div id="metis-board-bylaws-display" class="metis-board-bylaws-display">
             <?php if ($bylaws_formatted_html !== '') : ?>
-                <?php echo metis_runtime_kses_post($bylaws_formatted_html); ?>
+                <div class="metis-board-bylaws-summary">
+                    <strong><?php echo metis_escape_html($bylaws_title); ?></strong>
+                    <span class="metis-muted">Formatted bylaws are available for review.</span>
+                    <button id="metis-board-view-bylaws" class="metis-btn metis-btn-ghost metis-btn-xs" type="button">View Bylaws</button>
+                </div>
             <?php else : ?>
                 <div class="metis-empty-state">No bylaws have been saved yet.</div>
             <?php endif; ?>
@@ -291,6 +295,38 @@ $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', subs
             </tbody>
         </table>
     </section>
+</div>
+
+<div id="metis-board-bylaws-view-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-board-bylaws-view-modal" role="dialog" aria-modal="true" aria-labelledby="metis-board-bylaws-view-title">
+        <div class="metis-board-bylaws-view-head">
+            <div>
+                <h2 id="metis-board-bylaws-view-title" class="metis-modal-title"><?php echo metis_escape_html($bylaws_title); ?></h2>
+                <div id="metis-board-bylaws-view-meta" class="metis-board-bylaws-meta">
+                    <span>Effective: <strong><?php echo metis_escape_html($bylaws_effective_label); ?></strong></span>
+                    <span>Approved: <strong><?php echo metis_escape_html($bylaws_approved_label); ?></strong></span>
+                    <span>Updated: <strong><?php echo metis_escape_html($bylaws_updated_label); ?></strong></span>
+                </div>
+            </div>
+            <button type="button" class="metis-btn metis-btn-ghost metis-btn-xs metis-board-cancel">Close</button>
+        </div>
+        <div class="metis-board-bylaws-searchbar">
+            <input id="metis-board-bylaws-search" class="metis-input" type="search" placeholder="Search bylaws">
+            <button id="metis-board-bylaws-search-prev" class="metis-btn-xs metis-btn-ghost" type="button">Prev</button>
+            <button id="metis-board-bylaws-search-next" class="metis-btn-xs metis-btn-ghost" type="button">Next</button>
+            <span id="metis-board-bylaws-search-count" class="metis-muted">0 matches</span>
+        </div>
+        <div class="metis-board-bylaws-reader-layout">
+            <nav id="metis-board-bylaws-toc" class="metis-board-bylaws-toc" aria-label="Bylaws table of contents"></nav>
+            <div id="metis-board-bylaws-reader" class="metis-board-bylaws-reader">
+                <?php if ($bylaws_formatted_html !== '') : ?>
+                    <?php echo metis_runtime_kses_post($bylaws_formatted_html); ?>
+                <?php else : ?>
+                    <div class="metis-empty-state">No bylaws have been saved yet.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
 </div>
 
 <?php if ($can_manage) : ?>
