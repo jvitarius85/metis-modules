@@ -635,7 +635,11 @@
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-template-menu {
   --metis-glide-primary:var(--metis-color-primary,#485bc7);
   --metis-glide-accent:var(--metis-color-accent,#ff7542);
-  --metis-glide-item-width:15rem;
+  --metis-glide-menu-width:68rem;
+  flex:1 1 auto;
+  min-width:0;
+  width:min(100%,var(--metis-glide-menu-width)) !important;
+  max-width:100%;
   padding:0 !important;
   border:0 !important;
   border-radius:.5rem !important;
@@ -647,16 +651,16 @@
   flex-wrap:nowrap !important;
   gap:0 !important;
   justify-content:flex-start !important;
-  width:max-content;
-  min-width:max-content;
+  width:100%;
+  min-width:0;
   max-width:100%;
   overflow:visible !important;
 }
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-shell-menu-list > .metis-shell-menu-item {
-  flex:0 0 var(--metis-glide-item-width,15rem) !important;
-  width:var(--metis-glide-item-width,15rem) !important;
-  min-width:var(--metis-glide-item-width,15rem) !important;
-  max-width:var(--metis-glide-item-width,15rem) !important;
+  flex:1 1 0 !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:none !important;
   margin:0 !important;
   padding:0 !important;
   border:0 !important;
