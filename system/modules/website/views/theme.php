@@ -178,7 +178,7 @@ $global_defaults = [
             'shadow'     => 'none',
         ],
         'menu' => [
-            'style' => 'h_clean',
+            'style' => 'h_glide',
             'font_size' => 14,
             'vertical_align' => 'center',
             'item_radius' => 10,
@@ -231,15 +231,10 @@ $global_defaults = [
 ];
 
 $menu_style_options = [
-    'h_clean' => 'Clean',
-    'h_pill' => 'Pill',
-    'h_underline' => 'Underline',
-    'h_solid_bar' => 'Solid Bar',
     'h_glide' => 'Glide Gradient',
     'h_marker_dropdown' => 'Marker Dropdown',
-    'v_sidebar_clean' => 'Sidebar Clean',
-    'v_sidebar_cards' => 'Sidebar Cards',
-    'v_sidebar_compact' => 'Sidebar Compact',
+    'h_pill_dropdown' => 'Pill Dropdown',
+    'h_modern_bar' => 'Modern Bar',
 ];
 $custom_defaults = [
     'tokens' => [],
@@ -256,9 +251,9 @@ $spacing = array_merge( $spacing_defaults, is_array( $spacing ) ? $spacing : [] 
 $global_styles = array_replace_recursive( $global_defaults, is_array( $global_styles ) ? $global_styles : [] );
 $custom = array_replace_recursive( $custom_defaults, $custom_input );
 $menu_component = is_array( $global_styles['components']['menu'] ?? null ) ? $global_styles['components']['menu'] : [];
-$menu_visual_style = (string) ( $menu_component['style'] ?? ( $global_styles['global_settings']['menu_style'] ?? 'h_clean' ) );
+$menu_visual_style = (string) ( $menu_component['style'] ?? ( $global_styles['global_settings']['menu_style'] ?? 'h_glide' ) );
 if ( ! isset( $menu_style_options[ $menu_visual_style ] ) ) {
-    $menu_visual_style = 'h_clean';
+    $menu_visual_style = 'h_glide';
 }
 
 $current_heading_weight = (string) ( $typography['heading_weight'] ?? $typography_defaults['heading_weight'] );
@@ -1343,42 +1338,6 @@ function resetThemeGlideMenuPreview() {
 }
 
 var menuPresetDefinitions = {
-    h_clean: {
-        layout: 'horizontal_clean',
-        alignment: 'left',
-        container: 'contained',
-        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'underline' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
-        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
-        chevron: { type: 'chevron', animation: 'rotate' }
-    },
-    h_pill: {
-        layout: 'horizontal_clean',
-        alignment: 'left',
-        container: 'contained',
-        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'pill' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
-        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
-        chevron: { type: 'chevron', animation: 'rotate' }
-    },
-    h_underline: {
-        layout: 'minimal_topbar',
-        alignment: 'left',
-        container: 'contained',
-        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'underline', active_style: 'underline' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
-        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
-        chevron: { type: 'chevron', animation: 'rotate' }
-    },
-    h_solid_bar: {
-        layout: 'horizontal_clean',
-        alignment: 'center',
-        container: 'contained',
-        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'none' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 0 },
-        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
-        chevron: { type: 'chevron', animation: 'rotate' }
-    },
     h_glide: {
         layout: 'glide_gradient',
         alignment: 'center',
@@ -1397,30 +1356,21 @@ var menuPresetDefinitions = {
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'none', animation: 'none' }
     },
-    v_sidebar_clean: {
-        layout: 'sidebar_overlay',
-        alignment: 'left',
-        container: 'contained',
-        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'underline', active_style: 'underline' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
-        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
-        chevron: { type: 'chevron', animation: 'rotate' }
-    },
-    v_sidebar_cards: {
-        layout: 'sidebar_overlay',
-        alignment: 'left',
+    h_pill_dropdown: {
+        layout: 'horizontal_clean',
+        alignment: 'center',
         container: 'contained',
         desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'pill' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        dropdown: { behavior: 'hover', animation: 'scale', radius: 18 },
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'chevron', animation: 'rotate' }
     },
-    v_sidebar_compact: {
-        layout: 'sidebar_overlay',
-        alignment: 'left',
+    h_modern_bar: {
+        layout: 'horizontal_clean',
+        alignment: 'center',
         container: 'contained',
-        desktop: { font_size: 12, item_spacing: 'tight', hover_style: 'underline', active_style: 'underline' },
-        dropdown: { behavior: 'hover', animation: 'fade', radius: 10 },
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'underline', active_style: 'underline' },
+        dropdown: { behavior: 'hover', animation: 'slide', radius: 14 },
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'chevron', animation: 'rotate' }
     }
@@ -1551,17 +1501,12 @@ function normalizeMenuActiveStyleOption(raw) {
 function normalizeMenuStyleOption(raw) {
     var value = String(raw || '').toLowerCase();
     var allowed = {
-        h_clean: true,
-        h_pill: true,
-        h_underline: true,
-        h_solid_bar: true,
         h_glide: true,
         h_marker_dropdown: true,
-        v_sidebar_clean: true,
-        v_sidebar_cards: true,
-        v_sidebar_compact: true
+        h_pill_dropdown: true,
+        h_modern_bar: true
     };
-    return allowed[value] ? value : 'h_clean';
+    return allowed[value] ? value : 'h_glide';
 }
 
 function parseColor(v, fallback) {

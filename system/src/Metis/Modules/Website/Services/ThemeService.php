@@ -200,7 +200,7 @@ final class ThemeService {
 
         $menu = is_array( $theme['components']['menu'] ?? null ) ? $theme['components']['menu'] : [];
         $menu_style = self::sanitizeMenuStyle(
-            (string) ( $menu['style'] ?? ( $global_settings['menu_style'] ?? 'h_clean' ) )
+            (string) ( $menu['style'] ?? ( $global_settings['menu_style'] ?? 'h_glide' ) )
         );
         $menu_config = self::menuPresetConfig( $menu_style );
         $menu_layout = (string) ( $menu_config['layout'] ?? 'horizontal_clean' );
@@ -574,7 +574,7 @@ final class ThemeService {
         );
         $style_seed = trim( (string) ( $menu_comp['style'] ?? ( $global_settings['menu_style'] ?? '' ) ) );
         if ( $style_seed === '' ) {
-            $style_seed = 'h_clean';
+            $style_seed = 'h_glide';
         }
         $menu_style = self::sanitizeMenuStyle( $style_seed );
         $menu_preset = self::menuPresetConfig( $menu_style );
@@ -944,18 +944,13 @@ final class ThemeService {
     private static function sanitizeMenuStyle( string $value ): string {
         $style = metis_key_clean( strtolower( trim( $value ) ) );
         $allowed = [
-            'h_clean',
-            'h_pill',
-            'h_underline',
-            'h_solid_bar',
             'h_glide',
             'h_marker_dropdown',
-            'v_sidebar_clean',
-            'v_sidebar_cards',
-            'v_sidebar_compact',
+            'h_pill_dropdown',
+            'h_modern_bar',
         ];
         if ( ! in_array( $style, $allowed, true ) ) {
-            return 'h_clean';
+            return 'h_glide';
         }
         return $style;
     }
@@ -997,19 +992,6 @@ final class ThemeService {
         ];
 
         $presets = [
-            'h_clean' => [],
-            'h_pill' => [
-                'desktop' => [ 'active_style' => 'pill' ],
-            ],
-            'h_underline' => [
-                'layout' => 'minimal_topbar',
-                'desktop' => [ 'hover_style' => 'underline', 'active_style' => 'underline' ],
-            ],
-            'h_solid_bar' => [
-                'alignment' => 'center',
-                'desktop' => [ 'hover_style' => 'fill', 'active_style' => 'none' ],
-                'dropdown' => [ 'radius' => 0 ],
-            ],
             'h_glide' => [
                 'layout' => 'glide_gradient',
                 'alignment' => 'center',
@@ -1024,21 +1006,19 @@ final class ThemeService {
                 'dropdown' => [ 'animation' => 'slide', 'radius' => 0 ],
                 'chevron' => [ 'type' => 'none', 'animation' => 'none' ],
             ],
-            'v_sidebar_clean' => [
-                'layout' => 'sidebar_overlay',
-                'desktop' => [ 'hover_style' => 'underline' ],
-            ],
-            'v_sidebar_cards' => [
-                'layout' => 'sidebar_overlay',
+            'h_pill_dropdown' => [
+                'alignment' => 'center',
                 'desktop' => [ 'active_style' => 'pill' ],
+                'dropdown' => [ 'animation' => 'scale', 'radius' => 18 ],
             ],
-            'v_sidebar_compact' => [
-                'layout' => 'sidebar_overlay',
-                'desktop' => [ 'font_size' => 12, 'item_spacing' => 'tight', 'hover_style' => 'underline' ],
+            'h_modern_bar' => [
+                'alignment' => 'center',
+                'desktop' => [ 'hover_style' => 'underline', 'active_style' => 'underline' ],
+                'dropdown' => [ 'animation' => 'slide', 'radius' => 14 ],
             ],
         ];
 
-        return array_replace_recursive( $base, $presets[ $style ] ?? [], [ 'style' => $style ] );
+        return array_replace_recursive( $base, $presets[ $style ], [ 'style' => $style ] );
     }
 
     private static function sanitizeMenuLayout( string $value ): string {
