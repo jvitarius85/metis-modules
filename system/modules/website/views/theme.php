@@ -613,7 +613,7 @@ foreach ( $line_height_options as $value => $label ) {
                         </div>
                     </div>
                 </div>
-                <div class="metis-theme-field metis-theme-span-2">
+                <div class="metis-theme-field metis-theme-span-2 metis-theme-menu-preview-row">
                     <label class="metis-theme-label">Live preview</label>
                     <div class="metis-theme-menu-live" id="metis-theme-menu-live">
                         <?php echo \Metis\Modules\Website\Services\WebsiteRenderer::renderThemeMenuPreviewHtml(); ?>
@@ -1423,8 +1423,8 @@ function applyMenuLivePreview() {
         el.style.setProperty('--metis-menu-font-size', fontSize + 'px');
         el.style.setProperty('--metis-menu-item-gap', gap + 'px');
     }
-    $live.find('.metis-shell-menu-item').removeClass('is-active');
-    $live.find('.metis-shell-menu-item').eq(1).addClass('is-active');
+    $live.find('.metis-shell-menu-link, .metis-shell-menu-btn').removeClass('is-active');
+    $live.find('.metis-shell-menu-item').removeClass('is-active is-active-ancestor');
     $live.find('.metis-shell-menu-item.has-children').removeClass('is-open');
     resetThemeGlideMenuPreview();
 }

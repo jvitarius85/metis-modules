@@ -14,7 +14,11 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
     <header class="metis-template-header metis-template-sticky-capable" role="banner">
         <div class="metis-template-header-inner">
             <div class="metis-template-header-brand"><?php echo $brandHtml; ?></div>
-            <nav class="metis-template-menu" aria-label="Primary menu"><?php echo $menuHtml; ?></nav>
+            <button type="button" class="metis-shell-nav-toggle" data-metis-nav-toggle aria-expanded="false" aria-controls="metis-template-primary-menu" aria-label="Open primary menu">
+                <span class="metis-shell-nav-toggle-lines" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span class="metis-shell-nav-toggle-text">Menu</span>
+            </button>
+            <nav id="metis-template-primary-menu" class="metis-template-menu metis-shell-nav metis-shell-nav-primary" aria-label="Primary menu"><?php echo $menuHtml; ?></nav>
         </div>
     </header>
     <main class="metis-template-main<?php echo $withSidebar ? ' has-sidebar' : ''; ?>" data-view="homepage" data-sidebar-position="<?php echo metis_escape_attr($sidebarPosition); ?>">
