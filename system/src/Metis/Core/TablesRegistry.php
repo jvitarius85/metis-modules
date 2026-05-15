@@ -82,6 +82,7 @@ final class Metis_Tables {
         "transaction_refunds" => "metis_transaction_refunds",
         "recurring_donations" => "metis_recurring_donations",
         "recurring_donation_attempts" => "metis_recurring_donation_attempts",
+        "donor_portal_tokens" => "metis_donor_portal_tokens",
         "campaigns" => "metis_campaigns",
         "reports" => "metis_reports",
         "batches" => "metis_batches",

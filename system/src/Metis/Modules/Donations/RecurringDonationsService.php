@@ -16,6 +16,7 @@ final class RecurringDonationsService {
         $charset = $db->get_charset_collate();
         $plans = \Metis_Tables::get( 'recurring_donations' );
         $attempts = \Metis_Tables::get( 'recurring_donation_attempts' );
+        $portalTokens = \Metis_Tables::get( 'donor_portal_tokens' );
 
         \metis_db_delta( "CREATE TABLE {$plans} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -69,6 +70,19 @@ final class RecurringDonationsService {
             UNIQUE KEY attempt_code (attempt_code),
             KEY recurring_processed (recurring_id, processed_at),
             KEY transaction_tid (transaction_tid)
+        ) {$charset};" );
+
+        \metis_db_delta( "CREATE TABLE {$portalTokens} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            token_hash VARCHAR(64) NOT NULL,
+            donor_email VARCHAR(191) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY token_hash (token_hash),
+            KEY donor_email (donor_email(191)),
+            KEY expires_at (expires_at)
         ) {$charset};" );
     }
 
@@ -152,7 +166,7 @@ final class RecurringDonationsService {
             $subscriptions = \Stripe\Subscription::all( [
                 'status' => 'active',
                 'limit' => max( 1, min( 100, $limit ) ),
-                'expand' => [ 'data.customer', 'data.default_payment_method', 'data.items.data.price.product' ],
+                'expand' => [ 'data.customer', 'data.default_payment_method', 'data.items.data.price' ],
             ] );
         } catch ( \Throwable $e ) {
             return [ 'ok' => false, 'message' => 'Stripe subscriptions could not be listed: ' . $e->getMessage() ];
@@ -181,6 +195,9 @@ final class RecurringDonationsService {
             $currency = is_object( $price ) ? strtolower( (string) ( $price->currency ?? 'usd' ) ) : 'usd';
             $frequency = self::frequencyFromStripePrice( $price );
             $campaignCode = self::campaignFromSubscription( $subscription, $price );
+            if ( $campaignCode === '' ) {
+                $campaignCode = self::campaignFromSubscription( $subscription, $price, self::productFromStripePrice( $price ) );
+            }
             $email = self::subscriptionEmail( $subscription, $customer );
             $name = is_object( $customer ) ? trim( (string) ( $customer->name ?? '' ) ) : '';
 
@@ -615,14 +632,43 @@ final class RecurringDonationsService {
         return 'monthly';
     }
 
-    private static function campaignFromSubscription( object $subscription, ?object $price ): string {
+    private static function productFromStripePrice( ?object $price ): ?object {
+        if ( ! is_object( $price ) ) {
+            return null;
+        }
+
+        $product = $price->product ?? null;
+        if ( is_object( $product ) ) {
+            return $product;
+        }
+
+        $productId = trim( (string) $product );
+        if ( $productId === '' || ! class_exists( '\Stripe\Product' ) ) {
+            return null;
+        }
+
+        try {
+            $retrieved = \Stripe\Product::retrieve( $productId );
+            return is_object( $retrieved ) ? $retrieved : null;
+        } catch ( \Throwable $e ) {
+            if ( class_exists( '\Metis_Logger' ) ) {
+                \Metis_Logger::warn( 'donations.recurring_migration_product_lookup_failed', [
+                    'product' => $productId,
+                    'error' => $e->getMessage(),
+                ] );
+            }
+            return null;
+        }
+    }
+
+    private static function campaignFromSubscription( object $subscription, ?object $price, ?object $product = null ): string {
         $candidates = [
             $subscription->metadata->campaign_code ?? null,
             $subscription->metadata->campaign ?? null,
             $price->metadata->campaign_code ?? null,
             $price->metadata->campaign ?? null,
-            is_object( $price ) && is_object( $price->product ?? null ) ? ( $price->product->metadata->campaign_code ?? null ) : null,
-            is_object( $price ) && is_object( $price->product ?? null ) ? ( $price->product->metadata->campaign ?? null ) : null,
+            $product->metadata->campaign_code ?? null,
+            $product->metadata->campaign ?? null,
         ];
         foreach ( $candidates as $candidate ) {
             $campaign = self::normalizeCampaignCode( (string) $candidate );
@@ -646,6 +692,94 @@ final class RecurringDonationsService {
             }
         }
         return '';
+    }
+
+    public static function requestPortalAccess( string $email ): array {
+        self::ensureSchema();
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+            return [ 'ok' => false, 'message' => 'Enter a valid email address.' ];
+        }
+
+        $transactions = \Metis_Tables::get( 'transactions' );
+        $contacts = \Metis_Tables::get( 'contacts' );
+        $recurring = \Metis_Tables::get( 'recurring_donations' );
+        $hasDonor = (int) \metis_db()->scalar(
+            "SELECT COUNT(*) FROM {$contacts} c WHERE LOWER(c.email) = LOWER(%s)",
+            [ $email ]
+        );
+        $hasTransactions = (int) \metis_db()->scalar(
+            "SELECT COUNT(*) FROM {$transactions} t INNER JOIN {$contacts} c ON c.did = t.did WHERE LOWER(c.email) = LOWER(%s)",
+            [ $email ]
+        );
+        $hasRecurring = (int) \metis_db()->scalar(
+            "SELECT COUNT(*) FROM {$recurring} WHERE LOWER(donor_email) = LOWER(%s)",
+            [ $email ]
+        );
+
+        if ( $hasDonor < 1 && $hasTransactions < 1 && $hasRecurring < 1 ) {
+            return [ 'ok' => true, 'message' => 'If that email is connected to donor records, an access link will be sent.' ];
+        }
+
+        $rawToken = bin2hex( random_bytes( 32 ) );
+        $tokenHash = hash( 'sha256', $rawToken );
+        $expiresAt = gmdate( 'Y-m-d H:i:s', time() + 1800 );
+        $table = \Metis_Tables::get( 'donor_portal_tokens' );
+        \metis_db()->insert( $table, [
+            'token_hash' => $tokenHash,
+            'donor_email' => $email,
+            'expires_at' => $expiresAt,
+            'created_at' => self::now(),
+        ] );
+
+        $url = \metis_home_url( '/donor/access/' . rawurlencode( $rawToken ) . '/' );
+        EmailService::sendHtml( $email, 'Your donor portal access link', '<p>Use this secure link to view your donor portal. It expires in 30 minutes.</p><p><a href="' . \metis_escape_url( $url ) . '">' . \metis_escape_html( $url ) . '</a></p>', [
+            'module' => 'donations',
+            'internal_reference' => 'DONOR_PORTAL',
+        ] );
+
+        return [ 'ok' => true, 'message' => 'If that email is connected to donor records, an access link will be sent.' ];
+    }
+
+    public static function consumePortalToken( string $token ): ?array {
+        self::ensureSchema();
+        $token = trim( $token );
+        if ( $token === '' ) {
+            return null;
+        }
+
+        $table = \Metis_Tables::get( 'donor_portal_tokens' );
+        $hash = hash( 'sha256', $token );
+        $row = \metis_db()->fetchOne(
+            "SELECT * FROM {$table} WHERE token_hash = %s AND expires_at >= %s LIMIT 1",
+            [ $hash, self::now() ]
+        );
+        if ( ! is_array( $row ) ) {
+            return null;
+        }
+        return self::donorPortalData( (string) $row['donor_email'] );
+    }
+
+    public static function donorPortalData( string $email ): array {
+        self::ensureSchema();
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        $contacts = \Metis_Tables::get( 'contacts' );
+        $transactions = \Metis_Tables::get( 'transactions' );
+        $recurring = \Metis_Tables::get( 'recurring_donations' );
+        $contact = \metis_db()->fetchOne( "SELECT * FROM {$contacts} WHERE LOWER(email) = LOWER(%s) LIMIT 1", [ $email ] ) ?: [];
+        $did = trim( (string) ( $contact['did'] ?? '' ) );
+        $tx = [];
+        if ( $did !== '' ) {
+            $tx = \metis_db()->fetchAll(
+                "SELECT tid, tran_date, amount, status FROM {$transactions} WHERE did = %s ORDER BY tran_date DESC LIMIT 100",
+                [ $did ]
+            );
+        }
+        $plans = \metis_db()->fetchAll(
+            "SELECT recurring_code, campaign_code, amount, frequency, status, next_run_at, self_manage_token FROM {$recurring} WHERE LOWER(donor_email) = LOWER(%s) ORDER BY next_run_at ASC",
+            [ $email ]
+        );
+        return [ 'email' => $email, 'contact' => $contact, 'transactions' => $tx, 'recurring' => $plans ];
     }
 
     private static function paymentField( array $schema ): ?array {

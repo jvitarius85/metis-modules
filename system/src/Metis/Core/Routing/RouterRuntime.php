@@ -1282,7 +1282,7 @@ function metis_router_route_permission_for_request( Metis_Http_Request $request 
         return 'manage';
     }
 
-    if ( $route_name === 'forms.public' || $route_name === 'donations.recurring.manage' ) {
+    if ( in_array( $route_name, [ 'forms.public', 'donations.recurring.manage', 'donations.donor.portal', 'donations.donor.access' ], true ) ) {
         return $method === 'POST' ? 'create' : 'view';
     }
 
@@ -1378,6 +1378,8 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
             break;
 
         case 'donations.recurring.manage':
+        case 'donations.donor.portal':
+        case 'donations.donor.access':
             $module = null;
             $require_authentication = false;
             $require_session = false;

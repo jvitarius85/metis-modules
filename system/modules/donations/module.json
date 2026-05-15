@@ -153,6 +153,23 @@
     "entry": "Module.php",
     "routes": [
         {
+            "name": "donations.donor.portal",
+            "methods": [
+                "GET",
+                "POST"
+            ],
+            "pattern": "#^/donor/?$#",
+            "handler": "metis_donations_handle_donor_portal_route"
+        },
+        {
+            "name": "donations.donor.access",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/donor/access/(?P<donor_token>[A-Fa-f0-9]{64})/?$#",
+            "handler": "metis_donations_handle_donor_portal_access_route"
+        },
+        {
             "name": "donations.recurring.manage",
             "methods": [
                 "GET",
