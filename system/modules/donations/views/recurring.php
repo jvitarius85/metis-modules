@@ -135,13 +135,18 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
         return html;
     }
     function migrationReviewFields(row) {
-        if (!row || !row.editable) return esc(row && row.message);
+        row = row || {};
+        var message = String(row.message || '');
+        var needsReview = row.editable || row.status === 'needs_review' || (row.status === 'skipped' && /^Missing\b/i.test(message));
+        if (!needsReview) return esc(message);
+        var customerMatch = message.match(/Customer ID:\s*([^\s.]+)/i);
+        if (!row.customer_id && customerMatch) row.customer_id = customerMatch[1];
         return '<div class="metis-recurring-review" data-subscription="' + esc(row.subscription) + '">' +
-            '<div class="metis-recurring-review-message">' + esc(row.message) + '</div>' +
+            '<div class="metis-recurring-review-message">' + esc(message || 'Review required before import.') + '</div>' +
             '<label><span>Campaign</span><select class="metis-input" data-review-field="campaign_code">' + campaignOptions(row.campaign_code) + '</select></label>' +
             '<label><span>Donor email</span><input class="metis-input" type="email" data-review-field="donor_email" value="' + esc(row.donor_email) + '" placeholder="donor@example.org"></label>' +
             '<label><span>Donor name</span><input class="metis-input" type="text" data-review-field="donor_name" value="' + esc(row.donor_name) + '" placeholder="Donor name"></label>' +
-            '<div class="metis-recurring-review-meta">Customer: ' + esc(row.customer_id || 'unavailable') + ' · Amount: $' + esc(row.amount || '') + ' · Frequency: ' + esc(row.frequency || '') + '</div>' +
+            '<div class="metis-recurring-review-meta">Customer: ' + esc(row.customer_id || 'unavailable') + (row.amount ? ' · Amount: $' + esc(row.amount) : '') + (row.frequency ? ' · Frequency: ' + esc(row.frequency) : '') + '</div>' +
             '<button type="button" class="metis-btn metis-btn-xs metis-btn-primary" data-import-reviewed-subscription="' + esc(row.subscription) + '">Import Row</button>' +
         '</div>';
     }
