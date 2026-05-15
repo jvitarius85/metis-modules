@@ -166,7 +166,7 @@ final class RecurringDonationsService {
             $subscriptions = \Stripe\Subscription::all( [
                 'status' => 'active',
                 'limit' => max( 1, min( 100, $limit ) ),
-                'expand' => [ 'data.customer', 'data.default_payment_method', 'data.items.data.price' ],
+                'expand' => [ 'data.customer', 'data.default_payment_method', 'data.items.data.price', 'data.latest_invoice' ],
             ] );
         } catch ( \Throwable $e ) {
             return [ 'ok' => false, 'message' => 'Stripe subscriptions could not be listed: ' . $e->getMessage() ];
@@ -186,8 +186,8 @@ final class RecurringDonationsService {
                 continue;
             }
 
-            $customer = is_object( $subscription->customer ?? null ) ? $subscription->customer : null;
-            $customerId = is_object( $customer ) ? (string) ( $customer->id ?? '' ) : (string) ( $subscription->customer ?? '' );
+            $customer = self::resolveStripeCustomer( $subscription );
+            $customerId = is_object( $customer ) ? (string) ( $customer->id ?? '' ) : self::subscriptionCustomerId( $subscription );
             $paymentMethodId = self::subscriptionPaymentMethodId( $subscription, $customer );
             $item = $subscription->items->data[0] ?? null;
             $price = is_object( $item ) && is_object( $item->price ?? null ) ? $item->price : null;
@@ -201,9 +201,25 @@ final class RecurringDonationsService {
             $email = self::subscriptionEmail( $subscription, $customer );
             $name = is_object( $customer ) ? trim( (string) ( $customer->name ?? '' ) ) : '';
 
-            if ( $customerId === '' || $paymentMethodId === '' || $unitAmount < 1 || $campaignCode === '' || $email === '' ) {
+            $missing = [];
+            if ( $customerId === '' ) {
+                $missing[] = 'customer';
+            }
+            if ( $paymentMethodId === '' ) {
+                $missing[] = 'payment method';
+            }
+            if ( $unitAmount < 1 ) {
+                $missing[] = 'amount';
+            }
+            if ( $campaignCode === '' ) {
+                $missing[] = 'campaign';
+            }
+            if ( $email === '' ) {
+                $missing[] = 'email';
+            }
+            if ( $missing !== [] ) {
                 $skipped++;
-                $rows[] = [ 'subscription' => $subscriptionId, 'status' => 'skipped', 'message' => 'Missing customer, payment method, amount, campaign, or email.' ];
+                $rows[] = [ 'subscription' => $subscriptionId, 'status' => 'skipped', 'message' => 'Missing ' . implode( ', ', $missing ) . '. Customer ID: ' . ( $customerId !== '' ? $customerId : 'unavailable' ) . '.' ];
                 continue;
             }
 
@@ -592,6 +608,39 @@ final class RecurringDonationsService {
         return $db->fetchOne( "SELECT * FROM {$contacts} WHERE did = %s LIMIT 1", [ $did ] ) ?: [ 'did' => $did, 'email' => $email ];
     }
 
+    private static function subscriptionCustomerId( object $subscription ): string {
+        $customer = $subscription->customer ?? null;
+        if ( is_object( $customer ) ) {
+            return trim( (string) ( $customer->id ?? '' ) );
+        }
+        return trim( (string) $customer );
+    }
+
+    private static function resolveStripeCustomer( object $subscription ): ?object {
+        $customer = $subscription->customer ?? null;
+        if ( is_object( $customer ) && empty( $customer->deleted ) ) {
+            return $customer;
+        }
+
+        $customerId = self::subscriptionCustomerId( $subscription );
+        if ( $customerId === '' || ! class_exists( '\\Stripe\\Customer' ) ) {
+            return is_object( $customer ) ? $customer : null;
+        }
+
+        try {
+            $retrieved = \Stripe\Customer::retrieve( $customerId );
+            return is_object( $retrieved ) ? $retrieved : ( is_object( $customer ) ? $customer : null );
+        } catch ( \Throwable $e ) {
+            if ( class_exists( '\\Metis_Logger' ) ) {
+                \Metis_Logger::warn( 'donations.recurring_migration_customer_lookup_failed', [
+                    'customer' => $customerId,
+                    'error' => $e->getMessage(),
+                ] );
+            }
+            return is_object( $customer ) ? $customer : null;
+        }
+    }
+
     private static function subscriptionPaymentMethodId( object $subscription, ?object $customer ): string {
         $candidates = [
             $subscription->default_payment_method ?? null,
@@ -682,6 +731,7 @@ final class RecurringDonationsService {
     private static function subscriptionEmail( object $subscription, ?object $customer ): string {
         $candidates = [
             $customer->email ?? null,
+            $subscription->latest_invoice->customer_email ?? null,
             $subscription->metadata->donor_email ?? null,
             $subscription->metadata->email ?? null,
         ];
