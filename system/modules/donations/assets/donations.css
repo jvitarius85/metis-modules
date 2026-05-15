@@ -1560,7 +1560,59 @@ table.metis-top-donors-table th.metis-top-donor-rank {
         justify-content: stretch;
     }
 
-    .metis-offline-donation-actions .metis-btn {
+.metis-offline-donation-actions .metis-btn {
         width: 100%;
+    }
+}
+
+.metis-recurring-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 0;
+}
+
+.metis-recurring-summary-grid .metis-premium-cell {
+    border-right: 1px solid var(--metis-border);
+}
+
+.metis-recurring-summary-grid .metis-premium-cell:last-child {
+    border-right: 0;
+}
+
+.metis-recurring-table .metis-premium-row {
+    grid-template-columns:
+        minmax(180px, 1.35fr)
+        minmax(160px, 1.1fr)
+        minmax(92px, .65fr)
+        minmax(110px, .75fr)
+        minmax(150px, .9fr)
+        minmax(110px, .7fr)
+        minmax(140px, .75fr);
+}
+
+.metis-recurring-table .metis-premium-cell {
+    min-width: 0;
+}
+
+.metis-recurring-table tbody .metis-premium-cell[colspan] {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+    .metis-recurring-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-recurring-summary-grid .metis-premium-cell {
+        border-right: 0;
+        border-bottom: 1px solid var(--metis-border);
+    }
+
+    .metis-recurring-summary-grid .metis-premium-cell:last-child {
+        border-bottom: 0;
+    }
+
+    .metis-recurring-table {
+        min-width: 980px;
     }
 }

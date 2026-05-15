@@ -19,6 +19,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'metis_link_stripe_payouts',
         'metis_verify_deposit_links',
         'metis_import_stripe_charges',
+        'metis_import_stripe_transactions',
         'metis_backfill_deposit_adjustments',
     ];
 
@@ -36,6 +37,7 @@ metis_ajax_register_handler( 'metis_backfill_deposit_totals', 'metis_ajax_backfi
 metis_ajax_register_handler( 'metis_link_stripe_payouts',     'metis_ajax_link_stripe_payouts' );
 metis_ajax_register_handler( 'metis_verify_deposit_links',    'metis_ajax_verify_deposit_links' );
 metis_ajax_register_handler( 'metis_import_stripe_charges',   'metis_ajax_import_stripe_charges' );
+metis_ajax_register_handler( 'metis_import_stripe_transactions', 'metis_ajax_import_stripe_charges' );
 metis_ajax_register_handler( 'metis_backfill_deposit_adjustments', 'metis_ajax_backfill_deposit_adjustments' );
 
 function metis_ajax_sync_deposits(): void {
@@ -1380,7 +1382,9 @@ function metis_ajax_import_stripe_charges(): void {
                     'email'        => $email        ?: '—',
                     'did'          => $did          ?: '—',
                     'donor_status' => $donor_status,
+                    'new_contact'  => $donor_status === 'created',
                     'amount'       => $amount_display,
+                    'net'          => '$' . number_format( $net_dollars, 2 ),
                     'deposit'      => $deposit_batch_id ?: '—',
                     'date'         => date( 'm/d/y', strtotime( $tran_date ) ),
                     'status'       => 'imported',
@@ -1394,7 +1398,9 @@ function metis_ajax_import_stripe_charges(): void {
                     'email'        => $email        ?: '—',
                     'did'          => '—',
                     'donor_status' => $donor_status,
+                    'new_contact'  => $donor_status === 'created',
                     'amount'       => $amount_display,
+                    'net'          => '$' . number_format( $net_dollars, 2 ),
                     'deposit'      => '—',
                     'date'         => date( 'm/d/y', strtotime( $tran_date ) ),
                     'status'       => 'error',
@@ -1414,6 +1420,7 @@ function metis_ajax_import_stripe_charges(): void {
     metis_runtime_send_json_success( [
         'imported'   => $imported,
         'skipped'    => $skipped,
+        'contacts_made' => $new_donors,
         'new_donors' => $new_donors,
         'errors'     => $errors,
         'rows'       => $rows,

@@ -47,14 +47,14 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
     <div id="metis-recurring-migration-results"></div>
 </div>
 
-<div class="metis-summary-grid">
+<div class="metis-summary-grid metis-recurring-summary-grid">
     <div class="metis-premium-cell"><div class="metis-muted small-label">Active</div><div class="large-number"><?php echo metis_escape_html( (string) $active ); ?></div></div>
     <div class="metis-premium-cell"><div class="metis-muted small-label">Paused</div><div class="large-number"><?php echo metis_escape_html( (string) $paused ); ?></div></div>
     <div class="metis-premium-cell"><div class="metis-muted small-label">Monthly Forecast</div><div class="large-number">$<?php echo metis_escape_html( number_format( $monthly_total, 2 ) ); ?></div></div>
 </div>
 
 <div class="metis-table-wrap">
-    <table class="metis-premium-table">
+    <table class="metis-premium-table metis-recurring-table">
         <thead>
             <tr class="metis-premium-row metis-premium-header">
                 <th class="metis-premium-cell" scope="col">Donor</th>
