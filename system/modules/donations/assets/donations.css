@@ -1635,3 +1635,44 @@ table.metis-top-donors-table th.metis-top-donor-rank {
         min-width: 760px;
     }
 }
+
+.metis-recurring-review {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) minmax(160px, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.metis-recurring-review-message,
+.metis-recurring-review-meta {
+    grid-column: 1 / -1;
+    color: #667085;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.metis-recurring-review label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    min-width: 0;
+}
+
+.metis-recurring-review label span {
+    color: #667085;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.metis-recurring-review .metis-input {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 1100px) {
+    .metis-recurring-review {
+        grid-template-columns: 1fr;
+    }
+}

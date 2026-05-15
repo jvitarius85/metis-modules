@@ -194,14 +194,9 @@ final class RecurringDonationsService {
             $unitAmount = is_object( $price ) ? (int) ( $price->unit_amount ?? 0 ) : 0;
             $currency = is_object( $price ) ? strtolower( (string) ( $price->currency ?? 'usd' ) ) : 'usd';
             $frequency = self::frequencyFromStripePrice( $price );
-            $campaignFallback = false;
             $campaignCode = self::campaignFromSubscription( $subscription, $price );
             if ( $campaignCode === '' ) {
                 $campaignCode = self::campaignFromSubscription( $subscription, $price, self::productFromStripePrice( $price ) );
-            }
-            if ( $campaignCode === '' ) {
-                $campaignCode = self::ensureLegacyMigrationCampaign();
-                $campaignFallback = $campaignCode !== '';
             }
             $email = self::subscriptionEmail( $subscription, $customer );
             $name = is_object( $customer ) ? trim( (string) ( $customer->name ?? '' ) ) : '';
@@ -224,7 +219,21 @@ final class RecurringDonationsService {
             }
             if ( $missing !== [] ) {
                 $skipped++;
-                $rows[] = [ 'subscription' => $subscriptionId, 'status' => 'skipped', 'message' => 'Missing ' . implode( ', ', $missing ) . '. Customer ID: ' . ( $customerId !== '' ? $customerId : 'unavailable' ) . '.' ];
+                $rows[] = [
+                    'subscription' => $subscriptionId,
+                    'status' => 'needs_review',
+                    'message' => 'Missing ' . implode( ', ', $missing ) . '. Customer ID: ' . ( $customerId !== '' ? $customerId : 'unavailable' ) . '.',
+                    'editable' => true,
+                    'missing' => $missing,
+                    'customer_id' => $customerId,
+                    'payment_method_id' => $paymentMethodId,
+                    'donor_email' => $email,
+                    'donor_name' => $name,
+                    'campaign_code' => $campaignCode,
+                    'amount' => round( $unitAmount / 100, 2 ),
+                    'currency' => $currency,
+                    'frequency' => $frequency,
+                ];
                 continue;
             }
 
@@ -270,9 +279,6 @@ final class RecurringDonationsService {
                 }
             }
             $message = $cancelStripeSubscriptions ? 'Imported and Stripe subscription cancelled. Payment method remains stored by Stripe.' : 'Imported; Stripe subscription left active.';
-            if ( $campaignFallback ) {
-                $message .= ' Campaign set to Legacy Stripe Subscriptions for admin review.';
-            }
             $rows[] = [ 'subscription' => $subscriptionId, 'status' => 'imported', 'message' => $message ];
         }
 
@@ -285,6 +291,113 @@ final class RecurringDonationsService {
             'rows' => $rows,
             'message' => sprintf( '%d imported, %d skipped%s.', $created, $skipped, $cancelStripeSubscriptions ? ', ' . $cancelled . ' Stripe subscriptions cancelled' : '' ),
         ];
+    }
+
+    public static function importReviewedStripeSubscription( string $subscriptionId, array $overrides, bool $cancelStripeSubscription = false ): array {
+        self::ensureSchema();
+        if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\\Stripe\\Subscription' ) ) {
+            return [ 'ok' => false, 'message' => 'Stripe subscriptions are unavailable.' ];
+        }
+        \metis_stripe_init();
+        if ( \Stripe\Stripe::getApiKey() === null ) {
+            return [ 'ok' => false, 'message' => 'Stripe is not configured.' ];
+        }
+
+        $subscriptionId = trim( \metis_text_clean( $subscriptionId ) );
+        if ( $subscriptionId === '' ) {
+            return [ 'ok' => false, 'message' => 'Stripe subscription is required.' ];
+        }
+
+        $plans = \Metis_Tables::get( 'recurring_donations' );
+        $existing = (int) \metis_db()->scalar( "SELECT id FROM {$plans} WHERE stripe_subscription_id = %s LIMIT 1", [ $subscriptionId ] );
+        if ( $existing > 0 ) {
+            return [ 'ok' => false, 'message' => 'This Stripe subscription has already been imported.' ];
+        }
+
+        try {
+            $subscription = \Stripe\Subscription::retrieve( [
+                'id' => $subscriptionId,
+                'expand' => [ 'customer', 'default_payment_method', 'items.data.price', 'latest_invoice' ],
+            ] );
+        } catch ( \Throwable $e ) {
+            return [ 'ok' => false, 'message' => 'Stripe subscription could not be retrieved: ' . $e->getMessage() ];
+        }
+
+        $customer = self::resolveStripeCustomer( $subscription );
+        $customerId = is_object( $customer ) ? (string) ( $customer->id ?? '' ) : self::subscriptionCustomerId( $subscription );
+        $paymentMethodId = self::subscriptionPaymentMethodId( $subscription, $customer );
+        $item = $subscription->items->data[0] ?? null;
+        $price = is_object( $item ) && is_object( $item->price ?? null ) ? $item->price : null;
+        $unitAmount = is_object( $price ) ? (int) ( $price->unit_amount ?? 0 ) : 0;
+        $currency = is_object( $price ) ? strtolower( (string) ( $price->currency ?? 'usd' ) ) : 'usd';
+        $frequency = self::frequencyFromStripePrice( $price );
+        $campaignCode = self::normalizeCampaignCode( (string) ( $overrides['campaign_code'] ?? '' ) );
+        if ( $campaignCode === '' ) {
+            $campaignCode = self::campaignFromSubscription( $subscription, $price );
+        }
+        if ( $campaignCode === '' ) {
+            $campaignCode = self::campaignFromSubscription( $subscription, $price, self::productFromStripePrice( $price ) );
+        }
+        $email = strtolower( trim( \metis_email_clean( (string) ( $overrides['donor_email'] ?? '' ) ) ) );
+        if ( $email === '' ) {
+            $email = self::subscriptionEmail( $subscription, $customer );
+        }
+        $name = trim( \metis_text_clean( (string) ( $overrides['donor_name'] ?? '' ) ) );
+        if ( $name === '' && is_object( $customer ) ) {
+            $name = trim( (string) ( $customer->name ?? '' ) );
+        }
+
+        $missing = [];
+        if ( $customerId === '' ) $missing[] = 'customer';
+        if ( $paymentMethodId === '' ) $missing[] = 'payment method';
+        if ( $unitAmount < 1 ) $missing[] = 'amount';
+        if ( $campaignCode === '' ) $missing[] = 'campaign';
+        if ( $email === '' || ! \metis_email_is_valid( $email ) ) $missing[] = 'valid donor email';
+        if ( $missing !== [] ) {
+            return [ 'ok' => false, 'message' => 'Missing ' . implode( ', ', $missing ) . '.' ];
+        }
+
+        $contact = self::upsertContact( [ 'email' => $email, 'first_name' => $name, 'last_name' => '' ] );
+        $now = self::now();
+        $code = \metis_generate_code( 'RD', $plans, 'recurring_code' );
+        $token = hash( 'sha256', $code . '|' . $email . '|' . \random_int( 100000, 999999 ) );
+        $nextRun = ! empty( $subscription->current_period_end )
+            ? gmdate( 'Y-m-d H:i:s', (int) $subscription->current_period_end )
+            : self::nextRunAt( $frequency, $now );
+
+        $ok = \metis_db()->insert( $plans, [
+            'recurring_code' => $code,
+            'did' => (string) ( $contact['did'] ?? '' ) ?: null,
+            'donor_email' => $email,
+            'donor_name' => $name !== '' ? $name : null,
+            'campaign_code' => $campaignCode,
+            'amount' => round( $unitAmount / 100, 2 ),
+            'currency' => $currency,
+            'frequency' => $frequency,
+            'status' => 'active',
+            'stripe_customer_id' => $customerId,
+            'stripe_payment_method_id' => $paymentMethodId,
+            'stripe_subscription_id' => $subscriptionId,
+            'next_run_at' => $nextRun,
+            'self_manage_token' => $token,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ] );
+        if ( ! $ok ) {
+            return [ 'ok' => false, 'message' => 'Could not save recurring donation.' ];
+        }
+
+        $cancelled = false;
+        if ( $cancelStripeSubscription ) {
+            try {
+                $subscription->cancel();
+                $cancelled = true;
+            } catch ( \Throwable $e ) {
+                return [ 'ok' => true, 'message' => 'Imported, but Stripe subscription could not be cancelled: ' . $e->getMessage(), 'cancelled' => false ];
+            }
+        }
+
+        return [ 'ok' => true, 'message' => $cancelled ? 'Imported and Stripe subscription cancelled.' : 'Imported; Stripe subscription left active.', 'cancelled' => $cancelled ];
     }
 
     public static function donorHistoryForPlan( array $plan, int $year = 0 ): array {

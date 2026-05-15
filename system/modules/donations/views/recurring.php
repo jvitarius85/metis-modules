@@ -5,6 +5,9 @@ use Metis\Modules\Donations\RecurringDonationsService;
 
 RecurringDonationsService::ensureSchema();
 $plans = RecurringDonationsService::listPlans();
+$campaign_options = metis_db()->fetchAll(
+    'SELECT cid, campaign_uid, cname FROM ' . Metis_Tables::get( 'campaigns' ) . ' ORDER BY active DESC, cname ASC LIMIT 500'
+);
 $active = count( array_filter( $plans, static fn ( array $row ): bool => (string) ( $row['status'] ?? '' ) === 'active' ) );
 $paused = count( array_filter( $plans, static fn ( array $row ): bool => (string) ( $row['status'] ?? '' ) === 'paused' ) );
 $monthly_total = array_sum( array_map( static function ( array $row ): float {
@@ -98,6 +101,7 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
     </table>
 </div>
 
+<script id="metis-recurring-campaign-options" type="application/json"><?php echo metis_json_encode( $campaign_options ); ?></script>
 <script>
 (function() {
     'use strict';
@@ -118,6 +122,29 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
         });
     }
+    function campaignOptions(selected) {
+        var node = document.getElementById('metis-recurring-campaign-options');
+        var campaigns = [];
+        try { campaigns = JSON.parse(node ? node.textContent : '[]') || []; } catch (e) { campaigns = []; }
+        var html = '<option value="">Choose campaign</option>';
+        campaigns.forEach(function(campaign) {
+            var code = campaign.campaign_uid || campaign.cid || '';
+            var label = campaign.cname || code;
+            html += '<option value="' + esc(code) + '"' + (String(code) === String(selected || '') ? ' selected' : '') + '>' + esc(label) + '</option>';
+        });
+        return html;
+    }
+    function migrationReviewFields(row) {
+        if (!row || !row.editable) return esc(row && row.message);
+        return '<div class="metis-recurring-review" data-subscription="' + esc(row.subscription) + '">' +
+            '<div class="metis-recurring-review-message">' + esc(row.message) + '</div>' +
+            '<label><span>Campaign</span><select class="metis-input" data-review-field="campaign_code">' + campaignOptions(row.campaign_code) + '</select></label>' +
+            '<label><span>Donor email</span><input class="metis-input" type="email" data-review-field="donor_email" value="' + esc(row.donor_email) + '" placeholder="donor@example.org"></label>' +
+            '<label><span>Donor name</span><input class="metis-input" type="text" data-review-field="donor_name" value="' + esc(row.donor_name) + '" placeholder="Donor name"></label>' +
+            '<div class="metis-recurring-review-meta">Customer: ' + esc(row.customer_id || 'unavailable') + ' · Amount: $' + esc(row.amount || '') + ' · Frequency: ' + esc(row.frequency || '') + '</div>' +
+            '<button type="button" class="metis-btn metis-btn-xs metis-btn-primary" data-import-reviewed-subscription="' + esc(row.subscription) + '">Import Row</button>' +
+        '</div>';
+    }
     function renderMigrationRows(rows, errors) {
         var target = document.getElementById('metis-recurring-migration-results');
         rows = Array.isArray(rows) ? rows : [];
@@ -128,7 +155,7 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
         }
         var html = '<table class="metis-premium-table metis-recurring-migration-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell">Subscription</th><th class="metis-premium-cell">Result</th><th class="metis-premium-cell">Notes</th></tr></thead><tbody>';
         rows.forEach(function(row) {
-            html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(row.subscription) + '</td><td class="metis-premium-cell">' + esc(row.status) + '</td><td class="metis-premium-cell">' + esc(row.message) + '</td></tr>';
+            html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(row.subscription) + '</td><td class="metis-premium-cell">' + esc(row.status) + '</td><td class="metis-premium-cell">' + migrationReviewFields(row) + '</td></tr>';
         });
         errors.forEach(function(error) {
             html += '<tr class="metis-premium-row"><td class="metis-premium-cell">-</td><td class="metis-premium-cell">error</td><td class="metis-premium-cell">' + esc(error) + '</td></tr>';
@@ -137,6 +164,24 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
         target.innerHTML = html;
     }
     document.addEventListener('click', function(event) {
+        var reviewBtn = event.target.closest('[data-import-reviewed-subscription]');
+        if (reviewBtn) {
+            var wrap = reviewBtn.closest('.metis-recurring-review');
+            var cancelStripe = document.getElementById('metis-recurring-cancel-stripe').checked;
+            var fields = { subscription_id: reviewBtn.dataset.importReviewedSubscription, cancel_stripe_subscription: cancelStripe ? '1' : '' };
+            wrap.querySelectorAll('[data-review-field]').forEach(function(field) { fields[field.dataset.reviewField] = field.value || ''; });
+            reviewBtn.disabled = true;
+            post('metis_recurring_import_reviewed_stripe_subscription', fields).then(function(result) {
+                reviewBtn.disabled = false;
+                if (!result || !result.success) {
+                    toast((result && result.data && result.data.message) || 'Import failed.', 'error');
+                    return;
+                }
+                toast((result.data && result.data.message) || 'Subscription imported.', 'success');
+                window.location.reload();
+            });
+            return;
+        }
         var statusBtn = event.target.closest('[data-recurring-status]');
         if (statusBtn) {
             post('metis_recurring_donation_status', { id: statusBtn.dataset.id, status: statusBtn.dataset.recurringStatus }).then(function(result) {
