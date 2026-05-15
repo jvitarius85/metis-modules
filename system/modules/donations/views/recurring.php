@@ -183,7 +183,8 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
                     return;
                 }
                 toast((result.data && result.data.message) || 'Subscription imported.', 'success');
-                window.location.reload();
+                document.getElementById('metis-recurring-migration-panel').hidden = true;
+                window.location.replace(window.location.pathname);
             });
             return;
         }

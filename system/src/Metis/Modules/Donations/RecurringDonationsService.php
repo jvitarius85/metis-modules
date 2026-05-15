@@ -108,15 +108,52 @@ final class RecurringDonationsService {
     public static function listPlans( int $limit = 200 ): array {
         self::ensureSchema();
         $plans = \Metis_Tables::get( 'recurring_donations' );
-        $campaigns = \Metis_Tables::get( 'campaigns' );
-        return \metis_db()->fetchAll(
-            "SELECT r.*, c.cname AS campaign_name
-             FROM {$plans} r
-             LEFT JOIN {$campaigns} c ON c.cid = r.campaign_code
-             ORDER BY r.next_run_at ASC, r.id DESC
-             LIMIT %d",
+        $rows = \metis_db()->fetchAll(
+            "SELECT * FROM {$plans} ORDER BY next_run_at ASC, id DESC LIMIT %d",
             [ max( 1, min( 500, $limit ) ) ]
         );
+        if ( $rows === [] ) {
+            return [];
+        }
+
+        $campaignNames = self::campaignNameMap();
+        foreach ( $rows as &$row ) {
+            $campaign = (string) ( $row['campaign_code'] ?? '' );
+            $row['campaign_name'] = $campaignNames[ $campaign ] ?? '';
+        }
+        unset( $row );
+        return $rows;
+    }
+
+    private static function campaignNameMap(): array {
+        $campaigns = \Metis_Tables::get( 'campaigns' );
+        if ( $campaigns === '' ) {
+            return [];
+        }
+        $rows = \metis_db()->fetchAll( "SELECT * FROM {$campaigns} LIMIT 1000" );
+        $map = [];
+        foreach ( $rows as $row ) {
+            $name = trim( (string) ( $row['cname'] ?? $row['name'] ?? '' ) );
+            if ( $name === '' ) {
+                continue;
+            }
+            foreach ( [ 'cid', 'campaign_uid', 'id' ] as $key ) {
+                $code = trim( (string) ( $row[ $key ] ?? '' ) );
+                if ( $code !== '' ) {
+                    $map[ $code ] = $name;
+                }
+            }
+        }
+        return $map;
+    }
+
+    private static function flushMutationCaches(): void {
+        if ( \function_exists( 'metis_reports_clear_cache' ) ) {
+            \metis_reports_clear_cache();
+        }
+        if ( \function_exists( 'metis_portal_dashboard_forget_all' ) ) {
+            \metis_portal_dashboard_forget_all();
+        }
     }
 
     public static function updateStatus( int $id, string $status ): bool {
@@ -270,6 +307,7 @@ final class RecurringDonationsService {
             }
 
             $created++;
+            self::flushMutationCaches();
             if ( $cancelStripeSubscriptions ) {
                 try {
                     $subscription->cancel();
@@ -386,6 +424,8 @@ final class RecurringDonationsService {
         if ( ! $ok ) {
             return [ 'ok' => false, 'message' => 'Could not save recurring donation.' ];
         }
+
+        self::flushMutationCaches();
 
         $cancelled = false;
         if ( $cancelStripeSubscription ) {
