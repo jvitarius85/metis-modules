@@ -194,9 +194,14 @@ final class RecurringDonationsService {
             $unitAmount = is_object( $price ) ? (int) ( $price->unit_amount ?? 0 ) : 0;
             $currency = is_object( $price ) ? strtolower( (string) ( $price->currency ?? 'usd' ) ) : 'usd';
             $frequency = self::frequencyFromStripePrice( $price );
+            $campaignFallback = false;
             $campaignCode = self::campaignFromSubscription( $subscription, $price );
             if ( $campaignCode === '' ) {
                 $campaignCode = self::campaignFromSubscription( $subscription, $price, self::productFromStripePrice( $price ) );
+            }
+            if ( $campaignCode === '' ) {
+                $campaignCode = self::ensureLegacyMigrationCampaign();
+                $campaignFallback = $campaignCode !== '';
             }
             $email = self::subscriptionEmail( $subscription, $customer );
             $name = is_object( $customer ) ? trim( (string) ( $customer->name ?? '' ) ) : '';
@@ -264,7 +269,11 @@ final class RecurringDonationsService {
                     $errors[] = 'Imported but could not cancel ' . $subscriptionId . ': ' . $e->getMessage();
                 }
             }
-            $rows[] = [ 'subscription' => $subscriptionId, 'status' => 'imported', 'message' => $cancelStripeSubscriptions ? 'Imported and Stripe subscription cancelled. Payment method remains stored by Stripe.' : 'Imported; Stripe subscription left active.' ];
+            $message = $cancelStripeSubscriptions ? 'Imported and Stripe subscription cancelled. Payment method remains stored by Stripe.' : 'Imported; Stripe subscription left active.';
+            if ( $campaignFallback ) {
+                $message .= ' Campaign set to Legacy Stripe Subscriptions for admin review.';
+            }
+            $rows[] = [ 'subscription' => $subscriptionId, 'status' => 'imported', 'message' => $message ];
         }
 
         return [
@@ -708,6 +717,49 @@ final class RecurringDonationsService {
             }
             return null;
         }
+    }
+
+    private static function ensureLegacyMigrationCampaign(): string {
+        $campaigns = \Metis_Tables::get( 'campaigns' );
+        if ( $campaigns === '' ) {
+            return '';
+        }
+
+        $db = \metis_db();
+        $existing = $db->fetchOne(
+            "SELECT cid, campaign_uid FROM {$campaigns} WHERE cid = %s OR campaign_uid = %s OR cname = %s LIMIT 1",
+            [ 'LEGACY-STRIPE-RECURRING', 'LEGACY-STRIPE-RECURRING', 'Legacy Stripe Subscriptions' ]
+        );
+        if ( is_array( $existing ) ) {
+            $code = trim( (string) ( $existing['campaign_uid'] ?? '' ) );
+            return $code !== '' ? $code : trim( (string) ( $existing['cid'] ?? '' ) );
+        }
+
+        $columns = array_flip( array_map( 'strval', $db->column( "SHOW COLUMNS FROM {$campaigns}" ) ) );
+        $payload = [];
+        $put = static function ( string $column, mixed $value ) use ( &$payload, $columns ): void {
+            if ( isset( $columns[ $column ] ) ) {
+                $payload[ $column ] = $value;
+            }
+        };
+
+        $put( 'cid', 'LEGACY-STRIPE-RECURRING' );
+        $put( 'campaign_uid', 'LEGACY-STRIPE-RECURRING' );
+        $put( 'cname', 'Legacy Stripe Subscriptions' );
+        $put( 'name', 'Legacy Stripe Subscriptions' );
+        $put( 'slug', 'legacy-stripe-subscriptions' );
+        $put( 'type', 'Ongoing' );
+        $put( 'status', 'active' );
+        $put( 'active', 1 );
+        $put( 'public', 0 );
+        $put( 'created_at', self::now() );
+        $put( 'updated_at', self::now() );
+
+        if ( $payload === [] || ! $db->insert( $campaigns, $payload ) ) {
+            return '';
+        }
+
+        return isset( $columns['campaign_uid'] ) ? 'LEGACY-STRIPE-RECURRING' : ( isset( $columns['cid'] ) ? 'LEGACY-STRIPE-RECURRING' : '' );
     }
 
     private static function campaignFromSubscription( object $subscription, ?object $price, ?object $product = null ): string {

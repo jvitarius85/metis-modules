@@ -126,7 +126,7 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
             target.innerHTML = '';
             return;
         }
-        var html = '<table class="metis-premium-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell">Subscription</th><th class="metis-premium-cell">Result</th><th class="metis-premium-cell">Notes</th></tr></thead><tbody>';
+        var html = '<table class="metis-premium-table metis-recurring-migration-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell">Subscription</th><th class="metis-premium-cell">Result</th><th class="metis-premium-cell">Notes</th></tr></thead><tbody>';
         rows.forEach(function(row) {
             html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(row.subscription) + '</td><td class="metis-premium-cell">' + esc(row.status) + '</td><td class="metis-premium-cell">' + esc(row.message) + '</td></tr>';
         });

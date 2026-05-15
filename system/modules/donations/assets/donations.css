@@ -1616,3 +1616,22 @@ table.metis-top-donors-table th.metis-top-donor-rank {
         min-width: 980px;
     }
 }
+
+.metis-recurring-migration-table {
+    margin-top: 8px;
+}
+
+.metis-recurring-migration-table .metis-premium-row {
+    grid-template-columns: minmax(220px, .9fr) minmax(110px, .45fr) minmax(320px, 1.65fr);
+}
+
+.metis-recurring-migration-table .metis-premium-cell {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+    .metis-recurring-migration-table {
+        min-width: 760px;
+    }
+}
