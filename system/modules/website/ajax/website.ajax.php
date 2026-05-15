@@ -3207,7 +3207,7 @@ metis_ajax_register_handler( 'metis_website_popup_save', function (): void {
         metis_runtime_send_json_error( 'Failed to save popup.', 500 );
     }
 
-    metis_runtime_send_json_success( [ 'message' => 'Popup saved.' ] );
+    metis_runtime_send_json_success( [ 'message' => 'Popup saved.', 'popups' => PopupService::getAll() ] );
 } );
 
 metis_ajax_register_handler( 'metis_website_popup_delete', function (): void {

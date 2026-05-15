@@ -888,7 +888,8 @@ html[data-metis-nav-labels="true"] .metis-sidebar-submenu {
     padding-right: 32px;
     padding-bottom: 32px;
     min-height: 100vh;
-    z-index: -1;
+    position: relative;
+    z-index: 0;
 }
 
 .metis-page-title {
@@ -1228,6 +1229,7 @@ html[data-metis-nav-labels="true"] .metis-sidebar-submenu {
     flex-direction: column;
     gap: 0;
     border-radius: var(--metis-radius);
+    min-width: 0;
 }
 
 .metis-premium-header {
@@ -1249,7 +1251,7 @@ html[data-metis-nav-labels="true"] .metis-sidebar-submenu {
     z-index: 10;
     transition: none;
     isolation: isolate;
-    height: 65px;
+    min-height: 48px;
 }
 
 .metis-premium-row.metis-premium-header {
@@ -1296,7 +1298,9 @@ html[data-metis-nav-labels="true"] .metis-sidebar-submenu {
     min-width: 0;
     overflow: visible;
     text-align: left;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 table.metis-premium-table {
@@ -1352,18 +1356,26 @@ table.metis-premium-table td.metis-premium-cell {
     vertical-align: top;
     min-width: 0;
     max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 table.metis-premium-table th.metis-premium-cell {
     font-weight: 700;
     overflow: hidden;
-    overflow-wrap: normal;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .metis-cell-truncate {
     overflow: hidden;
     white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.metis-cell-nowrap {
+    white-space: nowrap;
+    overflow-wrap: normal;
 }
 
 .metis-premium-cell.metis-cell-sm,
@@ -2582,8 +2594,8 @@ a.metis-chip:hover,
 }
 
 .metis-toolbar       { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-.metis-toolbar-left  { display: flex; align-items: flex-end; gap: 8px; flex: 1; }
-.metis-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.metis-toolbar-left  { display: flex; align-items: flex-end; gap: 8px; flex: 1; min-width: 0; }
+.metis-toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .metis-toolbar-left .metis-input { min-width: 220px; flex: 1; }
 
 .metis-contacts-stats,

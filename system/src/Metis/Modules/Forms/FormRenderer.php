@@ -251,6 +251,23 @@ final class FormRenderer {
         echo '</div></fieldset>';
         echo '<input type="hidden" name="_donation_amount" value="">';
 
+        echo '<fieldset class="metis-forms-payment-choices metis-forms-frequency-choices"><legend>Donation frequency</legend><div class="metis-forms-payment-choice-grid">';
+        $frequencies = [
+            'one_time' => 'One time',
+            'monthly' => 'Monthly',
+            'quarterly' => 'Quarterly',
+            'semiannual' => 'Semi annual',
+            'annual' => 'Annual',
+        ];
+        foreach ( $frequencies as $frequency_key => $frequency_label ) {
+            $choice_id = 'payment-frequency-' . $frequency_key;
+            echo '<label class="metis-forms-payment-choice" for="' . metis_escape_attr( $choice_id ) . '">';
+            echo '<input type="radio" id="' . metis_escape_attr( $choice_id ) . '" name="_donation_frequency" value="' . metis_escape_attr( $frequency_key ) . '"' . ( $frequency_key === 'one_time' ? ' checked' : '' ) . '>';
+            echo '<span>' . metis_escape_html( $frequency_label ) . '</span>';
+            echo '</label>';
+        }
+        echo '</div></fieldset>';
+
         if ( ! empty( $payment['allow_custom_amount'] ) ) {
             echo '<div class="metis-forms-payment-custom">';
             echo '<label for="metis-forms-custom-amount">' . metis_escape_html( (string) ( $payment['custom_amount_label'] ?? 'Other amount' ) ) . '</label>';

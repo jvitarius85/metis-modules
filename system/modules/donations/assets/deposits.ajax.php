@@ -538,10 +538,12 @@ function metis_ajax_backfill_deposit_adjustments(): void {
                         $refund_amount = abs( (float) $adj['amount_cents'] / 100.0 );
                         $db->insert( $refunds_table, [
                             'tid'              => $tx->tid,
+                            'refund_date'      => metis_current_time( 'Y-m-d' ),
                             'stripe_refund_id' => $refund_id ?: null,
                             'amount'           => $refund_amount,
                             'reason'           => $adj['description'] ?? null,
                             'source'           => 'stripe',
+                            'refunded_by'      => function_exists( 'metis_current_user_id' ) ? metis_current_user_id() : null,
                             'created_at'       => metis_current_time( 'mysql' ),
                         ] );
                         Metis_Logger::info( 'Adjustments backfill: refund record inserted', [ 'tid' => $tx->tid, 'refund' => $refund_id, 'amount' => $refund_amount ] );

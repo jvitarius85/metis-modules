@@ -9,7 +9,7 @@ $contacts_table     = Metis_Tables::get( 'contacts' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url = metis_donations_base_url();
-$code     = metis_text_clean( metis_request_get()['batch'] ?? '' );
+$code     = metis_donations_request_identifier( 'batch', 'batch' );
 
 if ( ! $code ) {
     echo '<h1 class="metis-page-title">Batch Not Found</h1><p class="metis-subtitle">Invalid batch code.</p>';
@@ -116,7 +116,7 @@ $batch_notes = metis_get_batch_notes( $batch->batch_code );
             $campaign = $t->campaign_name ?: $t->campaign_code ?: '—';
             $amount   = (float) $t->amount;
             $fee      = isset( $t->fee ) ? (float) $t->fee : 0;
-            $tx_url   = $base_url . '/transaction/?tid=' . urlencode( $t->tid );
+            $tx_url   = metis_donations_detail_url( 'transaction', (string) $t->tid );
         ?>
             <tr class="metis-premium-row metis-batch-row">
                 <td class="metis-premium-cell"><?php echo metis_escape_html( $date ); ?></td>
@@ -210,15 +210,19 @@ $batch_notes = metis_get_batch_notes( $batch->batch_code );
         const text  = input?.value.trim();
         if (!text) return;
 
+        const body = new URLSearchParams({
+            action:      'metis_add_batch_note',
+            batch_code:  batchCode,
+            text:        text
+        });
+        body.set('metis_action_nonce', window.Metis && Metis.ajax && typeof Metis.ajax.nonceFor === 'function'
+            ? Metis.ajax.nonceFor('metis_add_batch_note', metisAjax.nonce)
+            : metisAjax.nonce);
+
         fetch(metisAjax.ajax_url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                action:      'metis_add_batch_note',
-                batch_code:  batchCode,
-                text:        text,
-                metis_action_nonce: metisAjax.nonce
-            })
+            body: body
         })
         .then(r => r.json())
         .then(res => {

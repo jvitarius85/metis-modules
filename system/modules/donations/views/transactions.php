@@ -334,7 +334,7 @@ $transactions = array_map( static function ( array $row ) {
                 $display_date = $timestamp ? date( 'm/d/y', $timestamp ) : '—';
                 $iso_date     = $timestamp ? date( 'Y-m-d', $timestamp ) : '';
                 $is_deposited = empty( $t->deposit_batch_id ) ? 'no' : 'yes';
-                $tx_url       = $base_url . '/transaction/?tid=' . urlencode( $t->tid );
+                $tx_url       = metis_donations_detail_url( 'transaction', (string) $t->tid );
 
                 $status_html  = metis_status_badge( $t->status );
                 $method_html  = metis_paymethod_badge( $t->payment_method );

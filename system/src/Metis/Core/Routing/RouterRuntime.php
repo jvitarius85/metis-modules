@@ -1282,7 +1282,7 @@ function metis_router_route_permission_for_request( Metis_Http_Request $request 
         return 'manage';
     }
 
-    if ( $route_name === 'forms.public' ) {
+    if ( $route_name === 'forms.public' || $route_name === 'donations.recurring.manage' ) {
         return $method === 'POST' ? 'create' : 'view';
     }
 
@@ -1374,6 +1374,15 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
             $require_session = false;
             $require_nonce = false;
             $rate_limit = 120;
+            $rate_window = 60;
+            break;
+
+        case 'donations.recurring.manage':
+            $module = null;
+            $require_authentication = false;
+            $require_session = false;
+            $require_nonce = false;
+            $rate_limit = 60;
             $rate_window = 60;
             break;
 

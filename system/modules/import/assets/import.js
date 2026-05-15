@@ -201,7 +201,7 @@ function bindNativeImportFallbacks() {
 }
 
 // Parse file
-$('#metis-import-parse-btn').on('click', function() {
+$(document).off('click.metisImport', '#metis-import-parse-btn').on('click.metisImport', '#metis-import-parse-btn', function() {
     if (!selectedFile) return;
     var ajaxCfg = getImportAjaxConfig();
     if (!ajaxCfg.nonce) {
@@ -337,7 +337,7 @@ function renderPreview(preview) {
     }
 }
 
-$(document).on('change', '.metis-import-page-item-cb', function() {
+$(document).off('change.metisImport', '.metis-import-page-item-cb').on('change.metisImport', '.metis-import-page-item-cb', function() {
     var id = Number($(this).data('id') || 0);
     if (id < 1) return;
     if ($(this).is(':checked')) {
@@ -347,7 +347,7 @@ $(document).on('change', '.metis-import-page-item-cb', function() {
     }
 });
 
-$(document).on('change', '.metis-import-post-item-cb', function() {
+$(document).off('change.metisImport', '.metis-import-post-item-cb').on('change.metisImport', '.metis-import-post-item-cb', function() {
     var id = Number($(this).data('id') || 0);
     if (id < 1) return;
     if ($(this).is(':checked')) {
@@ -358,7 +358,7 @@ $(document).on('change', '.metis-import-post-item-cb', function() {
 });
 
 // Back to upload
-$('#metis-import-back-btn').on('click', function() {
+$(document).off('click.metisImport', '#metis-import-back-btn').on('click.metisImport', '#metis-import-back-btn', function() {
     selectedFile = null;
     $('#metis-import-drop-zone').show().css('border-color', '');
     $('#metis-import-file-selected').hide();
@@ -366,7 +366,7 @@ $('#metis-import-back-btn').on('click', function() {
 });
 
 // Confirm import
-$('#metis-import-confirm-btn').on('click', function() {
+$(document).off('click.metisImport', '#metis-import-confirm-btn').on('click.metisImport', '#metis-import-confirm-btn', function() {
     var ajaxCfg = getImportAjaxConfig();
     if (!ajaxCfg.nonce) {
         notify('Import security token is missing. Please refresh this page.', 'error');
@@ -427,7 +427,7 @@ $('#metis-import-confirm-btn').on('click', function() {
     });
 });
 
-$('#metis-import-restart-btn').on('click', function() {
+$(document).off('click.metisImport', '#metis-import-restart-btn').on('click.metisImport', '#metis-import-restart-btn', function() {
     selectedFile = null;
     $('#metis-import-drop-zone').show().css('border-color', '');
     $('#metis-import-file-selected').hide();

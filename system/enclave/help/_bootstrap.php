@@ -15,8 +15,8 @@ require_once dirname( __DIR__, 2 ) . '/src/Metis/Core/CoreBootstrap.php';
 
 if ( ! function_exists( 'metis_help_enclave_json' ) ) {
     function metis_help_enclave_json( array $payload ): string {
-        if ( function_exists( 'wp_json_encode' ) ) {
-            return (string) wp_json_encode( $payload );
+        if ( function_exists( 'metis_json_encode' ) ) {
+            return (string) metis_json_encode( $payload, JSON_UNESCAPED_UNICODE );
         }
 
         return (string) json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );

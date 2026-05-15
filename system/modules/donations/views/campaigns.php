@@ -95,7 +95,7 @@ $current_year = (int) date( 'Y' );
             $year_raised = (float) ( $year_raised_raw ?? 0 );
 
             $pct         = ( $year_goal && $year_goal > 0 ) ? min( 100, round( ( $year_raised / $year_goal ) * 100, 1 ) ) : null;
-            $campaign_url = $base_url . '/campaign/?cid=' . urlencode( $c->cid );
+            $campaign_url = metis_donations_detail_url( 'campaign', (string) $c->cid );
             $is_active    = (int) $c->active;
         ?>
             <tr class="metis-premium-row metis-campaign-row"

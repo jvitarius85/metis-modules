@@ -9,7 +9,7 @@ $contacts_table     = Metis_Tables::get( 'contacts' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url     = metis_donations_base_url();
-$deposit_code = metis_text_clean( metis_request_get()['id'] ?? '' );
+$deposit_code = metis_donations_request_identifier( 'id', 'deposit' );
 
 if ( ! $deposit_code ) {
     echo '<p class="metis-muted">Invalid deposit.</p>';
@@ -250,7 +250,7 @@ $adj_type_labels = [
             $tbl_fees  += $display_fee;
             $tbl_net   += $display_net;
 
-            $tx_url      = $base_url . '/transaction/?tid=' . urlencode( $tx->tid );
+            $tx_url      = metis_donations_detail_url( 'transaction', (string) $tx->tid );
             $donor_label = trim( $tx->donor_name ?? '' ) ?: ( $tx->donor_email ?? '' ) ?: '—';
             $camp_label  = $tx->campaign_name ?: ( $tx->campaign_code ?: '—' );
             $row_class   = $is_refunded ? ' metis-transaction-row--refunded' : '';

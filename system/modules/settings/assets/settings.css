@@ -1527,17 +1527,24 @@
 
 .metis-settings-row {
     display: grid;
-    grid-template-columns: minmax(160px, 200px) minmax(240px, 1fr) auto auto auto;
+    grid-template-columns: minmax(0, 200px) minmax(220px, 1fr) max-content max-content max-content;
     gap: 12px;
     align-items: end;
     padding: 14px;
     border: 1px solid var(--metis-border);
     border-radius: var(--metis-radius);
     background: #f8faff;
+    min-width: 0;
 }
 
 .metis-settings-mailbox-row {
-    grid-template-columns: minmax(220px, 1.5fr) minmax(170px, 1fr) minmax(220px, 1.35fr) minmax(180px, 1fr) minmax(150px, .8fr) auto auto;
+    grid-template-columns: minmax(180px, 1.4fr) minmax(150px, .9fr) minmax(180px, 1.25fr) minmax(150px, .95fr) minmax(140px, .8fr) max-content max-content;
+}
+
+.metis-settings-row .metis-field,
+.metis-settings-row .metis-input,
+.metis-settings-row .metis-select {
+    min-width: 0;
 }
 
 .metis-settings-flag {
@@ -1548,6 +1555,7 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--metis-text);
+    white-space: nowrap;
 }
 
 @media (max-width: 1000px) {

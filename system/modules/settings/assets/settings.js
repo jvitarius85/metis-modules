@@ -103,11 +103,11 @@ document.addEventListener('DOMContentLoaded', function () {
             activeKey = key;
             modal.setAttribute('aria-hidden', 'false');
             modal.classList.add('is-open');
-            loadItems();
             if (searchEl) {
                 searchEl.value = '';
                 searchEl.focus();
             }
+            loadItems();
         }
 
         function closeModal() {

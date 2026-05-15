@@ -5,7 +5,7 @@
     padding: 20px;
 }
 
-.metis-card {
+.metis-import-dashboard .metis-card {
     background: #fff;
     border: 1px solid #e2e6ea;
     border-radius: 5px;
@@ -13,7 +13,7 @@
     margin-bottom: 20px;
 }
 
-.metis-card h2 {
+.metis-import-dashboard .metis-card h2 {
     margin-top: 0;
 }
 

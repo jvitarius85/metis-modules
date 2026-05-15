@@ -8,7 +8,7 @@ $transactions_table = Metis_Tables::get( 'transactions' );
 $campaigns_table    = Metis_Tables::get( 'campaigns' );
 
 $base_url = metis_donations_base_url();
-$donor_id = isset( metis_request_get()['id'] ) ? metis_text_clean( metis_request_get()['id'] ) : '';
+$donor_id = metis_donations_request_identifier( 'id', 'donor' );
 
 if ( $donor_id === '' ) : ?>
     <h1 class="metis-page-title">Donor not found</h1>
@@ -93,7 +93,7 @@ metis_set_page_title( $full_name ?: $donor->email ?: $donor_id );
             $iso_date     = $timestamp ? date( 'Y-m-d', $timestamp ) : '';
             $campaign     = $t->campaign_name ?: $t->campaign_code ?: '—';
             $amount       = (float) $t->amount;
-            $tx_url       = $base_url . '/transaction/?tid=' . urlencode( $t->tid );
+            $tx_url       = metis_donations_detail_url( 'transaction', (string) $t->tid );
         ?>
             <tr class="metis-premium-row metis-donor-tx-row"
                  data-href="<?php echo metis_escape_url( $tx_url ); ?>"

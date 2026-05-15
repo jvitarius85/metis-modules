@@ -401,22 +401,22 @@ namespace Metis\Core {
                         $label = trim( (string) ( $row['first_name'] ?? '' ) . ' ' . (string) ( $row['last_name'] ?? '' ) );
                     }
                     $label = $label !== '' ? $label : (string) ( $row['email'] ?? $entity_uid );
-                    $url = \metis_portal_url( 'donations', 'donor' ) . '?id=' . rawurlencode( (string) ( $row['did'] ?? $row['donor_uid'] ?? $entity_uid ) );
+                    $url = rtrim( \metis_portal_url( 'donations', 'donor' ), '/' ) . '/' . rawurlencode( (string) ( $row['did'] ?? $row['donor_uid'] ?? $entity_uid ) ) . '/';
                     break;
 
                 case 'donation_campaign':
                     $label = (string) ( $row['cname'] ?? $row['name'] ?? $entity_uid );
-                    $url = \metis_portal_url( 'donations', 'campaign' ) . '?cid=' . rawurlencode( (string) ( $row['cid'] ?? $row['campaign_uid'] ?? $entity_uid ) );
+                    $url = rtrim( \metis_portal_url( 'donations', 'campaign' ), '/' ) . '/' . rawurlencode( (string) ( $row['cid'] ?? $row['campaign_uid'] ?? $entity_uid ) ) . '/';
                     break;
 
                 case 'donation_transaction':
                     $label = (string) ( $row['transaction_uid'] ?? $row['tid'] ?? $entity_uid );
-                    $url = \metis_portal_url( 'donations', 'transaction' ) . '?id=' . rawurlencode( (string) ( $row['tid'] ?? $row['transaction_uid'] ?? $entity_uid ) );
+                    $url = rtrim( \metis_portal_url( 'donations', 'transaction' ), '/' ) . '/' . rawurlencode( (string) ( $row['tid'] ?? $row['transaction_uid'] ?? $entity_uid ) ) . '/';
                     break;
 
                 case 'donation_deposit':
                     $label = (string) ( $row['provider_ref'] ?? $row['deposit_uid'] ?? $entity_uid );
-                    $url = \metis_portal_url( 'donations', 'deposit' ) . '?id=' . rawurlencode( (string) ( $row['provider_ref'] ?? $row['deposit_uid'] ?? $entity_uid ) );
+                    $url = rtrim( \metis_portal_url( 'donations', 'deposit' ), '/' ) . '/' . rawurlencode( (string) ( $row['provider_ref'] ?? $row['deposit_uid'] ?? $entity_uid ) ) . '/';
                     break;
 
                 case 'deposit_batch':

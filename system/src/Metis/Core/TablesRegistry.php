@@ -80,6 +80,8 @@ final class Metis_Tables {
         "transactions" => "metis_transactions",
         "transaction_notes" => "metis_transaction_notes",
         "transaction_refunds" => "metis_transaction_refunds",
+        "recurring_donations" => "metis_recurring_donations",
+        "recurring_donation_attempts" => "metis_recurring_donation_attempts",
         "campaigns" => "metis_campaigns",
         "reports" => "metis_reports",
         "batches" => "metis_batches",

@@ -319,7 +319,7 @@ final class FormSubmissionRepository {
         }
 
         $session_key = \metis_generate_code( 'FPS', self::table( 'form_payment_sessions' ), 'session_key' );
-        $stripe = self::createPaymentIntent( $form, $session_key, $totals );
+        $stripe = self::createPaymentIntent( $form, $session_key, $totals, $normalized['normalized'] );
         if ( empty( $stripe['ok'] ) ) {
             return $stripe;
         }
@@ -438,6 +438,15 @@ final class FormSubmissionRepository {
         }
 
         $binding_context = self::dispatchBindings( $form, $submission['submission'], $normalized, $totals, $intent, $charge );
+        if ( \class_exists( \Metis\Modules\Donations\RecurringDonationsService::class ) ) {
+            \Metis\Modules\Donations\RecurringDonationsService::createFromSuccessfulPayment(
+                $form,
+                $normalized,
+                $totals,
+                $intent,
+                (string) ( $binding_context['transaction_tid'] ?? '' )
+            );
+        }
         self::sendNotifications( $form, $submission['submission'], $normalized, $binding_context );
         self::deletePaymentSession( $session_key );
 

@@ -82,7 +82,49 @@ $trigger_types = [
     <?php endif; ?>
 </div>
 
-<!-- Popup editor launches the full-screen builder via JS -->
+<div id="metis-popup-form-wrap" class="metis-form-card metis-is-hidden">
+    <h2 class="metis-form-card-title">Popup Editor</h2>
+    <input type="hidden" id="metis-popup-id" value="">
+    <div class="metis-form-grid metis-form-grid-3">
+        <label>Name<input id="metis-popup-name" type="text" class="metis-editor-input"></label>
+        <label>Trigger
+            <select id="metis-popup-trigger" class="metis-editor-input">
+                <?php foreach ( $trigger_types as $trigger_key => $trigger_label ) : ?>
+                    <option value="<?php echo metis_escape_attr( $trigger_key ); ?>"><?php echo metis_escape_html( $trigger_label ); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>Status
+            <select id="metis-popup-status" class="metis-editor-input">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+            </select>
+        </label>
+        <label>Delay (ms)<input id="metis-popup-delay" type="number" min="0" step="100" class="metis-editor-input" value="1500"></label>
+        <label>Scroll (%)<input id="metis-popup-scroll" type="number" min="1" max="100" step="1" class="metis-editor-input" value="50"></label>
+        <label>Frequency
+            <select id="metis-popup-frequency" class="metis-editor-input">
+                <option value="session">Once per session</option>
+                <option value="persisted">Persisted</option>
+                <option value="always">Every trigger</option>
+            </select>
+        </label>
+    </div>
+    <div class="metis-form-grid metis-form-grid-2 metis-form-grid-top">
+        <label>Headline<input id="metis-popup-headline" type="text" class="metis-editor-input"></label>
+        <label>Button Label<input id="metis-popup-button-label" type="text" class="metis-editor-input"></label>
+        <label>Button URL<input id="metis-popup-button-url" type="url" class="metis-editor-input" placeholder="https://example.org"></label>
+        <label>Target Paths<input id="metis-popup-target-paths" type="text" class="metis-editor-input" placeholder="/,/about"></label>
+        <label>Message<textarea id="metis-popup-message" class="metis-editor-input" rows="4"></textarea></label>
+        <label>Target Slugs<textarea id="metis-popup-target-slugs" class="metis-editor-input" rows="4" placeholder="home,about-us"></textarea></label>
+    </div>
+    <label class="metis-inline-toggle"><input id="metis-popup-site-wide" type="checkbox" checked> Site-wide</label>
+    <div class="metis-form-actions">
+        <button id="metis-popup-save-btn" class="metis-btn metis-btn-primary">Save Popup</button>
+        <button id="metis-popup-cancel-btn" class="metis-btn metis-btn-ghost">Cancel</button>
+    </div>
+</div>
+
 <script>
 (function($) {
 'use strict';
@@ -92,16 +134,126 @@ function updatePopupSubtitle() {
     $('.metis-page-header .metis-subtitle').first().text(count + ' popup' + (count === 1 ? '' : 's') + ' configured with trigger and display rules.');
 }
 
+function splitCsv(value) {
+    return String(value || '').split(',').map(function(v){ return v.trim(); }).filter(Boolean);
+}
+
+function esc(value) {
+    return String(value || '').replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function parseJson(raw, fallback) {
+    if (raw && typeof raw === 'object') return raw;
+    try { return JSON.parse(String(raw || '')); } catch (e) { return fallback; }
+}
+
+function popupLayout(headline, message, buttonLabel, buttonUrl) {
+    var blocks = [];
+    if (headline) {
+        blocks.push({ type: 'heading', data: { content: esc(headline), level: 'h2' }, style: {} });
+    }
+    blocks.push({ type: 'text', data: { content: esc(message || 'Popup content'), tag: 'p' }, style: {} });
+    if (buttonLabel && buttonUrl) {
+        blocks.push({ type: 'button', data: { label: buttonLabel, url: buttonUrl, size: 'medium' }, style: {} });
+    }
+    return JSON.stringify({ version: 1, blocks: blocks });
+}
+
+function openPopupEditor(data) {
+    data = data || {};
+    var triggerConfig = parseJson(data.trigger_config_json || data.triggerConfig || '{}', {});
+    var displayRules = parseJson(data.display_rules_json || data.displayRules || '{}', {});
+    var layout = parseJson(data.layout_json || data.layout || '{}', {});
+    var blocks = Array.isArray(layout.blocks) ? layout.blocks : ((layout.sections && layout.sections[0] && layout.sections[0].blocks) || []);
+    var heading = '', message = '', buttonLabel = '', buttonUrl = '';
+    blocks.forEach(function(block) {
+        if (!block || !block.data) return;
+        if (!heading && block.type === 'heading') heading = String(block.data.content || '').replace(/<[^>]+>/g, '');
+        if (!message && block.type === 'text') message = String(block.data.content || '').replace(/<[^>]+>/g, '');
+        if (!buttonLabel && block.type === 'button') {
+            buttonLabel = String(block.data.label || '');
+            buttonUrl = String(block.data.url || '');
+        }
+    });
+    $('#metis-popup-id').val(data.id || '');
+    $('#metis-popup-name').val(data.name || '');
+    $('#metis-popup-trigger').val(data.trigger_type || data.trigger || 'click');
+    $('#metis-popup-status').val(data.status || 'draft');
+    $('#metis-popup-delay').val(triggerConfig.delay_ms || 1500);
+    $('#metis-popup-scroll').val(triggerConfig.scroll_percent || 50);
+    $('#metis-popup-frequency').val(triggerConfig.frequency || 'session');
+    $('#metis-popup-headline').val(heading);
+    $('#metis-popup-message').val(message);
+    $('#metis-popup-button-label').val(buttonLabel);
+    $('#metis-popup-button-url').val(buttonUrl);
+    $('#metis-popup-site-wide').prop('checked', displayRules.site_wide !== false);
+    $('#metis-popup-target-paths').val((displayRules.paths || []).join(', '));
+    $('#metis-popup-target-slugs').val((displayRules.slugs || []).join(', '));
+    $('#metis-popup-form-wrap').slideDown(120);
+}
+
 $(document).on('click', '#metis-create-popup-btn, #metis-create-popup-btn-empty', function() {
-    MetisPopupBuilder.open(null, null, 'click', '{}', 'draft');
+    openPopupEditor({});
 });
 
 $(document).on('click', '.metis-edit-popup', function() {
     var $b = $(this);
-    MetisPopupBuilder.open(
-        $b.data('id'), $b.data('name'), $b.data('trigger'),
-        $b.data('trigger-config'), $b.data('status'), $b.data('layout'), $b.data('display-rules')
-    );
+    openPopupEditor({
+        id: $b.data('id'),
+        name: $b.data('name'),
+        trigger_type: $b.data('trigger'),
+        trigger_config_json: $b.attr('data-trigger-config'),
+        display_rules_json: $b.attr('data-display-rules'),
+        layout_json: $b.attr('data-layout'),
+        status: $b.data('status')
+    });
+});
+
+$(document).on('click', '#metis-popup-cancel-btn', function() {
+    $('#metis-popup-form-wrap').slideUp(100);
+});
+
+$(document).on('click', '#metis-popup-save-btn', function() {
+    var id = Number($('#metis-popup-id').val() || 0);
+    var name = $('#metis-popup-name').val().trim();
+    var message = $('#metis-popup-message').val().trim();
+    if (!name || !message) {
+        metis_toast('Name and message are required.', 'error');
+        return;
+    }
+    var payload = {
+        action: 'metis_website_popup_save',
+        nonce: metisWebsiteAjax.nonce,
+        name: name,
+        trigger_type: $('#metis-popup-trigger').val(),
+        status: $('#metis-popup-status').val(),
+        trigger_config_json: JSON.stringify({
+            delay_ms: Number($('#metis-popup-delay').val() || 1500),
+            scroll_percent: Number($('#metis-popup-scroll').val() || 50),
+            frequency: $('#metis-popup-frequency').val()
+        }),
+        display_rules_json: JSON.stringify({
+            site_wide: $('#metis-popup-site-wide').is(':checked'),
+            paths: splitCsv($('#metis-popup-target-paths').val()),
+            slugs: splitCsv($('#metis-popup-target-slugs').val()),
+            content_types: []
+        }),
+        layout_json: popupLayout($('#metis-popup-headline').val(), message, $('#metis-popup-button-label').val(), $('#metis-popup-button-url').val())
+    };
+    if (id > 0) payload.id = id;
+
+    $.post(metisWebsiteAjax.ajax_url, payload).done(function(r) {
+        if (r && r.success) {
+            metis_toast('Popup saved.', 'success');
+            window.location.reload();
+            return;
+        }
+        metis_toast((r && r.data && r.data.message) || 'Save failed.', 'error');
+    }).fail(function() {
+        metis_toast('Request failed.', 'error');
+    });
 });
 
 $(document).on('click', '.metis-delete-popup', function() {

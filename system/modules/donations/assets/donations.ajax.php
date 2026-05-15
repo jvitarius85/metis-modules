@@ -16,6 +16,7 @@ $metis_ajax_modules = [
     __DIR__ . '/reports.ajax.php',
     __DIR__ . '/deposits.ajax.php',
     __DIR__ . '/campaigns.ajax.php',
+    __DIR__ . '/recurring.ajax.php',
 ];
 
 foreach ( $metis_ajax_modules as $module ) {

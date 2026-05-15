@@ -605,7 +605,7 @@
 
         donors.forEach( ( row, i ) => {
             const displayName = row.display_name || row.did;
-            const profileUrl  = DONOR_URL ? DONOR_URL + '/donor/?id=' + encodeURIComponent( row.did ) : '';
+            const profileUrl  = DONOR_URL ? DONOR_URL + '/donor/' + encodeURIComponent( row.did ) + '/' : '';
             const firstDate   = row.first_gift ? row.first_gift.slice( 0, 10 ) : '\u2014';
             const lastDate    = row.last_gift  ? row.last_gift.slice( 0, 10 )  : '\u2014';
             const rowAttrs    = profileUrl ? ` class="metis-premium-row metis-top-donor-row metis-clickable-row" data-href="${ esc( profileUrl ) }"` : ' class="metis-premium-row metis-top-donor-row"';
@@ -863,7 +863,7 @@
         `;
 
         data.rows.forEach( r => {
-            const profileUrl  = DONOR_URL ? DONOR_URL + '/donor/?id=' + encodeURIComponent( r.did ) : '';
+            const profileUrl  = DONOR_URL ? DONOR_URL + '/donor/' + encodeURIComponent( r.did ) + '/' : '';
             const firstDate   = r.first_gift ? r.first_gift.slice( 0, 10 ) : '\u2014';
             const lastDate    = r.last_gift  ? r.last_gift.slice(  0, 10 ) : '\u2014';
             const displayName = r.display_name || r.did;

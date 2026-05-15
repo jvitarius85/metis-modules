@@ -8,7 +8,7 @@ $transactions_table = Metis_Tables::get( 'transactions' );
 $contacts_table     = Metis_Tables::get( 'contacts' );
 $base_url           = metis_donations_base_url();
 
-$cid = isset( metis_request_get()['cid'] ) ? metis_text_clean( metis_request_get()['cid'] ) : '';
+$cid = metis_donations_request_identifier( 'cid', 'campaign' );
 
 if ( $cid === '' ) : ?>
     <h1 class="metis-page-title">Campaign Not Found</h1>
@@ -337,7 +337,7 @@ metis_set_page_title( $campaign->cname );
         <?php if ( ! empty( $transactions ) ) : ?>
             <?php foreach ( $transactions as $t ) :
                 $donor_name  = trim( ( $t->first_name ?: '' ) . ' ' . ( $t->last_name ?: '' ) );
-                $tx_url      = $base_url . '/transaction/?tid=' . urlencode( $t->tid );
+                $tx_url      = metis_donations_detail_url( 'transaction', (string) $t->tid );
                 $display_date = $t->tran_date ? date( 'm/d/Y', strtotime( $t->tran_date ) ) : '—';
             ?>
                 <tr class="metis-premium-row metis-batch-row metis-clickable-row"

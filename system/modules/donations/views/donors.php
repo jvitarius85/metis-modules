@@ -84,7 +84,7 @@ foreach ( $contacts as $c ) {
     <tbody id="metis-donor-rows">
         <?php if ( ! empty( $donors ) ) : ?>
             <?php foreach ( $donors as $d ) :
-                $d_url     = $base_url . '/donor/?id=' . urlencode( $d['did'] );
+                $d_url     = metis_donations_detail_url( 'donor', (string) $d['did'] );
                 $full_name = trim( $d['first_name'] . ' ' . $d['last_name'] );
             ?>
                 <tr class="metis-premium-row metis-donor-row"

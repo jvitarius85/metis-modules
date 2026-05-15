@@ -494,7 +494,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
             <div class="metis-donations-activity-list">
                 <?php if ( ! empty( $recent_transactions ) ) : ?>
                     <?php foreach ( $recent_transactions as $tx ) :
-                        $tx_url      = $base_url . '/transaction/?tid=' . urlencode( $tx->tid );
+                        $tx_url      = metis_donations_detail_url( 'transaction', (string) $tx->tid );
                         $donor_name  = trim( (string) ( $tx->first_name ?? '' ) . ' ' . (string) ( $tx->last_name ?? '' ) );
                         $donor_name  = $donor_name !== '' ? $donor_name : ( $tx->email ?: ( $tx->did ?: 'Unknown donor' ) );
                         $campaign    = $tx->campaign_name ?: 'Unassigned campaign';
@@ -530,7 +530,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
             <div class="metis-donations-metric-list">
                 <?php if ( ! empty( $top_campaigns ) ) : ?>
                     <?php foreach ( $top_campaigns as $campaign ) :
-                        $campaign_url = $base_url . '/campaign/?cid=' . urlencode( $campaign->cid );
+                        $campaign_url = metis_donations_detail_url( 'campaign', (string) $campaign->cid );
                         $goals        = metis_parse_goals( $campaign->goals );
                         $year_goal    = (float) ( $goals[ $current_year ] ?? 0 );
                         $year_raised  = (float) ( $campaign->year_raised ?? 0 );
@@ -573,7 +573,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
             <div class="metis-donations-metric-list">
                 <?php if ( ! empty( $top_donors ) ) : ?>
                     <?php foreach ( $top_donors as $donor ) :
-                        $donor_url = $base_url . '/donor/?id=' . urlencode( $donor->did );
+                        $donor_url = metis_donations_detail_url( 'donor', (string) $donor->did );
                         $last_gift = $donor->last_gift_date ? metis_runtime_format_date( (string) $donor->last_gift_date, null, null, null, 'No gifts yet' ) : 'No gifts yet';
                     ?>
                         <a class="metis-donations-metric-row" href="<?php echo metis_escape_url( $donor_url ); ?>">
@@ -660,7 +660,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
             <tbody>
             <?php if ( ! empty( $recent_deposits ) ) : ?>
                 <?php foreach ( $recent_deposits as $deposit ) :
-                    $deposit_url = $base_url . '/deposit/?id=' . urlencode( $deposit->provider_ref );
+                    $deposit_url = metis_donations_detail_url( 'deposit', (string) $deposit->provider_ref );
                     $deposit_date = $deposit->deposit_date ? metis_runtime_format_date( (string) $deposit->deposit_date, null, null, null, 'No date' ) : 'No date';
                 ?>
                     <tr class="metis-premium-row metis-donations-deposit-row metis-clickable-row" data-href="<?php echo metis_escape_url( $deposit_url ); ?>">

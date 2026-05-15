@@ -8,7 +8,7 @@ $can_execute = function_exists( 'metis_security_user_can' ) && metis_security_us
     <div class="metis-header-content"><h1>Import</h1></div>
 </div>
 
-<div style="padding:24px;max-width:760px;">
+<div class="metis-import-dashboard" style="padding:24px;max-width:760px;">
 
     <!-- Step indicator -->
     <div id="metis-import-steps" style="display:flex;gap:0;margin-bottom:28px;" role="list" aria-label="Import progress">

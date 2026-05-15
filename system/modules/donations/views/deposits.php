@@ -45,7 +45,7 @@ $base_url = metis_donations_base_url();
         <?php foreach ( $deposits as $d ) :
             $date       = $d->deposit_date ? date( 'm/d/y', strtotime( $d->deposit_date ) ) : '—';
             $total      = '$' . number_format( (float) $d->total_amount, 2 );
-            $detail_url = $base_url . '/deposit/?id=' . urlencode( $d->provider_ref );
+            $detail_url = metis_donations_detail_url( 'deposit', (string) $d->provider_ref );
         ?>
             <tr class="metis-premium-row metis-deposit-row metis-clickable-row"
                  data-href="<?php echo metis_escape_url( $detail_url ); ?>">
@@ -81,6 +81,16 @@ document.addEventListener('click', function (e) {
 });
 
 // ── Shared AJAX helper ───────────────────────────────────────────────────────
+function metisDepositsBody(action, extra) {
+    const body = new URLSearchParams(Object.assign({ action }, extra || {}));
+    const fallback = (window.metisAjax && metisAjax.nonce) ? metisAjax.nonce : '';
+    const nonce = (window.Metis && Metis.ajax && typeof Metis.ajax.nonceFor === 'function')
+        ? Metis.ajax.nonceFor(action, fallback)
+        : fallback;
+    body.set('metis_action_nonce', nonce);
+    return body;
+}
+
 function metisDepositsRequest(action, btn, statusEl, buildMessage) {
     btn.disabled         = true;
     statusEl.textContent = 'Working\u2026';
@@ -88,7 +98,7 @@ function metisDepositsRequest(action, btn, statusEl, buildMessage) {
     fetch(metisAjax.ajax_url, {
         method : 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body   : new URLSearchParams({ action, metis_action_nonce: metisAjax.nonce })
+        body   : metisDepositsBody(action)
     })
     .then(r => r.json())
     .then(res => {
@@ -124,7 +134,7 @@ document.getElementById('metis-backfill-deposits')?.addEventListener('click', fu
     fetch(metisAjax.ajax_url, {
         method : 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body   : new URLSearchParams({ action: 'metis_backfill_deposit_totals', metis_action_nonce: metisAjax.nonce })
+        body   : metisDepositsBody('metis_backfill_deposit_totals')
     })
     .then(r => r.json())
     .then(res => {
@@ -249,7 +259,7 @@ document.getElementById('metis-link-payouts')?.addEventListener('click', functio
     fetch(metisAjax.ajax_url, {
         method : 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body   : new URLSearchParams({ action: 'metis_link_stripe_payouts', metis_action_nonce: metisAjax.nonce })
+        body   : metisDepositsBody('metis_link_stripe_payouts')
     })
     .then(r => r.json())
     .then(res => {
@@ -367,10 +377,7 @@ document.getElementById('metis-import-transactions')?.addEventListener('click', 
         const pageNum = Math.floor(totals.rows.length / 100) + 1;
         status.textContent = 'Importing… page ' + pageNum + ' (' + totals.imported + ' imported so far)';
 
-        const body = new URLSearchParams({
-            action      : 'metis_import_stripe_transactions',
-            metis_action_nonce : metisAjax.nonce,
-        });
+        const body = metisDepositsBody('metis_import_stripe_transactions');
         if (cursor) body.set('cursor', cursor);
 
         fetch(metisAjax.ajax_url, {
@@ -505,7 +512,7 @@ document.getElementById('metis-verify-links')?.addEventListener('click', functio
     fetch(metisAjax.ajax_url, {
         method : 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body   : new URLSearchParams({ action: 'metis_verify_deposit_links', metis_action_nonce: metisAjax.nonce })
+        body   : metisDepositsBody('metis_verify_deposit_links')
     })
     .then(r => r.json())
     .then(res => {

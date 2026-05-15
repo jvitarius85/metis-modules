@@ -74,6 +74,7 @@
             "dashboard": "Overview",
             "donors": "Donors",
             "transactions": "Transactions",
+            "recurring": "Recurring",
             "deposits": "Deposits",
             "reports": "Reports",
             "campaigns": "Campaigns"
@@ -86,6 +87,7 @@
         "batch": "batch-detail.php",
         "transactions": "transactions.php",
         "transaction": "transaction.php",
+        "recurring": "recurring.php",
         "deposits": "deposits.php",
         "deposit": "deposit.php",
         "campaigns": "campaigns.php",
@@ -149,6 +151,16 @@
     ],
     "title": "Donations",
     "entry": "Module.php",
-    "routes": [],
+    "routes": [
+        {
+            "name": "donations.recurring.manage",
+            "methods": [
+                "GET",
+                "POST"
+            ],
+            "pattern": "#^/donor/recurring/(?P<recurring_token>[A-Fa-f0-9]{64})/?$#",
+            "handler": "metis_donations_handle_recurring_public_route"
+        }
+    ],
     "services": []
 }

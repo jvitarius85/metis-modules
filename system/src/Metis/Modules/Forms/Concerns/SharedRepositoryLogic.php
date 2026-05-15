@@ -405,6 +405,12 @@ trait SharedRepositoryLogic {
             $normalized[ (string) $field['key'] ] = $result['value'];
         }
 
+        if ( self::paymentField( $schema ) !== null ) {
+            $normalized['_donation_frequency'] = \class_exists( \Metis\Modules\Donations\RecurringDonationsService::class )
+                ? \Metis\Modules\Donations\RecurringDonationsService::normalizeFrequency( $payload['_donation_frequency'] ?? 'one_time' )
+                : 'one_time';
+        }
+
         return [
             'normalized' => $normalized,
             'errors'     => $errors,
@@ -619,7 +625,7 @@ trait SharedRepositoryLogic {
         ];
     }
 
-    private static function createPaymentIntent( array $form, string $session_key, array $totals ): array {
+    private static function createPaymentIntent( array $form, string $session_key, array $totals, array $normalized = [] ): array {
         if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\Stripe\PaymentIntent' ) ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe SDK is unavailable.' ];
         }
@@ -636,21 +642,52 @@ trait SharedRepositoryLogic {
 
         $payment_field = self::paymentField( (array) ( $form['schema'] ?? [] ) );
         $campaign_code = is_array( $payment_field ) ? (string) ( $payment_field['payment']['campaign_code'] ?? '' ) : '';
+        $frequency = \class_exists( \Metis\Modules\Donations\RecurringDonationsService::class )
+            ? \Metis\Modules\Donations\RecurringDonationsService::normalizeFrequency( $normalized['_donation_frequency'] ?? 'one_time' )
+            : 'one_time';
+        $email = strtolower( trim( metis_email_clean( (string) ( $normalized['email'] ?? '' ) ) ) );
+        $name = trim( (string) ( ( $normalized['first_name'] ?? '' ) . ' ' . ( $normalized['last_name'] ?? '' ) ) );
+
+        $intent_payload = [
+            'amount'                    => (int) ( $totals['amount_cents'] ?? 0 ),
+            'currency'                  => (string) ( $totals['currency'] ?? 'usd' ),
+            'automatic_payment_methods' => [ 'enabled' => true ],
+            'metadata'                  => [
+                'form_id'            => (string) ( $form['id'] ?? 0 ),
+                'form_name'          => (string) ( $form['name'] ?? '' ),
+                'session_key'        => $session_key,
+                'campaign_code'      => $campaign_code,
+                'donation_frequency' => $frequency,
+            ],
+        ];
+
+        if ( $frequency !== 'one_time' ) {
+            if ( $email === '' || ! metis_email_is_valid( $email ) ) {
+                return [ 'ok' => false, 'status' => 422, 'error' => 'Recurring donations require a valid donor email.' ];
+            }
+            if ( ! \class_exists( '\Stripe\Customer' ) ) {
+                return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe customer support is unavailable.' ];
+            }
+            $customer_payload = [
+                'email' => $email !== '' ? $email : null,
+                'name' => $name !== '' ? $name : null,
+                'metadata' => [
+                    'metis_form_id' => (string) ( $form['id'] ?? 0 ),
+                    'metis_session_key' => $session_key,
+                ],
+            ];
+            $customer_payload = array_filter( $customer_payload, static fn ( mixed $value ): bool => $value !== null );
+            try {
+                $customer = \Stripe\Customer::create( $customer_payload );
+                $intent_payload['customer'] = (string) ( $customer->id ?? '' );
+                $intent_payload['setup_future_usage'] = 'off_session';
+            } catch ( \Throwable $e ) {
+                return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe customer could not be created for recurring donation.' ];
+            }
+        }
 
         try {
-            $intent = \Stripe\PaymentIntent::create(
-                [
-                    'amount'                    => (int) ( $totals['amount_cents'] ?? 0 ),
-                    'currency'                  => (string) ( $totals['currency'] ?? 'usd' ),
-                    'automatic_payment_methods' => [ 'enabled' => true ],
-                    'metadata'                  => [
-                        'form_id'       => (string) ( $form['id'] ?? 0 ),
-                        'form_name'     => (string) ( $form['name'] ?? '' ),
-                        'session_key'   => $session_key,
-                        'campaign_code' => $campaign_code,
-                    ],
-                ]
-            );
+            $intent = \Stripe\PaymentIntent::create( $intent_payload );
         } catch ( \Throwable $e ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe payment intent could not be created.' ];
         }
@@ -910,25 +947,29 @@ trait SharedRepositoryLogic {
         }
 
         if ( $intent && self::formSupportsPayments( $form ) ) {
-            self::recordDonationTransaction( $form, $normalized, $totals, $intent, $charge );
+            $tid = self::recordDonationTransaction( $form, $normalized, $totals, $intent, $charge );
+            if ( $tid !== '' ) {
+                $context['transaction_tid'] = $tid;
+                $context['internal_reference'] = $tid;
+            }
         }
 
         return $context;
     }
 
-    private static function recordDonationTransaction( array $form, array $normalized, array $totals, object $intent, mixed $charge ): void {
+    private static function recordDonationTransaction( array $form, array $normalized, array $totals, object $intent, mixed $charge ): string {
         $payment_field = self::paymentField( (array) ( $form['schema'] ?? [] ) );
         $payment = is_array( $payment_field ) ? (array) ( $payment_field['payment'] ?? [] ) : [];
         $campaign_code = self::normalizeCampaignCode( (string) ( $payment['campaign_code'] ?? '' ) );
         if ( $campaign_code === '' ) {
-            return;
+            return '';
         }
 
         $contact = self::upsertDonorContact( $normalized );
         $did = (string) ( $contact['did'] ?? '' );
         $transactions = \Metis_Tables::get( 'transactions' );
         if ( $transactions === '' ) {
-            return;
+            return '';
         }
 
         $payment_intent_id = (string) ( $intent->id ?? '' );
@@ -938,7 +979,7 @@ trait SharedRepositoryLogic {
                 [ $payment_intent_id ]
             );
             if ( $existing > 0 ) {
-                return;
+                return '';
             }
         }
 
@@ -1010,6 +1051,7 @@ trait SharedRepositoryLogic {
                 ]
             );
         }
+        return (string) $payload['tid'];
     }
 
     private static function upsertDonorContact( array $normalized ): array {
