@@ -214,6 +214,27 @@ final class SchemaManager {
             signed_pdf_url VARCHAR(255) DEFAULT NULL,
             signed_pdf_title VARCHAR(191) DEFAULT NULL,
             status VARCHAR(24) NOT NULL DEFAULT 'active',
+            approval_stage VARCHAR(32) NOT NULL DEFAULT 'active',
+            version_number INT UNSIGNED NOT NULL DEFAULT 1,
+            document_hash VARCHAR(64) DEFAULT NULL,
+            pdf_hash VARCHAR(64) DEFAULT NULL,
+            generated_pdf_path VARCHAR(255) DEFAULT NULL,
+            meeting_id BIGINT UNSIGNED DEFAULT NULL,
+            decision_id BIGINT UNSIGNED DEFAULT NULL,
+            action_item_id BIGINT UNSIGNED DEFAULT NULL,
+            secretary_person_id BIGINT UNSIGNED DEFAULT NULL,
+            secretary_signature_name VARCHAR(191) DEFAULT NULL,
+            secretary_certified_at DATETIME DEFAULT NULL,
+            secretary_context_json LONGTEXT DEFAULT NULL,
+            president_person_id BIGINT UNSIGNED DEFAULT NULL,
+            president_signature_name VARCHAR(191) DEFAULT NULL,
+            president_approved_at DATETIME DEFAULT NULL,
+            president_context_json LONGTEXT DEFAULT NULL,
+            board_vote_context_json LONGTEXT DEFAULT NULL,
+            approved_by_person_id BIGINT UNSIGNED DEFAULT NULL,
+            approved_signature_name VARCHAR(191) DEFAULT NULL,
+            approval_context_json LONGTEXT DEFAULT NULL,
+            change_summary LONGTEXT DEFAULT NULL,
             effective_date DATE DEFAULT NULL,
             approved_at DATETIME DEFAULT NULL,
             created_by_person_id BIGINT UNSIGNED DEFAULT NULL,
@@ -222,6 +243,11 @@ final class SchemaManager {
             PRIMARY KEY (id),
             UNIQUE KEY bylaw_code (bylaw_code),
             KEY status (status),
+            KEY approval_stage (approval_stage),
+            KEY version_number (version_number),
+            KEY meeting_id (meeting_id),
+            KEY decision_id (decision_id),
+            KEY action_item_id (action_item_id),
             KEY effective_date (effective_date),
             KEY updated_at (updated_at)
         ) {$charset_collate};";
@@ -270,7 +296,7 @@ final class SchemaManager {
         \metis_db_delta( $sql_bylaws );
         \metis_db_delta( $sql_agenda_templates );
         \metis_db_delta( $sql_decision_templates );
-        self::ensureRequiredColumns( $committees_table, $meetings_table, $decisions_table );
+        self::ensureRequiredColumns( $committees_table, $meetings_table, $decisions_table, $bylaws_table );
 
         if ( function_exists( 'metis_entity_id_service' ) ) {
             \metis_entity_id_service()->ensureSchema();
@@ -279,7 +305,7 @@ final class SchemaManager {
         self::$schema_ready = true;
     }
 
-    private static function ensureRequiredColumns( string $committees_table, string $meetings_table, string $decisions_table ): void {
+    private static function ensureRequiredColumns( string $committees_table, string $meetings_table, string $decisions_table, string $bylaws_table ): void {
         $db = self::db();
         $committee_cols = self::tableColumns( $committees_table );
         if ( ! isset( $committee_cols['newsletter_list_id'] ) ) {
@@ -300,6 +326,44 @@ final class SchemaManager {
         $decision_cols = self::tableColumns( $decisions_table );
         if ( ! isset( $decision_cols['decision_votes_json'] ) ) {
             $db->execute( "ALTER TABLE {$decisions_table} ADD COLUMN decision_votes_json LONGTEXT DEFAULT NULL AFTER votes_abstain" );
+        }
+
+        $bylaws_cols = self::tableColumns( $bylaws_table );
+        $bylaws_columns = [
+            'approval_stage'          => "VARCHAR(32) NOT NULL DEFAULT 'active' AFTER status",
+            'version_number'          => "INT UNSIGNED NOT NULL DEFAULT 1 AFTER approval_stage",
+            'document_hash'           => "VARCHAR(64) DEFAULT NULL AFTER version_number",
+            'pdf_hash'                => "VARCHAR(64) DEFAULT NULL AFTER document_hash",
+            'generated_pdf_path'      => "VARCHAR(255) DEFAULT NULL AFTER pdf_hash",
+            'meeting_id'              => "BIGINT UNSIGNED DEFAULT NULL AFTER generated_pdf_path",
+            'decision_id'             => "BIGINT UNSIGNED DEFAULT NULL AFTER meeting_id",
+            'action_item_id'          => "BIGINT UNSIGNED DEFAULT NULL AFTER decision_id",
+            'secretary_person_id'     => "BIGINT UNSIGNED DEFAULT NULL AFTER action_item_id",
+            'secretary_signature_name'=> "VARCHAR(191) DEFAULT NULL AFTER secretary_person_id",
+            'secretary_certified_at'  => "DATETIME DEFAULT NULL AFTER secretary_signature_name",
+            'secretary_context_json'  => "LONGTEXT DEFAULT NULL AFTER secretary_certified_at",
+            'president_person_id'     => "BIGINT UNSIGNED DEFAULT NULL AFTER secretary_context_json",
+            'president_signature_name'=> "VARCHAR(191) DEFAULT NULL AFTER president_person_id",
+            'president_approved_at'   => "DATETIME DEFAULT NULL AFTER president_signature_name",
+            'president_context_json'  => "LONGTEXT DEFAULT NULL AFTER president_approved_at",
+            'board_vote_context_json' => "LONGTEXT DEFAULT NULL AFTER president_context_json",
+            'approved_by_person_id'   => "BIGINT UNSIGNED DEFAULT NULL AFTER board_vote_context_json",
+            'approved_signature_name' => "VARCHAR(191) DEFAULT NULL AFTER approved_by_person_id",
+            'approval_context_json'   => "LONGTEXT DEFAULT NULL AFTER approved_signature_name",
+            'change_summary'          => "LONGTEXT DEFAULT NULL AFTER approval_context_json",
+        ];
+        foreach ( $bylaws_columns as $column => $definition ) {
+            if ( ! isset( $bylaws_cols[ $column ] ) ) {
+                $db->execute( "ALTER TABLE {$bylaws_table} ADD COLUMN {$column} {$definition}" );
+            }
+        }
+        if ( ! self::tableIndexExists( $bylaws_table, 'version_number' ) ) {
+            $db->execute( "ALTER TABLE {$bylaws_table} ADD KEY version_number (version_number)" );
+        }
+        foreach ( [ 'approval_stage', 'meeting_id', 'decision_id', 'action_item_id' ] as $index_name ) {
+            if ( ! self::tableIndexExists( $bylaws_table, $index_name ) ) {
+                $db->execute( "ALTER TABLE {$bylaws_table} ADD KEY {$index_name} ({$index_name})" );
+            }
         }
     }
 

@@ -236,6 +236,52 @@
     gap: 10px 14px;
 }
 
+.metis-board-bylaws-history {
+    margin-top: 16px;
+    border-top: 1px solid var(--metis-border);
+    padding-top: 14px;
+}
+
+.metis-board-bylaws-history h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+}
+
+.metis-board-bylaws-history-list,
+.metis-board-bylaws-pdf-options {
+    display: grid;
+    gap: 10px;
+}
+
+.metis-board-bylaws-history-row,
+.metis-board-bylaws-pdf-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    border: 1px solid var(--metis-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+}
+
+.metis-board-bylaws-history-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--metis-text-muted);
+    font-size: 12px;
+}
+
+.metis-board-bylaws-pdf-picker {
+    display: flex;
+    gap: 8px;
+}
+
+.metis-board-bylaws-pdf-picker .metis-input {
+    flex: 1 1 auto;
+}
+
 .metis-board-bylaws-format-preview {
     max-height: 420px;
     overflow: auto;

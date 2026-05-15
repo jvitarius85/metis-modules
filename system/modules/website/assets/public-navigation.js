@@ -157,7 +157,7 @@
       e.stopPropagation();
 
       if (alreadyOpen) {
-        if (isNavigableUrl(url)) {
+        if (!mobileViewport && isNavigableUrl(url)) {
           navigate(url);
           return;
         }

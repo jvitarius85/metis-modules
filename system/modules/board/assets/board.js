@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const bylawsSearchCount = document.getElementById('metis-board-bylaws-search-count');
     const bylawsSearchPrev = document.getElementById('metis-board-bylaws-search-prev');
     const bylawsSearchNext = document.getElementById('metis-board-bylaws-search-next');
+    const bylawsHistory = document.getElementById('metis-board-bylaws-history');
+    const bylawsPdfBrowserModal = document.getElementById('metis-board-bylaws-pdf-browser-modal');
+    const bylawsPdfOptions = document.getElementById('metis-board-bylaws-pdf-options');
     const dashboardActionRowsContainer = document.getElementById('metis-board-dashboard-action-rows');
     const detailActionRowsContainer = document.getElementById('metis-board-action-rows');
     const decisionRowsContainer = document.getElementById('metis-board-decision-rows');
@@ -420,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return ''
             + '<div class="metis-board-bylaws-summary">'
             + '<strong>' + escHtml(title) + '</strong>'
-            + '<span class="metis-muted">Formatted bylaws are available for review.</span>'
+            + '<span class="metis-muted">' + escHtml(String(payload.status || '') === 'active' ? 'Current approved bylaws version ' : 'Bylaws workflow version ') + escHtml(payload.version_number || '1') + '.</span>'
             + '<button id="metis-board-view-bylaws" class="metis-btn metis-btn-ghost metis-btn-xs" type="button">View Bylaws</button>'
             + '</div>';
     }
@@ -523,6 +526,26 @@ document.addEventListener('DOMContentLoaded', function () {
         applyBylawsSearch();
     }
 
+    function bylawsHistoryHtml(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) return '';
+        return ''
+            + '<h3>Approved Bylaws History</h3>'
+            + '<div class="metis-board-bylaws-history-list">'
+            + list.map(function (row) {
+                const url = String(row.signed_pdf_url || '').trim();
+                return '<div class="metis-board-bylaws-history-row">'
+                    + '<div><strong>' + escHtml(row.title || 'Bylaws') + '</strong>'
+                    + '<span class="metis-muted">Version ' + escHtml(row.version_number || '1') + ' · ' + escHtml(String(row.status || '') === 'active' ? 'Current' : 'Superseded') + '</span>'
+                    + (String(row.change_summary || '').trim() ? '<div class="metis-muted">' + escHtml(row.change_summary) + '</div>' : '')
+                    + '</div>'
+                    + '<div class="metis-board-bylaws-history-meta"><span>Effective ' + escHtml(row.effective_date_label || '—') + '</span><span>Approved ' + escHtml(row.approved_at_label || '—') + '</span><span>Updated ' + escHtml(row.updated_at_label || '—') + '</span></div>'
+                    + (url ? '<a class="metis-btn-xs metis-btn-ghost" href="' + escHtml(url) + '" target="_blank" rel="noopener">PDF</a>' : '')
+                    + '</div>';
+            }).join('')
+            + '</div>';
+    }
+
     function updateBylawsPanel(payload) {
         if (!payload || typeof payload !== 'object') return;
 
@@ -538,6 +561,8 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshBylawsReader(formatted);
         if (bylawsMeta) {
             bylawsMeta.innerHTML = ''
+                + '<span>Version: <strong>' + escHtml(payload.version_number || '1') + '</strong></span>'
+                + '<span>Workflow: <strong>' + escHtml(String(payload.approval_stage || payload.status || 'draft').replace(/_/g, ' ')) + '</strong></span>'
                 + '<span>Effective: <strong>' + escHtml(payload.effective_date_label || '—') + '</strong></span>'
                 + '<span>Approved: <strong>' + escHtml(payload.approved_at_label || '—') + '</strong></span>'
                 + '<span>Updated: <strong>' + escHtml(payload.updated_at_label || '—') + '</strong></span>';
@@ -563,11 +588,19 @@ document.addEventListener('DOMContentLoaded', function () {
         set('metis-board-bylaws-id', payload.id || 0);
         set('metis-board-bylaws-title', payload.title || 'Bylaws');
         set('metis-board-bylaws-effective', payload.effective_date || '');
-        set('metis-board-bylaws-approved', dtLocal(payload.approved_at || ''));
+        set('metis-board-bylaws-stage', String(payload.approval_stage || payload.status || 'draft').replace(/_/g, ' '));
+        set('metis-board-bylaws-meeting', payload.meeting_id || '');
+        set('metis-board-bylaws-decision', payload.decision_id || '');
+        set('metis-board-bylaws-action', payload.action_item_id || '');
         set('metis-board-bylaws-pdf-url', payload.signed_pdf_url || '');
         set('metis-board-bylaws-pdf-id', payload.signed_pdf_file_id || '');
         set('metis-board-bylaws-pdf-title', payload.signed_pdf_title || 'Signed bylaws PDF');
+        set('metis-board-bylaws-change-summary', payload.change_summary || '');
         set('metis-board-bylaws-source', payload.source_text || '');
+        const secretaryStatus = document.getElementById('metis-board-bylaws-secretary-status');
+        if (secretaryStatus) secretaryStatus.textContent = payload.secretary_signature_name || 'Not certified';
+        const presidentStatus = document.getElementById('metis-board-bylaws-president-status');
+        if (presidentStatus) presidentStatus.textContent = payload.president_signature_name || 'Not approved';
 
         const editBtn = document.getElementById('metis-board-edit-bylaws');
         if (editBtn) editBtn.textContent = parseId(payload.id) > 0 ? 'Edit Bylaws' : 'Add Bylaws';
@@ -2412,10 +2445,17 @@ document.addEventListener('DOMContentLoaded', function () {
     bylawsToc?.addEventListener('click', function (event) {
         const link = event.target.closest('a[href^="#"]');
         if (!link || !bylawsReader) return;
-        const target = bylawsReader.querySelector(link.getAttribute('href'));
-        if (!target) return;
         event.preventDefault();
-        target.scrollIntoView({ block: 'start', inline: 'nearest' });
+        const rawId = String(link.getAttribute('href') || '').replace(/^#/, '');
+        const selector = '#' + (window.CSS && typeof CSS.escape === 'function' ? CSS.escape(rawId) : rawId.replace(/"/g, '\\"'));
+        const target = bylawsReader.querySelector(selector);
+        if (!target) return;
+        const readerRect = bylawsReader.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        bylawsReader.scrollTo({
+            top: Math.max(0, bylawsReader.scrollTop + targetRect.top - readerRect.top - 10),
+            behavior: 'smooth'
+        });
     });
 
     bylawsSearch?.addEventListener('input', applyBylawsSearch);
@@ -2675,21 +2715,91 @@ document.addEventListener('DOMContentLoaded', function () {
             bylaw_id: document.getElementById('metis-board-bylaws-id')?.value || '0',
             title: document.getElementById('metis-board-bylaws-title')?.value || 'Bylaws',
             effective_date: document.getElementById('metis-board-bylaws-effective')?.value || '',
-            approved_at: document.getElementById('metis-board-bylaws-approved')?.value || '',
+            meeting_id: document.getElementById('metis-board-bylaws-meeting')?.value || '',
+            decision_id: document.getElementById('metis-board-bylaws-decision')?.value || '',
+            action_item_id: document.getElementById('metis-board-bylaws-action')?.value || '',
             signed_pdf_url: document.getElementById('metis-board-bylaws-pdf-url')?.value || '',
             signed_pdf_file_id: document.getElementById('metis-board-bylaws-pdf-id')?.value || '',
             signed_pdf_title: document.getElementById('metis-board-bylaws-pdf-title')?.value || 'Signed bylaws PDF',
+            change_summary: document.getElementById('metis-board-bylaws-change-summary')?.value || '',
             source_text: document.getElementById('metis-board-bylaws-source')?.value || ''
         }).then(function (data) {
             const saved = data && data.bylaws && typeof data.bylaws === 'object' ? data.bylaws : null;
             if (saved) {
                 updateBylawsPanel(saved);
             }
-            closeModal(bylawsModal);
-            showAlert('Bylaws saved.', 'success');
+            if (bylawsHistory && Array.isArray(data && data.history)) {
+                bylawsHistory.innerHTML = bylawsHistoryHtml(data.history);
+            }
+            showAlert('Bylaws draft saved. Secretary certification is the next approval step.', 'success');
         }).catch(function (err) {
             showAlert(err.message || 'Failed to save bylaws.', 'error');
         });
+    });
+
+    document.getElementById('metis-board-secretary-certify-bylaws')?.addEventListener('click', function () {
+        post('metis_board_secretary_certify_bylaws', {
+            bylaw_id: document.getElementById('metis-board-bylaws-id')?.value || '0'
+        }).then(function (data) {
+            const saved = data && data.bylaws && typeof data.bylaws === 'object' ? data.bylaws : null;
+            if (saved) updateBylawsPanel(saved);
+            if (bylawsHistory && Array.isArray(data && data.history)) {
+                bylawsHistory.innerHTML = bylawsHistoryHtml(data.history);
+            }
+            showAlert('Bylaws certified by secretary. President approval is now available after the linked board vote is approved.', 'success');
+        }).catch(function (err) {
+            showAlert(err.message || 'Failed to certify bylaws.', 'error');
+        });
+    });
+
+    document.getElementById('metis-board-president-approve-bylaws')?.addEventListener('click', function () {
+        post('metis_board_president_approve_bylaws', {
+            bylaw_id: document.getElementById('metis-board-bylaws-id')?.value || '0'
+        }).then(function (data) {
+            const saved = data && data.bylaws && typeof data.bylaws === 'object' ? data.bylaws : null;
+            if (saved) updateBylawsPanel(saved);
+            if (bylawsHistory && Array.isArray(data && data.history)) {
+                bylawsHistory.innerHTML = bylawsHistoryHtml(data.history);
+            }
+            closeModal(bylawsModal);
+            showAlert('Bylaws approved by president and activated.', 'success');
+        }).catch(function (err) {
+            showAlert(err.message || 'Failed to approve bylaws.', 'error');
+        });
+    });
+
+    document.getElementById('metis-board-browse-bylaws-pdf')?.addEventListener('click', function () {
+        if (!bylawsPdfBrowserModal || !bylawsPdfOptions) return;
+        bylawsPdfOptions.innerHTML = '<div class="metis-muted">Loading PDF options...</div>';
+        openModal(bylawsPdfBrowserModal);
+        post('metis_board_list_bylaws_pdf_options', {}).then(function (data) {
+            const options = Array.isArray(data && data.options) ? data.options : [];
+            if (!options.length) {
+                bylawsPdfOptions.innerHTML = '<div class="metis-empty-state">No PDF files found.</div>';
+                return;
+            }
+            bylawsPdfOptions.innerHTML = options.map(function (option) {
+                return '<button type="button" class="metis-board-bylaws-pdf-option" data-pdf-id="' + escHtml(option.id || '') + '" data-pdf-url="' + escHtml(option.url || '') + '" data-pdf-title="' + escHtml(option.title || 'Signed bylaws PDF') + '">'
+                    + '<span><strong>' + escHtml(option.title || 'Signed bylaws PDF') + '</strong><span class="metis-muted">' + escHtml(option.meta || option.source || '') + '</span></span>'
+                    + '<span class="metis-btn-xs metis-btn-ghost">Select</span>'
+                    + '</button>';
+            }).join('');
+        }).catch(function (err) {
+            bylawsPdfOptions.innerHTML = '<div class="metis-empty-state">' + escHtml(err.message || 'Failed to load PDF options.') + '</div>';
+        });
+    });
+
+    bylawsPdfOptions?.addEventListener('click', function (event) {
+        const option = event.target.closest('.metis-board-bylaws-pdf-option');
+        if (!option) return;
+        const set = function (id, value) {
+            const el = document.getElementById(id);
+            if (el) el.value = String(value || '');
+        };
+        set('metis-board-bylaws-pdf-id', option.dataset.pdfId || '');
+        set('metis-board-bylaws-pdf-url', option.dataset.pdfUrl || '');
+        set('metis-board-bylaws-pdf-title', option.dataset.pdfTitle || 'Signed bylaws PDF');
+        closeModal(bylawsPdfBrowserModal);
     });
 
     const driveWrap = document.querySelector('.metis-board-drive-wrap');

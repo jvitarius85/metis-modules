@@ -375,7 +375,12 @@ function metis_board_fetch_bylaws_summary(int $bylaw_id = 0): array {
     if ($bylaw_id > 0) {
         $row = $db->fetchOne(
             "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
-                    signed_pdf_title, status, effective_date, approved_at, updated_at
+                    signed_pdf_title, status, approval_stage, version_number, document_hash, pdf_hash, generated_pdf_path,
+                    meeting_id, decision_id, action_item_id, secretary_person_id, secretary_signature_name,
+                    secretary_certified_at, secretary_context_json, president_person_id, president_signature_name,
+                    president_approved_at, president_context_json, board_vote_context_json,
+                    approved_by_person_id, approved_signature_name, approval_context_json, change_summary,
+                    effective_date, approved_at, updated_at
              FROM {$table}
              WHERE id = %d
              LIMIT 1",
@@ -384,10 +389,15 @@ function metis_board_fetch_bylaws_summary(int $bylaw_id = 0): array {
     } else {
         $row = $db->fetchOne(
             "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
-                    signed_pdf_title, status, effective_date, approved_at, updated_at
+                    signed_pdf_title, status, approval_stage, version_number, document_hash, pdf_hash, generated_pdf_path,
+                    meeting_id, decision_id, action_item_id, secretary_person_id, secretary_signature_name,
+                    secretary_certified_at, secretary_context_json, president_person_id, president_signature_name,
+                    president_approved_at, president_context_json, board_vote_context_json,
+                    approved_by_person_id, approved_signature_name, approval_context_json, change_summary,
+                    effective_date, approved_at, updated_at
              FROM {$table}
              WHERE status = 'active'
-             ORDER BY (effective_date IS NULL), effective_date DESC, updated_at DESC, id DESC
+             ORDER BY version_number DESC, (effective_date IS NULL), effective_date DESC, updated_at DESC, id DESC
              LIMIT 1"
         );
     }
@@ -410,6 +420,26 @@ function metis_board_fetch_bylaws_summary(int $bylaw_id = 0): array {
         'signed_pdf_url' => (string) ($row['signed_pdf_url'] ?? ''),
         'signed_pdf_title' => (string) ($row['signed_pdf_title'] ?? ''),
         'status' => (string) ($row['status'] ?? 'active'),
+        'approval_stage' => (string) ($row['approval_stage'] ?? ($row['status'] ?? 'active')),
+        'version_number' => (int) ($row['version_number'] ?? 1),
+        'document_hash' => (string) ($row['document_hash'] ?? ''),
+        'pdf_hash' => (string) ($row['pdf_hash'] ?? ''),
+        'generated_pdf_path' => (string) ($row['generated_pdf_path'] ?? ''),
+        'meeting_id' => (int) ($row['meeting_id'] ?? 0),
+        'decision_id' => (int) ($row['decision_id'] ?? 0),
+        'action_item_id' => (int) ($row['action_item_id'] ?? 0),
+        'secretary_person_id' => (int) ($row['secretary_person_id'] ?? 0),
+        'secretary_signature_name' => (string) ($row['secretary_signature_name'] ?? ''),
+        'secretary_certified_at' => (string) ($row['secretary_certified_at'] ?? ''),
+        'secretary_certified_at_label' => !empty($row['secretary_certified_at']) ? metis_board_format_datetime((string) $row['secretary_certified_at']) : '—',
+        'president_person_id' => (int) ($row['president_person_id'] ?? 0),
+        'president_signature_name' => (string) ($row['president_signature_name'] ?? ''),
+        'president_approved_at' => (string) ($row['president_approved_at'] ?? ''),
+        'president_approved_at_label' => !empty($row['president_approved_at']) ? metis_board_format_datetime((string) $row['president_approved_at']) : '—',
+        'approved_by_person_id' => (int) ($row['approved_by_person_id'] ?? 0),
+        'approved_signature_name' => (string) ($row['approved_signature_name'] ?? ''),
+        'approval_context_json' => (string) ($row['approval_context_json'] ?? ''),
+        'change_summary' => (string) ($row['change_summary'] ?? ''),
         'effective_date' => $effective_date,
         'effective_date_label' => $effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($effective_date, null, null, null, '—') : ($effective_date !== '' ? $effective_date : '—'),
         'approved_at' => $approved_at,
@@ -417,6 +447,93 @@ function metis_board_fetch_bylaws_summary(int $bylaw_id = 0): array {
         'updated_at' => $updated_at,
         'updated_at_label' => $updated_at !== '' ? metis_board_format_datetime($updated_at) : '—',
     ];
+}
+
+function metis_board_fetch_bylaws_history(int $limit = 20): array {
+    $table = Metis_Tables::get('board_bylaws');
+    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) {
+        return [];
+    }
+    $db = metis_db();
+    $rows = $db->fetchAll(
+        "SELECT id, bylaw_code, title, signed_pdf_url, signed_pdf_title, status, approval_stage, version_number,
+                document_hash, pdf_hash, approved_signature_name, president_signature_name, secretary_signature_name, change_summary,
+                effective_date, approved_at, updated_at
+         FROM {$table}
+         WHERE status IN ('active', 'archived')
+         ORDER BY version_number DESC, approved_at DESC, updated_at DESC, id DESC
+         LIMIT %d",
+        [ max(1, min(100, $limit)) ]
+    ) ?: [];
+    $out = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) continue;
+        $effective_date = (string) ($row['effective_date'] ?? '');
+        $approved_at = (string) ($row['approved_at'] ?? '');
+        $updated_at = (string) ($row['updated_at'] ?? '');
+        $out[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'bylaw_code' => (string) ($row['bylaw_code'] ?? ''),
+            'title' => (string) ($row['title'] ?? 'Bylaws'),
+            'signed_pdf_url' => (string) ($row['signed_pdf_url'] ?? ''),
+            'signed_pdf_title' => (string) ($row['signed_pdf_title'] ?? ''),
+            'status' => (string) ($row['status'] ?? ''),
+            'approval_stage' => (string) ($row['approval_stage'] ?? ''),
+            'version_number' => (int) ($row['version_number'] ?? 1),
+            'document_hash' => (string) ($row['document_hash'] ?? ''),
+            'pdf_hash' => (string) ($row['pdf_hash'] ?? ''),
+            'approved_signature_name' => (string) ($row['approved_signature_name'] ?? ''),
+            'president_signature_name' => (string) ($row['president_signature_name'] ?? ''),
+            'secretary_signature_name' => (string) ($row['secretary_signature_name'] ?? ''),
+            'change_summary' => (string) ($row['change_summary'] ?? ''),
+            'effective_date_label' => $effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($effective_date, null, null, null, '—') : ($effective_date !== '' ? $effective_date : '—'),
+            'approved_at_label' => $approved_at !== '' ? metis_board_format_datetime($approved_at) : '—',
+            'updated_at_label' => $updated_at !== '' ? metis_board_format_datetime($updated_at) : '—',
+        ];
+    }
+    return $out;
+}
+
+function metis_board_bylaws_signature_name(): string {
+    $person_id = metis_board_current_person_id();
+    if ($person_id > 0) {
+        $people_table = Metis_Tables::get('people');
+        $name = (string) metis_db()->scalar("SELECT display_name FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
+        if (trim($name) !== '') return trim($name);
+    }
+    $user = function_exists('metis_runtime_current_user') ? metis_runtime_current_user() : null;
+    if (is_object($user)) {
+        $name = trim((string) ($user->display_name ?? $user->user_login ?? ''));
+        if ($name !== '') return $name;
+    }
+    return 'Metis approver';
+}
+
+function metis_board_render_bylaws_pdf_bytes(array $formatted, array $metadata): array {
+    if (!class_exists('Core_PDF_Service')) {
+        return ['ok' => false, 'error' => 'PDF service is not available.'];
+    }
+    $title = metis_escape_html((string) ($metadata['title'] ?? 'Bylaws'));
+    $signature = metis_escape_html((string) ($metadata['signature'] ?? ''));
+    $approved = metis_escape_html((string) ($metadata['approved_at'] ?? ''));
+    $document_hash = metis_escape_html((string) ($metadata['document_hash'] ?? ''));
+    $body = (string) ($formatted['html'] ?? '');
+    $html = '<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:DejaVu Sans,Arial,sans-serif;color:#111827;font-size:12px;line-height:1.55;}h1,h2,h3,h4{color:#111827;}h1{font-size:22px;margin:0 0 8px;}h2{font-size:18px;}h3{font-size:16px;margin-top:22px;border-top:1px solid #e5e7eb;padding-top:12px;}h4{font-size:14px;margin-top:16px;}p{margin:0 0 10px;}ol,ul{margin:0 0 10px 24px;}li{margin-bottom:6px;}.metis-board-bylaws-document>h2{display:none;}.signature{margin-top:32px;border-top:1px solid #cbd5e1;padding-top:12px;font-size:11px;color:#475569;}</style></head><body><h1>' . $title . '</h1>' . $body . '<div class="signature"><strong>Approved by:</strong> ' . $signature . '<br><strong>Approved at:</strong> ' . $approved . '<br><strong>Document SHA-256:</strong> ' . $document_hash . '</div></body></html>';
+    $pdf = new Core_PDF_Service(['defaultFont' => 'DejaVu Sans']);
+    return ['ok' => true, 'bytes' => $pdf->render_with_footer($html, 'Metis Board Bylaws', ['paper' => 'letter', 'orientation' => 'portrait'])];
+}
+
+function metis_board_store_bylaws_pdf(string $bylaw_code, string $pdf_bytes): string {
+    $dir = METIS_ROOT . '/storage/private-records/board/bylaws';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
+    if (!is_dir($dir) || !is_writable($dir)) {
+        return '';
+    }
+    $path = $dir . '/' . metis_filename_clean($bylaw_code . '.pdf');
+    file_put_contents($path, $pdf_bytes, LOCK_EX);
+    return $path;
 }
 
 function metis_board_normalize_bylaws_date(string $value): ?string {
@@ -454,6 +571,55 @@ function metis_board_normalize_pdf_url(string $url): string {
     return $url;
 }
 
+function metis_board_bylaws_audit_context(string $stage, string $document_hash = '', string $pdf_hash = ''): array {
+    return [
+        'stage' => $stage,
+        'person_id' => metis_board_current_person_id(),
+        'signature_name' => metis_board_bylaws_signature_name(),
+        'ip_address' => function_exists('metis_audit_ip_address') ? metis_audit_ip_address() : '',
+        'user_agent' => function_exists('metis_audit_user_agent') ? metis_audit_user_agent() : '',
+        'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
+        'document_hash' => $document_hash,
+        'pdf_hash' => $pdf_hash,
+    ];
+}
+
+function metis_board_fetch_bylaws_row(int $bylaw_id): array {
+    if ($bylaw_id < 1) return [];
+    $table = Metis_Tables::get('board_bylaws');
+    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) return [];
+    $row = metis_db()->fetchOne("SELECT * FROM {$table} WHERE id = %d LIMIT 1", [ $bylaw_id ]);
+    return is_array($row) ? $row : [];
+}
+
+function metis_board_fetch_bylaws_decision(int $decision_id): array {
+    if ($decision_id < 1) return [];
+    $table = Metis_Tables::get('board_decisions');
+    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) return [];
+    $row = metis_db()->fetchOne(
+        "SELECT id, decision_code, meeting_id, title, outcome, votes_for, votes_against, votes_abstain, passed, passed_at
+         FROM {$table}
+         WHERE id = %d
+         LIMIT 1",
+        [ $decision_id ]
+    );
+    return is_array($row) ? $row : [];
+}
+
+function metis_board_fetch_bylaws_action_item(int $action_item_id): array {
+    if ($action_item_id < 1) return [];
+    $table = Metis_Tables::get('board_action_items');
+    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) return [];
+    $row = metis_db()->fetchOne(
+        "SELECT id, action_code, meeting_id, decision_id, title, status
+         FROM {$table}
+         WHERE id = %d
+         LIMIT 1",
+        [ $action_item_id ]
+    );
+    return is_array($row) ? $row : [];
+}
+
 function metis_board_register_ajax_controllers(): void {
     $actions = [
         'metis_board_save_committee' => 'edit',
@@ -464,6 +630,9 @@ function metis_board_register_ajax_controllers(): void {
         'metis_board_save_announcement' => 'edit',
         'metis_board_format_bylaws' => 'edit',
         'metis_board_save_bylaws' => 'edit',
+        'metis_board_secretary_certify_bylaws' => 'edit',
+        'metis_board_president_approve_bylaws' => 'edit',
+        'metis_board_list_bylaws_pdf_options' => 'edit',
         'metis_board_prepare_meeting_workspace' => 'edit',
         'metis_board_generate_packet_pdf' => 'edit',
         'metis_board_get_workflow_templates' => 'view',
@@ -857,8 +1026,11 @@ metis_ajax_register_handler( 'metis_board_save_bylaws', function () {
     $signed_pdf_url = metis_board_normalize_pdf_url((string) metis_runtime_unslash($post['signed_pdf_url'] ?? ''));
     $signed_pdf_file_id = metis_text_clean(metis_runtime_unslash($post['signed_pdf_file_id'] ?? ''));
     $signed_pdf_title = metis_text_clean(metis_runtime_unslash($post['signed_pdf_title'] ?? 'Signed bylaws PDF'));
+    $change_summary = metis_textarea_clean(metis_runtime_unslash($post['change_summary'] ?? ''));
     $effective_date = metis_board_normalize_bylaws_date(metis_text_clean(metis_runtime_unslash($post['effective_date'] ?? '')));
-    $approved_at = metis_board_normalize_bylaws_datetime(metis_text_clean(metis_runtime_unslash($post['approved_at'] ?? '')));
+    $meeting_id = max(0, (int) ($post['meeting_id'] ?? 0));
+    $decision_id = max(0, (int) ($post['decision_id'] ?? 0));
+    $action_item_id = max(0, (int) ($post['action_item_id'] ?? 0));
 
     if ($title === '') {
         $title = 'Bylaws';
@@ -877,6 +1049,18 @@ metis_ajax_register_handler( 'metis_board_save_bylaws', function () {
     }
 
     $formatted = \Metis\Modules\Board\BylawsFormatter::format($source_text, $title);
+    $person_id = metis_board_current_person_id();
+    $document_hash = hash('sha256', $title . "\n" . $source_text . "\n" . (string) ($formatted['html'] ?? ''));
+
+    $current = metis_board_fetch_bylaws_row($bylaw_id);
+    $can_update_existing = $current
+        && in_array((string) ($current['status'] ?? ''), ['draft', 'pending_president'], true)
+        && !in_array((string) ($current['approval_stage'] ?? ''), ['active', 'archived'], true);
+    $next_version = $can_update_existing
+        ? (int) ($current['version_number'] ?? 1)
+        : (int) $db->scalar("SELECT COALESCE(MAX(version_number), 0) + 1 FROM {$table}");
+    if ($next_version < 1) $next_version = 1;
+
     $payload = [
         'title' => $title,
         'source_text' => $source_text,
@@ -884,41 +1068,49 @@ metis_ajax_register_handler( 'metis_board_save_bylaws', function () {
         'signed_pdf_file_id' => $signed_pdf_file_id !== '' ? $signed_pdf_file_id : null,
         'signed_pdf_url' => $signed_pdf_url !== '' ? $signed_pdf_url : null,
         'signed_pdf_title' => $signed_pdf_title,
-        'status' => 'active',
+        'status' => 'draft',
+        'approval_stage' => 'draft',
+        'version_number' => $next_version,
+        'document_hash' => $document_hash,
+        'meeting_id' => $meeting_id > 0 ? $meeting_id : null,
+        'decision_id' => $decision_id > 0 ? $decision_id : null,
+        'action_item_id' => $action_item_id > 0 ? $action_item_id : null,
+        'change_summary' => $change_summary !== '' ? $change_summary : null,
         'effective_date' => $effective_date,
-        'approved_at' => $approved_at,
     ];
 
-    if ($bylaw_id > 0) {
+    if ($can_update_existing) {
         $ok = $db->update(
             $table,
             $payload,
-            [ 'id' => $bylaw_id ],
-            [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ],
-            [ '%d' ]
+            ['id' => $bylaw_id],
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s'],
+            ['%d']
         );
-        if ($ok === false) {
-            metis_runtime_send_json_error('Failed to update bylaws.', 500);
-        }
     } else {
-        $db->execute("UPDATE {$table} SET status = 'archived' WHERE status = 'active'");
         $payload['bylaw_code'] = metis_board_generate_code('BB', $table, 'bylaw_code');
-        $payload['created_by_person_id'] = metis_board_current_person_id();
+        $payload['created_by_person_id'] = $person_id > 0 ? $person_id : null;
         $ok = $db->insert(
             $table,
             $payload,
-            [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' ]
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%d']
         );
-        if (!$ok) {
-            metis_runtime_send_json_error('Failed to save bylaws.', 500);
+        if ($ok) {
+            $bylaw_id = (int) $db->lastInsertId();
         }
-        $bylaw_id = (int) $db->lastInsertId();
+    }
+    if (!$ok) {
+        metis_runtime_send_json_error('Failed to save bylaws.', 500);
     }
 
     if (function_exists('metis_audit_log_activity')) {
-        metis_audit_log_activity('board_bylaws_saved', [
+        metis_audit_log_activity('board_bylaws_draft_saved', [
             'bylaw_id' => $bylaw_id,
-            'bylaw_code' => (string) ($payload['bylaw_code'] ?? ''),
+            'version_number' => $next_version,
+            'document_hash' => $document_hash,
+            'meeting_id' => $meeting_id,
+            'decision_id' => $decision_id,
+            'action_item_id' => $action_item_id,
             'has_signed_pdf' => $signed_pdf_url !== '' || $signed_pdf_file_id !== '',
             'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
         ]);
@@ -928,6 +1120,241 @@ metis_ajax_register_handler( 'metis_board_save_bylaws', function () {
     metis_runtime_send_json_success([
         'bylaw_id' => $bylaw_id,
         'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
+        'history' => metis_board_fetch_bylaws_history(20),
+    ]);
+});
+
+metis_ajax_register_handler( 'metis_board_secretary_certify_bylaws', function () {
+    metis_board_ajax_verify(true);
+
+    $db = metis_db();
+    $table = Metis_Tables::get('board_bylaws');
+    $bylaw_id = (int) (metis_request_post()['bylaw_id'] ?? 0);
+    $row = metis_board_fetch_bylaws_row($bylaw_id);
+    if (!$row) metis_runtime_send_json_error('Bylaws draft not found.', 404);
+    if (!in_array((string) ($row['status'] ?? ''), ['draft', 'pending_president'], true)) {
+        metis_runtime_send_json_error('Only a draft bylaws version can be certified by the secretary.', 422);
+    }
+
+    $person_id = metis_board_current_person_id();
+    $signature_name = metis_board_bylaws_signature_name();
+    $document_hash = (string) ($row['document_hash'] ?? '');
+    $context = metis_board_bylaws_audit_context('secretary_certification', $document_hash);
+    $now = metis_current_time('mysql');
+    $ok = $db->update(
+        $table,
+        [
+            'status' => 'pending_president',
+            'approval_stage' => 'secretary_certified',
+            'secretary_person_id' => $person_id > 0 ? $person_id : null,
+            'secretary_signature_name' => $signature_name,
+            'secretary_certified_at' => $now,
+            'secretary_context_json' => metis_json_encode($context),
+        ],
+        ['id' => $bylaw_id],
+        ['%s', '%s', '%d', '%s', '%s', '%s'],
+        ['%d']
+    );
+    if ($ok === false) metis_runtime_send_json_error('Failed to certify bylaws.', 500);
+
+    if (function_exists('metis_audit_log_activity')) {
+        metis_audit_log_activity('board_bylaws_secretary_certified', [
+            'bylaw_id' => $bylaw_id,
+            'document_hash' => $document_hash,
+            'secretary_signature_name' => $signature_name,
+            'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
+        ]);
+    }
+
+    metis_portal_dashboard_forget_all();
+    metis_runtime_send_json_success([
+        'bylaw_id' => $bylaw_id,
+        'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
+        'history' => metis_board_fetch_bylaws_history(20),
+    ]);
+});
+
+metis_ajax_register_handler( 'metis_board_president_approve_bylaws', function () {
+    metis_board_ajax_verify(true);
+
+    $db = metis_db();
+    $table = Metis_Tables::get('board_bylaws');
+    $bylaw_id = (int) (metis_request_post()['bylaw_id'] ?? 0);
+    $row = metis_board_fetch_bylaws_row($bylaw_id);
+    if (!$row) metis_runtime_send_json_error('Bylaws draft not found.', 404);
+    if ((string) ($row['approval_stage'] ?? '') !== 'secretary_certified') {
+        metis_runtime_send_json_error('Secretary certification is required before president approval.', 422);
+    }
+
+    $decision_id = (int) ($row['decision_id'] ?? 0);
+    $action_item_id = (int) ($row['action_item_id'] ?? 0);
+    if ($decision_id < 1) {
+        metis_runtime_send_json_error('Link an approved board vote before president approval.', 422);
+    }
+    if ($action_item_id < 1) {
+        metis_runtime_send_json_error('Link the bylaws approval to a board action item before president approval.', 422);
+    }
+
+    $decision = metis_board_fetch_bylaws_decision($decision_id);
+    if (!$decision || (int) ($decision['passed'] ?? 0) !== 1 || (string) ($decision['outcome'] ?? '') !== 'approved') {
+        metis_runtime_send_json_error('The linked board vote must be approved before president approval.', 422);
+    }
+    $action_item = metis_board_fetch_bylaws_action_item($action_item_id);
+    if (!$action_item) {
+        metis_runtime_send_json_error('The linked board action item could not be found.', 422);
+    }
+
+    $person_id = metis_board_current_person_id();
+    $secretary_person_id = (int) ($row['secretary_person_id'] ?? 0);
+    if ($person_id > 0 && $secretary_person_id > 0 && $person_id === $secretary_person_id) {
+        metis_runtime_send_json_error('President approval must be performed by a different signer than secretary certification.', 422);
+    }
+
+    $title = (string) ($row['title'] ?? 'Bylaws');
+    $source_text = (string) ($row['source_text'] ?? '');
+    $formatted = \Metis\Modules\Board\BylawsFormatter::format($source_text, $title);
+    $document_hash = hash('sha256', $title . "\n" . $source_text . "\n" . (string) ($formatted['html'] ?? ''));
+    $approved_at = metis_current_time('mysql');
+    $signature_name = metis_board_bylaws_signature_name();
+    $pdf_hash = '';
+    $generated_pdf_path = '';
+    $pdf_result = metis_board_render_bylaws_pdf_bytes($formatted, [
+        'title' => $title,
+        'signature' => 'Secretary: ' . (string) ($row['secretary_signature_name'] ?? '') . ' | President: ' . $signature_name,
+        'approved_at' => $approved_at,
+        'document_hash' => $document_hash,
+    ]);
+    if (!empty($pdf_result['ok'])) {
+        $pdf_bytes = (string) ($pdf_result['bytes'] ?? '');
+        $pdf_hash = $pdf_bytes !== '' ? hash('sha256', $pdf_bytes) : '';
+        $generated_pdf_path = $pdf_bytes !== '' ? metis_board_store_bylaws_pdf((string) ($row['bylaw_code'] ?? ('BB' . $bylaw_id)), $pdf_bytes) : '';
+    }
+
+    $vote_context = [
+        'meeting_id' => (int) ($decision['meeting_id'] ?? 0),
+        'decision_id' => $decision_id,
+        'decision_code' => (string) ($decision['decision_code'] ?? ''),
+        'decision_title' => (string) ($decision['title'] ?? ''),
+        'votes_for' => (int) ($decision['votes_for'] ?? 0),
+        'votes_against' => (int) ($decision['votes_against'] ?? 0),
+        'votes_abstain' => (int) ($decision['votes_abstain'] ?? 0),
+        'passed_at' => (string) ($decision['passed_at'] ?? ''),
+        'action_item_id' => $action_item_id,
+        'action_item_code' => (string) ($action_item['action_code'] ?? ''),
+        'action_item_title' => (string) ($action_item['title'] ?? ''),
+    ];
+    $president_context = metis_board_bylaws_audit_context('president_approval', $document_hash, $pdf_hash);
+    $approval_context = [
+        'approval_model' => 'metis_two_step_bylaws_approval',
+        'secretary_context' => json_decode((string) ($row['secretary_context_json'] ?? '{}'), true) ?: [],
+        'president_context' => $president_context,
+        'board_vote_context' => $vote_context,
+    ];
+
+    $db->execute("UPDATE {$table} SET status = 'archived', approval_stage = 'archived' WHERE status = 'active'");
+    $ok = $db->update(
+        $table,
+        [
+            'status' => 'active',
+            'approval_stage' => 'active',
+            'formatted_html' => (string) ($formatted['html'] ?? ''),
+            'document_hash' => $document_hash,
+            'pdf_hash' => $pdf_hash !== '' ? $pdf_hash : null,
+            'generated_pdf_path' => $generated_pdf_path !== '' ? $generated_pdf_path : null,
+            'president_person_id' => $person_id > 0 ? $person_id : null,
+            'president_signature_name' => $signature_name,
+            'president_approved_at' => $approved_at,
+            'president_context_json' => metis_json_encode($president_context),
+            'board_vote_context_json' => metis_json_encode($vote_context),
+            'approved_by_person_id' => $person_id > 0 ? $person_id : null,
+            'approved_signature_name' => $signature_name,
+            'approval_context_json' => metis_json_encode($approval_context),
+            'approved_at' => $approved_at,
+        ],
+        ['id' => $bylaw_id],
+        ['%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s'],
+        ['%d']
+    );
+    if ($ok === false) metis_runtime_send_json_error('Failed to approve bylaws.', 500);
+
+    if (function_exists('metis_audit_log_activity')) {
+        metis_audit_log_activity('board_bylaws_president_approved', [
+            'bylaw_id' => $bylaw_id,
+            'document_hash' => $document_hash,
+            'pdf_hash' => $pdf_hash,
+            'decision_id' => $decision_id,
+            'action_item_id' => $action_item_id,
+            'president_signature_name' => $signature_name,
+            'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
+        ]);
+    }
+
+    metis_portal_dashboard_forget_all();
+    metis_runtime_send_json_success([
+        'bylaw_id' => $bylaw_id,
+        'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
+        'history' => metis_board_fetch_bylaws_history(20),
+    ]);
+});
+
+metis_ajax_register_handler( 'metis_board_list_bylaws_pdf_options', function () {
+    metis_board_ajax_verify(true);
+    $db = metis_db();
+    $options = [];
+    $drive_enabled = false;
+
+    if (function_exists('metis_drive_workspace_settings')) {
+        $cfg = metis_drive_workspace_settings();
+        $drive_enabled = !empty($cfg['ok']);
+    }
+
+    if ($drive_enabled && Metis_Tables::has('drive_items')) {
+        $items_table = Metis_Tables::get('drive_items');
+        $drive_rows = $db->fetchAll(
+            "SELECT item_id, item_name, mime_type, web_view_link, drive_id, modified_time
+             FROM {$items_table}
+             WHERE is_folder = 0
+               AND (mime_type = 'application/pdf' OR item_name LIKE '%.pdf')
+             ORDER BY modified_time DESC, synced_at DESC
+             LIMIT 100"
+        ) ?: [];
+        foreach ($drive_rows as $row) {
+            if (!is_array($row)) continue;
+            $options[] = [
+                'source' => 'drive',
+                'id' => (string) ($row['item_id'] ?? ''),
+                'title' => (string) ($row['item_name'] ?? 'Drive PDF'),
+                'url' => (string) ($row['web_view_link'] ?? ''),
+                'meta' => 'Google Drive',
+            ];
+        }
+    }
+
+    if (!$drive_enabled && Metis_Tables::has('board_documents')) {
+        $docs_table = Metis_Tables::get('board_documents');
+        $doc_rows = $db->fetchAll(
+            "SELECT id, title, google_file_id, google_drive_url, mime_type, updated_at
+             FROM {$docs_table}
+             WHERE status = 'active'
+               AND (mime_type = 'application/pdf' OR title LIKE '%.pdf')
+             ORDER BY updated_at DESC, id DESC
+             LIMIT 100"
+        ) ?: [];
+        foreach ($doc_rows as $row) {
+            if (!is_array($row)) continue;
+            $options[] = [
+                'source' => 'upload',
+                'id' => (string) ($row['google_file_id'] ?? ('doc:' . (int) ($row['id'] ?? 0))),
+                'title' => (string) ($row['title'] ?? 'Uploaded PDF'),
+                'url' => (string) ($row['google_drive_url'] ?? ''),
+                'meta' => 'Uploaded board document',
+            ];
+        }
+    }
+
+    metis_runtime_send_json_success([
+        'drive_enabled' => $drive_enabled,
+        'options' => $options,
     ]);
 });
 

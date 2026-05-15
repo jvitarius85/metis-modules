@@ -97,7 +97,9 @@ if ( ! function_exists( 'metis_board_fetch_dashboard_bylaws' ) ) {
         $db = metis_db();
         $row = $db->fetchOne(
             "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
-                    signed_pdf_title, status, effective_date, approved_at, updated_at
+                    signed_pdf_title, status, approval_stage, version_number, meeting_id, decision_id, action_item_id,
+                    secretary_signature_name, secretary_certified_at, president_signature_name, president_approved_at,
+                    effective_date, approved_at, updated_at
              FROM {$bylaws_table}
              WHERE status = 'active'
              ORDER BY (effective_date IS NULL), effective_date DESC, updated_at DESC, id DESC
@@ -105,6 +107,69 @@ if ( ! function_exists( 'metis_board_fetch_dashboard_bylaws' ) ) {
         );
 
         return is_array( $row ) ? $row : [];
+    }
+}
+
+if ( ! function_exists( 'metis_board_fetch_dashboard_bylaws_history' ) ) {
+    function metis_board_fetch_dashboard_bylaws_history( int $limit = 20 ): array {
+        $bylaws_table = Metis_Tables::get( 'board_bylaws' );
+        if ( ! function_exists( 'metis_board_table_exists' ) || ! metis_board_table_exists( $bylaws_table ) ) {
+            return [];
+        }
+
+        $db = metis_db();
+        return $db->fetchAll(
+            "SELECT id, bylaw_code, title, signed_pdf_url, signed_pdf_title, status, approval_stage, version_number,
+                    document_hash, pdf_hash, approved_signature_name, secretary_signature_name, president_signature_name, change_summary,
+                    effective_date, approved_at, updated_at
+             FROM {$bylaws_table}
+             WHERE status IN ('active', 'archived')
+             ORDER BY version_number DESC, approved_at DESC, updated_at DESC, id DESC
+             LIMIT %d",
+            [ max( 1, min( 100, $limit ) ) ]
+        ) ?: [];
+    }
+}
+
+if ( ! function_exists( 'metis_board_fetch_dashboard_bylaws_decision_options' ) ) {
+    function metis_board_fetch_dashboard_bylaws_decision_options( int $limit = 500 ): array {
+        $decisions_table = Metis_Tables::get( 'board_decisions' );
+        $meetings_table = Metis_Tables::get( 'board_meetings' );
+        if ( ! function_exists( 'metis_board_table_exists' ) || ! metis_board_table_exists( $decisions_table ) ) {
+            return [];
+        }
+
+        $db = metis_db();
+        return $db->fetchAll(
+            "SELECT d.id, d.decision_code, d.title, d.outcome, d.passed, d.meeting_id,
+                    m.meeting_code, m.title AS meeting_title, m.meeting_date
+             FROM {$decisions_table} d
+             LEFT JOIN {$meetings_table} m ON m.id = d.meeting_id
+             ORDER BY d.updated_at DESC, d.id DESC
+             LIMIT %d",
+            [ max( 1, min( 1000, $limit ) ) ]
+        ) ?: [];
+    }
+}
+
+if ( ! function_exists( 'metis_board_fetch_dashboard_bylaws_action_options' ) ) {
+    function metis_board_fetch_dashboard_bylaws_action_options( int $limit = 500 ): array {
+        $actions_table = Metis_Tables::get( 'board_action_items' );
+        $meetings_table = Metis_Tables::get( 'board_meetings' );
+        if ( ! function_exists( 'metis_board_table_exists' ) || ! metis_board_table_exists( $actions_table ) ) {
+            return [];
+        }
+
+        $db = metis_db();
+        return $db->fetchAll(
+            "SELECT a.id, a.action_code, a.title, a.status, a.meeting_id, a.decision_id,
+                    m.meeting_code, m.title AS meeting_title, m.meeting_date
+             FROM {$actions_table} a
+             LEFT JOIN {$meetings_table} m ON m.id = a.meeting_id
+             ORDER BY a.updated_at DESC, a.id DESC
+             LIMIT %d",
+            [ max( 1, min( 1000, $limit ) ) ]
+        ) ?: [];
     }
 }
 

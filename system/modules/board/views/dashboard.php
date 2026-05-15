@@ -2,6 +2,7 @@
 if (!defined('METIS_ROOT')) exit;
 
 require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
+require_once METIS_ROOT . '/system/src/Metis/Modules/Board/BylawsFormatter.php';
 
 if (!metis_board_can_view()) {
     echo '<div class="metis-alert metis-alert-error">You do not have permission to view board.</div>';
@@ -37,6 +38,7 @@ $open_actions = metis_board_fetch_dashboard_open_actions(12);
 
 $recent_announcements = metis_board_fetch_dashboard_announcements(10);
 $bylaws = metis_board_fetch_dashboard_bylaws();
+$bylaws_history = metis_board_fetch_dashboard_bylaws_history(20);
 
 $board_people = [];
 if ($can_manage) {
@@ -46,6 +48,13 @@ if ($can_manage) {
 $meeting_options = [];
 if ($can_manage) {
     $meeting_options = metis_board_fetch_dashboard_meeting_options(500);
+}
+
+$bylaws_decision_options = [];
+$bylaws_action_options = [];
+if ($can_manage) {
+    $bylaws_decision_options = metis_board_fetch_dashboard_bylaws_decision_options(500);
+    $bylaws_action_options = metis_board_fetch_dashboard_bylaws_action_options(500);
 }
 
 $kpis = metis_board_fetch_dashboard_kpis();
@@ -65,10 +74,23 @@ $bylaws_signed_pdf_title = (string) ( $bylaws['signed_pdf_title'] ?? 'Signed byl
 $bylaws_effective_date = (string) ( $bylaws['effective_date'] ?? '' );
 $bylaws_approved_at = (string) ( $bylaws['approved_at'] ?? '' );
 $bylaws_updated_at = (string) ( $bylaws['updated_at'] ?? '' );
+$bylaws_status = (string) ( $bylaws['status'] ?? '' );
+$bylaws_approval_stage = (string) ( $bylaws['approval_stage'] ?? $bylaws_status );
+$bylaws_meeting_id = (int) ( $bylaws['meeting_id'] ?? 0 );
+$bylaws_decision_id = (int) ( $bylaws['decision_id'] ?? 0 );
+$bylaws_action_item_id = (int) ( $bylaws['action_item_id'] ?? 0 );
+$bylaws_secretary_label = (string) ( $bylaws['secretary_signature_name'] ?? '' );
+$bylaws_president_label = (string) ( $bylaws['president_signature_name'] ?? '' );
 $bylaws_effective_label = $bylaws_effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($bylaws_effective_date, null, null, null, '—') : ($bylaws_effective_date !== '' ? $bylaws_effective_date : '—');
 $bylaws_approved_label = $bylaws_approved_at !== '' ? metis_board_format_datetime($bylaws_approved_at) : '—';
 $bylaws_updated_label = $bylaws_updated_at !== '' ? metis_board_format_datetime($bylaws_updated_at) : '—';
 $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', substr($bylaws_approved_at, 0, 16)) : '';
+if ($bylaws_source_text !== '') {
+    $bylaws_rendered = \Metis\Modules\Board\BylawsFormatter::format($bylaws_source_text, $bylaws_title);
+    $bylaws_formatted_html = (string) ($bylaws_rendered['html'] ?? $bylaws_formatted_html);
+}
+$bylaws_version = (int) ( $bylaws['version_number'] ?? 1 );
+$bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
 ?>
 
 <div class="metis-board"
@@ -237,6 +259,8 @@ $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', subs
             <div>
                 <h2>Bylaws</h2>
                 <div id="metis-board-bylaws-meta" class="metis-board-bylaws-meta">
+                    <span>Version: <strong><?php echo metis_escape_html((string) $bylaws_version); ?></strong></span>
+                    <span>Workflow: <strong><?php echo metis_escape_html($bylaws_approval_stage !== '' ? ucwords(str_replace('_', ' ', $bylaws_approval_stage)) : '—'); ?></strong></span>
                     <span>Effective: <strong><?php echo metis_escape_html($bylaws_effective_label); ?></strong></span>
                     <span>Approved: <strong><?php echo metis_escape_html($bylaws_approved_label); ?></strong></span>
                     <span>Updated: <strong><?php echo metis_escape_html($bylaws_updated_label); ?></strong></span>
@@ -260,13 +284,48 @@ $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', subs
             <?php if ($bylaws_formatted_html !== '') : ?>
                 <div class="metis-board-bylaws-summary">
                     <strong><?php echo metis_escape_html($bylaws_title); ?></strong>
-                    <span class="metis-muted">Formatted bylaws are available for review.</span>
+                    <span class="metis-muted">Current approved bylaws version <?php echo metis_escape_html((string) $bylaws_version); ?>.</span>
                     <button id="metis-board-view-bylaws" class="metis-btn metis-btn-ghost metis-btn-xs" type="button">View Bylaws</button>
                 </div>
             <?php else : ?>
                 <div class="metis-empty-state">No bylaws have been saved yet.</div>
             <?php endif; ?>
         </div>
+        <?php if (!empty($bylaws_history)) : ?>
+            <div id="metis-board-bylaws-history" class="metis-board-bylaws-history">
+                <h3>Approved Bylaws History</h3>
+                <div class="metis-board-bylaws-history-list">
+                    <?php foreach ($bylaws_history as $history_row) :
+                        $history_status = (string) ($history_row['status'] ?? '');
+                        $history_url = (string) ($history_row['signed_pdf_url'] ?? '');
+                        $history_effective = (string) ($history_row['effective_date'] ?? '');
+                        $history_approved = (string) ($history_row['approved_at'] ?? '');
+                        $history_updated = (string) ($history_row['updated_at'] ?? '');
+                        $history_effective_label = $history_effective !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($history_effective, null, null, null, '—') : ($history_effective !== '' ? $history_effective : '—');
+                        $history_approved_label = $history_approved !== '' ? metis_board_format_datetime($history_approved) : '—';
+                        $history_updated_label = $history_updated !== '' ? metis_board_format_datetime($history_updated) : '—';
+                    ?>
+                        <div class="metis-board-bylaws-history-row">
+                            <div>
+                                <strong><?php echo metis_escape_html((string) ($history_row['title'] ?? 'Bylaws')); ?></strong>
+                                <span class="metis-muted">Version <?php echo metis_escape_html((string) ((int) ($history_row['version_number'] ?? 1))); ?> · <?php echo $history_status === 'active' ? 'Current' : 'Superseded'; ?></span>
+                                <?php if (!empty($history_row['change_summary'])) : ?>
+                                    <div class="metis-muted"><?php echo metis_escape_html((string) $history_row['change_summary']); ?></div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="metis-board-bylaws-history-meta">
+                                <span>Effective <?php echo metis_escape_html($history_effective_label); ?></span>
+                                <span>Approved <?php echo metis_escape_html($history_approved_label); ?></span>
+                                <span>Updated <?php echo metis_escape_html($history_updated_label); ?></span>
+                            </div>
+                            <?php if ($history_url !== '') : ?>
+                                <a class="metis-btn-xs metis-btn-ghost" href="<?php echo metis_escape_url($history_url); ?>" target="_blank" rel="noopener">PDF</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
     </section>
 
     <section class="metis-premium-wrap metis-board-dashboard-section">
@@ -417,17 +476,25 @@ $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', subs
             <input type="hidden" id="metis-board-bylaws-id" value="<?php echo metis_escape_attr((string) $bylaws_id); ?>">
             <div class="metis-field metis-field-half"><label for="metis-board-bylaws-title">Title</label><input id="metis-board-bylaws-title" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr($bylaws_title); ?>" required></div>
             <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-effective">Effective Date</label><input id="metis-board-bylaws-effective" class="metis-input" type="date" value="<?php echo metis_escape_attr($bylaws_effective_date); ?>"></div>
-            <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-approved">Approved At</label><input id="metis-board-bylaws-approved" class="metis-input" type="datetime-local" value="<?php echo metis_escape_attr($bylaws_approved_input); ?>"></div>
-            <div class="metis-field metis-field-half"><label for="metis-board-bylaws-pdf-url">Signed PDF Link</label><input id="metis-board-bylaws-pdf-url" class="metis-input" type="url" maxlength="255" value="<?php echo metis_escape_attr($bylaws_signed_pdf_url); ?>"></div>
+            <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-stage">Approval Stage</label><input id="metis-board-bylaws-stage" class="metis-input" type="text" value="<?php echo metis_escape_attr($bylaws_approval_stage !== '' ? ucwords(str_replace('_', ' ', $bylaws_approval_stage)) : 'Draft'); ?>" readonly></div>
+            <div class="metis-field metis-field-third"><label for="metis-board-bylaws-meeting">Board Meeting</label><select id="metis-board-bylaws-meeting" class="metis-select"><option value="">Select meeting</option><?php foreach ($meeting_options as $mo) : ?><option value="<?php echo metis_escape_attr((string) ((int) ($mo['id'] ?? 0))); ?>" <?php metis_attr_selected((string) $bylaws_meeting_id, (string) ((int) ($mo['id'] ?? 0))); ?>><?php echo metis_escape_html(trim((string) ($mo['meeting_code'] ?? '') . ' - ' . (string) ($mo['title'] ?? ''))); ?></option><?php endforeach; ?></select></div>
+            <div class="metis-field metis-field-third"><label for="metis-board-bylaws-decision">Approved Board Vote</label><select id="metis-board-bylaws-decision" class="metis-select"><option value="">Select approved decision</option><?php foreach ($bylaws_decision_options as $decision) : $decision_id = (int) ($decision['id'] ?? 0); $decision_passed = (int) ($decision['passed'] ?? 0) === 1; ?><option value="<?php echo metis_escape_attr((string) $decision_id); ?>" <?php metis_attr_selected((string) $bylaws_decision_id, (string) $decision_id); ?>><?php echo metis_escape_html(trim((string) ($decision['decision_code'] ?? '') . ' - ' . (string) ($decision['title'] ?? '') . ($decision_passed ? ' (approved)' : ' (not approved)'))); ?></option><?php endforeach; ?></select></div>
+            <div class="metis-field metis-field-third"><label for="metis-board-bylaws-action">Meeting Action Item</label><select id="metis-board-bylaws-action" class="metis-select"><option value="">Select action item</option><?php foreach ($bylaws_action_options as $action) : $action_id = (int) ($action['id'] ?? 0); ?><option value="<?php echo metis_escape_attr((string) $action_id); ?>" <?php metis_attr_selected((string) $bylaws_action_item_id, (string) $action_id); ?>><?php echo metis_escape_html(trim((string) ($action['action_code'] ?? '') . ' - ' . (string) ($action['title'] ?? '') . ' (' . (string) ($action['status'] ?? 'open') . ')')); ?></option><?php endforeach; ?></select></div>
+            <div class="metis-field metis-field-half"><label for="metis-board-bylaws-pdf-url">Signed PDF Link</label><div class="metis-board-bylaws-pdf-picker"><input id="metis-board-bylaws-pdf-url" class="metis-input" type="url" maxlength="255" value="<?php echo metis_escape_attr($bylaws_signed_pdf_url); ?>"><button type="button" id="metis-board-browse-bylaws-pdf" class="metis-btn-xs metis-btn-ghost">Browse</button></div></div>
             <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-pdf-id">PDF File ID</label><input id="metis-board-bylaws-pdf-id" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr($bylaws_signed_pdf_file_id); ?>"></div>
             <div class="metis-field metis-field-quarter"><label for="metis-board-bylaws-pdf-title">PDF Label</label><input id="metis-board-bylaws-pdf-title" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr($bylaws_signed_pdf_title); ?>"></div>
+            <div class="metis-field metis-field-half"><label>Secretary Certification</label><div class="metis-muted" id="metis-board-bylaws-secretary-status"><?php echo metis_escape_html($bylaws_secretary_label !== '' ? $bylaws_secretary_label : 'Not certified'); ?></div></div>
+            <div class="metis-field metis-field-half"><label>President Approval</label><div class="metis-muted" id="metis-board-bylaws-president-status"><?php echo metis_escape_html($bylaws_president_label !== '' ? $bylaws_president_label : 'Not approved'); ?></div></div>
+            <div class="metis-field metis-field-full"><label for="metis-board-bylaws-change-summary">Approval Change Summary</label><textarea id="metis-board-bylaws-change-summary" class="metis-input" rows="3" placeholder="Summarize the approved changes for the audit history."><?php echo metis_escape_html($bylaws_change_summary); ?></textarea></div>
             <div class="metis-field metis-field-full"><label for="metis-board-bylaws-source">Pasted Bylaws Text</label><textarea id="metis-board-bylaws-source" class="metis-input metis-board-bylaws-source" rows="14" required><?php echo metis_escape_html($bylaws_source_text); ?></textarea></div>
             <div class="metis-field metis-field-full">
                 <div class="metis-form-actions metis-form-actions-between">
                     <button type="button" id="metis-board-format-bylaws" class="metis-btn metis-btn-ghost">Auto-format Preview</button>
                     <div>
                         <button type="button" class="metis-btn metis-btn-ghost metis-board-cancel">Cancel</button>
-                        <button type="submit" class="metis-btn">Save Bylaws</button>
+                        <button type="button" id="metis-board-secretary-certify-bylaws" class="metis-btn metis-btn-ghost">Secretary Certify</button>
+                        <button type="button" id="metis-board-president-approve-bylaws" class="metis-btn metis-btn-ghost">President Approve</button>
+                        <button type="submit" class="metis-btn">Save Draft</button>
                     </div>
                 </div>
             </div>
@@ -441,6 +508,19 @@ $bylaws_approved_input = $bylaws_approved_at !== '' ? str_replace(' ', 'T', subs
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="metis-board-bylaws-pdf-browser-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal">
+        <h2 class="metis-modal-title">Select Signed PDF</h2>
+        <p class="metis-muted">When Google Drive is enabled, this lists synced Drive PDFs. Otherwise it lists uploaded board PDFs.</p>
+        <div id="metis-board-bylaws-pdf-options" class="metis-board-bylaws-pdf-options">
+            <div class="metis-muted">PDF options will load when opened.</div>
+        </div>
+        <div class="metis-form-actions">
+            <button type="button" class="metis-btn metis-btn-ghost metis-board-cancel">Close</button>
+        </div>
     </div>
 </div>
 <?php endif; ?>
