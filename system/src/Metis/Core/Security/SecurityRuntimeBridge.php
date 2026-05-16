@@ -313,6 +313,8 @@ function metis_security_register_route_policies(): void {
     $register( new Metis_Security_Policy( 'route.donations_donor_portal', null, 'view', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.donations_donor_portal', null, 'create', false, false, false, null, 20, 60 ) );
     $register( new Metis_Security_Policy( 'route.donations_donor_access', null, 'view', false, false, false, null, 60, 60 ) );
+    $register( new Metis_Security_Policy( 'route.donations_donor_access', null, 'create', false, false, false, null, 30, 60 ) );
+    $register( new Metis_Security_Policy( 'route.donations_donor_statement', null, 'view', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.donations_recurring_manage', null, 'view', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.donations_recurring_manage', null, 'create', false, false, false, null, 30, 60 ) );
     $register( new Metis_Security_Policy( 'route.webhook_gateway', null, 'create', false, false, false, null, 180, 60 ) );

@@ -978,7 +978,7 @@ final class RecurringDonationsService {
 
         $rawToken = bin2hex( random_bytes( 32 ) );
         $tokenHash = hash( 'sha256', $rawToken );
-        $expiresAt = gmdate( 'Y-m-d H:i:s', time() + 1800 );
+        $expiresAt = gmdate( 'Y-m-d H:i:s', time() + 900 );
         $table = \Metis_Tables::get( 'donor_portal_tokens' );
         \metis_db()->insert( $table, [
             'token_hash' => $tokenHash,
@@ -988,9 +988,8 @@ final class RecurringDonationsService {
         ] );
 
         $url = \metis_home_url( '/donor/access/' . rawurlencode( $rawToken ) . '/' );
-        EmailService::sendHtml( $email, 'Your donor portal access link', '<p>Use this secure link to view your donor portal. It expires in 30 minutes.</p><p><a href="' . \metis_escape_url( $url ) . '">' . \metis_escape_html( $url ) . '</a></p>', [
+        EmailService::sendHtml( $email, 'Your Metis donor portal link', self::portalAccessEmailHtml( $url ), [
             'module' => 'donations',
-            'internal_reference' => 'DONOR_PORTAL',
         ] );
 
         return [ 'ok' => true, 'message' => 'If that email is connected to donor records, an access link will be sent.' ];
@@ -1021,8 +1020,16 @@ final class RecurringDonationsService {
         $contacts = \Metis_Tables::get( 'contacts' );
         $transactions = \Metis_Tables::get( 'transactions' );
         $recurring = \Metis_Tables::get( 'recurring_donations' );
+        $details = \Metis_Tables::get( 'contact_details' );
         $contact = \metis_db()->fetchOne( "SELECT * FROM {$contacts} WHERE LOWER(email) = LOWER(%s) LIMIT 1", [ $email ] ) ?: [];
+        $detail = [];
         $did = trim( (string) ( $contact['did'] ?? '' ) );
+        if ( is_array( $contact ) && $details !== '' && self::tableExists( $details ) ) {
+            $detail = \metis_db()->fetchOne(
+                "SELECT * FROM {$details} WHERE contact_id = %d OR did = %s LIMIT 1",
+                [ (int) ( $contact['id'] ?? 0 ), $did ]
+            ) ?: [];
+        }
         $tx = [];
         if ( $did !== '' ) {
             $tx = \metis_db()->fetchAll(
@@ -1034,7 +1041,215 @@ final class RecurringDonationsService {
             "SELECT recurring_code, campaign_code, amount, frequency, status, next_run_at, self_manage_token FROM {$recurring} WHERE LOWER(donor_email) = LOWER(%s) ORDER BY next_run_at ASC",
             [ $email ]
         );
-        return [ 'email' => $email, 'contact' => $contact, 'transactions' => $tx, 'recurring' => $plans ];
+        $years = [];
+        foreach ( $tx as $row ) {
+            $year = substr( (string) ( $row['tran_date'] ?? '' ), 0, 4 );
+            if ( preg_match( '/^\d{4}$/', $year ) ) {
+                $years[ $year ] = $year;
+            }
+        }
+        if ( $years === [] ) {
+            $years[ gmdate( 'Y' ) ] = gmdate( 'Y' );
+        }
+        rsort( $years );
+
+        return [ 'email' => $email, 'contact' => $contact, 'detail' => $detail, 'transactions' => $tx, 'recurring' => $plans, 'statement_years' => array_values( $years ) ];
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @return array{ok:bool,message:string}
+     */
+    public static function updateDonorProfile( string $email, array $input ): array {
+        self::ensureSchema();
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+            return [ 'ok' => false, 'message' => 'The portal access link is no longer valid.' ];
+        }
+
+        $contacts = \Metis_Tables::get( 'contacts' );
+        $details = \Metis_Tables::get( 'contact_details' );
+        $contact = \metis_db()->fetchOne( "SELECT * FROM {$contacts} WHERE LOWER(email) = LOWER(%s) LIMIT 1", [ $email ] );
+        if ( ! is_array( $contact ) ) {
+            return [ 'ok' => false, 'message' => 'No editable donor profile was found for this email.' ];
+        }
+
+        $first = trim( \metis_text_clean( (string) ( $input['first_name'] ?? '' ) ) );
+        $last = trim( \metis_text_clean( (string) ( $input['last_name'] ?? '' ) ) );
+        $phone = trim( \metis_text_clean( (string) ( $input['phone'] ?? '' ) ) );
+        $address = trim( \metis_text_clean( (string) ( $input['address'] ?? '' ) ) );
+        $city = trim( \metis_text_clean( (string) ( $input['city'] ?? '' ) ) );
+        $state = trim( \metis_text_clean( (string) ( $input['state'] ?? '' ) ) );
+        $zip = trim( \metis_text_clean( (string) ( $input['zip'] ?? '' ) ) );
+
+        $contactColumns = self::tableColumns( $contacts );
+        $contactPatch = [];
+        foreach ( [ 'first_name' => $first, 'last_name' => $last ] as $column => $value ) {
+            if ( isset( $contactColumns[ $column ] ) ) {
+                $contactPatch[ $column ] = $value;
+            }
+        }
+        if ( isset( $contactColumns['updated_at'] ) ) {
+            $contactPatch['updated_at'] = \metis_current_time( 'mysql' );
+        }
+        if ( $contactPatch !== [] ) {
+            \metis_db()->update( $contacts, $contactPatch, [ 'id' => (int) ( $contact['id'] ?? 0 ) ] );
+        }
+
+        if ( $details !== '' && self::tableExists( $details ) ) {
+            $detailColumns = self::tableColumns( $details );
+            $detail = \metis_db()->fetchOne(
+                "SELECT * FROM {$details} WHERE contact_id = %d OR did = %s LIMIT 1",
+                [ (int) ( $contact['id'] ?? 0 ), (string) ( $contact['did'] ?? '' ) ]
+            );
+            $detailPatch = [];
+            foreach ( [ 'phone' => $phone, 'address' => $address, 'city' => $city, 'state' => $state, 'zip' => $zip ] as $column => $value ) {
+                if ( isset( $detailColumns[ $column ] ) ) {
+                    $detailPatch[ $column ] = $value;
+                }
+            }
+            if ( isset( $detailColumns['updated_at'] ) ) {
+                $detailPatch['updated_at'] = \metis_current_time( 'mysql' );
+            }
+            if ( is_array( $detail ) && $detailPatch !== [] ) {
+                \metis_db()->update( $details, $detailPatch, [ 'id' => (int) ( $detail['id'] ?? 0 ) ] );
+            } elseif ( ! is_array( $detail ) && $detailPatch !== [] ) {
+                if ( isset( $detailColumns['contact_id'] ) ) {
+                    $detailPatch['contact_id'] = (int) ( $contact['id'] ?? 0 );
+                }
+                if ( isset( $detailColumns['did'] ) ) {
+                    $detailPatch['did'] = (string) ( $contact['did'] ?? '' );
+                }
+                if ( isset( $detailColumns['contact_cid'] ) ) {
+                    $detailPatch['contact_cid'] = (string) ( $contact['cid'] ?? '' );
+                }
+                if ( isset( $detailColumns['created_at'] ) ) {
+                    $detailPatch['created_at'] = \metis_current_time( 'mysql' );
+                }
+                \metis_db()->insert( $details, $detailPatch );
+            }
+        }
+
+        return [ 'ok' => true, 'message' => 'Your profile was updated.' ];
+    }
+
+    /**
+     * @return array{ok:bool,message:string}
+     */
+    public static function sendDonorInquiry( string $email, string $message ): array {
+        self::ensureSchema();
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        $message = trim( \metis_text_clean( $message ) );
+        if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+            return [ 'ok' => false, 'message' => 'The portal access link is no longer valid.' ];
+        }
+        if ( $message === '' ) {
+            return [ 'ok' => false, 'message' => 'Enter your question before sending.' ];
+        }
+
+        $defaults = self::emailDefaults();
+        $to = (string) ( $defaults['reply_to'] ?: $defaults['from_email'] );
+        if ( $to === '' || ! \metis_email_is_valid( $to ) ) {
+            return [ 'ok' => false, 'message' => 'Donor inquiry email settings are not configured.' ];
+        }
+
+        $body = '<div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55">'
+            . '<h2 style="margin:0 0 12px">Donor portal inquiry</h2>'
+            . '<p><strong>Donor email:</strong> ' . \metis_escape_html( $email ) . '</p>'
+            . '<div style="padding:14px;border:1px solid #d8deea;border-radius:8px;background:#f8fafc">' . nl2br( \metis_escape_html( $message ) ) . '</div>'
+            . '</div>';
+        $send = EmailService::sendHtml( $to, 'Donor portal inquiry', $body, [
+            'module' => 'donations',
+            'reply_to' => $email,
+        ] );
+
+        return ! empty( $send['ok'] )
+            ? [ 'ok' => true, 'message' => 'Your question was sent.' ]
+            : [ 'ok' => false, 'message' => 'The question could not be sent. Please try again later.' ];
+    }
+
+    /**
+     * @return array{email:string,contact:array<string,mixed>,detail:array<string,mixed>,transactions:array<int,array<string,mixed>>,year:int,total:float}
+     */
+    public static function contributionStatementData( string $email, int $year ): array {
+        self::ensureSchema();
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        $year = max( 2000, min( 2100, $year ) );
+        $data = self::donorPortalData( $email );
+        $transactions = [];
+        $total = 0.0;
+        foreach ( (array) ( $data['transactions'] ?? [] ) as $row ) {
+            if ( substr( (string) ( $row['tran_date'] ?? '' ), 0, 4 ) !== (string) $year ) {
+                continue;
+            }
+            if ( strtolower( (string) ( $row['status'] ?? '' ) ) !== 'completed' ) {
+                continue;
+            }
+            $transactions[] = $row;
+            $total += (float) ( $row['amount'] ?? 0 );
+        }
+
+        return [
+            'email' => $email,
+            'contact' => is_array( $data['contact'] ?? null ) ? $data['contact'] : [],
+            'detail' => is_array( $data['detail'] ?? null ) ? $data['detail'] : [],
+            'transactions' => $transactions,
+            'year' => $year,
+            'total' => $total,
+        ];
+    }
+
+    private static function portalAccessEmailHtml( string $url ): string {
+        $safeUrl = \metis_escape_url( $url );
+        return '<div style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#172033">'
+            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f5f7fb"><tr><td align="center" style="padding:32px 16px">'
+            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;border-collapse:collapse;background:#ffffff;border:1px solid #dfe5f1;border-radius:10px;overflow:hidden">'
+            . '<tr><td style="padding:28px 30px 10px"><h1 style="margin:0;color:#172033;font-size:24px;line-height:1.2">Your donor portal link</h1></td></tr>'
+            . '<tr><td style="padding:0 30px 22px;color:#596579;font-size:15px;line-height:1.6">Use this secure link to view your donation history, recurring gifts, profile, and contribution statements. This link expires in 15 minutes.</td></tr>'
+            . '<tr><td style="padding:0 30px 28px"><a href="' . $safeUrl . '" style="display:inline-block;background:#2754d8;color:#ffffff;text-decoration:none;font-weight:700;border-radius:6px;padding:12px 18px">Open donor portal</a></td></tr>'
+            . '<tr><td style="padding:0 30px 28px;color:#596579;font-size:13px;line-height:1.5">If the button does not work, copy and paste this link into your browser:<br><a href="' . $safeUrl . '" style="color:#2754d8;word-break:break-all">' . \metis_escape_html( $url ) . '</a></td></tr>'
+            . '</table></td></tr></table></div>';
+    }
+
+    /**
+     * @return array{from_name:string,from_email:string,reply_to:string}
+     */
+    private static function emailDefaults(): array {
+        $fromName = \class_exists( '\Core_Settings_Service' ) ? trim( (string) \Core_Settings_Service::get( 'newsletter_default_from_name', '' ) ) : '';
+        $fromEmail = \class_exists( '\Core_Settings_Service' ) ? strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_from_email', '' ) ) ) ) : '';
+        $replyTo = \class_exists( '\Core_Settings_Service' ) ? strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_reply_to', '' ) ) ) ) : '';
+        return [
+            'from_name' => $fromName,
+            'from_email' => \metis_email_is_valid( $fromEmail ) ? $fromEmail : '',
+            'reply_to' => \metis_email_is_valid( $replyTo ) ? $replyTo : '',
+        ];
+    }
+
+    /**
+     * @return array<string,bool>
+     */
+    private static function tableColumns( string $table ): array {
+        if ( $table === '' ) {
+            return [];
+        }
+        if ( ! self::tableExists( $table ) ) {
+            return [];
+        }
+        $columns = [];
+        foreach ( \metis_db()->fetchAll( "SHOW COLUMNS FROM {$table}" ) as $row ) {
+            $field = (string) ( $row['Field'] ?? '' );
+            if ( $field !== '' ) {
+                $columns[ $field ] = true;
+            }
+        }
+        return $columns;
+    }
+
+    private static function tableExists( string $table ): bool {
+        if ( $table === '' ) {
+            return false;
+        }
+        return \metis_db()->scalar( 'SHOW TABLES LIKE %s', [ $table ] ) === $table;
     }
 
     private static function paymentField( array $schema ): ?array {

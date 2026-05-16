@@ -84,6 +84,7 @@ final class EmailService {
         $options['to_email'] = $to;
         $options['subject'] = $subject;
         $options['internal_reference'] = self::normalizeInternalReference( $options['internal_reference'] ?? '' );
+        $options = self::applyConfiguredSenderDefaults( $options );
         if ( $to === '' || ! \metis_email_is_valid( $to ) ) {
             $result = [ 'ok' => false, 'error' => 'A valid recipient email is required.' ];
             self::trackUsage( self::detectModuleSlug( $options ), $result, $options );
@@ -136,6 +137,36 @@ final class EmailService {
         $result = [ 'ok' => true, 'provider' => 'runtime.mail', 'fallback' => 'mail()' ];
         self::trackUsage( self::detectModuleSlug( $options ), $result, $options );
         return $result;
+    }
+
+    /**
+     * @param array<string,mixed> $options
+     * @return array<string,mixed>
+     */
+    private static function applyConfiguredSenderDefaults( array $options ): array {
+        if ( ! \class_exists( '\Core_Settings_Service' ) ) {
+            return $options;
+        }
+
+        $fromName = trim( (string) ( $options['from_name'] ?? '' ) );
+        $fromEmail = strtolower( trim( \metis_email_clean( (string) ( $options['from_email'] ?? '' ) ) ) );
+        $replyTo = strtolower( trim( \metis_email_clean( (string) ( $options['reply_to'] ?? '' ) ) ) );
+
+        $defaultFromName = trim( (string) \Core_Settings_Service::get( 'newsletter_default_from_name', '' ) );
+        $defaultFromEmail = strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_from_email', '' ) ) ) );
+        $defaultReplyTo = strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_reply_to', '' ) ) ) );
+
+        if ( $fromName === '' && $defaultFromName !== '' ) {
+            $options['from_name'] = $defaultFromName;
+        }
+        if ( ( $fromEmail === '' || ! \metis_email_is_valid( $fromEmail ) ) && $defaultFromEmail !== '' && \metis_email_is_valid( $defaultFromEmail ) ) {
+            $options['from_email'] = $defaultFromEmail;
+        }
+        if ( ( $replyTo === '' || ! \metis_email_is_valid( $replyTo ) ) && $defaultReplyTo !== '' && \metis_email_is_valid( $defaultReplyTo ) ) {
+            $options['reply_to'] = $defaultReplyTo;
+        }
+
+        return $options;
     }
 
     /**

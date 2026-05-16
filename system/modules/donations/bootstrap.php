@@ -112,9 +112,41 @@ function metis_get_deposits(): array {
     return \Metis\Modules\Donations\DonationsModule::getDeposits();
 }
 
+function metis_donations_portal_styles(): string {
+    return '<style>.metis-donor-public{--ink:#172033;--muted:#606b80;--line:#dfe5f1;--soft:#f6f8fc;--brand:#2754d8;color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.metis-donor-public *{box-sizing:border-box}.metis-donor-shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:36px 0 54px}.metis-donor-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:end;padding:0 0 22px}.metis-donor-kicker{margin:0 0 8px;color:#31449d;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em}.metis-donor-title{margin:0;font-size:clamp(32px,4vw,52px);line-height:1.03;letter-spacing:0}.metis-donor-copy{margin:12px 0 0;color:var(--muted);font-size:17px;line-height:1.58}.metis-donor-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px}.metis-donor-panel{grid-column:span 12;background:#fff;border:1px solid var(--line);border-radius:8px;padding:22px;box-shadow:0 1px 2px rgba(12,22,44,.04)}.metis-donor-panel.half{grid-column:span 6}.metis-donor-panel.third{grid-column:span 4}.metis-donor-panel h2{margin:0 0 16px;font-size:23px;line-height:1.2}.metis-donor-stat{display:grid;gap:6px}.metis-donor-stat span{color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}.metis-donor-stat strong{font-size:28px;line-height:1.1}.metis-donor-form{display:grid;gap:14px}.metis-donor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.metis-donor-field{display:grid;gap:7px}.metis-donor-field.full{grid-column:1/-1}.metis-donor-field label{font-weight:800}.metis-donor-field input,.metis-donor-field select,.metis-donor-field textarea{width:100%;min-width:0;border:1px solid #cfd6e3;border-radius:6px;padding:11px 12px;background:#fff;color:var(--ink);font:inherit}.metis-donor-field textarea{min-height:108px;resize:vertical}.metis-donor-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.metis-donor-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 15px;border-radius:6px;border:1px solid var(--brand);background:var(--brand);color:#fff;text-decoration:none;font-weight:800;cursor:pointer}.metis-donor-btn.secondary{background:#fff;color:var(--brand)}.metis-donor-btn.danger{border-color:#a31f34;background:#a31f34}.metis-donor-message{margin:0 0 16px;padding:12px 14px;border:1px solid #bfd1ff;border-radius:8px;background:#f3f6ff;color:#253c8f}.metis-donor-message.error{border-color:#fac6cc;background:#fff5f6;color:#8c1b2b}.metis-donor-table-wrap{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:8px}.metis-donor-table{width:100%;border-collapse:collapse;table-layout:auto}.metis-donor-table th,.metis-donor-table td{padding:12px 14px;border-bottom:1px solid #e8ecf4;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:normal}.metis-donor-table th{background:#eef1ff;color:#243d9d;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.metis-donor-table tr:last-child td{border-bottom:0}.metis-donor-muted{color:var(--muted)}.metis-donor-note{font-size:13px;color:var(--muted);line-height:1.5}.metis-donor-profile-line{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted)}@media(max-width:780px){.metis-donor-shell{width:min(100% - 24px,1120px);padding-top:24px}.metis-donor-hero{grid-template-columns:1fr}.metis-donor-panel.half,.metis-donor-panel.third{grid-column:span 12}.metis-donor-fields{grid-template-columns:1fr}.metis-donor-title{font-size:34px}.metis-donor-table{min-width:680px}}</style>';
+}
+
 function metis_donations_portal_page( string $body, string $title = 'Donor Portal' ): Metis_Http_Response {
-    $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . metis_escape_html( $title ) . '</title><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f6f7f9;color:#1f2330}main{max-width:980px;margin:0 auto;padding:34px 18px}.panel{background:#fff;border:1px solid #dde1e8;border-radius:8px;padding:22px;margin-bottom:18px}.muted{color:#687083}label{display:block;font-weight:700;margin-bottom:8px}input{width:100%;box-sizing:border-box;border:1px solid #cfd5df;border-radius:6px;padding:11px 12px;font:inherit}button,.btn{display:inline-block;border:0;border-radius:6px;padding:10px 14px;background:#1f4fd8;color:#fff;text-decoration:none;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #e5e8ef;text-align:left;vertical-align:top;overflow-wrap:anywhere}.actions{margin-top:14px}.danger{background:#a31f34}</style></head><body><main>' . $body . '</main></body></html>';
+    $content = metis_donations_portal_styles() . '<div class="metis-donor-public"><main class="metis-donor-shell">' . $body . '</main></div>';
+    if ( class_exists( '\Metis\Modules\Website\Services\WebsiteRenderer' ) ) {
+        $html = \Metis\Modules\Website\Services\WebsiteRenderer::renderPublicDocument( $title, $content, [
+            'path' => (string) ( $_SERVER['REQUEST_URI'] ?? '/donor/' ),
+            'slug' => 'donor',
+            'content_type' => 'donor_portal',
+        ] );
+        return Metis_Http_Response::html( $html, 200 );
+    }
+
+    $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . metis_escape_html( $title ) . '</title></head><body>' . $content . '</body></html>';
     return Metis_Http_Response::html( $html, 200 );
+}
+
+function metis_donations_portal_datetime( string $value ): string {
+    if ( $value === '' ) {
+        return '—';
+    }
+    return function_exists( 'metis_runtime_format_datetime' )
+        ? metis_runtime_format_datetime( $value, null, null, null, $value )
+        : $value;
+}
+
+function metis_donations_portal_date( string $value ): string {
+    if ( $value === '' ) {
+        return '—';
+    }
+    return function_exists( 'metis_runtime_format_date' )
+        ? metis_runtime_format_date( $value, null, null, null, $value )
+        : $value;
 }
 
 function metis_donations_handle_donor_portal_route( Metis_Http_Request $request ): Metis_Http_Response {
@@ -124,10 +156,12 @@ function metis_donations_handle_donor_portal_route( Metis_Http_Request $request 
         $input = $request->parsed_body();
         $email = is_array( $input ) ? (string) ( $input['email'] ?? '' ) : '';
         $result = \Metis\Modules\Donations\RecurringDonationsService::requestPortalAccess( $email );
-        $message = '<p class="muted">' . metis_escape_html( (string) ( $result['message'] ?? 'If that email is connected to donor records, an access link will be sent.' ) ) . '</p>';
+        $class = empty( $result['ok'] ) ? 'metis-donor-message error' : 'metis-donor-message';
+        $message = '<p class="' . $class . '">' . metis_escape_html( (string) ( $result['message'] ?? 'If that email is connected to donor records, an access link will be sent.' ) ) . '</p>';
     }
     $action = metis_escape_url( metis_home_url( '/donor/' ) );
-    $body = '<section class="panel"><h1>Donor Portal</h1><p class="muted">Enter the email used for your donations. Metis will send a secure access link; no public account is required.</p>' . $message . '<form method="post" action="' . $action . '"><label for="donor-email">Email address</label><input id="donor-email" name="email" type="email" autocomplete="email" required><div class="actions"><button type="submit">Send Access Link</button></div></form></section>';
+    $body = '<section class="metis-donor-hero"><div><p class="metis-donor-kicker">Secure Access</p><h1 class="metis-donor-title">Donor Portal</h1><p class="metis-donor-copy">Enter the email used for your donations. Metis will send a secure access link that expires in 15 minutes. No public account is required.</p></div></section>';
+    $body .= '<section class="metis-donor-panel"><form class="metis-donor-form" method="post" action="' . $action . '">' . $message . '<div class="metis-donor-field"><label for="donor-email">Email address</label><input id="donor-email" name="email" type="email" autocomplete="email" required></div><div class="metis-donor-actions"><button class="metis-donor-btn" type="submit">Send Access Link</button></div></form></section>';
     return metis_donations_portal_page( $body );
 }
 
@@ -135,12 +169,34 @@ function metis_donations_handle_donor_portal_access_route( Metis_Http_Request $r
     $token = trim( (string) $request->attribute( 'donor_token', '' ) );
     $data = \Metis\Modules\Donations\RecurringDonationsService::consumePortalToken( $token );
     if ( ! is_array( $data ) ) {
-        return metis_donations_portal_page( '<section class="panel"><h1>Access Link Expired</h1><p class="muted">This donor portal link is invalid or expired. Request a new link from <a href="' . metis_escape_url( metis_home_url( '/donor/' ) ) . '">the donor portal</a>.</p></section>', 'Donor Portal Access' );
+        return metis_donations_portal_page( '<section class="metis-donor-panel"><h1>Access Link Expired</h1><p class="metis-donor-copy">This donor portal link is invalid or expired. Request a new link from <a href="' . metis_escape_url( metis_home_url( '/donor/' ) ) . '">the donor portal</a>.</p></section>', 'Donor Portal Access' );
+    }
+
+    $input = $request->parsed_body();
+    $notice = '';
+    if ( strtoupper( $request->method() ) === 'POST' && is_array( $input ) ) {
+        $action = metis_key_clean( (string) ( $input['portal_action'] ?? '' ) );
+        if ( $action === 'update_profile' ) {
+            $result = \Metis\Modules\Donations\RecurringDonationsService::updateDonorProfile( (string) ( $data['email'] ?? '' ), $input );
+            $notice = '<p class="' . ( empty( $result['ok'] ) ? 'metis-donor-message error' : 'metis-donor-message' ) . '">' . metis_escape_html( (string) ( $result['message'] ?? '' ) ) . '</p>';
+            $data = \Metis\Modules\Donations\RecurringDonationsService::consumePortalToken( $token ) ?: $data;
+        } elseif ( $action === 'send_inquiry' ) {
+            $result = \Metis\Modules\Donations\RecurringDonationsService::sendDonorInquiry( (string) ( $data['email'] ?? '' ), (string) ( $input['message'] ?? '' ) );
+            $notice = '<p class="' . ( empty( $result['ok'] ) ? 'metis-donor-message error' : 'metis-donor-message' ) . '">' . metis_escape_html( (string) ( $result['message'] ?? '' ) ) . '</p>';
+        }
+    }
+
+    $transactions = (array) ( $data['transactions'] ?? [] );
+    $completedTotal = 0.0;
+    foreach ( $transactions as $row ) {
+        if ( strtolower( (string) ( $row['status'] ?? '' ) ) === 'completed' ) {
+            $completedTotal += (float) ( $row['amount'] ?? 0 );
+        }
     }
 
     $txRows = '';
-    foreach ( (array) ( $data['transactions'] ?? [] ) as $row ) {
-        $txRows .= '<tr><td>' . metis_escape_html( (string) ( $row['tran_date'] ?? '' ) ) . '</td><td>' . metis_escape_html( (string) ( $row['tid'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $row['amount'] ?? 0 ), 2 ) ) . '</td><td>' . metis_escape_html( (string) ( $row['status'] ?? '' ) ) . '</td></tr>';
+    foreach ( $transactions as $row ) {
+        $txRows .= '<tr><td>' . metis_escape_html( metis_donations_portal_datetime( (string) ( $row['tran_date'] ?? '' ) ) ) . '</td><td>' . metis_escape_html( (string) ( $row['tid'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $row['amount'] ?? 0 ), 2 ) ) . '</td><td>' . metis_escape_html( (string) ( $row['status'] ?? '' ) ) . '</td></tr>';
     }
     if ( $txRows === '' ) {
         $txRows = '<tr><td colspan="4">No donation history was found for this email yet.</td></tr>';
@@ -149,22 +205,61 @@ function metis_donations_handle_donor_portal_access_route( Metis_Http_Request $r
     $recurringRows = '';
     foreach ( (array) ( $data['recurring'] ?? [] ) as $plan ) {
         $manage = metis_home_url( '/donor/recurring/' . rawurlencode( (string) ( $plan['self_manage_token'] ?? '' ) ) . '/' );
-        $recurringRows .= '<tr><td>' . metis_escape_html( (string) ( $plan['campaign_code'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $plan['amount'] ?? 0 ), 2 ) ) . '</td><td>' . metis_escape_html( (string) ( $plan['frequency'] ?? '' ) ) . '</td><td>' . metis_escape_html( (string) ( $plan['status'] ?? '' ) ) . '</td><td><a class="btn" href="' . metis_escape_url( $manage ) . '">Manage</a></td></tr>';
+        $recurringRows .= '<tr><td>' . metis_escape_html( (string) ( $plan['campaign_code'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $plan['amount'] ?? 0 ), 2 ) ) . '</td><td>' . metis_escape_html( (string) ( $plan['frequency'] ?? '' ) ) . '</td><td>' . metis_escape_html( metis_donations_portal_datetime( (string) ( $plan['next_run_at'] ?? '' ) ) ) . '</td><td>' . metis_escape_html( (string) ( $plan['status'] ?? '' ) ) . '</td><td><a class="metis-donor-btn secondary" href="' . metis_escape_url( $manage ) . '">Manage</a></td></tr>';
     }
     if ( $recurringRows === '' ) {
-        $recurringRows = '<tr><td colspan="5">No recurring donations were found for this email.</td></tr>';
+        $recurringRows = '<tr><td colspan="6">No recurring donations were found for this email.</td></tr>';
     }
 
-    $email = metis_escape_html( (string) ( $data['email'] ?? '' ) );
-    $body = '<section class="panel"><h1>Donor Portal</h1><p class="muted">Signed in as ' . $email . '</p></section><section class="panel"><h2>Recurring Donations</h2><table><thead><tr><th>Campaign</th><th>Amount</th><th>Frequency</th><th>Status</th><th>Actions</th></tr></thead><tbody>' . $recurringRows . '</tbody></table></section><section class="panel"><h2>Donation History</h2><table><thead><tr><th>Date</th><th>Receipt</th><th>Amount</th><th>Status</th></tr></thead><tbody>' . $txRows . '</tbody></table></section>';
+    $contact = is_array( $data['contact'] ?? null ) ? $data['contact'] : [];
+    $detail = is_array( $data['detail'] ?? null ) ? $data['detail'] : [];
+    $email = (string) ( $data['email'] ?? '' );
+    $name = trim( (string) ( $contact['first_name'] ?? '' ) . ' ' . (string) ( $contact['last_name'] ?? '' ) );
+    if ( $name === '' ) { $name = $email; }
+    $years = (array) ( $data['statement_years'] ?? [ gmdate( 'Y' ) ] );
+    $statementOptions = '';
+    foreach ( $years as $year ) {
+        $year = preg_match( '/^\d{4}$/', (string) $year ) ? (string) $year : gmdate( 'Y' );
+        $statementOptions .= '<option value="' . metis_escape_attr( $year ) . '">' . metis_escape_html( $year ) . '</option>';
+    }
+    $statementBase = metis_escape_url( metis_home_url( '/donor/access/' . rawurlencode( $token ) . '/statement/' ) );
+
+    $body = '<section class="metis-donor-hero"><div><p class="metis-donor-kicker">Donor Portal</p><h1 class="metis-donor-title">Welcome, ' . metis_escape_html( $name ) . '</h1><p class="metis-donor-copy">Review your giving history, manage recurring donations, update your profile, and download annual contribution statements.</p></div></section>' . $notice;
+    $body .= '<section class="metis-donor-grid"><div class="metis-donor-panel third"><div class="metis-donor-stat"><span>Signed In</span><strong>' . metis_escape_html( $email ) . '</strong></div></div><div class="metis-donor-panel third"><div class="metis-donor-stat"><span>Completed Giving</span><strong>$' . metis_escape_html( number_format( $completedTotal, 2 ) ) . '</strong></div></div><div class="metis-donor-panel third"><div class="metis-donor-stat"><span>History Count</span><strong>' . metis_escape_html( (string) count( $transactions ) ) . '</strong></div></div>';
+    $body .= '<div class="metis-donor-panel"><h2>Recurring Donations</h2><div class="metis-donor-table-wrap"><table class="metis-donor-table"><thead><tr><th>Campaign</th><th>Amount</th><th>Frequency</th><th>Next Run</th><th>Status</th><th>Actions</th></tr></thead><tbody>' . $recurringRows . '</tbody></table></div></div>';
+    $body .= '<div class="metis-donor-panel half"><h2>Profile</h2><form class="metis-donor-form" method="post" action="' . metis_escape_url( metis_home_url( '/donor/access/' . rawurlencode( $token ) . '/' ) ) . '"><input type="hidden" name="portal_action" value="update_profile"><div class="metis-donor-fields"><div class="metis-donor-field"><label for="first-name">First name</label><input id="first-name" name="first_name" value="' . metis_escape_attr( (string) ( $contact['first_name'] ?? '' ) ) . '"></div><div class="metis-donor-field"><label for="last-name">Last name</label><input id="last-name" name="last_name" value="' . metis_escape_attr( (string) ( $contact['last_name'] ?? '' ) ) . '"></div><div class="metis-donor-field"><label for="phone">Phone</label><input id="phone" name="phone" value="' . metis_escape_attr( (string) ( $detail['phone'] ?? '' ) ) . '"></div><div class="metis-donor-field"><label for="zip">ZIP</label><input id="zip" name="zip" value="' . metis_escape_attr( (string) ( $detail['zip'] ?? '' ) ) . '"></div><div class="metis-donor-field full"><label for="address">Address</label><input id="address" name="address" value="' . metis_escape_attr( (string) ( $detail['address'] ?? '' ) ) . '"></div><div class="metis-donor-field"><label for="city">City</label><input id="city" name="city" value="' . metis_escape_attr( (string) ( $detail['city'] ?? '' ) ) . '"></div><div class="metis-donor-field"><label for="state">State</label><input id="state" name="state" value="' . metis_escape_attr( (string) ( $detail['state'] ?? '' ) ) . '"></div></div><div class="metis-donor-actions"><button class="metis-donor-btn" type="submit">Update Profile</button></div></form></div>';
+    $body .= '<div class="metis-donor-panel half"><h2>Contribution Statement</h2><p class="metis-donor-muted">Choose a year and download a generated statement for completed donations.</p><form class="metis-donor-form" method="get" onsubmit="var y=this.elements.statement_year.value; if(y){ window.location.href=\'' . $statementBase . '\' + encodeURIComponent(y) + \'/\'; } return false;"><div class="metis-donor-field"><label for="statement-year">Year</label><select id="statement-year" name="statement_year">' . $statementOptions . '</select></div><div class="metis-donor-actions"><button class="metis-donor-btn" type="submit">Download Statement</button></div></form><hr style="border:0;border-top:1px solid #dfe5f1;margin:22px 0"><h2>Ask About A Donation</h2><form class="metis-donor-form" method="post" action="' . metis_escape_url( metis_home_url( '/donor/access/' . rawurlencode( $token ) . '/' ) ) . '"><input type="hidden" name="portal_action" value="send_inquiry"><div class="metis-donor-field"><label for="message">Question</label><textarea id="message" name="message" required></textarea></div><div class="metis-donor-actions"><button class="metis-donor-btn" type="submit">Send Question</button></div></form></div>';
+    $body .= '<div class="metis-donor-panel"><h2>Donation History</h2><div class="metis-donor-table-wrap"><table class="metis-donor-table"><thead><tr><th>Date</th><th>Receipt</th><th>Amount</th><th>Status</th></tr></thead><tbody>' . $txRows . '</tbody></table></div></div></section>';
     return metis_donations_portal_page( $body );
+}
+
+function metis_donations_handle_donor_statement_route( Metis_Http_Request $request ): Metis_Http_Response {
+    $token = trim( (string) $request->attribute( 'donor_token', '' ) );
+    $year = (int) $request->attribute( 'statement_year', gmdate( 'Y' ) );
+    $data = \Metis\Modules\Donations\RecurringDonationsService::consumePortalToken( $token );
+    if ( ! is_array( $data ) ) {
+        return metis_donations_portal_page( '<section class="metis-donor-panel"><h1>Access Link Expired</h1><p class="metis-donor-copy">This statement link is invalid or expired. Request a new link from <a href="' . metis_escape_url( metis_home_url( '/donor/' ) ) . '">the donor portal</a>.</p></section>', 'Contribution Statement' );
+    }
+    $statement = \Metis\Modules\Donations\RecurringDonationsService::contributionStatementData( (string) ( $data['email'] ?? '' ), $year );
+    $contact = (array) ( $statement['contact'] ?? [] );
+    $name = trim( (string) ( $contact['first_name'] ?? '' ) . ' ' . (string) ( $contact['last_name'] ?? '' ) );
+    if ( $name === '' ) { $name = (string) ( $statement['email'] ?? '' ); }
+    $rows = '';
+    foreach ( (array) ( $statement['transactions'] ?? [] ) as $row ) {
+        $rows .= '<tr><td>' . metis_escape_html( metis_donations_portal_date( (string) ( $row['tran_date'] ?? '' ) ) ) . '</td><td>' . metis_escape_html( (string) ( $row['tid'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $row['amount'] ?? 0 ), 2 ) ) . '</td></tr>';
+    }
+    if ( $rows === '' ) {
+        $rows = '<tr><td colspan="3">No completed contributions were found for this year.</td></tr>';
+    }
+    $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Contribution Statement ' . metis_escape_html( (string) $year ) . '</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:36px;line-height:1.5}h1{margin:0 0 8px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:10px;border-bottom:1px solid #dfe5f1;text-align:left}th{background:#eef1ff;color:#243d9d}.total{font-size:22px;font-weight:700;margin-top:22px}.muted{color:#606b80}</style></head><body><h1>Contribution Statement</h1><p class="muted">Year: ' . metis_escape_html( (string) $year ) . '</p><p><strong>Donor:</strong> ' . metis_escape_html( $name ) . '<br><strong>Email:</strong> ' . metis_escape_html( (string) ( $statement['email'] ?? '' ) ) . '</p><table><thead><tr><th>Date</th><th>Receipt</th><th>Amount</th></tr></thead><tbody>' . $rows . '</tbody></table><p class="total">Total completed contributions: $' . metis_escape_html( number_format( (float) ( $statement['total'] ?? 0 ), 2 ) ) . '</p><p class="muted">Generated by Metis on ' . metis_escape_html( metis_donations_portal_datetime( gmdate( 'Y-m-d H:i:s' ) ) ) . '.</p></body></html>';
+    return Metis_Http_Response::html( $html, 200, [ 'Content-Disposition' => 'attachment; filename="contribution-statement-' . $year . '.html"' ] );
 }
 
 function metis_donations_handle_recurring_public_route( Metis_Http_Request $request ): Metis_Http_Response {
     $token = trim( (string) $request->attribute( 'recurring_token', '' ) );
     $plan = \Metis\Modules\Donations\RecurringDonationsService::getPlanByToken( $token );
     if ( ! is_array( $plan ) ) {
-        return Metis_Http_Response::html( '<!doctype html><html><head><meta charset="utf-8"><title>Recurring Donation Not Found</title></head><body><main><h1>Recurring Donation Not Found</h1><p>This management link is invalid or expired.</p></main></body></html>', 404 );
+        return metis_donations_portal_page( '<section class="metis-donor-panel"><h1>Recurring Donation Not Found</h1><p class="metis-donor-copy">This management link is invalid or expired.</p></section>', 'Recurring Donation Not Found' );
     }
 
     if ( strtoupper( $request->method() ) === 'POST' ) {
@@ -190,25 +285,24 @@ function metis_donations_handle_recurring_public_route( Metis_Http_Request $requ
 
     $rows = '';
     foreach ( $history as $row ) {
-        $rows .= '<tr><td>' . metis_escape_html( (string) ( $row['tran_date'] ?? '' ) ) . '</td><td>' . metis_escape_html( (string) ( $row['tid'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $row['amount'] ?? 0 ), 2 ) ) . '</td><td>' . metis_escape_html( (string) ( $row['status'] ?? '' ) ) . '</td></tr>';
+        $rows .= '<tr><td>' . metis_escape_html( metis_donations_portal_datetime( (string) ( $row['tran_date'] ?? '' ) ) ) . '</td><td>' . metis_escape_html( (string) ( $row['tid'] ?? '' ) ) . '</td><td>$' . metis_escape_html( number_format( (float) ( $row['amount'] ?? 0 ), 2 ) ) . '</td><td>' . metis_escape_html( (string) ( $row['status'] ?? '' ) ) . '</td></tr>';
     }
     if ( $rows === '' ) {
         $rows = '<tr><td colspan="4">No donations found for this year yet.</td></tr>';
     }
 
-    $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Manage Recurring Donation</title><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f6f7f9;color:#1f2330}main{max-width:920px;margin:0 auto;padding:32px 18px}.panel{background:#fff;border:1px solid #dde1e8;border-radius:8px;padding:22px;margin-bottom:18px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #e5e8ef;text-align:left}button{border:0;border-radius:6px;padding:9px 13px;margin-right:8px;background:#1f4fd8;color:#fff}.danger{background:#a31f34}.muted{color:#687083}</style></head><body><main>';
-    $html .= '<section class="panel"><h1>Manage Recurring Donation</h1><p class="muted">Status: ' . $status . '</p><p><strong>$' . metis_escape_html( number_format( (float) $plan['amount'], 2 ) ) . '</strong> ' . metis_escape_html( (string) $plan['frequency'] ) . '</p><p>Next scheduled run: ' . metis_escape_html( (string) $plan['next_run_at'] ) . '</p>';
-    $html .= '<form method="post" action="' . $action . '">';
+    $body = '<section class="metis-donor-hero"><div><p class="metis-donor-kicker">Recurring Donation</p><h1 class="metis-donor-title">Manage Recurring Donation</h1><p class="metis-donor-copy">Review this schedule, pause or resume processing, or cancel future payments.</p></div></section>';
+    $body .= '<section class="metis-donor-panel"><p class="metis-donor-muted">Status: ' . $status . '</p><p><strong>$' . metis_escape_html( number_format( (float) $plan['amount'], 2 ) ) . '</strong> ' . metis_escape_html( (string) $plan['frequency'] ) . '</p><p>Next scheduled run: ' . metis_escape_html( metis_donations_portal_datetime( (string) $plan['next_run_at'] ) ) . '</p>';
+    $body .= '<form class="metis-donor-actions" method="post" action="' . $action . '">';
     if ( (string) $plan['status'] === 'active' ) {
-        $html .= '<button type="submit" name="action" value="pause">Pause</button>';
+        $body .= '<button class="metis-donor-btn" type="submit" name="action" value="pause">Pause</button>';
     } else {
-        $html .= '<button type="submit" name="action" value="resume">Resume</button>';
+        $body .= '<button class="metis-donor-btn" type="submit" name="action" value="resume">Resume</button>';
     }
-    $html .= '<button type="submit" class="danger" name="action" value="cancel">Cancel</button></form></section>';
-    $html .= '<section class="panel"><h2>' . metis_escape_html( (string) $year ) . ' Giving History</h2><p class="muted">Annual contribution total: $' . metis_escape_html( number_format( $total, 2 ) ) . '</p><table><thead><tr><th>Date</th><th>Receipt</th><th>Amount</th><th>Status</th></tr></thead><tbody>' . $rows . '</tbody></table></section>';
-    $html .= '</main></body></html>';
+    $body .= '<button class="metis-donor-btn danger" type="submit" name="action" value="cancel">Cancel</button></form></section>';
+    $body .= '<section class="metis-donor-panel"><h2>' . metis_escape_html( (string) $year ) . ' Giving History</h2><p class="metis-donor-muted">Annual contribution total: $' . metis_escape_html( number_format( $total, 2 ) ) . '</p><div class="metis-donor-table-wrap"><table class="metis-donor-table"><thead><tr><th>Date</th><th>Receipt</th><th>Amount</th><th>Status</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 
-    return Metis_Http_Response::html( $html, 200 );
+    return metis_donations_portal_page( $body, 'Manage Recurring Donation' );
 }
 
 if ( class_exists( '\Metis_Cron_Manager' ) ) {

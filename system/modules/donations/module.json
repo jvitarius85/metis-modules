@@ -164,10 +164,19 @@
         {
             "name": "donations.donor.access",
             "methods": [
-                "GET"
+                "GET",
+                "POST"
             ],
             "pattern": "#^/donor/access/(?P<donor_token>[A-Fa-f0-9]{64})/?$#",
             "handler": "metis_donations_handle_donor_portal_access_route"
+        },
+        {
+            "name": "donations.donor.statement",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/donor/access/(?P<donor_token>[A-Fa-f0-9]{64})/statement/(?P<statement_year>\\d{4})/?$#",
+            "handler": "metis_donations_handle_donor_statement_route"
         },
         {
             "name": "donations.recurring.manage",

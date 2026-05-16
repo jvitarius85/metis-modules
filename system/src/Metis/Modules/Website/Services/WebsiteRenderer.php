@@ -102,6 +102,48 @@ final class WebsiteRenderer {
         ];
     }
 
+    /**
+     * Render first-party public module content inside the active website wrapper.
+     *
+     * @param array<string,mixed> $context
+     */
+    public static function renderPublicDocument( string $title, string $content_html, array $context = [] ): string {
+        $title = trim( $title ) !== '' ? trim( $title ) : 'Page';
+        $path = trim( (string) ( $context['path'] ?? ( $_SERVER['REQUEST_URI'] ?? '/' ) ) );
+        if ( $path === '' ) {
+            $path = '/';
+        }
+
+        $render_context = array_merge(
+            [
+                'path' => $path,
+                'slug' => trim( $path, '/' ) !== '' ? trim( $path, '/' ) : 'public',
+                'content_type' => 'public_module',
+                'content_format' => 'standard',
+                'context' => 'website',
+                'is_homepage' => false,
+            ],
+            $context
+        );
+
+        return self::renderWithPipeline( [
+            'title' => $title,
+            'description' => '',
+            'template_structure' => TemplateService::resolveForArchive(),
+            'sections' => [],
+            'hero' => [],
+            'content' => $content_html,
+            'page' => [
+                'id' => 0,
+                'slug' => (string) $render_context['slug'],
+                'title' => $title,
+                'page_type' => 'public_module',
+            ],
+            'layout_settings' => [],
+            'context' => $render_context,
+        ] );
+    }
+
     public static function hasHomepageConfigured(): bool {
         $page = self::resolveHomepagePage();
         return $page !== null && $page->status === 'published';
