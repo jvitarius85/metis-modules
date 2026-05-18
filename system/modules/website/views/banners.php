@@ -141,8 +141,22 @@ $banners = BannerService::getAll();
 </div>
 
 <script>
-(function($){
+(function(){
     'use strict';
+    if (!window.jQuery) {
+        document.addEventListener('DOMContentLoaded', function(){
+            if (window.jQuery && !window.__metisBannerViewInit) {
+                window.__metisBannerViewInit = true;
+                init(window.jQuery);
+            }
+        });
+        return;
+    }
+    if (window.__metisBannerViewInit) { return; }
+    window.__metisBannerViewInit = true;
+    init(window.jQuery);
+
+    function init($){
 
     function esc(value) {
         return String(value || '')
@@ -326,5 +340,6 @@ $banners = BannerService::getAll();
             });
         });
     });
-})(jQuery);
+    }
+})();
 </script>

@@ -6,7 +6,7 @@ function metis_newsletter_unsubscribe_url_from_message_code(string $message_code
 }
 
 function metis_newsletter_manage_url_from_message_code(string $message_code): string {
-    return metis_home_url('/metis/v1/newsletter/manage/' . rawurlencode($message_code));
+    return metis_home_url('/manage/');
 }
 
 function metis_newsletter_public_unsubscribe_url(string $contact_ref, string $list_ref = ''): string {
@@ -19,7 +19,7 @@ function metis_newsletter_public_unsubscribe_url(string $contact_ref, string $li
 }
 
 function metis_newsletter_public_manage_url(string $contact_ref): string {
-    return metis_home_url('/n/manage/' . rawurlencode(trim($contact_ref)) . '/');
+    return metis_home_url('/manage/');
 }
 
 function metis_newsletter_public_view_url(string $newsletter_ref): string {

@@ -310,11 +310,11 @@ function metis_security_register_route_policies(): void {
     $register( new Metis_Security_Policy( 'route.system_version', null, 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.system_cron', null, 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.forms_public', null, 'create', false, false, false, null, 120, 60 ) );
-    $register( new Metis_Security_Policy( 'route.donations_donor_portal', null, 'view', false, false, false, null, 60, 60 ) );
-    $register( new Metis_Security_Policy( 'route.donations_donor_portal', null, 'create', false, false, false, null, 20, 60 ) );
-    $register( new Metis_Security_Policy( 'route.donations_donor_access', null, 'view', false, false, false, null, 60, 60 ) );
-    $register( new Metis_Security_Policy( 'route.donations_donor_access', null, 'create', false, false, false, null, 30, 60 ) );
-    $register( new Metis_Security_Policy( 'route.donations_donor_statement', null, 'view', false, false, false, null, 60, 60 ) );
+    $register( new Metis_Security_Policy( 'route.manage_profile', null, 'view', false, false, false, null, 60, 60 ) );
+    $register( new Metis_Security_Policy( 'route.manage_profile', null, 'create', false, false, false, null, 20, 60 ) );
+    $register( new Metis_Security_Policy( 'route.manage_access', null, 'view', false, false, false, null, 60, 60 ) );
+    $register( new Metis_Security_Policy( 'route.manage_access', null, 'create', false, false, false, null, 30, 60 ) );
+    $register( new Metis_Security_Policy( 'route.manage_statement', null, 'view', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.donations_recurring_manage', null, 'view', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.donations_recurring_manage', null, 'create', false, false, false, null, 30, 60 ) );
     $register( new Metis_Security_Policy( 'route.webhook_gateway', null, 'create', false, false, false, null, 180, 60 ) );
@@ -325,7 +325,6 @@ function metis_security_register_route_policies(): void {
     $register( new Metis_Security_Policy( 'route.newsletter_open.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.newsletter_click.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.newsletter_unsubscribe.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
-    $register( new Metis_Security_Policy( 'route.newsletter_manage.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.website_theme_css', null, 'view', false, false, false, null, 300, 60 ) );
     $register( new Metis_Security_Policy( 'route.website_homepage', null, 'view', false, false, false, null, 300, 60 ) );
     $register( new Metis_Security_Policy( 'route.website_page', null, 'view', false, false, false, null, 300, 60 ) );

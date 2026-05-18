@@ -1916,8 +1916,11 @@
                     return;
                 }
                 if (richAction) {
-                    e.preventDefault();
                     var action = s(richAction.getAttribute('data-rich-action') || '');
+                    if (action === 'color-picker') {
+                        return;
+                    }
+                    e.preventDefault();
                     var actionTargetId = s(richAction.getAttribute('data-rich-target') || '');
                     var actionValue = s(richAction.getAttribute('data-rich-value') || '');
                     var actionTarget = actionTargetId ? document.getElementById(actionTargetId) : null;
@@ -2252,6 +2255,41 @@
             return wrap.innerHTML;
         }
 
+        function sanitizeRichTextColor(value) {
+            var raw = s(value || '').trim();
+            if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return raw;
+            return '';
+        }
+
+        function removeInlineTextColor(html) {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = s(html || '');
+            wrap.querySelectorAll('[style]').forEach(function (node) {
+                var style = s(node.getAttribute('style') || '').split(';').filter(function (rule) {
+                    return s(rule || '').trim().toLowerCase().indexOf('color:') !== 0;
+                }).join('; ');
+                if (style) node.setAttribute('style', style);
+                else node.removeAttribute('style');
+            });
+            return wrap.innerHTML;
+        }
+
+        function applyTextColor(target, value) {
+            var color = sanitizeRichTextColor(value);
+            if (!target || !color) return;
+            target.focus();
+            restoreRichSelection(target);
+            var sel = window.getSelection ? window.getSelection() : null;
+            if (!sel || !sel.rangeCount) return;
+            var range = sel.getRangeAt(0);
+            if (range.collapsed || !target.contains(range.commonAncestorContainer)) return;
+            var html = normalizeStyledSelectionHtml(selectedHtmlFromRange(range), 'metis-text-color-');
+            html = removeInlineTextColor(html);
+            range.deleteContents();
+            document.execCommand('insertHTML', false, '<span style="color: ' + color + ';">' + html + '</span>');
+            saveRichSelection(target);
+        }
+
         function insertHtmlAtSelection(target, html) {
             if (!target) return;
             target.focus();
@@ -2387,24 +2425,6 @@
         }
 
         function richToolbarV2(targetId) {
-            var themeColorOptions = [
-                ['default', 'Default'],
-                ['metis_primary', 'Primary'],
-                ['metis_primary_dark', 'Primary Dark'],
-                ['metis_accent', 'Accent'],
-                ['metis_bg', 'Background'],
-                ['metis_surface', 'Surface'],
-                ['metis_border', 'Border'],
-                ['metis_text', 'Text'],
-                ['metis_text_muted', 'Muted Text'],
-                ['metis_header_bg', 'Header Background'],
-                ['metis_row_odd_bg', 'Row Odd Background'],
-                ['metis_row_even_bg', 'Row Even Background'],
-                ['metis_row_hover_bg', 'Row Hover Background'],
-                ['metis_sidebar_bg', 'Sidebar Background'],
-                ['metis_sidebar_icon_color', 'Sidebar Icon'],
-                ['metis_sidebar_active_color', 'Sidebar Active']
-            ];
             var cmds = [
                 { c: 'italic', icon: 'italic', label: 'Italic' },
                 { c: 'underline', icon: 'text-underline', label: 'Underline' },
@@ -2441,10 +2461,6 @@
             ].map(function (row) {
                 return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="size" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
-            var colorMenu = themeColorOptions.map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item metis-se-rich-menu-item--color" data-rich-action="color" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' +
-                    '<span class="metis-se-color-swatch metis-se-color-swatch--' + esc(row[0]) + '"></span><span>' + esc(row[1]) + '</span></button>';
-            }).join('');
             var weightMenu = [
                 ['600', 'Semi Bold'],
                 ['700', 'Bold'],
@@ -2457,7 +2473,10 @@
                     '<div class="metis-se-rich-group metis-se-rich-group--actions">' +
                         richToolbarDropdown('Paragraph', 'h1', blockMenu, 'metis-se-rich-dropdown--format') +
                         richToolbarDropdown('Text Size', 'text-scale', sizeMenu, 'metis-se-rich-dropdown--size') +
-                        richToolbarDropdown('Text Color', 'text-color', colorMenu, 'metis-se-rich-dropdown--color') +
+                        '<label class="metis-se-toolbtn metis-se-rich-icon-btn metis-se-rich-color-picker" title="Text Color" aria-label="Text Color">' +
+                            '<img src="' + esc(iconUrl('text-color')) + '" data-icon-fallback="' + esc(iconFallbackUrl('text-color')) + '" alt="" aria-hidden="true">' +
+                            '<input type="color" data-rich-action="color-picker" data-rich-target="' + esc(targetId) + '" value="#1f2330">' +
+                        '</label>' +
                         richToolbarDropdown('Weight', 'text-bold', weightMenu, 'metis-se-rich-dropdown--weight') +
                         cmds.map(function (item) {
                             var valAttr = item.v ? ' data-rich-val="' + esc(item.v) + '"' : '';
@@ -5138,8 +5157,11 @@
                     return;
                 }
                 if (richAction) {
-                    e.preventDefault();
                     var action = s(richAction.getAttribute('data-rich-action') || '');
+                    if (action === 'color-picker') {
+                        return;
+                    }
+                    e.preventDefault();
                     var actionTargetId = s(richAction.getAttribute('data-rich-target') || '');
                     var actionValue = s(richAction.getAttribute('data-rich-value') || '');
                     var actionTarget = (actionTargetId ? document.getElementById(actionTargetId) : null) || richEditorForControl(richAction);
@@ -5149,6 +5171,7 @@
                         if (action === 'block') document.execCommand('formatBlock', false, actionValue || 'P');
                         else if (action === 'size') applySpanPreset(actionTarget, 'metis-text-size-', actionValue || 'default');
                         else if (action === 'color') applySpanPreset(actionTarget, 'metis-text-color-', actionValue || 'default');
+                        else if (action === 'color-picker') applyTextColor(actionTarget, richAction.value || actionValue);
                         else if (action === 'weight') applySpanPreset(actionTarget, 'metis-text-weight-', actionValue || '700');
                         saveRichSelection(actionTarget);
                         syncRichEditorToSection(actionTarget);
@@ -5219,6 +5242,16 @@
             root.addEventListener('input', function (e) {
                 var target = e.target;
                 var sec = activeSection();
+                if (target && target.matches && target.matches('[data-rich-action="color-picker"]')) {
+                    var colorTargetId = s(target.getAttribute('data-rich-target') || '');
+                    var colorTarget = (colorTargetId ? document.getElementById(colorTargetId) : null) || richEditorForControl(target);
+                    if (colorTarget) {
+                        applyTextColor(colorTarget, target.value);
+                        syncRichEditorToSection(colorTarget);
+                        setDirtyAutosave();
+                    }
+                    return;
+                }
                 if (target && target.classList && target.classList.contains('metis-se-rich-editor')) {
                     saveRichSelection(target);
                 }

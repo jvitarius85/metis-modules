@@ -117,28 +117,12 @@
             "handler": "metis_newsletter_handle_unsubscribe_route"
         },
         {
-            "name": "newsletter.manage",
-            "methods": [
-                "GET"
-            ],
-            "pattern": "#^/metis/v1/newsletter/manage/(?P<code>[A-Za-z0-9\\-_]+)$#",
-            "handler": "metis_newsletter_handle_manage_route"
-        },
-        {
             "name": "newsletter.public.unsubscribe",
             "methods": [
                 "GET"
             ],
             "pattern": "#^/n/unsubscribe/(?P<contact>[A-Za-z0-9\\-_]+)/?$#",
             "handler": "metis_newsletter_handle_public_unsubscribe_route"
-        },
-        {
-            "name": "newsletter.public.manage",
-            "methods": [
-                "GET"
-            ],
-            "pattern": "#^/n/manage/(?P<contact>[A-Za-z0-9\\-_]+)/?$#",
-            "handler": "metis_newsletter_handle_public_manage_route"
         },
         {
             "name": "newsletter.public.view",

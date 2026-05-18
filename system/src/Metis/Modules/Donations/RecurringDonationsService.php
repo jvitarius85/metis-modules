@@ -717,7 +717,7 @@ final class RecurringDonationsService {
     }
 
     private static function sendSetupEmail( string $email, string $name, string $code, string $frequency, float $amount, string $token ): void {
-        $manageUrl = \metis_home_url( '/donor/recurring/' . rawurlencode( $token ) . '/' );
+        $manageUrl = \metis_home_url( '/manage/recurring/' . rawurlencode( $token ) . '/' );
         $body = '<p>Thank you for setting up a recurring donation.</p>'
             . '<p><strong>Amount:</strong> $' . \number_format( $amount, 2 ) . '<br>'
             . '<strong>Frequency:</strong> ' . \metis_escape_html( ucfirst( $frequency ) ) . '</p>'
@@ -959,6 +959,7 @@ final class RecurringDonationsService {
         $transactions = \Metis_Tables::get( 'transactions' );
         $contacts = \Metis_Tables::get( 'contacts' );
         $recurring = \Metis_Tables::get( 'recurring_donations' );
+        $newsletterSubs = \Metis_Tables::get( 'newsletter_subs' );
         $hasDonor = (int) \metis_db()->scalar(
             "SELECT COUNT(*) FROM {$contacts} c WHERE LOWER(c.email) = LOWER(%s)",
             [ $email ]
@@ -971,8 +972,15 @@ final class RecurringDonationsService {
             "SELECT COUNT(*) FROM {$recurring} WHERE LOWER(donor_email) = LOWER(%s)",
             [ $email ]
         );
+        $hasNewsletter = 0;
+        if ( $newsletterSubs !== '' && self::tableExists( $newsletterSubs ) ) {
+            $hasNewsletter = (int) \metis_db()->scalar(
+                "SELECT COUNT(*) FROM {$newsletterSubs} ns INNER JOIN {$contacts} c ON c.id = ns.contact_id WHERE LOWER(c.email) = LOWER(%s)",
+                [ $email ]
+            );
+        }
 
-        if ( $hasDonor < 1 && $hasTransactions < 1 && $hasRecurring < 1 ) {
+        if ( $hasDonor < 1 && $hasTransactions < 1 && $hasRecurring < 1 && $hasNewsletter < 1 ) {
             return [ 'ok' => true, 'message' => 'If that email is connected to donor records, an access link will be sent.' ];
         }
 
@@ -987,9 +995,10 @@ final class RecurringDonationsService {
             'created_at' => self::now(),
         ] );
 
-        $url = \metis_home_url( '/donor/access/' . rawurlencode( $rawToken ) . '/' );
-        EmailService::sendHtml( $email, 'Your Metis donor portal link', self::portalAccessEmailHtml( $url ), [
+        $url = \metis_home_url( '/manage/access/' . rawurlencode( $rawToken ) . '/' );
+        EmailService::sendHtml( $email, 'Your Metis profile access link', self::portalAccessEmailHtml( $url ), [
             'module' => 'donations',
+            'reply_to' => 'donations@mobilizewaco.org',
         ] );
 
         return [ 'ok' => true, 'message' => 'If that email is connected to donor records, an access link will be sent.' ];
@@ -1053,7 +1062,93 @@ final class RecurringDonationsService {
         }
         rsort( $years );
 
-        return [ 'email' => $email, 'contact' => $contact, 'detail' => $detail, 'transactions' => $tx, 'recurring' => $plans, 'statement_years' => array_values( $years ) ];
+        return [ 'email' => $email, 'contact' => $contact, 'detail' => $detail, 'transactions' => $tx, 'recurring' => $plans, 'newsletter' => self::newsletterSubscriptionsForEmail( $email ), 'statement_years' => array_values( $years ) ];
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    public static function newsletterSubscriptionsForEmail( string $email ): array {
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+            return [];
+        }
+        $lists = \Metis_Tables::get( 'newsletter_lists' );
+        $subs = \Metis_Tables::get( 'newsletter_subs' );
+        $contacts = \Metis_Tables::get( 'contacts' );
+        if ( $lists === '' || $subs === '' || $contacts === '' || ! self::tableExists( $lists ) || ! self::tableExists( $subs ) || ! self::tableExists( $contacts ) ) {
+            return [];
+        }
+        $contactId = (int) \metis_db()->scalar( "SELECT id FROM {$contacts} WHERE LOWER(email) = LOWER(%s) LIMIT 1", [ $email ] );
+        if ( $contactId < 1 ) {
+            return [];
+        }
+        return \metis_db()->fetchAll(
+            "SELECT l.id, l.name, COALESCE(s.status, 'unsubscribed') AS status
+             FROM {$lists} l
+             LEFT JOIN {$subs} s ON s.list_id = l.id AND s.contact_id = %d
+             WHERE l.is_active = 1
+             ORDER BY l.name ASC",
+            [ $contactId ]
+        );
+    }
+
+    /**
+     * @return array{ok:bool,message:string}
+     */
+    public static function toggleNewsletterSubscription( string $email, int $listId ): array {
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        if ( $email === '' || ! \metis_email_is_valid( $email ) || $listId < 1 ) {
+            return [ 'ok' => false, 'message' => 'Newsletter subscription could not be updated.' ];
+        }
+        $lists = \Metis_Tables::get( 'newsletter_lists' );
+        $subs = \Metis_Tables::get( 'newsletter_subs' );
+        if ( $lists === '' || $subs === '' || ! self::tableExists( $lists ) || ! self::tableExists( $subs ) ) {
+            return [ 'ok' => false, 'message' => 'Newsletter subscriptions are unavailable.' ];
+        }
+        $list = \metis_db()->fetchOne( "SELECT id FROM {$lists} WHERE id = %d AND is_active = 1 LIMIT 1", [ $listId ] );
+        if ( ! is_array( $list ) ) {
+            return [ 'ok' => false, 'message' => 'Newsletter list was not found.' ];
+        }
+        $contacts = \Metis_Tables::get( 'contacts' );
+        $contact = $contacts !== '' && self::tableExists( $contacts )
+            ? ( \metis_db()->fetchOne( "SELECT id FROM {$contacts} WHERE LOWER(email) = LOWER(%s) LIMIT 1", [ $email ] ) ?: [] )
+            : [];
+        $contactId = (int) ( $contact['id'] ?? 0 );
+        if ( $contactId < 1 ) {
+            return [ 'ok' => false, 'message' => 'No profile record was found for this email.' ];
+        }
+        $now = \metis_current_time( 'mysql' );
+        $row = \metis_db()->fetchOne(
+            "SELECT id, status FROM {$subs} WHERE list_id = %d AND contact_id = %d LIMIT 1",
+            [ $listId, $contactId ]
+        );
+        if ( is_array( $row ) ) {
+            $newStatus = (string) ( $row['status'] ?? '' ) === 'subscribed' ? 'unsubscribed' : 'subscribed';
+            \metis_db()->update(
+                $subs,
+                [
+                    'status' => $newStatus,
+                    'unsubscribed_at' => $newStatus === 'subscribed' ? null : $now,
+                    'subscribed_at' => $newStatus === 'subscribed' ? $now : null,
+                    'last_event_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [ 'id' => (int) ( $row['id'] ?? 0 ) ]
+            );
+            return [ 'ok' => true, 'message' => 'Newsletter subscription updated.' ];
+        }
+        $payload = [
+            'list_id' => $listId,
+            'contact_id' => $contactId,
+            'status' => 'subscribed',
+            'subscribed_at' => $now,
+            'last_event_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+        \metis_db()->insert( $subs, $payload );
+        return [ 'ok' => true, 'message' => 'Newsletter subscription updated.' ];
     }
 
     /**
@@ -1136,10 +1231,11 @@ final class RecurringDonationsService {
     /**
      * @return array{ok:bool,message:string}
      */
-    public static function sendDonorInquiry( string $email, string $message ): array {
+    public static function sendDonorInquiry( string $email, string $message, string $transactionId = '' ): array {
         self::ensureSchema();
         $email = strtolower( trim( \metis_email_clean( $email ) ) );
         $message = trim( \metis_text_clean( $message ) );
+        $transactionId = trim( \metis_text_clean( $transactionId ) );
         if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
             return [ 'ok' => false, 'message' => 'The portal access link is no longer valid.' ];
         }
@@ -1147,18 +1243,35 @@ final class RecurringDonationsService {
             return [ 'ok' => false, 'message' => 'Enter your question before sending.' ];
         }
 
-        $defaults = self::emailDefaults();
-        $to = (string) ( $defaults['reply_to'] ?: $defaults['from_email'] );
-        if ( $to === '' || ! \metis_email_is_valid( $to ) ) {
-            return [ 'ok' => false, 'message' => 'Donor inquiry email settings are not configured.' ];
+        $transaction = [];
+        if ( $transactionId !== '' ) {
+            $transactions = \Metis_Tables::get( 'transactions' );
+            $contacts = \Metis_Tables::get( 'contacts' );
+            $transaction = \metis_db()->fetchOne(
+                "SELECT t.tid, t.tran_date, t.amount, t.status FROM {$transactions} t INNER JOIN {$contacts} c ON c.did = t.did WHERE t.tid = %s AND LOWER(c.email) = LOWER(%s) LIMIT 1",
+                [ $transactionId, $email ]
+            ) ?: [];
+            if ( ! is_array( $transaction ) || $transaction === [] ) {
+                return [ 'ok' => false, 'message' => 'That donation could not be verified for this portal link.' ];
+            }
         }
 
+        $to = 'donations@mobilizewaco.org';
+        $subject = $transactionId !== '' ? ( 'Donor question about ' . $transactionId ) : 'Donor portal inquiry';
+        $detailHtml = '';
+        if ( $transaction !== [] ) {
+            $detailHtml = '<p><strong>Receipt:</strong> ' . \metis_escape_html( (string) ( $transaction['tid'] ?? '' ) ) . '<br>'
+                . '<strong>Date:</strong> ' . \metis_escape_html( (string) ( $transaction['tran_date'] ?? '' ) ) . '<br>'
+                . '<strong>Amount:</strong> $' . \metis_escape_html( number_format( (float) ( $transaction['amount'] ?? 0 ), 2 ) ) . '<br>'
+                . '<strong>Status:</strong> ' . \metis_escape_html( (string) ( $transaction['status'] ?? '' ) ) . '</p>';
+        }
         $body = '<div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55">'
             . '<h2 style="margin:0 0 12px">Donor portal inquiry</h2>'
             . '<p><strong>Donor email:</strong> ' . \metis_escape_html( $email ) . '</p>'
+            . $detailHtml
             . '<div style="padding:14px;border:1px solid #d8deea;border-radius:8px;background:#f8fafc">' . nl2br( \metis_escape_html( $message ) ) . '</div>'
             . '</div>';
-        $send = EmailService::sendHtml( $to, 'Donor portal inquiry', $body, [
+        $send = EmailService::sendHtml( $to, $subject, $body, [
             'module' => 'donations',
             'reply_to' => $email,
         ] );
@@ -1201,12 +1314,15 @@ final class RecurringDonationsService {
 
     private static function portalAccessEmailHtml( string $url ): string {
         $safeUrl = \metis_escape_url( $url );
+        $logo = function_exists( 'metis_portal_logo_url' ) ? trim( (string) \metis_portal_logo_url() ) : '';
+        $logoHtml = $logo !== '' ? '<tr><td style="padding:26px 30px 0"><img src="' . \metis_escape_url( $logo ) . '" alt="Mobilize Waco" style="display:block;max-width:210px;max-height:82px;width:auto;height:auto;border:0"></td></tr>' : '';
         return '<div style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#172033">'
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f5f7fb"><tr><td align="center" style="padding:32px 16px">'
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;border-collapse:collapse;background:#ffffff;border:1px solid #dfe5f1;border-radius:10px;overflow:hidden">'
-            . '<tr><td style="padding:28px 30px 10px"><h1 style="margin:0;color:#172033;font-size:24px;line-height:1.2">Your donor portal link</h1></td></tr>'
-            . '<tr><td style="padding:0 30px 22px;color:#596579;font-size:15px;line-height:1.6">Use this secure link to view your donation history, recurring gifts, profile, and contribution statements. This link expires in 15 minutes.</td></tr>'
-            . '<tr><td style="padding:0 30px 28px"><a href="' . $safeUrl . '" style="display:inline-block;background:#2754d8;color:#ffffff;text-decoration:none;font-weight:700;border-radius:6px;padding:12px 18px">Open donor portal</a></td></tr>'
+            . $logoHtml
+            . '<tr><td style="padding:28px 30px 10px"><h1 style="margin:0;color:#172033;font-size:24px;line-height:1.2">Your profile access link</h1></td></tr>'
+            . '<tr><td style="padding:0 30px 22px;color:#596579;font-size:15px;line-height:1.6">Use this secure link to manage your profile, newsletter subscriptions, donation history, recurring gifts, and contribution statements. This link expires in 15 minutes.</td></tr>'
+            . '<tr><td style="padding:0 30px 28px"><a href="' . $safeUrl . '" style="display:inline-block;background:#2754d8;color:#ffffff;text-decoration:none;font-weight:700;border-radius:6px;padding:12px 18px">Open manage profile</a></td></tr>'
             . '<tr><td style="padding:0 30px 28px;color:#596579;font-size:13px;line-height:1.5">If the button does not work, copy and paste this link into your browser:<br><a href="' . $safeUrl . '" style="color:#2754d8;word-break:break-all">' . \metis_escape_html( $url ) . '</a></td></tr>'
             . '</table></td></tr></table></div>';
     }

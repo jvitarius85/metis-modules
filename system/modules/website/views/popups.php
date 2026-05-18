@@ -126,8 +126,22 @@ $trigger_types = [
 </div>
 
 <script>
-(function($) {
+(function(){
 'use strict';
+if (!window.jQuery) {
+    document.addEventListener('DOMContentLoaded', function(){
+        if (window.jQuery && !window.__metisPopupViewInit) {
+            window.__metisPopupViewInit = true;
+            init(window.jQuery);
+        }
+    });
+    return;
+}
+if (window.__metisPopupViewInit) { return; }
+window.__metisPopupViewInit = true;
+init(window.jQuery);
+
+function init($) {
 
 function updatePopupSubtitle() {
     var count = $('.metis-popup-table .metis-premium-row').not('.metis-premium-header').length;
@@ -277,5 +291,6 @@ $(document).on('click', '.metis-delete-popup', function() {
     });
 });
 
-})(jQuery);
+}
+})();
 </script>

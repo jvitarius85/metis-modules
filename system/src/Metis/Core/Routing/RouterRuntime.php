@@ -1282,11 +1282,11 @@ function metis_router_route_permission_for_request( Metis_Http_Request $request 
         return 'manage';
     }
 
-    if ( in_array( $route_name, [ 'forms.public', 'donations.recurring.manage', 'donations.donor.portal', 'donations.donor.access', 'donations.donor.statement' ], true ) ) {
+    if ( in_array( $route_name, [ 'forms.public', 'donations.recurring.manage', 'manage.profile', 'manage.access', 'manage.statement' ], true ) ) {
         return $method === 'POST' ? 'create' : 'view';
     }
 
-    if ( in_array( $route_name, [ 'newsletter.open', 'newsletter.click', 'newsletter.unsubscribe', 'newsletter.manage' ], true ) ) {
+    if ( in_array( $route_name, [ 'newsletter.open', 'newsletter.click', 'newsletter.unsubscribe' ], true ) ) {
         return 'view';
     }
 
@@ -1378,9 +1378,9 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
             break;
 
         case 'donations.recurring.manage':
-        case 'donations.donor.portal':
-        case 'donations.donor.access':
-        case 'donations.donor.statement':
+        case 'manage.profile':
+        case 'manage.access':
+        case 'manage.statement':
             $module = null;
             $require_authentication = false;
             $require_session = false;
@@ -1392,7 +1392,6 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
         case 'newsletter.open':
         case 'newsletter.click':
         case 'newsletter.unsubscribe':
-        case 'newsletter.manage':
             $module = 'newsletter';
             $require_authentication = false;
             $require_session = false;

@@ -3155,6 +3155,155 @@ final class WebsiteRenderer {
             . '</' . $level . '></div>';
     }
 
+
+    private static function sanitizeRichTextFragment( string $html ): string {
+        $raw = trim( $html );
+        if ( $raw === '' ) {
+            return '';
+        }
+        if ( ! class_exists( \DOMDocument::class ) ) {
+            $safe = function_exists( 'metis_runtime_kses_post' )
+                ? (string) metis_runtime_kses_post( $raw )
+                : strip_tags( $raw, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div><figure><figcaption><img><table><thead><tbody><tr><th><td><hr><pre><code>' );
+            return self::repairPublicHtmlText( $safe );
+        }
+
+        $previous = libxml_use_internal_errors( true );
+        $document = new \DOMDocument( '1.0', 'UTF-8' );
+        $document->loadHTML( '<?xml encoding="UTF-8"><div id="metis-rich-root">' . $raw . '</div>', LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED );
+        libxml_clear_errors();
+        libxml_use_internal_errors( $previous );
+
+        $root = $document->getElementById( 'metis-rich-root' );
+        if ( ! $root instanceof \DOMElement ) {
+            return '';
+        }
+        self::sanitizeRichTextNode( $root );
+
+        $safe = '';
+        foreach ( iterator_to_array( $root->childNodes ) as $child ) {
+            $safe .= $document->saveHTML( $child ) ?: '';
+        }
+        return self::repairPublicHtmlText( $safe );
+    }
+
+    private static function sanitizeRichTextNode( \DOMNode $node ): void {
+        foreach ( iterator_to_array( $node->childNodes ) as $child ) {
+            if ( $child->nodeType === XML_COMMENT_NODE ) {
+                $node->removeChild( $child );
+                continue;
+            }
+            if ( $child instanceof \DOMElement ) {
+                $tag = strtolower( $child->tagName );
+                if ( in_array( $tag, [ 'script', 'style', 'iframe', 'object', 'embed', 'svg', 'math' ], true ) ) {
+                    $node->removeChild( $child );
+                    continue;
+                }
+                self::sanitizeRichTextNode( $child );
+                if ( ! in_array( $tag, self::allowedRichTextTags(), true ) ) {
+                    while ( $child->firstChild ) {
+                        $node->insertBefore( $child->firstChild, $child );
+                    }
+                    $node->removeChild( $child );
+                    continue;
+                }
+                self::sanitizeRichTextAttributes( $child, $tag );
+            }
+        }
+    }
+
+    /** @return array<int,string> */
+    private static function allowedRichTextTags(): array {
+        return [ 'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'span', 'div', 'figure', 'figcaption', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'pre', 'code' ];
+    }
+
+    private static function sanitizeRichTextAttributes( \DOMElement $element, string $tag ): void {
+        foreach ( iterator_to_array( $element->attributes ) as $attribute ) {
+            $name = strtolower( $attribute->name );
+            $value = trim( (string) $attribute->value );
+            $keep = false;
+
+            if ( $name === 'class' ) {
+                $value = self::sanitizeRichTextClassList( $value );
+                $keep = $value !== '';
+            } elseif ( $name === 'style' ) {
+                $value = self::sanitizeRichTextStyle( $value );
+                $keep = $value !== '';
+            } elseif ( $tag === 'a' && $name === 'href' ) {
+                $keep = self::isSafeRichTextUrl( $value );
+            } elseif ( $tag === 'a' && $name === 'target' ) {
+                $keep = in_array( $value, [ '_blank', '_self' ], true );
+            } elseif ( $tag === 'a' && $name === 'rel' ) {
+                $value = preg_replace( '/[^a-z\s_-]/i', '', $value ) ?: '';
+                $keep = $value !== '';
+            } elseif ( $tag === 'img' && $name === 'src' ) {
+                $keep = self::isSafeRichTextUrl( $value );
+            } elseif ( in_array( $name, [ 'alt', 'title' ], true ) && in_array( $tag, [ 'a', 'img', 'figure', 'figcaption' ], true ) ) {
+                $value = trim( strip_tags( $value ) );
+                $keep = $value !== '';
+            } elseif ( in_array( $name, [ 'width', 'height' ], true ) && $tag === 'img' ) {
+                $value = preg_replace( '/[^0-9]/', '', $value ) ?: '';
+                $keep = $value !== '' && (int) $value > 0 && (int) $value <= 4000;
+            } elseif ( in_array( $name, [ 'colspan', 'rowspan' ], true ) && in_array( $tag, [ 'td', 'th' ], true ) ) {
+                $value = preg_replace( '/[^0-9]/', '', $value ) ?: '';
+                $keep = $value !== '' && (int) $value > 0 && (int) $value <= 20;
+            } elseif ( $name === 'scope' && $tag === 'th' ) {
+                $keep = in_array( $value, [ 'col', 'row', 'colgroup', 'rowgroup' ], true );
+            }
+
+            if ( $keep ) {
+                $element->setAttribute( $name, $value );
+            } else {
+                $element->removeAttribute( $attribute->name );
+            }
+        }
+    }
+
+    private static function sanitizeRichTextClassList( string $classes ): string {
+        $safe = [];
+        foreach ( preg_split( '/\s+/', $classes ) ?: [] as $class ) {
+            $class = trim( $class );
+            if ( $class === '' ) {
+                continue;
+            }
+            if ( preg_match( '/^metis-text-(size|color|weight|align)-[a-z0-9_-]+$/i', $class ) === 1 || preg_match( '/^metis-inline-(image|divider)$/i', $class ) === 1 || in_array( $class, [ 'is-small', 'is-medium', 'is-large', 'is-full' ], true ) ) {
+                $safe[] = $class;
+            }
+        }
+        return implode( ' ', array_values( array_unique( $safe ) ) );
+    }
+
+    private static function sanitizeRichTextStyle( string $style ): string {
+        $safe = [];
+        foreach ( explode( ';', $style ) as $rule ) {
+            $parts = explode( ':', $rule, 2 );
+            if ( count( $parts ) !== 2 ) {
+                continue;
+            }
+            $property = strtolower( trim( $parts[0] ) );
+            $value = trim( $parts[1] );
+            if ( $property === 'color' && preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) === 1 ) {
+                $safe[] = 'color: ' . strtolower( $value );
+            } elseif ( $property === 'font-weight' && preg_match( '/^(normal|bold|[1-9]00)$/i', $value ) === 1 ) {
+                $safe[] = 'font-weight: ' . strtolower( $value );
+            } elseif ( $property === 'font-style' && in_array( strtolower( $value ), [ 'normal', 'italic' ], true ) ) {
+                $safe[] = 'font-style: ' . strtolower( $value );
+            } elseif ( $property === 'text-decoration' && in_array( strtolower( $value ), [ 'none', 'underline', 'line-through' ], true ) ) {
+                $safe[] = 'text-decoration: ' . strtolower( $value );
+            } elseif ( $property === 'text-align' && in_array( strtolower( $value ), [ 'left', 'center', 'right' ], true ) ) {
+                $safe[] = 'text-align: ' . strtolower( $value );
+            }
+        }
+        return implode( '; ', $safe );
+    }
+
+    private static function isSafeRichTextUrl( string $value ): bool {
+        if ( $value === '' ) {
+            return false;
+        }
+        return preg_match( '#^(https?:|mailto:|tel:|/|#)#i', $value ) === 1;
+    }
+
     /**
      * @param array<string,mixed> $content
      */
@@ -3163,9 +3312,7 @@ final class WebsiteRenderer {
         if ( $body === '' ) {
             return '';
         }
-        $safe = function_exists( 'metis_runtime_kses_post' )
-            ? (string) metis_runtime_kses_post( $body )
-            : strip_tags( $body, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div><figure><table><thead><tbody><tr><th><td>' );
+        $safe = self::sanitizeRichTextFragment( $body );
         if ( trim( $safe ) === '' ) {
             return '';
         }

@@ -153,30 +153,30 @@
     "entry": "Module.php",
     "routes": [
         {
-            "name": "donations.donor.portal",
+            "name": "manage.profile",
             "methods": [
                 "GET",
                 "POST"
             ],
-            "pattern": "#^/donor/?$#",
-            "handler": "metis_donations_handle_donor_portal_route"
+            "pattern": "#^/manage/?$#",
+            "handler": "metis_donations_handle_manage_profile_route"
         },
         {
-            "name": "donations.donor.access",
+            "name": "manage.access",
             "methods": [
                 "GET",
                 "POST"
             ],
-            "pattern": "#^/donor/access/(?P<donor_token>[A-Fa-f0-9]{64})/?$#",
-            "handler": "metis_donations_handle_donor_portal_access_route"
+            "pattern": "#^/manage/access/(?P<donor_token>[A-Fa-f0-9]{64})/?$#",
+            "handler": "metis_donations_handle_manage_access_route"
         },
         {
-            "name": "donations.donor.statement",
+            "name": "manage.statement",
             "methods": [
                 "GET"
             ],
-            "pattern": "#^/donor/access/(?P<donor_token>[A-Fa-f0-9]{64})/statement/(?P<statement_year>\\d{4})/?$#",
-            "handler": "metis_donations_handle_donor_statement_route"
+            "pattern": "#^/manage/access/(?P<donor_token>[A-Fa-f0-9]{64})/statement/(?P<statement_year>\\d{4})/?$#",
+            "handler": "metis_donations_handle_manage_statement_route"
         },
         {
             "name": "donations.recurring.manage",
@@ -184,7 +184,7 @@
                 "GET",
                 "POST"
             ],
-            "pattern": "#^/donor/recurring/(?P<recurring_token>[A-Fa-f0-9]{64})/?$#",
+            "pattern": "#^/manage/recurring/(?P<recurring_token>[A-Fa-f0-9]{64})/?$#",
             "handler": "metis_donations_handle_recurring_public_route"
         }
     ],
