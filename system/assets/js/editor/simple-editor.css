@@ -2083,6 +2083,26 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
 .metis-se-rich-editor .metis-text-weight-600 { font-weight: 600; }
 .metis-se-rich-editor .metis-text-weight-700 { font-weight: 700; }
 .metis-se-rich-editor .metis-text-weight-800 { font-weight: 800; }
+.metis-se-rich-editor strong,
+.metis-se-rich-editor b {
+    font-weight: 800;
+}
+.metis-se-rich-editor ul,
+.metis-se-rich-editor ol {
+    margin: 0 0 1em;
+    padding-left: 1.6em;
+}
+.metis-se-rich-editor li {
+    margin: 0 0 .45em;
+}
+.metis-se-rich-editor li > ul,
+.metis-se-rich-editor li > ol {
+    margin: .45em 0 0;
+}
+.metis-se-rich-editor ol ol { list-style-type: lower-alpha; }
+.metis-se-rich-editor ol ol ol { list-style-type: lower-roman; }
+.metis-se-rich-editor ul ul { list-style-type: circle; }
+.metis-se-rich-editor ul ul ul { list-style-type: square; }
 .metis-se-rich-editor .metis-inline-divider {
     border: 0;
     border-top: 1px solid color-mix(in srgb, var(--metis-border, #e0e2ea) 88%, transparent);

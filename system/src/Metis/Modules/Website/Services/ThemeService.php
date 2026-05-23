@@ -1468,7 +1468,7 @@ final class ThemeService {
         }
         $parts = explode( '/', $clean );
         $parts = array_map(
-            static fn ( string $part ): string => rawurlencode( $part ),
+            static fn ( string $part ): string => str_replace( '%2C', ',', rawurlencode( $part ) ),
             $parts
         );
         return implode( '/', $parts );

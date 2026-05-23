@@ -3282,14 +3282,15 @@ final class WebsiteRenderer {
             }
             $property = strtolower( trim( $parts[0] ) );
             $value = trim( $parts[1] );
-            if ( $property === 'color' && preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) === 1 ) {
-                $safe[] = 'color: ' . strtolower( $value );
+            $value = trim( preg_replace( '/\s*!important\s*$/i', '', $value ) ?? $value );
+            if ( $property === 'color' && self::isSafeRichTextColor( $value ) ) {
+                $safe[] = 'color: ' . strtolower( preg_replace( '/\s+/', ' ', $value ) ) . ' !important';
             } elseif ( $property === 'font-weight' && preg_match( '/^(normal|bold|[1-9]00)$/i', $value ) === 1 ) {
-                $safe[] = 'font-weight: ' . strtolower( $value );
+                $safe[] = 'font-weight: ' . strtolower( $value ) . ' !important';
             } elseif ( $property === 'font-style' && in_array( strtolower( $value ), [ 'normal', 'italic' ], true ) ) {
-                $safe[] = 'font-style: ' . strtolower( $value );
+                $safe[] = 'font-style: ' . strtolower( $value ) . ' !important';
             } elseif ( $property === 'text-decoration' && in_array( strtolower( $value ), [ 'none', 'underline', 'line-through' ], true ) ) {
-                $safe[] = 'text-decoration: ' . strtolower( $value );
+                $safe[] = 'text-decoration: ' . strtolower( $value ) . ' !important';
             } elseif ( $property === 'text-align' && in_array( strtolower( $value ), [ 'left', 'center', 'right' ], true ) ) {
                 $safe[] = 'text-align: ' . strtolower( $value );
             }
@@ -3297,11 +3298,29 @@ final class WebsiteRenderer {
         return implode( '; ', $safe );
     }
 
+    private static function isSafeRichTextColor( string $value ): bool {
+        $value = trim( $value );
+        if ( preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) === 1 ) {
+            return true;
+        }
+        if ( preg_match( '/^rgba?\(\s*(?:\d{1,3}\s*,\s*){2}\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i', $value ) === 1 ) {
+            preg_match_all( '/\d+(?:\.\d+)?/', $value, $matches );
+            $channels = array_slice( $matches[0] ?? [], 0, 3 );
+            foreach ( $channels as $channel ) {
+                if ( (int) $channel > 255 ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     private static function isSafeRichTextUrl( string $value ): bool {
         if ( $value === '' ) {
             return false;
         }
-        return preg_match( '#^(https?:|mailto:|tel:|/|#)#i', $value ) === 1;
+        return preg_match( '~^(https?:|mailto:|tel:|/|#)~i', $value ) === 1;
     }
 
     /**
@@ -4799,6 +4818,18 @@ final class WebsiteRenderer {
             '.metis-public-content p{margin:0 0 1em;}',
             '.metis-public-content ul,.metis-public-content ol{margin:0 0 1em;padding-left:1.35em;}',
             '.metis-public-content li{margin:0 0 .45em;}',
+            '.metis-public-content li>ul,.metis-public-content li>ol,.metis-structured-text li>ul,.metis-structured-text li>ol{margin:.45em 0 0;}',
+            '.metis-public-content ol ol,.metis-structured-text ol ol{list-style-type:lower-alpha;}',
+            '.metis-public-content ol ol ol,.metis-structured-text ol ol ol{list-style-type:lower-roman;}',
+            '.metis-public-content ul ul,.metis-structured-text ul ul{list-style-type:circle;}',
+            '.metis-public-content ul ul ul,.metis-structured-text ul ul ul{list-style-type:square;}',
+            '.metis-structured-text strong,.metis-structured-text b{font-weight:800!important;}',
+            '.metis-structured-text em,.metis-structured-text i{font-style:italic!important;}',
+            '.metis-structured-text u{text-decoration:underline!important;}',
+            '.metis-structured-text s,.metis-structured-text strike{text-decoration:line-through!important;}',
+            '.metis-structured-text .metis-text-weight-600{font-weight:600!important;}',
+            '.metis-structured-text .metis-text-weight-700{font-weight:700!important;}',
+            '.metis-structured-text .metis-text-weight-800{font-weight:800!important;}',
             '.metis-public-content blockquote{margin:1.2em 0;padding:.8em 1.1em;border-left:4px solid var(--metis-color-primary,#485bc7);background:var(--metis-color-surface_alt,#f8fafc);}',
             '.metis-public-content a{color:var(--metis-color-link,var(--metis-color-primary,#485bc7));text-underline-offset:2px;}',
             '.metis-public-content a:hover{color:var(--metis-color-link_hover,#3246a8);}',
@@ -5007,21 +5038,21 @@ final class WebsiteRenderer {
             '.metis-structured-text .metis-text-size-sm{font-size:.92rem;}',
             '.metis-structured-text .metis-text-size-lg{font-size:1.12rem;}',
             '.metis-structured-text .metis-text-size-xl{font-size:1.28rem;}',
-            '.metis-structured-text .metis-text-color-metis_primary{color:var(--metis-primary,#485bc7);}',
-            '.metis-structured-text .metis-text-color-metis_primary_dark{color:var(--metis-primary-dark,#3246a7);}',
-            '.metis-structured-text .metis-text-color-metis_accent{color:var(--metis-accent,#ff7542);}',
-            '.metis-structured-text .metis-text-color-metis_bg{color:var(--metis-bg,#f5f6fa);}',
-            '.metis-structured-text .metis-text-color-metis_surface{color:var(--metis-surface,#ffffff);}',
-            '.metis-structured-text .metis-text-color-metis_border{color:var(--metis-border,#e0e2ea);}',
-            '.metis-structured-text .metis-text-color-metis_text{color:var(--metis-text,#1f2330);}',
-            '.metis-structured-text .metis-text-color-metis_text_muted{color:var(--metis-text-muted,#6d7485);}',
-            '.metis-structured-text .metis-text-color-metis_header_bg{color:var(--metis-header-bg,#eceeff);}',
-            '.metis-structured-text .metis-text-color-metis_row_odd_bg{color:var(--metis-row-odd-bg,#ffffff);}',
-            '.metis-structured-text .metis-text-color-metis_row_even_bg{color:var(--metis-row-even-bg,#f8f9fd);}',
-            '.metis-structured-text .metis-text-color-metis_row_hover_bg{color:var(--metis-row-hover-bg,#eef2ff);}',
-            '.metis-structured-text .metis-text-color-metis_sidebar_bg{color:var(--metis-sidebar-bg,#16192b);}',
-            '.metis-structured-text .metis-text-color-metis_sidebar_icon_color{color:var(--metis-sidebar-icon-color,#7a82a6);}',
-            '.metis-structured-text .metis-text-color-metis_sidebar_active_color{color:var(--metis-sidebar-active-color,#a8b4ff);}',
+            '.metis-structured-text .metis-text-color-metis_primary{color:var(--metis-primary,#485bc7)!important;}',
+            '.metis-structured-text .metis-text-color-metis_primary_dark{color:var(--metis-primary-dark,#3246a7)!important;}',
+            '.metis-structured-text .metis-text-color-metis_accent{color:var(--metis-accent,#ff7542)!important;}',
+            '.metis-structured-text .metis-text-color-metis_bg{color:var(--metis-bg,#f5f6fa)!important;}',
+            '.metis-structured-text .metis-text-color-metis_surface{color:var(--metis-surface,#ffffff)!important;}',
+            '.metis-structured-text .metis-text-color-metis_border{color:var(--metis-border,#e0e2ea)!important;}',
+            '.metis-structured-text .metis-text-color-metis_text{color:var(--metis-text,#1f2330)!important;}',
+            '.metis-structured-text .metis-text-color-metis_text_muted{color:var(--metis-text-muted,#6d7485)!important;}',
+            '.metis-structured-text .metis-text-color-metis_header_bg{color:var(--metis-header-bg,#eceeff)!important;}',
+            '.metis-structured-text .metis-text-color-metis_row_odd_bg{color:var(--metis-row-odd-bg,#ffffff)!important;}',
+            '.metis-structured-text .metis-text-color-metis_row_even_bg{color:var(--metis-row-even-bg,#f8f9fd)!important;}',
+            '.metis-structured-text .metis-text-color-metis_row_hover_bg{color:var(--metis-row-hover-bg,#eef2ff)!important;}',
+            '.metis-structured-text .metis-text-color-metis_sidebar_bg{color:var(--metis-sidebar-bg,#16192b)!important;}',
+            '.metis-structured-text .metis-text-color-metis_sidebar_icon_color{color:var(--metis-sidebar-icon-color,#7a82a6)!important;}',
+            '.metis-structured-text .metis-text-color-metis_sidebar_active_color{color:var(--metis-sidebar-active-color,#a8b4ff)!important;}',
             '.metis-public-content .metis-text-align-left,.metis-structured-section__content .metis-text-align-left{text-align:left;}',
             '.metis-public-content .metis-text-align-center,.metis-structured-section__content .metis-text-align-center{text-align:center;}',
             '.metis-public-content .metis-text-align-right,.metis-structured-section__content .metis-text-align-right{text-align:right;}',

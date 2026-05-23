@@ -58,6 +58,7 @@
         return 'medium';
     }
     var sharedRichSelections = {};
+    var sharedRichColorSelections = {};
     var SHARED_EMOJI_SHORTCODES = {
         ':wave:': '👋',
         ':sparkles:': '✨',
@@ -1705,6 +1706,8 @@
                 { c: 'insertEmojiPrompt', icon: 'emoji', label: 'Insert Emoji' },
                 { c: 'insertUnorderedList', icon: 'list-bulleted', label: 'Bulleted List' },
                 { c: 'insertOrderedList', icon: 'list-boxes', label: 'Numbered List' },
+                { c: 'outdent', icon: 'text-indent-less', label: 'Decrease List Level' },
+                { c: 'indent', icon: 'text-indent-more', label: 'Increase List Level' },
                 { c: 'createLink', icon: 'link', label: 'Insert Link' },
                 { c: 'unlink', icon: 'close-outline', label: 'Remove Link' },
                 { c: 'insertDivider', icon: 'divider', label: 'Insert Divider' },
@@ -2274,20 +2277,64 @@
             return wrap.innerHTML;
         }
 
+        function captureRichColorSelection(picker) {
+            if (!picker) return;
+            var targetId = s(picker.getAttribute('data-rich-target') || '');
+            var target = (targetId ? document.getElementById(targetId) : null) || richEditorForControl(picker);
+            if (!target || !target.id) return;
+            var sel = window.getSelection ? window.getSelection() : null;
+            if (sel && sel.rangeCount) {
+                var liveRange = sel.getRangeAt(0);
+                if (!liveRange.collapsed && target.contains(liveRange.commonAncestorContainer)) {
+                    sharedRichSelections[target.id] = liveRange.cloneRange();
+                    sharedRichColorSelections[target.id] = liveRange.cloneRange();
+                    return;
+                }
+            }
+            if (sharedRichSelections[target.id]) {
+                sharedRichColorSelections[target.id] = sharedRichSelections[target.id].cloneRange();
+            }
+        }
+
         function applyTextColor(target, value) {
             var color = sanitizeRichTextColor(value);
-            if (!target || !color) return;
+            if (!target || !target.id || !color) return;
+            var savedRange = sharedRichColorSelections[target.id]
+                ? sharedRichColorSelections[target.id].cloneRange()
+                : (sharedRichSelections[target.id] ? sharedRichSelections[target.id].cloneRange() : null);
             target.focus();
-            restoreRichSelection(target);
-            var sel = window.getSelection ? window.getSelection() : null;
-            if (!sel || !sel.rangeCount) return;
-            var range = sel.getRangeAt(0);
-            if (range.collapsed || !target.contains(range.commonAncestorContainer)) return;
+            if (savedRange) {
+                var sel = window.getSelection ? window.getSelection() : null;
+                if (sel) {
+                    try {
+                        sel.removeAllRanges();
+                        sel.addRange(savedRange);
+                    } catch (_err) {}
+                }
+            } else {
+                restoreRichSelection(target);
+            }
+            var range = savedRange;
+            var liveSel = window.getSelection ? window.getSelection() : null;
+            if ((!range || !target.contains(range.commonAncestorContainer)) && liveSel && liveSel.rangeCount) {
+                range = liveSel.getRangeAt(0);
+            }
+            if (!range || range.collapsed || !target.contains(range.commonAncestorContainer)) return;
             var html = normalizeStyledSelectionHtml(selectedHtmlFromRange(range), 'metis-text-color-');
             html = removeInlineTextColor(html);
             range.deleteContents();
-            document.execCommand('insertHTML', false, '<span style="color: ' + color + ';">' + html + '</span>');
-            saveRichSelection(target);
+            var wrap = document.createElement('span');
+            wrap.setAttribute('style', 'color: ' + color + ' !important;');
+            wrap.innerHTML = html;
+            range.insertNode(wrap);
+            var selected = document.createRange();
+            selected.selectNode(wrap);
+            sharedRichSelections[target.id] = selected.cloneRange();
+            sharedRichColorSelections[target.id] = selected.cloneRange();
+            if (liveSel) {
+                liveSel.removeAllRanges();
+                liveSel.addRange(selected);
+            }
         }
 
         function insertHtmlAtSelection(target, html) {
@@ -2436,6 +2483,8 @@
                 { c: 'insertEmojiPrompt', icon: 'emoji', label: 'Insert Emoji' },
                 { c: 'insertUnorderedList', icon: 'list-bulleted', label: 'Bulleted List' },
                 { c: 'insertOrderedList', icon: 'list-boxes', label: 'Numbered List' },
+                { c: 'outdent', icon: 'text-indent-less', label: 'Decrease List Level' },
+                { c: 'indent', icon: 'text-indent-more', label: 'Increase List Level' },
                 { c: 'createLink', icon: 'link', label: 'Insert Link' },
                 { c: 'unlink', icon: 'close-outline', label: 'Remove Link' },
                 { c: 'insertDivider', icon: 'divider', label: 'Insert Divider' },
@@ -5552,6 +5601,11 @@
                 var uploadContext = s(panel.getAttribute('data-editor-media-upload-panel') || 'inline');
                 uploadEditorImage(uploadContext, e.dataTransfer ? e.dataTransfer.files : null);
             });
+            root.addEventListener('pointerdown', function (e) {
+                var picker = e.target && e.target.closest ? e.target.closest('[data-rich-action="color-picker"]') : null;
+                if (!picker) return;
+                captureRichColorSelection(picker);
+            }, true);
             root.addEventListener('mouseup', function (e) {
                 var target = e.target && e.target.closest ? e.target.closest('.metis-se-rich-editor') : null;
                 if (target) saveRichSelection(target);

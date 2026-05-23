@@ -996,12 +996,27 @@ final class RecurringDonationsService {
         ] );
 
         $url = \metis_home_url( '/manage/access/' . rawurlencode( $rawToken ) . '/' );
-        EmailService::sendHtml( $email, 'Your Metis profile access link', self::portalAccessEmailHtml( $url ), [
+        $orgName = self::profileAccessOrganizationName();
+        EmailService::sendHtml( $email, 'Your ' . $orgName . ' profile access link', self::portalAccessEmailHtml( $url ), [
             'module' => 'donations',
             'reply_to' => 'donations@mobilizewaco.org',
         ] );
 
         return [ 'ok' => true, 'message' => 'If that email is connected to donor records, an access link will be sent.' ];
+    }
+
+    private static function profileAccessOrganizationName(): string {
+        $name = '';
+        if ( class_exists( '\Core_Settings_Service' ) ) {
+            $name = trim( (string) \Core_Settings_Service::get( 'login_organization_name', '' ) );
+            if ( $name === '' ) {
+                $name = trim( (string) \Core_Settings_Service::get( 'portal_name', '' ) );
+            }
+        }
+        if ( $name === '' && function_exists( 'metis_portal_name' ) ) {
+            $name = trim( (string) \metis_portal_name() );
+        }
+        return $name !== '' ? $name : 'Metis';
     }
 
     public static function consumePortalToken( string $token ): ?array {

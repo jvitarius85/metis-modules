@@ -1194,14 +1194,15 @@ final class StructuredWebsiteBuilderService {
             }
             $property = strtolower( trim( $parts[0] ) );
             $value = trim( $parts[1] );
-            if ( $property === 'color' && preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) === 1 ) {
-                $safe[] = 'color: ' . strtolower( $value );
+            $value = trim( preg_replace( '/\s*!important\s*$/i', '', $value ) ?? $value );
+            if ( $property === 'color' && self::isSafeRichTextColor( $value ) ) {
+                $safe[] = 'color: ' . strtolower( preg_replace( '/\s+/', ' ', $value ) ) . ' !important';
             } elseif ( $property === 'font-weight' && preg_match( '/^(normal|bold|[1-9]00)$/i', $value ) === 1 ) {
-                $safe[] = 'font-weight: ' . strtolower( $value );
+                $safe[] = 'font-weight: ' . strtolower( $value ) . ' !important';
             } elseif ( $property === 'font-style' && in_array( strtolower( $value ), [ 'normal', 'italic' ], true ) ) {
-                $safe[] = 'font-style: ' . strtolower( $value );
+                $safe[] = 'font-style: ' . strtolower( $value ) . ' !important';
             } elseif ( $property === 'text-decoration' && in_array( strtolower( $value ), [ 'none', 'underline', 'line-through' ], true ) ) {
-                $safe[] = 'text-decoration: ' . strtolower( $value );
+                $safe[] = 'text-decoration: ' . strtolower( $value ) . ' !important';
             } elseif ( $property === 'text-align' && in_array( strtolower( $value ), [ 'left', 'center', 'right' ], true ) ) {
                 $safe[] = 'text-align: ' . strtolower( $value );
             }
@@ -1209,11 +1210,29 @@ final class StructuredWebsiteBuilderService {
         return implode( '; ', $safe );
     }
 
+    private static function isSafeRichTextColor( string $value ): bool {
+        $value = trim( $value );
+        if ( preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) === 1 ) {
+            return true;
+        }
+        if ( preg_match( '/^rgba?\(\s*(?:\d{1,3}\s*,\s*){2}\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i', $value ) === 1 ) {
+            preg_match_all( '/\d+(?:\.\d+)?/', $value, $matches );
+            $channels = array_slice( $matches[0] ?? [], 0, 3 );
+            foreach ( $channels as $channel ) {
+                if ( (int) $channel > 255 ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     private static function isSafeRichTextUrl( string $value ): bool {
         if ( $value === '' ) {
             return false;
         }
-        return preg_match( '#^(https?:|mailto:|tel:|/|#)#i', $value ) === 1;
+        return preg_match( '~^(https?:|mailto:|tel:|/|#)~i', $value ) === 1;
     }
 
     private static function repairPublicHtmlText( string $html ): string {

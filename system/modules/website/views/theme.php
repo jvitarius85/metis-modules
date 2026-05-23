@@ -294,6 +294,37 @@ foreach ( $global_styles['global_settings']['branding_color_bindings'] as $theme
 $font_options = [
     'inherit' => 'Theme Default',
 ];
+$font_face_rules = [];
+$font_preview_urls = [];
+$font_preview_families = [];
+$format_font_family_label = static function ( string $value ): string {
+    $value = trim( str_replace( [ '_', '-' ], ' ', $value ) );
+    $value = trim( preg_replace( '/\s+/', ' ', $value ) ?? $value );
+    if ( $value === '' ) {
+        return '';
+    }
+    $known = [
+        'dejavu'                => 'DejaVu Sans',
+        'fira sans'             => 'Fira Sans',
+        'firasans'              => 'Fira Sans',
+        'funnel sans'           => 'Funnel Sans',
+        'funnelsans'            => 'Funnel Sans',
+        'ibm plex mono'         => 'IBM Plex Mono',
+        'ibmplexmono'           => 'IBM Plex Mono',
+        'kaushan'               => 'Kaushan Script',
+        'kaushanscript'         => 'Kaushan Script',
+        'montserrat alternates' => 'Montserrat Alternates',
+        'montserratalternates'  => 'Montserrat Alternates',
+        'noirpro'               => 'NoirPro',
+    ];
+    $key = strtolower( preg_replace( '/\s+/', ' ', $value ) ?? $value );
+    if ( isset( $known[ $key ] ) ) {
+        return $known[ $key ];
+    }
+    return trim( preg_replace_callback( '/\b[a-z]/i', static function ( array $match ): string {
+        return strtoupper( $match[0] );
+    }, strtolower( $value ) ) ?? $value );
+};
 $local_font_dirs = [
     METIS_ASSETS_PATH . 'fonts',
     METIS_MODULES_PATH . 'website/assets/fonts',
@@ -325,6 +356,8 @@ foreach ( $local_font_dirs as $local_font_dir ) {
         $local_font_seen[ $entry_key ] = true;
 
         $base = (string) pathinfo( $entry, PATHINFO_FILENAME );
+        $dir_hint = basename( str_replace( '\\', '/', (string) $file_info->getPath() ) );
+        $dir_hint = strtolower( $dir_hint ) !== 'fonts' ? $format_font_family_label( $dir_hint ) : '';
         $name = trim( preg_replace( '/\s+/', ' ', str_replace( [ '_', '-', ',' ], ' ', $base ) ) ?? $base );
         $tokens = preg_split( '/\s+/', strtolower( $name ) ) ?: [];
         while ( $tokens !== [] ) {
@@ -340,17 +373,43 @@ foreach ( $local_font_dirs as $local_font_dir ) {
             $family = $name;
         }
         if ( preg_match( '/^(thin|extralight|ultralight|light|regular|normal|book|medium|semibold|demibold|bold|extrabold|ultrabold|black|heavy|italic|oblique|[1-9]00)$/i', $family ) === 1 ) {
-            $dir_hint = basename( str_replace( '\\', '/', (string) $file_info->getPath() ) );
-            $dir_hint = trim( preg_replace( '/\s+/', ' ', str_replace( [ '_', '-' ], ' ', $dir_hint ) ) ?? $dir_hint );
             if ( $dir_hint !== '' && strtolower( $dir_hint ) !== 'fonts' ) {
                 $family = $dir_hint;
             }
         }
-        $family = trim( preg_replace( '/\s+/', ' ', ucwords( $family ) ) ?? $family );
+        $family = $dir_hint !== '' ? $dir_hint : $format_font_family_label( $family );
         if ( $family === '' ) {
             continue;
         }
+        $font_relative_url = str_replace( '%2C', ',', implode( '/', array_map( 'rawurlencode', explode( '/', $relative ) ) ) );
+        if ( $local_font_dir === METIS_ASSETS_PATH . 'fonts' ) {
+            $font_url = function_exists( 'metis_home_url' )
+                ? (string) metis_home_url( '/assets/fonts/' . $font_relative_url )
+                : '/assets/fonts/' . $font_relative_url;
+        } else {
+            $font_url = function_exists( 'metis_module_asset_url' )
+                ? (string) metis_module_asset_url( 'website', 'fonts/' . $relative )
+                : ( function_exists( 'metis_home_url' )
+                    ? (string) metis_home_url( '/assets/modules/website/fonts/' . $font_relative_url )
+                    : '/assets/modules/website/fonts/' . $font_relative_url
+                );
+        }
+        $font_format = strtolower( (string) pathinfo( $entry, PATHINFO_EXTENSION ) );
+        $font_format = match ( $font_format ) {
+            'woff2' => 'woff2',
+            'woff'  => 'woff',
+            'ttf'   => 'truetype',
+            'otf'   => 'opentype',
+            default => 'woff2',
+        };
+        $font_face_family = 'metis-theme-preview-' . substr( sha1( $family ), 0, 12 );
+        $font_face_rules[] = '@font-face{font-family:"' . $font_face_family . '";src:url("' . str_replace( [ '"', '\\' ], '', $font_url ) . '") format("' . $font_format . '");font-weight:100 900;font-style:normal;font-display:swap;}';
         $family_key = strtolower( $family );
+        $font_preview_urls[ $family ] = [
+            'face'   => $font_face_family,
+            'url'    => $font_url,
+            'format' => $font_format,
+        ];
         if ( isset( $local_family_seen[ $family_key ] ) ) {
             continue;
         }
@@ -358,6 +417,7 @@ foreach ( $local_font_dirs as $local_font_dir ) {
         $value = $family . ', system-ui, -apple-system, Segoe UI, sans-serif';
         if ( ! array_key_exists( $value, $font_options ) ) {
             $font_options[ $value ] = $family;
+            $font_preview_families[ $value ] = $family;
         }
     }
 }
@@ -382,6 +442,7 @@ foreach ( [ (string) ( $typography['body_font'] ?? '' ), (string) ( $typography[
         $label = $selected_stack;
     }
     $font_options[ $selected_stack ] = $label;
+    $font_preview_families[ $selected_stack ] = $label;
 }
 $json_encode = static function ( $value ): string {
     $json = json_encode( $value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
@@ -414,6 +475,9 @@ foreach ( $line_height_options as $value => $label ) {
 </div>
 
 <input type="hidden" id="metis-theme-id" value="<?php echo metis_escape_attr( $theme ? ( $theme['id'] ?? '' ) : '' ); ?>">
+<?php if ( $font_face_rules !== [] ) : ?>
+    <style id="metis-theme-font-preview-faces"><?php echo implode( "\n", array_values( array_unique( $font_face_rules ) ) ); ?></style>
+<?php endif; ?>
 
 <div class="metis-theme-shell">
     <aside class="metis-theme-nav" aria-label="Theme sections">
@@ -456,7 +520,7 @@ foreach ( $line_height_options as $value => $label ) {
                 </div>
                 <div class="metis-theme-field">
                     <label class="metis-theme-label">Body size (px)</label>
-                    <input type="number" id="metis-theme-base-size" class="metis-input" min="12" max="24" value="<?php echo metis_escape_attr( (string) $typography['base_size'] ); ?>">
+                    <input type="number" id="metis-theme-base-size" class="metis-input" min="12" max="24" value="<?php echo metis_escape_attr( (string) ( (float) $typography['base_size'] ?: 16 ) ); ?>">
                 </div>
                 <div class="metis-theme-field">
                     <label class="metis-theme-label">Line height</label>
@@ -733,6 +797,9 @@ var defaults = {
 
 var brandingPalette = <?php echo $json_encode( $branding_palette ); ?>;
 var brandingLabels = <?php echo $json_encode( $branding_field_labels ); ?>;
+var fontPreviewUrls = <?php echo $json_encode( $font_preview_urls ); ?>;
+var fontPreviewFamilies = <?php echo $json_encode( $font_preview_families ); ?>;
+var fontPreviewCache = {};
 
 var state = {
     colors: <?php echo $json_encode( $colors ); ?>,
@@ -1787,7 +1854,7 @@ function syncFormFromState() {
     ensureObjectPath(state, ['global_styles', 'advanced'], {});
     $('#metis-theme-body-font').val(state.typography.body_font || defaults.typography.body_font);
     $('#metis-theme-heading-font').val(state.typography.heading_font || defaults.typography.heading_font);
-    $('#metis-theme-base-size').val(state.typography.base_size || defaults.typography.base_size);
+    $('#metis-theme-base-size').val(parseNumber(state.typography.base_size || defaults.typography.base_size, 16));
     $('#metis-theme-line-height').val(normalizeLineHeightOption(state.typography.line_height || defaults.typography.line_height));
     $('#metis-theme-heading-weight').val(normalizeHeadingWeightOption(state.typography.heading_weight || defaults.typography.heading_weight));
 
@@ -1934,7 +2001,7 @@ function selectLabelHtml($option, $select) {
     var safe = $('<div>').text(text).html();
     var style = '';
     if ($select.attr('id') === 'metis-theme-body-font' || $select.attr('id') === 'metis-theme-heading-font') {
-        var family = String($option.val() || '').trim();
+        var family = fontPreviewFamily($option.val());
         if (family && family !== 'inherit') {
             style = ' style="font-family:' + $('<div>').text(family).html() + ';"';
         }
@@ -1945,6 +2012,76 @@ function selectLabelHtml($option, $select) {
         dot = '<span class="metis-theme-selectx-dot" style="background:' + $('<div>').text(dotColor).html() + ';"></span>';
     }
     return dot + '<span class="metis-theme-selectx-label"' + style + '>' + safe + '</span>';
+}
+
+function isFontSelect($select) {
+    return $select.attr('id') === 'metis-theme-body-font' || $select.attr('id') === 'metis-theme-heading-font';
+}
+
+function fontPreviewKey(value) {
+    var stack = String(value || '').trim();
+    if (!stack || stack === 'inherit') return '';
+    if (Object.prototype.hasOwnProperty.call(fontPreviewFamilies, stack)) {
+        return String(fontPreviewFamilies[stack] || '');
+    }
+    return String(stack.split(',')[0] || '').trim().replace(/^['"]|['"]$/g, '');
+}
+
+function cssFontStack(faceName) {
+    var name = String(faceName || '').trim();
+    if (!name) return 'system-ui, -apple-system, "Segoe UI", sans-serif';
+    return JSON.stringify(name) + ', system-ui, -apple-system, "Segoe UI", sans-serif';
+}
+
+function fontPreviewFamily(value) {
+    var key = fontPreviewKey(value);
+    if (!key) return '';
+    var meta = fontPreviewUrls[key] || {};
+    return cssFontStack(meta.face || key);
+}
+
+function loadFontPreview(key) {
+    key = String(key || '').trim();
+    if (!key || !window.FontFace || !document.fonts) return Promise.resolve('');
+    if (fontPreviewCache[key]) return fontPreviewCache[key];
+    var meta = fontPreviewUrls[key] || {};
+    if (!meta.url || !meta.face) {
+        fontPreviewCache[key] = Promise.resolve(key);
+        return fontPreviewCache[key];
+    }
+    fontPreviewCache[key] = new Promise(function(resolve) {
+        try {
+            var source = 'url("' + String(meta.url).replace(/"/g, '\\"') + '")';
+            var face = new FontFace(String(meta.face), source, { display: 'swap' });
+            face.load().then(function(loadedFace) {
+                document.fonts.add(loadedFace);
+                resolve(String(meta.face));
+            }).catch(function() {
+                resolve(key);
+            });
+        } catch (_err) {
+            resolve(key);
+        }
+    });
+    return fontPreviewCache[key];
+}
+
+function preloadFontPreviewMenu($dd) {
+    if (!$dd || !$dd.length || !$dd.hasClass('metis-theme-selectx--font')) return;
+    var keys = [];
+    $dd.find('.metis-theme-selectx-option[data-font-key]').each(function() {
+        var key = String($(this).attr('data-font-key') || '').trim();
+        if (key && keys.indexOf(key) === -1) keys.push(key);
+    });
+    Promise.all(keys.map(loadFontPreview)).then(function() {
+        $dd.find('.metis-theme-selectx-option[data-font-key], .metis-theme-selectx-trigger[data-font-key]').each(function() {
+            var $node = $(this);
+            var key = String($node.attr('data-font-key') || '').trim();
+            var meta = fontPreviewUrls[key] || {};
+            var face = meta.face || key;
+            $node.find('.metis-theme-selectx-label').css('font-family', cssFontStack(face));
+        });
+    }).catch(function() {});
 }
 
 function rebuildStyledSelects() {
@@ -1968,8 +2105,9 @@ function rebuildStyledSelects() {
         if (!$selected.length) $selected = $select.find('option:first');
 
         var html = [];
-        html.push('<div class="metis-theme-selectx" data-for="' + $('<div>').text(key).html() + '">');
-        html.push('<button type="button" class="metis-input metis-theme-selectx-trigger">');
+        html.push('<div class="metis-theme-selectx' + (isFontSelect($select) ? ' metis-theme-selectx--font' : '') + '" data-for="' + $('<div>').text(key).html() + '">');
+        var fontKey = isFontSelect($select) ? fontPreviewKey(value) : '';
+        html.push('<button type="button" class="metis-input metis-theme-selectx-trigger"' + (fontKey ? ' data-font-key="' + $('<div>').text(fontKey).html() + '"' : '') + '>');
         html.push(selectLabelHtml($selected, $select));
         html.push('<span class="metis-theme-binding-caret">▾</span>');
         html.push('</button>');
@@ -1978,11 +2116,15 @@ function rebuildStyledSelects() {
             var $opt = $(this);
             var optVal = String($opt.val() || '');
             var selectedClass = (optVal === value) ? ' is-selected' : '';
-            html.push('<button type="button" class="metis-theme-selectx-option' + selectedClass + '" data-value="' + $('<div>').text(optVal).html() + '">' + selectLabelHtml($opt, $select) + '</button>');
+            var optFontKey = isFontSelect($select) ? fontPreviewKey(optVal) : '';
+            html.push('<button type="button" class="metis-theme-selectx-option' + selectedClass + '" data-value="' + $('<div>').text(optVal).html() + '"' + (optFontKey ? ' data-font-key="' + $('<div>').text(optFontKey).html() + '"' : '') + '>' + selectLabelHtml($opt, $select) + '</button>');
         });
         html.push('</div>');
         html.push('</div>');
         $(html.join('')).insertAfter($select);
+    });
+    $('.metis-theme-selectx--font').each(function() {
+        preloadFontPreviewMenu($(this));
     });
 }
 
@@ -2192,7 +2334,10 @@ $(document).on('click', '.metis-theme-selectx-trigger', function(e) {
     var $dd = $(this).closest('.metis-theme-selectx');
     var willOpen = !$dd.hasClass('is-open');
     closeAllBindingMenus();
-    if (willOpen) $dd.addClass('is-open');
+    if (willOpen) {
+        $dd.addClass('is-open');
+        preloadFontPreviewMenu($dd);
+    }
 });
 
 $(document).on('click', '.metis-theme-selectx-option', function(e) {
@@ -2274,6 +2419,9 @@ $('#metis-theme-custom-font-file').on('change', function() {
             $('<option>').val(name).text(name).css('font-family', name).appendTo('#metis-theme-body-font');
             $('<option>').val(name).text(name).css('font-family', name).appendTo('#metis-theme-heading-font');
         }
+        fontPreviewFamilies[name] = name;
+        fontPreviewUrls[name] = { face: name, url: dataUrl, format: format };
+        fontPreviewCache[name] = null;
 
         $('#metis-theme-body-font').val(name);
         $('#metis-theme-heading-font').val(name);
