@@ -126,7 +126,7 @@ $notes = array_map( static function ( array $row ) {
     </div>
     <div class="metis-premium-cell">
         <div class="metis-muted small-label">Payment Method</div>
-        <div><?php echo metis_paymethod_badge( $transaction->payment_method ); ?></div>
+        <div><?php echo metis_paymethod_badge_with_details( $transaction->payment_method, $transaction ); ?></div>
     </div>
     <div class="metis-premium-cell">
         <div class="metis-muted small-label">Deposit</div>

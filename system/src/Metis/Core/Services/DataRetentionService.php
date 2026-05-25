@@ -138,6 +138,18 @@ final class DataRetentionService {
                 'index_columns' => [ 'created_at' ],
             ],
             [
+                'key' => 'hermes_memory_diagnostic_reports',
+                'label' => 'Hermes diagnostic report memory',
+                'table_key' => 'hermes_memory',
+                'date_column' => 'created_at',
+                'retention_days' => 30,
+                'index_columns' => [ 'memory_type', 'scope_key', 'created_at' ],
+                'filters' => [
+                    'memory_type' => 'diagnostic_report',
+                    'scope_key' => 'reports',
+                ],
+            ],
+            [
                 'key' => 'website_revisions',
                 'label' => 'Website revisions',
                 'table_key' => 'website_revisions',
@@ -198,6 +210,19 @@ final class DataRetentionService {
             }
             $totalDeleted += (int) ( $result['deleted_rows'] ?? 0 );
             $policyResults[ (string) $policy['key'] ] = $result;
+        }
+
+        if ( \function_exists( 'metis_audit_compact' ) ) {
+            try {
+                $policyResults['audit_context_compaction'] = \metis_audit_compact( $batchLimit );
+            } catch ( \Throwable $exception ) {
+                $failedPolicies++;
+                $policyResults['audit_context_compaction'] = [
+                    'status' => 'failed',
+                    'message' => $exception->getMessage(),
+                    'updated_rows' => 0,
+                ];
+            }
         }
 
         if ( \class_exists( 'Metis_Logger' ) ) {
@@ -315,11 +340,16 @@ final class DataRetentionService {
             return [ 'status' => 'skipped', 'reason' => 'missing_status_column', 'deleted_rows' => 0 ];
         }
 
+        $filters = $this->validFilters( $table, (array) ( $policy['filters'] ?? [] ) );
+        if ( ! empty( $policy['filters'] ) && $filters === [] ) {
+            return [ 'status' => 'skipped', 'reason' => 'missing_filter_column', 'deleted_rows' => 0 ];
+        }
+
         $this->ensureRetentionIndex( $table, (array) ( $policy['index_columns'] ?? [ $dateColumn ] ) );
 
         $days = $this->retentionDays( $policy );
         $cutoff = $this->cutoffDate( $days );
-        [ $where, $args ] = $this->whereClause( $policy, $dateColumn, $cutoff );
+        [ $where, $args ] = $this->whereClause( $policy, $dateColumn, $cutoff, $filters );
         $args[] = $batchLimit;
 
         $deleted = $this->db->executePrepared(
@@ -369,9 +399,20 @@ final class DataRetentionService {
             ];
         }
 
+        $filters = $this->validFilters( $table, (array) ( $policy['filters'] ?? [] ) );
+        if ( ! empty( $policy['filters'] ) && $filters === [] ) {
+            return [
+                'label' => $label,
+                'status' => 'missing_filter_column',
+                'row_count' => 0,
+                'expired_count' => 0,
+                'retention_days' => $this->retentionDays( $policy ),
+            ];
+        }
+
         $days = $this->retentionDays( $policy );
         $cutoff = $this->cutoffDate( $days );
-        [ $where, $args ] = $this->whereClause( $policy, $dateColumn, $cutoff );
+        [ $where, $args ] = $this->whereClause( $policy, $dateColumn, $cutoff, $filters );
 
         $rowCount = $this->approximateRowCount( $table );
         $expired = (int) $this->db->scalar(
@@ -417,9 +458,14 @@ final class DataRetentionService {
      * @param array<string,mixed> $policy
      * @return array{0:string,1:array<int,mixed>}
      */
-    private function whereClause( array $policy, string $dateColumn, string $cutoff ): array {
+    private function whereClause( array $policy, string $dateColumn, string $cutoff, array $filters = [] ): array {
         $where = "{$dateColumn} IS NOT NULL AND {$dateColumn} <> '' AND {$dateColumn} < %s";
         $args = [ $cutoff ];
+
+        foreach ( $filters as $column => $value ) {
+            $where .= " AND {$column} = %s";
+            $args[] = $value;
+        }
 
         $statusColumn = (string) ( $policy['status_column'] ?? '' );
         $statusValues = array_values( array_filter( array_map( 'strval', (array) ( $policy['status_values'] ?? [] ) ) ) );
@@ -432,6 +478,23 @@ final class DataRetentionService {
         }
 
         return [ $where, $args ];
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return array<string,string>
+     */
+    private function validFilters( string $table, array $filters ): array {
+        $valid = [];
+        foreach ( $filters as $column => $value ) {
+            $column = (string) $column;
+            if ( ! $this->validIdentifier( $column ) || ! $this->columnExists( $table, $column ) ) {
+                return [];
+            }
+            $valid[ $column ] = \is_scalar( $value ) ? (string) $value : '';
+        }
+
+        return $valid;
     }
 
     private function tableName( string $tableKey ): string {

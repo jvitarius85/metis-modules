@@ -37,15 +37,202 @@ final class DonationsModule {
         }
 
         $map = [
+            'card'  => 'Credit Card',
             'cc'    => 'Credit Card',
             'ach'   => 'Bank Transfer',
             'ck'    => 'Check',
             'cash'  => 'Cash',
+            'link'  => 'Link',
+            'visa'  => 'Credit Card',
+            'mastercard' => 'Credit Card',
+            'amex'  => 'Credit Card',
+            'discover' => 'Credit Card',
             'other' => 'Other',
         ];
 
         $label = $map[ strtolower( $method ) ] ?? ucfirst( $method );
         return "<span class='metis-badge muted'>" . \metis_escape_html( $label ) . '</span>';
+    }
+
+    public static function paymentMethodText( ?string $method, mixed $transaction = null ): string {
+        $method = strtolower( trim( (string) $method ) );
+        $labels = [
+            'card' => 'Credit Card',
+            'cc' => 'Credit Card',
+            'ach' => 'Bank Transfer',
+            'ck' => 'Check',
+            'cash' => 'Cash',
+            'link' => 'Link',
+            'visa' => 'Credit Card',
+            'mastercard' => 'Credit Card',
+            'amex' => 'Credit Card',
+            'discover' => 'Credit Card',
+            'other' => 'Other',
+        ];
+        $label = $labels[ $method ] ?? ( $method !== '' ? ucfirst( $method ) : 'Unknown' );
+        $get = static function ( string $key ) use ( $transaction ): string {
+            if ( is_array( $transaction ) ) {
+                return trim( (string) ( $transaction[ $key ] ?? '' ) );
+            }
+            if ( is_object( $transaction ) ) {
+                return trim( (string) ( $transaction->{$key} ?? '' ) );
+            }
+            return '';
+        };
+        if ( in_array( $method, [ 'card', 'cc', 'link', 'visa', 'mastercard', 'amex', 'discover' ], true ) ) {
+            $brand = $get( 'card_brand' );
+            $last4 = $get( 'card_last4' );
+            $bits = [];
+            if ( $brand === '' && in_array( $method, [ 'visa', 'mastercard', 'amex', 'discover' ], true ) ) {
+                $brand = $method;
+            }
+            if ( $brand !== '' ) {
+                $bits[] = strtoupper( $brand );
+            }
+            if ( $last4 !== '' ) {
+                $bits[] = 'ending ' . $last4;
+            }
+            if ( $bits !== [] ) {
+                return $label . ' (' . implode( ' ', $bits ) . ')';
+            }
+        }
+        if ( $method === 'ach' ) {
+            $last4 = $get( 'card_last4' );
+            if ( $last4 !== '' ) {
+                return $label . ' (ending ' . $last4 . ')';
+            }
+        }
+        if ( $method === 'ck' ) {
+            $check = $get( 'chk_num' );
+            if ( $check !== '' ) {
+                return $label . ' #' . $check;
+            }
+        }
+        return $label;
+    }
+
+    public static function paymethodBadgeWithDetails( ?string $method, mixed $transaction = null ): string {
+        $text = self::paymentMethodText( $method, $transaction );
+        $icon = self::paymentMethodIconMarkup( $method, $transaction );
+        $visible = self::paymentMethodVisibleText( $method, $transaction );
+        return "<span class='metis-badge muted metis-payment-method-badge' title='" . \metis_escape_attr( $text ) . "'>"
+            . $icon
+            . "<span class='metis-payment-method-text'>" . \metis_escape_html( $visible ) . '</span>'
+            . '</span>';
+    }
+
+    private static function paymentMethodVisibleText( ?string $method, mixed $transaction = null ): string {
+        $method = strtolower( trim( (string) $method ) );
+        $get = static function ( string $key ) use ( $transaction ): string {
+            if ( is_array( $transaction ) ) {
+                return trim( (string) ( $transaction[ $key ] ?? '' ) );
+            }
+            if ( is_object( $transaction ) ) {
+                return trim( (string) ( $transaction->{$key} ?? '' ) );
+            }
+            return '';
+        };
+        $last4 = $get( 'card_last4' );
+        if ( in_array( $method, [ 'card', 'cc', 'link', 'visa', 'mastercard', 'amex', 'discover' ], true ) ) {
+            return $last4 !== '' ? 'ending ' . $last4 : 'Credit Card';
+        }
+        if ( $method === 'ach' ) {
+            return $last4 !== '' ? 'Bank Transfer ending ' . $last4 : 'Bank Transfer';
+        }
+        if ( $method === 'ck' ) {
+            $check = $get( 'chk_num' );
+            return $check !== '' ? 'Check #' . $check : 'Check';
+        }
+        return self::paymentMethodText( $method, $transaction );
+    }
+
+    private static function paymentMethodIconMarkup( ?string $method, mixed $transaction = null ): string {
+        $method = strtolower( trim( (string) $method ) );
+        $brand = '';
+        if ( is_array( $transaction ) ) {
+            $brand = strtolower( trim( (string) ( $transaction['card_brand'] ?? '' ) ) );
+        } elseif ( is_object( $transaction ) ) {
+            $brand = strtolower( trim( (string) ( $transaction->card_brand ?? '' ) ) );
+        }
+        if ( $brand === '' && in_array( $method, [ 'visa', 'mastercard', 'amex', 'discover' ], true ) ) {
+            $brand = $method;
+        }
+
+        $icon_slug = match ( $brand ) {
+            'visa' => 'visa',
+            'mastercard', 'master card' => 'mastercard',
+            'amex', 'american express' => 'amex',
+            'discover' => 'discover',
+            default => match ( $method ) {
+                'ck' => 'checkbook',
+                'ach' => 'ach-transfer',
+                'cash' => 'money',
+                'link' => 'link',
+                default => 'credit-card',
+            },
+        };
+
+        if ( ! function_exists( 'metis_navigation_svg_icon_markup' ) ) {
+            return '';
+        }
+        $svg = (string) \metis_navigation_svg_icon_markup( $icon_slug );
+        if ( trim( $svg ) === '' ) {
+            return '';
+        }
+        return "<span class='metis-payment-method-icon' aria-hidden='true'>" . $svg . '</span>';
+    }
+
+    public static function ensureTransactionPaymentDetailSchema(): void {
+        $table = \Metis_Tables::get( 'transactions' );
+        if ( $table === '' ) {
+            return;
+        }
+        try {
+            $columns = [];
+            foreach ( self::db()->fetchAll( "SHOW COLUMNS FROM {$table}" ) as $row ) {
+                $columns[ strtolower( (string) ( $row['Field'] ?? '' ) ) ] = true;
+            }
+            if ( ! isset( $columns['card_brand'] ) ) {
+                self::db()->execute( "ALTER TABLE {$table} ADD COLUMN card_brand VARCHAR(64) DEFAULT NULL AFTER chk_num" );
+            }
+            if ( ! isset( $columns['card_last4'] ) ) {
+                self::db()->execute( "ALTER TABLE {$table} ADD COLUMN card_last4 VARCHAR(8) DEFAULT NULL AFTER card_brand" );
+            }
+        } catch ( \Throwable $e ) {
+            \Metis_Logger::warn( 'donations.payment_detail_schema_failed', [ 'error' => $e->getMessage() ] );
+        }
+    }
+
+    /**
+     * @return array{payment_method:string,card_brand:?string,card_last4:?string}
+     */
+    public static function stripePaymentMethodDetails( mixed $charge ): array {
+        $details = is_object( $charge ) && is_object( $charge->payment_method_details ?? null )
+            ? $charge->payment_method_details
+            : null;
+        $type = strtolower( trim( (string) ( $details->type ?? '' ) ) );
+        $method = 'cc';
+        $brand = null;
+        $last4 = null;
+        if ( $type === 'us_bank_account' || $type === 'ach_credit_transfer' || $type === 'ach_debit' ) {
+            $method = 'ach';
+            $bank = is_object( $details->us_bank_account ?? null ) ? $details->us_bank_account : null;
+            $last4 = $bank && ! empty( $bank->last4 ) ? (string) $bank->last4 : null;
+        } elseif ( $type === 'link' ) {
+            $method = 'link';
+        } elseif ( $type === 'card' || $type === '' ) {
+            $method = 'cc';
+            $card = is_object( $details->card ?? null ) ? $details->card : null;
+            $brand = $card && ! empty( $card->brand ) ? strtolower( (string) $card->brand ) : null;
+            $last4 = $card && ! empty( $card->last4 ) ? (string) $card->last4 : null;
+        } else {
+            $method = 'other';
+        }
+        return [
+            'payment_method' => $method,
+            'card_brand' => $brand,
+            'card_last4' => $last4,
+        ];
     }
 
     public static function depositBadge( ?string $date ): string {
@@ -226,6 +413,7 @@ final class DonationsModule {
     }
 
     public static function recordOfflineDonation( array $input, int $requestedBy = 0 ): array {
+        self::ensureTransactionPaymentDetailSchema();
         $transactions_table = \Metis_Tables::get( 'transactions' );
         $campaigns_table    = \Metis_Tables::get( 'campaigns' );
 

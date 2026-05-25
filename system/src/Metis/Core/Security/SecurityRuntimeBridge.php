@@ -553,18 +553,24 @@ function metis_security_enforce_ajax_request(): void {
         );
     }
 
-    metis_audit_log_activity( 'ajax_action_authorized', [
-        'module'   => $module,
-        'resource' => [
-            'type'  => 'ajax_action',
-            'id'    => $ajax_action,
-            'label' => $permission,
-        ],
-        'context'  => [
-            'operation'  => $operation,
-            'permission' => $permission,
-        ],
-    ] );
+    $log_success = true;
+    if ( \class_exists( 'Core_Settings_Service', false ) ) {
+        $log_success = (bool) \Core_Settings_Service::get( 'audit_log_successful_ajax_authorizations', false );
+    }
+    if ( $log_success ) {
+        metis_audit_log_activity( 'ajax_action_authorized', [
+            'module'   => $module,
+            'resource' => [
+                'type'  => 'ajax_action',
+                'id'    => $ajax_action,
+                'label' => $permission,
+            ],
+            'context'  => [
+                'operation'  => $operation,
+                'permission' => $permission,
+            ],
+        ] );
+    }
 }
 
 function metis_security_authorize_view( string $domain, string $view ): void {

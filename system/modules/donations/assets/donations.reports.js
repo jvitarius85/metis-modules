@@ -73,8 +73,10 @@
 
     // Pay method display labels
     const PM_LABELS = {
-        cc: 'Credit Card', ach: 'ACH', cash: 'Cash',
-        ck: 'Check', other: 'Other', Unknown: 'Unknown',
+        card: 'Credit Card', cc: 'Credit Card', visa: 'Credit Card',
+        mastercard: 'Credit Card', amex: 'Credit Card', discover: 'Credit Card',
+        ach: 'ACH', cash: 'Cash', ck: 'Check', link: 'Link',
+        other: 'Other', Unknown: 'Unknown',
     };
 
     // -------------------------------------------------------------------------

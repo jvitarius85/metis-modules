@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Forms\Concerns;
 
+use Metis\Modules\Donations\DonationsModule;
 use Metis\Modules\Finance\FinanceV2Service;
 
 trait SharedRepositoryLogic {
@@ -971,6 +972,9 @@ trait SharedRepositoryLogic {
         if ( $transactions === '' ) {
             return '';
         }
+        if ( class_exists( DonationsModule::class ) ) {
+            DonationsModule::ensureTransactionPaymentDetailSchema();
+        }
 
         $payment_intent_id = (string) ( $intent->id ?? '' );
         if ( $payment_intent_id !== '' ) {
@@ -1000,6 +1004,9 @@ trait SharedRepositoryLogic {
         }
 
         $tran_date = self::now();
+        $method_details = class_exists( DonationsModule::class )
+            ? DonationsModule::stripePaymentMethodDetails( $charge )
+            : [ 'payment_method' => 'cc', 'card_brand' => null, 'card_last4' => null ];
         $payload = [
             'tid'                => \metis_generate_code( 'TR', $transactions, 'tid' ),
             'did'                => $did !== '' ? $did : null,
@@ -1008,8 +1015,10 @@ trait SharedRepositoryLogic {
             'plan_id'            => null,
             'fund_code'          => null,
             'status'             => 'completed',
-            'payment_method'     => 'stripe',
+            'payment_method'     => (string) ( $method_details['payment_method'] ?? 'cc' ),
             'chk_num'            => null,
+            'card_brand'         => $method_details['card_brand'] ?? null,
+            'card_last4'         => $method_details['card_last4'] ?? null,
             'amount'             => $amount,
             'fee'                => max( 0, $fee ),
             'fee_covered'        => round( (float) ( $totals['covered_fee'] ?? 0 ), 2 ),

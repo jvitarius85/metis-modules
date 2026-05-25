@@ -1662,6 +1662,35 @@ button[disabled],
 .metis-badge-yellow { background: #fefce8; color: #92400e; border: 1px solid #fde68a; }
 .metis-badge-pill   { border-radius: var(--metis-radius-pill); padding: 3px 10px; }
 
+.metis-payment-method-badge {
+    gap: 6px;
+}
+
+.metis-payment-method-icon {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+}
+
+.metis-payment-method-icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+    color: currentColor;
+}
+
+.metis-payment-method-icon svg [fill]:not([fill="none"]) {
+    fill: currentColor;
+}
+
+.metis-payment-method-icon svg [stroke]:not([stroke="none"]) {
+    stroke: currentColor;
+}
+
 .metis-status-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
 .metis-status-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
 .metis-status-dot.is-active::before   { background: #22c55e; }

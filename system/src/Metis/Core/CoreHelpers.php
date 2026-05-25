@@ -230,7 +230,7 @@ function metis_navigation_svg_icon_path( string $slug ): string {
             $entries = @scandir( $directory );
             if ( is_array( $entries ) ) {
                 foreach ( $entries as $entry ) {
-                    if ( ! is_string( $entry ) || ! preg_match( '/^[a-z0-9][a-z0-9-]*\.svg$/', $entry ) ) {
+                    if ( ! is_string( $entry ) || ! preg_match( '/^[a-z0-9][a-z0-9-]*\.svg$/i', $entry ) ) {
                         continue;
                     }
 
@@ -271,7 +271,7 @@ function metis_navigation_svg_icon_keys(): array {
     }
 
     foreach ( $entries as $entry ) {
-        if ( ! is_string( $entry ) || ! preg_match( '/^[a-z0-9][a-z0-9-]*\.svg$/', $entry ) ) {
+        if ( ! is_string( $entry ) || ! preg_match( '/^[a-z0-9][a-z0-9-]*\.svg$/i', $entry ) ) {
             continue;
         }
         $keys[] = strtolower( (string) pathinfo( $entry, PATHINFO_FILENAME ) );
@@ -311,6 +311,22 @@ function metis_navigation_sanitize_svg_markup( string $svg ): string {
         if ( is_string( $result ) ) {
             $sanitized = $result;
         }
+    }
+
+    $colorized = preg_replace_callback(
+        '/\s(fill|stroke)=["\']([^"\']+)["\']/i',
+        static function ( array $matches ): string {
+            $attribute = strtolower( (string) $matches[1] );
+            $value = strtolower( trim( (string) $matches[2] ) );
+            if ( in_array( $value, [ 'none', 'transparent', 'currentcolor', 'currentColor' ], true ) ) {
+                return ' ' . $attribute . '="' . ( $value === 'currentcolor' ? 'currentColor' : $matches[2] ) . '"';
+            }
+            return ' ' . $attribute . '="currentColor"';
+        },
+        $sanitized
+    );
+    if ( is_string( $colorized ) ) {
+        $sanitized = $colorized;
     }
 
     return trim( $sanitized );

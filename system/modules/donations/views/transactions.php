@@ -337,7 +337,7 @@ $transactions = array_map( static function ( array $row ) {
                 $tx_url       = metis_donations_detail_url( 'transaction', (string) $t->tid );
 
                 $status_html  = metis_status_badge( $t->status );
-                $method_html  = metis_paymethod_badge( $t->payment_method );
+                $method_html  = metis_paymethod_badge_with_details( $t->payment_method, $t );
                 $deposit_html = metis_deposit_badge( $t->deposit_date );
             ?>
                 <tr class="metis-premium-row metis-tx-row"

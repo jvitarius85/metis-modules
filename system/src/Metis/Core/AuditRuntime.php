@@ -90,6 +90,113 @@ function metis_audit_sanitize_context( array $context ): array {
     return $clean;
 }
 
+function metis_audit_encode_context_json( array $context ): ?string {
+    if ( empty( $context ) ) {
+        return null;
+    }
+
+    $json = metis_json_encode( $context );
+    if ( ! is_string( $json ) || $json === '' ) {
+        return null;
+    }
+
+    if ( strlen( $json ) < 1024 || ! function_exists( 'gzencode' ) ) {
+        return $json;
+    }
+
+    $compressed = gzencode( $json, 6 );
+    if ( ! is_string( $compressed ) || $compressed === '' ) {
+        return $json;
+    }
+
+    $encoded = 'gzbase64:' . base64_encode( $compressed );
+    return strlen( $encoded ) < strlen( $json ) ? $encoded : $json;
+}
+
+function metis_audit_decode_context_json( ?string $context_json ): array {
+    $context_json = trim( (string) $context_json );
+    if ( $context_json === '' ) {
+        return [];
+    }
+
+    if ( str_starts_with( $context_json, 'gzbase64:' ) && function_exists( 'gzdecode' ) ) {
+        $payload = substr( $context_json, 9 );
+        $binary = base64_decode( $payload, true );
+        if ( is_string( $binary ) && $binary !== '' ) {
+            $decoded = gzdecode( $binary );
+            if ( is_string( $decoded ) && $decoded !== '' ) {
+                $context_json = $decoded;
+            }
+        }
+    }
+
+    $decoded = json_decode( $context_json, true );
+    return is_array( $decoded ) ? $decoded : [];
+}
+
+function metis_audit_compact_table( string $channel, int $limit = 1000 ): array {
+    if ( ! function_exists( 'gzencode' ) ) {
+        return [ 'status' => 'skipped', 'reason' => 'gzip_unavailable', 'updated_rows' => 0 ];
+    }
+
+    metis_audit_ensure_schema();
+
+    $table = metis_audit_table_name( $channel );
+    $limit = max( 100, min( 5000, $limit ) );
+    $rows = metis_db()->fetchAll(
+        "SELECT id, context_json
+         FROM {$table}
+         WHERE context_json IS NOT NULL
+           AND context_json <> ''
+           AND context_json NOT LIKE 'gzbase64:%'
+           AND CHAR_LENGTH(context_json) >= 1024
+         ORDER BY id ASC
+         LIMIT %d",
+        [ $limit ]
+    );
+
+    $updated = 0;
+    foreach ( is_array( $rows ) ? $rows : [] as $row ) {
+        if ( ! is_array( $row ) ) {
+            continue;
+        }
+        $id = (int) ( $row['id'] ?? 0 );
+        $raw = (string) ( $row['context_json'] ?? '' );
+        if ( $id < 1 || $raw === '' ) {
+            continue;
+        }
+
+        $decoded = json_decode( $raw, true );
+        if ( ! is_array( $decoded ) ) {
+            continue;
+        }
+
+        $encoded = metis_audit_encode_context_json( $decoded );
+        if ( ! is_string( $encoded ) || $encoded === $raw || strlen( $encoded ) >= strlen( $raw ) ) {
+            continue;
+        }
+
+        $result = metis_db()->update( $table, [ 'context_json' => $encoded ], [ 'id' => $id ], [ '%s' ], [ '%d' ] );
+        if ( $result !== false ) {
+            $updated++;
+        }
+    }
+
+    return [ 'status' => 'ok', 'updated_rows' => $updated ];
+}
+
+function metis_audit_compact( int $limit = 1000 ): array {
+    $activity = metis_audit_compact_table( 'activity', $limit );
+    $security = metis_audit_compact_table( 'security', $limit );
+
+    return [
+        'status' => ( (string) ( $activity['status'] ?? '' ) === 'ok' && (string) ( $security['status'] ?? '' ) === 'ok' ) ? 'ok' : 'partial',
+        'activity' => $activity,
+        'security' => $security,
+        'updated_rows' => (int) ( $activity['updated_rows'] ?? 0 ) + (int) ( $security['updated_rows'] ?? 0 ),
+    ];
+}
+
 function metis_audit_ensure_schema(): void {
     static $done = false;
 
@@ -117,6 +224,7 @@ function metis_audit_ensure_schema(): void {
         PRIMARY KEY (id),
         KEY user_id (user_id),
         KEY action_type (action_type),
+        KEY action_occurred (action_type, occurred_at),
         KEY module_slug (module_slug),
         KEY resource_type (resource_type),
         KEY resource_id (resource_id),
@@ -141,6 +249,7 @@ function metis_audit_ensure_schema(): void {
         PRIMARY KEY (id),
         KEY user_id (user_id),
         KEY action_type (action_type),
+        KEY action_occurred (action_type, occurred_at),
         KEY severity (severity),
         KEY module_slug (module_slug),
         KEY resource_type (resource_type),
@@ -179,7 +288,7 @@ function metis_audit_write( string $channel, string $action_type, array $args = 
         'resource_label' => $resource['label'] !== '' ? $resource['label'] : null,
         'ip_address'     => substr( (string) ( $args['ip_address'] ?? metis_audit_ip_address() ), 0, 64 ),
         'user_agent'     => substr( (string) ( $args['user_agent'] ?? metis_audit_user_agent() ), 0, 512 ),
-        'context_json'   => ! empty( $context ) ? metis_json_encode( $context ) : null,
+        'context_json'   => metis_audit_encode_context_json( $context ),
         'occurred_at'    => metis_current_time( 'mysql' ),
     ];
 

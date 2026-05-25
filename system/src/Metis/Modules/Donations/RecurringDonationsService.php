@@ -617,7 +617,7 @@ final class RecurringDonationsService {
             return [ 'status' => 'failed' ];
         }
 
-        $charge = is_object( $intent->latest_charge ?? null ) ? $intent->latest_charge : null;
+        $charge = self::resolveChargeWithBalanceTransaction( $intent->latest_charge ?? null );
         $tid = self::recordTransaction( $plan, $intent, $charge );
         $db->insert( $attemptsTable, [
             'recurring_id' => (int) $plan['id'],
@@ -642,16 +642,22 @@ final class RecurringDonationsService {
 
     private static function recordTransaction( array $plan, object $intent, mixed $charge ): string {
         $transactions = \Metis_Tables::get( 'transactions' );
+        if ( class_exists( DonationsModule::class ) ) {
+            DonationsModule::ensureTransactionPaymentDetailSchema();
+        }
         $amount = round( (float) $plan['amount'], 2 );
-        $fee = 0.0;
-        $payout = $amount;
-        if ( is_object( $charge ) && is_object( $charge->balance_transaction ?? null ) ) {
-            $balance = $charge->balance_transaction;
+        $fee = self::estimatedStripeProcessingFee( $amount );
+        $payout = round( $amount - $fee, 2 );
+        $balance = is_object( $charge ) ? self::resolveBalanceTransaction( $charge->balance_transaction ?? null ) : null;
+        if ( is_object( $balance ) ) {
             $fee = isset( $balance->fee ) ? round( ( (float) $balance->fee ) / 100, 2 ) : 0.0;
             $payout = isset( $balance->net ) ? round( ( (float) $balance->net ) / 100, 2 ) : round( $amount - $fee, 2 );
         }
         $now = self::now();
         $tid = \metis_generate_code( 'TR', $transactions, 'tid' );
+        $method_details = class_exists( DonationsModule::class )
+            ? DonationsModule::stripePaymentMethodDetails( $charge )
+            : [ 'payment_method' => 'cc', 'card_brand' => null, 'card_last4' => null ];
         \metis_db()->insert( $transactions, [
             'tid' => $tid,
             'did' => (string) ( $plan['did'] ?? '' ) ?: null,
@@ -660,8 +666,10 @@ final class RecurringDonationsService {
             'plan_id' => null,
             'fund_code' => null,
             'status' => 'completed',
-            'payment_method' => 'stripe',
+            'payment_method' => (string) ( $method_details['payment_method'] ?? 'cc' ),
             'chk_num' => null,
+            'card_brand' => $method_details['card_brand'] ?? null,
+            'card_last4' => $method_details['card_last4'] ?? null,
             'amount' => $amount,
             'fee' => max( 0, $fee ),
             'fee_covered' => 0,
@@ -676,8 +684,8 @@ final class RecurringDonationsService {
             'notes' => 'Recurring donation ' . (string) $plan['recurring_code'],
             'stripe_pay_int' => (string) ( $intent->id ?? '' ),
             'stripe_charge_id' => is_object( $charge ) ? (string) ( $charge->id ?? '' ) : null,
-            'stripe_balance_txn' => is_object( $charge ) && is_object( $charge->balance_transaction ?? null ) ? (string) ( $charge->balance_transaction->id ?? '' ) : null,
-            'stripe_payout_id' => is_object( $charge ) && is_object( $charge->balance_transaction ?? null ) ? (string) ( $charge->balance_transaction->payout ?? '' ) : null,
+            'stripe_balance_txn' => is_object( $balance ) ? (string) ( $balance->id ?? '' ) : ( is_object( $charge ) && is_string( $charge->balance_transaction ?? null ) ? (string) $charge->balance_transaction : null ),
+            'stripe_payout_id' => is_object( $balance ) ? (string) ( $balance->payout ?? '' ) : null,
             'refunded' => 0,
             'stripe_refund_id' => null,
             'created_at' => $now,
@@ -696,6 +704,69 @@ final class RecurringDonationsService {
         }
 
         return $tid;
+    }
+
+    private static function resolveChargeWithBalanceTransaction( mixed $charge ): ?object {
+        if ( is_object( $charge ) ) {
+            if ( is_object( $charge->balance_transaction ?? null ) ) {
+                return $charge;
+            }
+            $chargeId = trim( (string) ( $charge->id ?? '' ) );
+        } else {
+            $chargeId = trim( (string) $charge );
+        }
+
+        if ( $chargeId === '' || ! \class_exists( '\Stripe\Charge' ) ) {
+            return is_object( $charge ) ? $charge : null;
+        }
+
+        try {
+            return \Stripe\Charge::retrieve( [
+                'id' => $chargeId,
+                'expand' => [ 'balance_transaction' ],
+            ] );
+        } catch ( \Throwable $e ) {
+            if ( \class_exists( '\Metis_Logger', false ) ) {
+                \Metis_Logger::warn( 'donations.recurring_charge_lookup_failed', [
+                    'charge_id' => $chargeId,
+                    'error' => $e->getMessage(),
+                ] );
+            }
+            return is_object( $charge ) ? $charge : null;
+        }
+    }
+
+    private static function resolveBalanceTransaction( mixed $balanceTransaction ): ?object {
+        if ( is_object( $balanceTransaction ) ) {
+            return $balanceTransaction;
+        }
+        $balanceTransactionId = trim( (string) $balanceTransaction );
+        if ( $balanceTransactionId === '' || ! \class_exists( '\Stripe\BalanceTransaction' ) ) {
+            return null;
+        }
+        try {
+            return \Stripe\BalanceTransaction::retrieve( $balanceTransactionId );
+        } catch ( \Throwable $e ) {
+            if ( \class_exists( '\Metis_Logger', false ) ) {
+                \Metis_Logger::warn( 'donations.recurring_balance_transaction_lookup_failed', [
+                    'balance_transaction_id' => $balanceTransactionId,
+                    'error' => $e->getMessage(),
+                ] );
+            }
+            return null;
+        }
+    }
+
+    private static function estimatedStripeProcessingFee( float $amount ): float {
+        $percent = 2.9;
+        $fixed = 0.30;
+        if ( \class_exists( '\Core_Settings_Service', false ) ) {
+            $percent = (float) \Core_Settings_Service::get( 'stripe_platform_fee_percent', $percent );
+            $fixed = (float) \Core_Settings_Service::get( 'stripe_platform_fee_fixed', $fixed );
+        }
+        $percent = max( 0.0, $percent ) / 100;
+        $fixed = max( 0.0, $fixed );
+        return round( max( 0.0, ( $amount * $percent ) + $fixed ), 2 );
     }
 
     private static function insideProcessingWindow(): bool {

@@ -20,6 +20,7 @@ final class BackupService {
     private const PAUSED_SETTING = 'backup_paused_until_fix';
     private const PAUSED_REASON_SETTING = 'backup_paused_reason';
     private const PAUSED_AT_SETTING = 'backup_paused_at';
+    private const RUNTIME_BACKUP_EXCLUDED_DIRS = [ 'backups', 'cache' ];
 
     private function database(): \Metis\Services\DatabaseService {
         return \function_exists( 'metis_db' ) ? \metis_db() : new \Metis\Services\DatabaseService();
@@ -473,7 +474,7 @@ final class BackupService {
         $this->zipDirectory(
             $this->metisPath( 'storage/runtime' ),
             $runtime_archive,
-            [ 'backups' ]
+            self::RUNTIME_BACKUP_EXCLUDED_DIRS
         );
         $component_archives['runtime'] = $this->describeFile( 'runtime', $runtime_archive );
 
@@ -1036,17 +1037,31 @@ final class BackupService {
             \fwrite( $handle, $create_sql . ";\n\n" );
 
             $batch_size = 500;
-            $offset = 0;
             $processed_rows = 0;
+            $has_id_column = $this->databaseColumnExists( $table, 'id' );
+            $last_id = 0;
+            [ $table_where, $table_where_args ] = $this->backupTableDataWhereClause( $table );
             do {
                 $this->refreshExecutionBudget();
-                $rows = $db->fetchAll(
-                    "SELECT * FROM `{$table}` LIMIT %d OFFSET %d",
-                    [ $batch_size, $offset ]
-                ) ?: [];
+                if ( $has_id_column ) {
+                    $where = $table_where !== '' ? $table_where . ' AND `id` > %d' : 'WHERE `id` > %d';
+                    $rows = $db->fetchAll(
+                        "SELECT * FROM `{$table}` {$where} ORDER BY `id` ASC LIMIT %d",
+                        [ ...$table_where_args, $last_id, $batch_size ]
+                    ) ?: [];
+                } else {
+                    $offset = $processed_rows;
+                    $rows = $db->fetchAll(
+                        "SELECT * FROM `{$table}` {$table_where} LIMIT %d OFFSET %d",
+                        [ ...$table_where_args, $batch_size, $offset ]
+                    ) ?: [];
+                }
 
                 foreach ( $rows as $row ) {
                     $processed_rows++;
+                    if ( $has_id_column ) {
+                        $last_id = max( $last_id, (int) ( $row['id'] ?? 0 ) );
+                    }
                     if ( ( $processed_rows % 200 ) === 0 ) {
                         $this->refreshExecutionBudget();
                     }
@@ -1061,7 +1076,6 @@ final class BackupService {
                     );
                 }
 
-                $offset += $batch_size;
             } while ( $rows !== [] );
 
             \fwrite( $handle, "\n" );
@@ -1091,7 +1105,7 @@ final class BackupService {
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/public-media' ), 'storage/public-media' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/protected-media' ), 'storage/protected-media' );
         $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/private-records' ), 'storage/private-records' );
-        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/runtime' ), 'storage/runtime', [ 'backups' ] );
+        $this->addDirectoryToZip( $zip, $this->metisPath( 'storage/runtime' ), 'storage/runtime', self::RUNTIME_BACKUP_EXCLUDED_DIRS );
         if ( ! $zip->close() ) {
             throw new \RuntimeException( 'Could not finalize archive: ' . basename( $archive_path ) );
         }
@@ -1167,6 +1181,39 @@ final class BackupService {
             }
 
             $zip->addFile( $path, $zip_path );
+        }
+    }
+
+    /**
+     * @return array{0:string,1:array<int,mixed>}
+     */
+    private function backupTableDataWhereClause( string $table ): array {
+        $hermes_memory = \class_exists( 'Metis_Tables' ) && \Metis_Tables::has( 'hermes_memory' )
+            ? \Metis_Tables::get( 'hermes_memory' )
+            : '';
+
+        if ( $table === $hermes_memory
+            && $this->databaseColumnExists( $table, 'memory_type' )
+            && $this->databaseColumnExists( $table, 'scope_key' )
+        ) {
+            return [
+                'WHERE NOT (`memory_type` = %s AND `scope_key` = %s)',
+                [ 'diagnostic_report', 'reports' ],
+            ];
+        }
+
+        return [ '', [] ];
+    }
+
+    private function databaseColumnExists( string $table, string $column ): bool {
+        if ( ! preg_match( '/^[A-Za-z0-9_]+$/', $table ) || ! preg_match( '/^[A-Za-z0-9_]+$/', $column ) ) {
+            return false;
+        }
+
+        try {
+            return $this->database()->scalar( "SHOW COLUMNS FROM `{$table}` LIKE %s", [ $column ] ) !== null;
+        } catch ( \Throwable ) {
+            return false;
         }
     }
 

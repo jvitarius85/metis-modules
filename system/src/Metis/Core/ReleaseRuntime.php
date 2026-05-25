@@ -310,6 +310,10 @@ function metis_release_rollback( string $trigger = 'manual' ): array {
     return metis_release_manager()->rollback( $trigger );
 }
 
+function metis_release_cleanup_artifacts( string $trigger = 'manual' ): array {
+    return metis_release_manager()->cleanupReleaseArtifacts( $trigger );
+}
+
 if ( function_exists( 'metis_on' ) ) {
     metis_on(
         'init',

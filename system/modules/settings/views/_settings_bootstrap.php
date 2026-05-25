@@ -3225,8 +3225,12 @@ if ( ! function_exists( 'metis_settings_build_failed_login_snapshot' ) ) {
                 $context = [];
                 $context_raw = (string) ( $row['context_json'] ?? '' );
                 if ( $context_raw !== '' ) {
-                    $decoded = json_decode( $context_raw, true );
-                    $context = is_array( $decoded ) ? $decoded : [];
+                    if ( function_exists( 'metis_audit_decode_context_json' ) ) {
+                        $context = metis_audit_decode_context_json( $context_raw );
+                    } else {
+                        $decoded = json_decode( $context_raw, true );
+                        $context = is_array( $decoded ) ? $decoded : [];
+                    }
                 }
 
                 $account = trim( (string) ( $row['resource_label'] ?? '' ) );

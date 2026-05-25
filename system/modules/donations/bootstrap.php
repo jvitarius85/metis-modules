@@ -70,6 +70,10 @@ function metis_paymethod_badge( ?string $method ): string {
     return \Metis\Modules\Donations\DonationsModule::paymethodBadge( $method );
 }
 
+function metis_paymethod_badge_with_details( ?string $method, mixed $transaction = null ): string {
+    return \Metis\Modules\Donations\DonationsModule::paymethodBadgeWithDetails( $method, $transaction );
+}
+
 function metis_deposit_badge( ?string $date ): string {
     return \Metis\Modules\Donations\DonationsModule::depositBadge( $date );
 }

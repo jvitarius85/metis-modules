@@ -130,7 +130,7 @@ $batch_notes = metis_get_batch_notes( $batch->batch_code );
                 </td>
                 <td class="metis-premium-cell metis-badge-stack">
                     <?php echo metis_status_badge( $t->status ); ?>
-                    <?php echo metis_paymethod_badge( $t->payment_method ); ?>
+                    <?php echo metis_paymethod_badge_with_details( $t->payment_method, $t ); ?>
                 </td>
             </tr>
         <?php endforeach; ?>

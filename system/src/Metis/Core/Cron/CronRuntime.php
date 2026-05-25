@@ -995,11 +995,15 @@ final class Metis_Cron_Manager {
         CacheService::clearGroup( 'fragments' );
         CacheService::clearGroup( 'hermes' );
         metis_reports_clear_cache();
+        $release_cleanup = \function_exists( 'metis_release_cleanup_artifacts' )
+            ? \metis_release_cleanup_artifacts( 'cache_cleanup' )
+            : [ 'status' => 'skipped', 'message' => 'Release manager is not available.' ];
 
         return [
             'deleted_rows' => 0,
             'reports_cache_cleared' => true,
             'cache_groups_cleared' => [ 'query', 'fragments', 'hermes' ],
+            'release_artifact_cleanup' => $release_cleanup,
         ];
     }
 

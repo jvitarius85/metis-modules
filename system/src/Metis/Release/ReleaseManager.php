@@ -13,6 +13,8 @@ final class ReleaseManager {
     private const CACHE_FILE = 'release-cache.json';
     private const STATE_FILE = 'state.json';
     private const HISTORY_FILE = 'release-history.json';
+    private const DEFAULT_RELEASE_CACHE_RETAIN = 3;
+    private const DEFAULT_RELEASE_BACKUP_RETAIN = 2;
     private const ARCHIVE_PROTECTED_DIRS = [
         '.git',
         '.github',
@@ -454,6 +456,47 @@ final class ReleaseManager {
         return $this->finalizeCheckout( $target_tag, $release, $trigger, $backup, $previous, 'release_rollback' );
     }
 
+    public function cleanupReleaseArtifacts( string $trigger = 'manual' ): array {
+        $this->ensureStorageDirectories();
+
+        $state = $this->readState();
+        $protected_tags = array_values( array_filter( array_unique( [
+            $this->normalizeTag( (string) ( $state['installed_tag'] ?? '' ) ),
+            $this->normalizeTag( (string) ( $state['previous_tag'] ?? '' ) ),
+        ] ) ) );
+
+        $cache_result = $this->cleanupReleaseDirectory(
+            $this->cacheDir(),
+            $this->releaseCacheRetention(),
+            $protected_tags,
+            [ self::CACHE_FILE, 'index.php', '.htaccess' ],
+            true
+        );
+        $backup_result = $this->cleanupReleaseDirectory(
+            $this->backupDir(),
+            $this->releaseBackupRetention(),
+            [],
+            [ 'index.php', '.htaccess' ],
+            false
+        );
+
+        $result = [
+            'ok' => true,
+            'status' => 'ok',
+            'trigger' => $trigger,
+            'cache' => $cache_result,
+            'backups' => $backup_result,
+            'deleted_count' => (int) ( $cache_result['deleted_count'] ?? 0 ) + (int) ( $backup_result['deleted_count'] ?? 0 ),
+            'deleted_bytes' => (int) ( $cache_result['deleted_bytes'] ?? 0 ) + (int) ( $backup_result['deleted_bytes'] ?? 0 ),
+        ];
+
+        if ( \class_exists( 'Metis_Logger' ) ) {
+            \Metis_Logger::info( 'Release artifact cleanup completed', $result );
+        }
+
+        return $result;
+    }
+
     public function refreshTrustedReleases( bool $force_refresh = false, string $context = 'manual' ): array {
         $this->ensureStorageDirectories();
 
@@ -556,7 +599,7 @@ final class ReleaseManager {
             ];
         }
 
-        $backup_dir = $this->storageDir() . '/backups';
+        $backup_dir = $this->backupDir();
         if ( ! \is_dir( $backup_dir ) && ! \metis_runtime_make_dir( $backup_dir ) ) {
             return [
                 'ok' => false,
@@ -1031,6 +1074,7 @@ final class ReleaseManager {
             ] );
         }
 
+        $cleanup = $this->cleanupReleaseArtifacts( $trigger . '_post_release' );
         $this->progress( 'complete', 'Release update completed.', 100 );
 
         return [
@@ -1046,6 +1090,7 @@ final class ReleaseManager {
             ],
             'baseline_built' => $baseline_built,
             'baseline_signed' => $baseline_signed,
+            'cleanup' => $cleanup,
         ];
     }
 
@@ -1145,6 +1190,8 @@ final class ReleaseManager {
             ] );
         }
 
+        $cleanup = $this->cleanupReleaseArtifacts( $trigger . '_post_release' );
+
         return [
             'ok' => true,
             'status' => $reason,
@@ -1154,6 +1201,7 @@ final class ReleaseManager {
             'repository' => $repository,
             'baseline_built' => $baseline_built,
             'baseline_signed' => $baseline_signed,
+            'cleanup' => $cleanup,
         ];
     }
 
@@ -1516,6 +1564,7 @@ final class ReleaseManager {
         $directories = [
             $this->storageDir(),
             $this->cacheDir(),
+            $this->backupDir(),
             $this->historyDir(),
         ];
 
@@ -1546,6 +1595,10 @@ final class ReleaseManager {
 
     private function cacheDir(): string {
         return $this->storageDir() . '/' . self::CACHE_DIR;
+    }
+
+    private function backupDir(): string {
+        return $this->storageDir() . '/backups';
     }
 
     private function historyDir(): string {
@@ -1747,6 +1800,155 @@ final class ReleaseManager {
         array_unshift( $history, $entry );
         $history = array_slice( $history, 0, 25 );
         $this->writeJsonFile( $this->historyPath(), $history );
+    }
+
+    /**
+     * @param array<int,string> $protected_tags
+     * @param array<int,string> $protected_files
+     * @return array<string,mixed>
+     */
+    private function cleanupReleaseDirectory( string $directory, int $retain, array $protected_tags, array $protected_files, bool $protectTaggedArtifacts ): array {
+        if ( ! \is_dir( $directory ) ) {
+            return [
+                'status' => 'missing',
+                'retention' => $retain,
+                'deleted_count' => 0,
+                'deleted_bytes' => 0,
+                'kept_count' => 0,
+            ];
+        }
+
+        $entries = [];
+        foreach ( \scandir( $directory ) ?: [] as $name ) {
+            if ( $name === '.' || $name === '..' || \in_array( $name, $protected_files, true ) ) {
+                continue;
+            }
+
+            $path = rtrim( $directory, '/' ) . '/' . $name;
+            if ( ! \is_dir( $path ) && ! \is_file( $path ) ) {
+                continue;
+            }
+
+            if ( $protectTaggedArtifacts && $this->releaseArtifactMatchesProtectedTag( $name, $protected_tags ) ) {
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $name,
+                'path' => $path,
+                'mtime' => (int) ( @filemtime( $path ) ?: 0 ),
+                'bytes' => $this->pathSize( $path ),
+            ];
+        }
+
+        usort(
+            $entries,
+            static fn ( array $a, array $b ): int => ( (int) $b['mtime'] <=> (int) $a['mtime'] ) ?: strcmp( (string) $b['name'], (string) $a['name'] )
+        );
+
+        $deleted = [];
+        $deleted_bytes = 0;
+        foreach ( array_slice( $entries, max( 0, $retain ) ) as $entry ) {
+            $path = (string) $entry['path'];
+            $bytes = (int) $entry['bytes'];
+            $removed = \is_dir( $path ) ? $this->removeDirectory( $path ) : @unlink( $path );
+            if ( $removed ) {
+                $deleted[] = [
+                    'name' => (string) $entry['name'],
+                    'bytes' => $bytes,
+                ];
+                $deleted_bytes += $bytes;
+            }
+        }
+
+        return [
+            'status' => 'ok',
+            'retention' => $retain,
+            'deleted_count' => count( $deleted ),
+            'deleted_bytes' => $deleted_bytes,
+            'deleted' => array_slice( $deleted, 0, 20 ),
+            'kept_count' => min( count( $entries ), max( 0, $retain ) ),
+            'protected_tags' => $protected_tags,
+        ];
+    }
+
+    /**
+     * @param array<int,string> $protected_tags
+     */
+    private function releaseArtifactMatchesProtectedTag( string $name, array $protected_tags ): bool {
+        foreach ( $protected_tags as $tag ) {
+            $safe_tag = preg_replace( '/[^A-Za-z0-9_.-]/', '-', $tag ) ?: '';
+            if ( $safe_tag !== '' && ( str_contains( $name, $safe_tag ) || str_contains( $name, $tag ) ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function releaseCacheRetention(): int {
+        $value = \class_exists( 'Core_Settings_Service' )
+            ? (int) \Core_Settings_Service::get( 'release_cache_retention_items', self::DEFAULT_RELEASE_CACHE_RETAIN )
+            : self::DEFAULT_RELEASE_CACHE_RETAIN;
+
+        return max( 1, min( 25, $value ) );
+    }
+
+    private function releaseBackupRetention(): int {
+        $value = \class_exists( 'Core_Settings_Service' )
+            ? (int) \Core_Settings_Service::get( 'release_backup_retention_items', self::DEFAULT_RELEASE_BACKUP_RETAIN )
+            : self::DEFAULT_RELEASE_BACKUP_RETAIN;
+
+        return max( 1, min( 25, $value ) );
+    }
+
+    private function pathSize( string $path ): int {
+        if ( \is_file( $path ) ) {
+            return (int) ( @filesize( $path ) ?: 0 );
+        }
+
+        if ( ! \is_dir( $path ) ) {
+            return 0;
+        }
+
+        $bytes = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator( $path, \FilesystemIterator::SKIP_DOTS ),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ( $iterator as $item ) {
+            if ( $item instanceof \SplFileInfo && $item->isFile() ) {
+                $bytes += (int) $item->getSize();
+            }
+        }
+
+        return $bytes;
+    }
+
+    private function removeDirectory( string $directory ): bool {
+        if ( ! \is_dir( $directory ) ) {
+            return false;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator( $directory, \FilesystemIterator::SKIP_DOTS ),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ( $iterator as $item ) {
+            if ( ! $item instanceof \SplFileInfo ) {
+                continue;
+            }
+
+            $path = $item->getPathname();
+            if ( $item->isDir() ) {
+                @rmdir( $path );
+            } else {
+                @unlink( $path );
+            }
+        }
+
+        return @rmdir( $directory );
     }
 
     private function readJsonFile( string $path ): array {

@@ -644,6 +644,8 @@ function metis_standalone_install_complete_defaults(): void {
     metis_standalone_install_set_default( 'release_manager_enabled', true, false );
     metis_standalone_install_set_default( 'release_auto_update_enabled', true, false );
     metis_standalone_install_set_default( 'release_auto_update_max_level', 'patch', false );
+    metis_standalone_install_set_default( 'release_cache_retention_items', 3, false );
+    metis_standalone_install_set_default( 'release_backup_retention_items', 2, false );
     metis_standalone_install_set_default( 'data_retention_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );

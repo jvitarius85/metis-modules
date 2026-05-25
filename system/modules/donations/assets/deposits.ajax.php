@@ -1149,6 +1149,10 @@ function metis_ajax_import_stripe_charges(): void {
     $tx_table  = Metis_Tables::get( 'transactions' );
     $ct_table  = Metis_Tables::get( 'contacts' );
     $dep_table = Metis_Tables::get( 'deposits' );
+    $has_donations_module = class_exists( '\Metis\Modules\Donations\DonationsModule' );
+    if ( $has_donations_module ) {
+        \Metis\Modules\Donations\DonationsModule::ensureTransactionPaymentDetailSchema();
+    }
 
     // ── Build po_xxx → deposit_code lookup ────────────────────────────────────
     $payout_to_deposit = [];
@@ -1233,6 +1237,23 @@ function metis_ajax_import_stripe_charges(): void {
 
             // ── Dedupe: skip if charge ID or PI already in DB ──────────────────
             if ( isset( $existing_charge_ids[ $charge_id ] ) || isset( $existing_pi_ids[ $pi_id ] ) ) {
+                if ( $has_donations_module ) {
+                    $existing_tx_id = (int) $db->scalar(
+                        "SELECT id FROM {$tx_table}
+                         WHERE stripe_charge_id = %s OR stripe_pay_int = %s
+                         LIMIT 1",
+                        [ $charge_id, $pi_id ]
+                    );
+                    if ( $existing_tx_id > 0 ) {
+                        $method_details = \Metis\Modules\Donations\DonationsModule::stripePaymentMethodDetails( $charge );
+                        $db->update( $tx_table, [
+                            'payment_method' => (string) ( $method_details['payment_method'] ?? 'cc' ),
+                            'card_brand'     => $method_details['card_brand'] ?? null,
+                            'card_last4'     => $method_details['card_last4'] ?? null,
+                            'updated_at'     => metis_current_time( 'mysql' ),
+                        ], [ 'id' => $existing_tx_id ] );
+                    }
+                }
                 $skipped++;
                 continue;
             }
@@ -1263,17 +1284,12 @@ function metis_ajax_import_stripe_charges(): void {
             $net_dollars    = ( $amount_cents - $fee_cents ) / 100.0;
 
             // ── Detect payment method ──────────────────────────────────────────
-            $pay_method = 'card';
-            // Link payments: payment_method_details->type === 'link'
-            $pmd_type = strtolower( (string) ( $charge->payment_method_details->type ?? '' ) );
-            if ( $pmd_type === 'link' ) {
-                $pay_method = 'link';
+            if ( $has_donations_module ) {
+                $method_details = \Metis\Modules\Donations\DonationsModule::stripePaymentMethodDetails( $charge );
             } else {
-                $brand = strtolower( (string) ( $charge->payment_method_details->card->brand ?? '' ) );
-                if ( $brand === 'visa' )           $pay_method = 'visa';
-                elseif ( $brand === 'mastercard' ) $pay_method = 'mastercard';
-                elseif ( $brand === 'amex' )       $pay_method = 'amex';
+                $method_details = [ 'payment_method' => 'cc', 'card_brand' => null, 'card_last4' => null ];
             }
+            $pay_method = (string) ( $method_details['payment_method'] ?? 'cc' );
 
             // ── Resolve or create contact ──────────────────────────────────────
             $did          = null;
@@ -1349,6 +1365,8 @@ function metis_ajax_import_stripe_charges(): void {
                 'payout'             => $net_dollars,
                 'platform'           => 'ST',
                 'payment_method'     => $pay_method,
+                'card_brand'         => $method_details['card_brand'] ?? null,
+                'card_last4'         => $method_details['card_last4'] ?? null,
                 'status'             => 'Completed',
                 'stripe_pay_int'     => $pi_id,
                 'stripe_charge_id'   => $charge_id,

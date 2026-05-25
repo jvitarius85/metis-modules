@@ -21,6 +21,10 @@
     "fee_amount":       { "type": "decimal",  "label": "Fee",             "filterable": false, "sortable": false, "aggregatable": true },
     "status":           { "type": "string",   "label": "Status",          "filterable": true,  "sortable": true,  "groupable": true    },
     "type":             { "type": "string",   "label": "Type",            "filterable": true,  "sortable": true,  "groupable": true    },
+    "payment_method":   { "type": "string",   "label": "Payment method",  "filterable": true,  "sortable": true,  "groupable": true    },
+    "card_brand":       { "type": "string",   "label": "Card brand",      "filterable": true,  "sortable": true,  "groupable": true    },
+    "card_last4":       { "type": "string",   "label": "Card last 4",     "filterable": false, "sortable": false },
+    "chk_num":          { "type": "string",   "label": "Check number",    "filterable": false, "sortable": false },
     "transaction_date": { "type": "datetime", "label": "Transaction date","filterable": true,  "sortable": true,  "date_field": true   },
     "created_at":       { "type": "datetime", "label": "Created",         "filterable": true,  "sortable": true,  "date_field": true   }
   },
