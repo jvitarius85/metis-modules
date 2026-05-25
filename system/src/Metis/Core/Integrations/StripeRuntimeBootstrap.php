@@ -33,6 +33,83 @@ if ( ! function_exists( 'metis_stripe_webhook_secret' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_stripe_diagnostics_store' ) ) {
+    function metis_stripe_diagnostics_store( array $values ): void {
+        if ( ! class_exists( 'Core_Settings_Service' ) ) {
+            return;
+        }
+
+        foreach ( $values as $key => $value ) {
+            $setting = 'stripe_diag_' . metis_key_clean( (string) $key );
+            if ( $setting === 'stripe_diag_' ) {
+                continue;
+            }
+            \Core_Settings_Service::set( $setting, is_scalar( $value ) || $value === null ? (string) $value : metis_json_encode( $value ), false );
+        }
+    }
+}
+
+if ( ! function_exists( 'metis_stripe_record_api_success' ) ) {
+    function metis_stripe_record_api_success( string $method, string $path ): void {
+        metis_stripe_diagnostics_store( [
+            'last_api_success_at' => metis_current_time( 'mysql' ),
+            'last_api_method' => strtoupper( trim( $method ) ),
+            'last_api_path' => trim( $path ),
+        ] );
+    }
+}
+
+if ( ! function_exists( 'metis_stripe_record_api_error' ) ) {
+    function metis_stripe_record_api_error( \Throwable $error, string $method = '', string $path = '' ): void {
+        $values = [
+            'last_api_error_at' => metis_current_time( 'mysql' ),
+            'last_api_error_message' => $error->getMessage(),
+            'last_api_method' => strtoupper( trim( $method ) ),
+            'last_api_path' => trim( $path ),
+            'last_api_error_class' => get_class( $error ),
+        ];
+
+        if ( $error instanceof \Metis\Core\Integrations\StripeApiException ) {
+            $values['last_api_error_type'] = (string) ( $error->stripeType() ?? '' );
+            $values['last_api_error_code'] = (string) ( $error->stripeCode() ?? '' );
+            $values['last_api_request_id'] = (string) ( $error->requestId() ?? '' );
+            $values['last_api_http_status'] = (string) $error->httpStatus();
+        }
+
+        metis_stripe_diagnostics_store( $values );
+    }
+}
+
+if ( ! function_exists( 'metis_stripe_record_webhook_received' ) ) {
+    function metis_stripe_record_webhook_received( array $event ): void {
+        metis_stripe_diagnostics_store( [
+            'last_webhook_received_at' => metis_current_time( 'mysql' ),
+            'last_webhook_event_id' => (string) ( $event['event_id'] ?? $event['id'] ?? '' ),
+            'last_webhook_event_type' => (string) ( $event['event_type'] ?? $event['type'] ?? '' ),
+        ] );
+    }
+}
+
+if ( ! function_exists( 'metis_stripe_record_webhook_processed' ) ) {
+    function metis_stripe_record_webhook_processed( array $event ): void {
+        metis_stripe_diagnostics_store( [
+            'last_webhook_processed_at' => metis_current_time( 'mysql' ),
+            'last_webhook_event_id' => (string) ( $event['event_id'] ?? $event['id'] ?? '' ),
+            'last_webhook_event_type' => (string) ( $event['event_type'] ?? $event['type'] ?? '' ),
+        ] );
+    }
+}
+
+if ( ! function_exists( 'metis_stripe_record_webhook_failure' ) ) {
+    function metis_stripe_record_webhook_failure( string $code, string $message ): void {
+        metis_stripe_diagnostics_store( [
+            'last_webhook_failure_at' => metis_current_time( 'mysql' ),
+            'last_webhook_failure_code' => $code,
+            'last_webhook_failure_message' => $message,
+        ] );
+    }
+}
+
 if ( ! function_exists( 'metis_stripe_api_version' ) ) {
     function metis_stripe_api_version(): ?string {
         $value = trim( (string) \Core_Settings_Service::get( 'stripe_api_version', '' ) );

@@ -85,6 +85,65 @@ extract( $ctx, EXTR_SKIP );
     </div>
 
     <div class="metis-settings-card">
+        <div class="metis-settings-header"><h2>Stripe Diagnostics</h2></div>
+        <div class="metis-settings-body">
+            <div class="metis-settings-grid metis-settings-grid-3">
+                <div class="metis-field">
+                    <label>Client</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( ! empty( $stripe_diagnostics['client_configured'] ) ? 'Configured' : 'Missing secret key' ); ?></code></div>
+                </div>
+                <div class="metis-field">
+                    <label>Publishable Key</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( ! empty( $stripe_diagnostics['publishable_configured'] ) ? 'Configured' : 'Missing publishable key' ); ?></code></div>
+                </div>
+                <div class="metis-field">
+                    <label>API Version</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( (string) ( $stripe_diagnostics['api_version'] ?: 'Account default' ) ); ?></code></div>
+                </div>
+                <div class="metis-field">
+                    <label>Last API Success</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( (string) ( $stripe_diagnostics['last_api_success_at_display'] ?: '—' ) ); ?></code></div>
+                    <?php if ( ! empty( $stripe_diagnostics['last_api_method'] ) || ! empty( $stripe_diagnostics['last_api_path'] ) ) : ?>
+                        <p class="metis-help"><?php echo metis_escape_html( trim( (string) ( $stripe_diagnostics['last_api_method'] ?? '' ) . ' ' . (string) ( $stripe_diagnostics['last_api_path'] ?? '' ) ) ); ?></p>
+                    <?php endif; ?>
+                </div>
+                <div class="metis-field">
+                    <label>Last API Error</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( (string) ( $stripe_diagnostics['last_api_error_at_display'] ?: '—' ) ); ?></code></div>
+                    <?php if ( ! empty( $stripe_diagnostics['last_api_error_message'] ) ) : ?>
+                        <p class="metis-help"><?php echo metis_escape_html( (string) $stripe_diagnostics['last_api_error_message'] ); ?></p>
+                        <p class="metis-help"><?php echo metis_escape_html( trim( implode( ' · ', array_filter( [ (string) ( $stripe_diagnostics['last_api_error_type'] ?? '' ), (string) ( $stripe_diagnostics['last_api_error_code'] ?? '' ), (string) ( $stripe_diagnostics['last_api_request_id'] ?? '' ) ] ) ) ) ); ?></p>
+                    <?php endif; ?>
+                </div>
+                <div class="metis-field">
+                    <label>Webhook Health</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( '24h ' . (int) ( $stripe_diagnostics['webhook_processed_24h'] ?? 0 ) . ' processed / ' . (int) ( $stripe_diagnostics['webhook_failed_24h'] ?? 0 ) . ' failed' ); ?></code></div>
+                    <p class="metis-help"><?php echo metis_escape_html( 'Provider failure window count: ' . (int) ( $stripe_diagnostics['provider_failure_count'] ?? 0 ) ); ?></p>
+                </div>
+            </div>
+            <div class="metis-field">
+                <label>Webhook Endpoint URL</label>
+                <div class="metis-shortcode-wrap">
+                    <code class="metis-shortcode" id="metis-stripe-webhook-diagnostics-url"><?php echo metis_escape_html( (string) ( $stripe_diagnostics['webhook_endpoint'] ?? $stripe_webhook_endpoint ) ); ?></code>
+                    <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-copy-target="metis-stripe-webhook-diagnostics-url">Copy</button>
+                </div>
+            </div>
+            <div class="metis-settings-grid metis-settings-grid-2">
+                <div class="metis-field">
+                    <label>Last Webhook Received</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( (string) ( $stripe_diagnostics['last_webhook_received_at_display'] ?: '—' ) ); ?></code></div>
+                    <p class="metis-help"><?php echo metis_escape_html( trim( implode( ' · ', array_filter( [ (string) ( $stripe_diagnostics['last_webhook_event_type'] ?? '' ), (string) ( $stripe_diagnostics['last_webhook_event_id'] ?? '' ) ] ) ) ) ?: 'No webhook receipt has been recorded yet.' ); ?></p>
+                </div>
+                <div class="metis-field">
+                    <label>Last Webhook Failure</label>
+                    <div class="metis-shortcode-wrap"><code class="metis-shortcode"><?php echo metis_escape_html( (string) ( $stripe_diagnostics['last_webhook_failure_at_display'] ?: '—' ) ); ?></code></div>
+                    <p class="metis-help"><?php echo metis_escape_html( trim( implode( ' · ', array_filter( [ (string) ( $stripe_diagnostics['last_webhook_failure_code'] ?? '' ), (string) ( $stripe_diagnostics['last_webhook_failure_message'] ?? '' ) ] ) ) ) ?: 'No webhook failure has been recorded.' ); ?></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="metis-settings-card">
         <div class="metis-settings-header"><h2>Inbound Email</h2></div>
         <div class="metis-settings-body">
             <div class="metis-field">

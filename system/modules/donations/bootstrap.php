@@ -398,10 +398,29 @@ if ( ! function_exists( "metis_donations_render_form_embed" ) ) {
         static $campaign_cache = [];
         if ( ! array_key_exists( $campaign_id, $campaign_cache ) ) {
             $db = metis_db();
-            $campaign_cache[ $campaign_id ] = $db->fetchOne(
+            $campaign = $db->fetchOne(
                 "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE cid = %s LIMIT 1",
                 [ $campaign_id ]
             );
+            if ( ! is_array( $campaign ) ) {
+                $campaign = $db->fetchOne(
+                    "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE campaign_code = %s LIMIT 1",
+                    [ $campaign_id ]
+                );
+            }
+            if ( ! is_array( $campaign ) ) {
+                $campaign = $db->fetchOne(
+                    "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE code = %s LIMIT 1",
+                    [ $campaign_id ]
+                );
+            }
+            if ( ! is_array( $campaign ) && ctype_digit( $campaign_id ) ) {
+                $campaign = $db->fetchOne(
+                    "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE id = %d LIMIT 1",
+                    [ (int) $campaign_id ]
+                );
+            }
+            $campaign_cache[ $campaign_id ] = $campaign;
         }
         $campaign = $campaign_cache[ $campaign_id ];
 

@@ -621,11 +621,11 @@
     }
 
     function iconUrl(slug) {
-        return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(s(slug || '')) + '.svg';
+        return appBasePath() + '/svg/' + encodeURIComponent(s(slug || '').replace(/_/g, '-'));
     }
 
     function iconFallbackUrl(slug) {
-        return appBasePath() + '/svg/' + encodeURIComponent(s(slug || '')) + '/';
+        return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(s(slug || '')) + '.svg';
     }
 
     function bindIconFallbacks(scope) {

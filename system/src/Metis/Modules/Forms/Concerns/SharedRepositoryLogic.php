@@ -1432,12 +1432,22 @@ trait SharedRepositoryLogic {
             return self::$campaignOptions;
         }
 
-        $rows = self::db()->fetchAll(
-            "SELECT id, cid, campaign_code, code, cname
-             FROM {$table}
-             ORDER BY id DESC
-             LIMIT 300"
-        );
+        try {
+            $rows = self::db()->fetchAll(
+                "SELECT id, cid, campaign_code, code, cname
+                 FROM {$table}
+                 WHERE active = 1
+                 ORDER BY cname ASC, id DESC
+                 LIMIT 300"
+            );
+        } catch ( \Throwable $e ) {
+            $rows = self::db()->fetchAll(
+                "SELECT id, cid, campaign_code, code, cname
+                 FROM {$table}
+                 ORDER BY id DESC
+                 LIMIT 300"
+            );
+        }
 
         $options = [];
         foreach ( $rows as $row ) {

@@ -939,6 +939,83 @@ if ( ! function_exists( 'metis_settings_format_datetime_display' ) ) {
     }
 }
 
+if ( ! function_exists( 'metis_settings_build_stripe_diagnostics_snapshot' ) ) {
+    function metis_settings_build_stripe_diagnostics_snapshot( string $date_format, string $time_format, string $timezone ): array {
+        $get = static function ( string $key, string $default = '' ): string {
+            return trim( (string) Core_Settings_Service::get( 'stripe_diag_' . $key, $default ) );
+        };
+
+        $snapshot = [
+            'client_configured' => function_exists( 'metis_stripe_is_configured' ) ? (bool) metis_stripe_is_configured() : false,
+            'publishable_configured' => str_starts_with( trim( (string) Core_Settings_Service::get( 'stripe_publishable_key', '' ) ), 'pk_' ),
+            'api_version' => function_exists( 'metis_stripe_api_version' ) ? (string) ( metis_stripe_api_version() ?? '' ) : '',
+            'webhook_endpoint' => function_exists( 'metis_webhook_url' ) ? (string) metis_webhook_url( 'stripe' ) : '',
+            'last_api_success_at' => $get( 'last_api_success_at' ),
+            'last_api_success_at_display' => '',
+            'last_api_method' => $get( 'last_api_method' ),
+            'last_api_path' => $get( 'last_api_path' ),
+            'last_api_error_at' => $get( 'last_api_error_at' ),
+            'last_api_error_at_display' => '',
+            'last_api_error_message' => $get( 'last_api_error_message' ),
+            'last_api_error_type' => $get( 'last_api_error_type' ),
+            'last_api_error_code' => $get( 'last_api_error_code' ),
+            'last_api_request_id' => $get( 'last_api_request_id' ),
+            'last_api_http_status' => $get( 'last_api_http_status' ),
+            'last_webhook_received_at' => $get( 'last_webhook_received_at' ),
+            'last_webhook_received_at_display' => '',
+            'last_webhook_processed_at' => $get( 'last_webhook_processed_at' ),
+            'last_webhook_processed_at_display' => '',
+            'last_webhook_event_id' => $get( 'last_webhook_event_id' ),
+            'last_webhook_event_type' => $get( 'last_webhook_event_type' ),
+            'last_webhook_failure_at' => $get( 'last_webhook_failure_at' ),
+            'last_webhook_failure_at_display' => '',
+            'last_webhook_failure_code' => $get( 'last_webhook_failure_code' ),
+            'last_webhook_failure_message' => $get( 'last_webhook_failure_message' ),
+            'webhook_events_24h' => 0,
+            'webhook_processed_24h' => 0,
+            'webhook_failed_24h' => 0,
+            'provider_failure_count' => 0,
+        ];
+
+        foreach ( [ 'last_api_success_at', 'last_api_error_at', 'last_webhook_received_at', 'last_webhook_processed_at', 'last_webhook_failure_at' ] as $field ) {
+            $raw = (string) ( $snapshot[ $field ] ?? '' );
+            if ( $raw !== '' ) {
+                $snapshot[ $field . '_display' ] = metis_settings_format_datetime_display( $raw, $date_format, $time_format, $timezone );
+            }
+        }
+
+        try {
+            if ( function_exists( 'metis_webhook_ensure_schema' ) ) {
+                metis_webhook_ensure_schema();
+            }
+            $table = class_exists( 'Metis_Tables' ) ? Metis_Tables::get( 'webhook_events' ) : '';
+            if ( $table !== '' ) {
+                $cutoff = metis_settings_recent_cutoff( 1 );
+                $snapshot['webhook_events_24h'] = (int) metis_db()->scalar(
+                    "SELECT COUNT(1) FROM {$table} WHERE provider = %s AND created_at >= %s",
+                    [ 'stripe', $cutoff ]
+                );
+                $snapshot['webhook_processed_24h'] = (int) metis_db()->scalar(
+                    "SELECT COUNT(1) FROM {$table} WHERE provider = %s AND status = %s AND created_at >= %s",
+                    [ 'stripe', 'processed', $cutoff ]
+                );
+                $snapshot['webhook_failed_24h'] = (int) metis_db()->scalar(
+                    "SELECT COUNT(1) FROM {$table} WHERE provider = %s AND status = %s AND created_at >= %s",
+                    [ 'stripe', 'failed', $cutoff ]
+                );
+            }
+        } catch ( Throwable $e ) {
+            // Diagnostics must stay non-fatal.
+        }
+
+        if ( function_exists( 'metis_webhook_provider_failure_timestamps' ) ) {
+            $snapshot['provider_failure_count'] = count( metis_webhook_provider_failure_timestamps( 'stripe' ) );
+        }
+
+        return $snapshot;
+    }
+}
+
 if ( ! function_exists( 'metis_settings_recent_cutoff' ) ) {
     function metis_settings_recent_cutoff( int $days ): string {
         $seconds = max( 1, $days ) * DAY_IN_SECONDS;
@@ -4042,9 +4119,13 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $logging_total_pages = 1;
         $logging_entries = [];
         $failed_login_snapshot = [ 'rows' => [], 'count_24h' => 0, 'count_7d' => 0, 'error' => '' ];
+        $stripe_diagnostics = [];
         if ( metis_settings_should_load_logging_state( $section ) ) {
             extract( metis_settings_build_logging_viewer_state( metis_request_post() ), EXTR_OVERWRITE );
             $failed_login_snapshot = metis_settings_build_failed_login_snapshot( (string) $date_format, (string) $time_format, (string) $timezone, 25 );
+        }
+        if ( metis_settings_section_matches( $section, [ 'developers_api' ] ) ) {
+            $stripe_diagnostics = metis_settings_build_stripe_diagnostics_snapshot( (string) $date_format, (string) $time_format, (string) $timezone );
         }
 
         $menu_modules = [];
@@ -4343,6 +4424,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'logging_total_pages',
             'logging_entries',
             'failed_login_snapshot',
+            'stripe_diagnostics',
             'menu_modules',
             'workspace_impersonation_admin',
             'workspace_customer_id',

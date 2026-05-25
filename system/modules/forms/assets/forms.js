@@ -782,6 +782,7 @@
 
     function render() {
       root.innerHTML = renderBuilderShell(state, boot, options);
+      bindIconFallbacks(root);
     }
 
     function renderFieldList() {
@@ -791,7 +792,10 @@
 
     function renderEditor() {
       const node = root.querySelector('[data-ui="field-editor"]');
-      if (node) node.innerHTML = renderEditorHtml(state, options);
+      if (node) {
+        node.innerHTML = renderEditorHtml(state, options);
+        bindIconFallbacks(node);
+      }
     }
 
     function renderPreview() {
@@ -2060,7 +2064,7 @@
       ['insertDivider', 'divider', 'Insert Divider'],
       ['undo', 'undo', 'Undo'],
       ['redo', 'redo', 'Redo']
-    ].map((row) => `<button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="${escapeAttr(row[0])}" data-rich-target="${escapeAttr(key)}" title="${escapeAttr(row[2])}" aria-label="${escapeAttr(row[2])}"><img src="${escapeAttr(iconUrl(row[1]))}" alt="" aria-hidden="true"></button>`).join('');
+    ].map((row) => `<button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="${escapeAttr(row[0])}" data-rich-target="${escapeAttr(key)}" title="${escapeAttr(row[2])}" aria-label="${escapeAttr(row[2])}"><img src="${escapeAttr(iconUrl(row[1]))}" data-icon-fallback="${escapeAttr(iconFallbackUrl(row[1]))}" alt="" aria-hidden="true"></button>`).join('');
 
     return `
       <div class="metis-forms-rich" data-rich-editor-key="${escapeAttr(path)}">
@@ -2113,7 +2117,7 @@
   function renderRichToolbarDropdown(icon, menuHtml, extraClass, label) {
     return `<div class="metis-se-rich-dropdown ${escapeAttr(extraClass || '')}">
       <button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger metis-se-rich-icon-btn" data-rich-toggle="menu" title="${escapeAttr(label || 'Menu')}" aria-label="${escapeAttr(label || 'Menu')}">
-        <img src="${escapeAttr(iconUrl(icon))}" alt="" aria-hidden="true">
+        <img src="${escapeAttr(iconUrl(icon))}" data-icon-fallback="${escapeAttr(iconFallbackUrl(icon))}" alt="" aria-hidden="true">
       </button>
       <div class="metis-se-rich-menu">${menuHtml}</div>
     </div>`;
@@ -2900,7 +2904,24 @@
   }
 
   function iconUrl(slug) {
+    return appBasePath() + '/svg/' + encodeURIComponent(String(slug || '').replace(/_/g, '-'));
+  }
+
+  function iconFallbackUrl(slug) {
     return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
+  }
+
+  function bindIconFallbacks(scope) {
+    const rootNode = scope && scope.querySelectorAll ? scope : document;
+    rootNode.querySelectorAll('img[data-icon-fallback]').forEach((img) => {
+      if (img.getAttribute('data-fallback-bound') === '1') return;
+      img.setAttribute('data-fallback-bound', '1');
+      img.addEventListener('error', () => {
+        const fallback = String(img.getAttribute('data-icon-fallback') || '').trim();
+        if (!fallback || img.getAttribute('src') === fallback) return;
+        img.setAttribute('src', fallback);
+      });
+    });
   }
 
   function normalizeRichTextCharacters(value) {

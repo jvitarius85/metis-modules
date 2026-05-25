@@ -420,7 +420,24 @@
     }
 
     function iconUrl(slug) {
+        return appBasePath() + '/svg/' + encodeURIComponent(String(slug || '').replace(/_/g, '-'));
+    }
+
+    function iconFallbackUrl(slug) {
         return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
+    }
+
+    function bindIconFallbacks(scope) {
+        var rootNode = scope && scope.querySelectorAll ? scope : document;
+        rootNode.querySelectorAll('img[data-icon-fallback]').forEach(function (img) {
+            if (img.getAttribute('data-fallback-bound') === '1') return;
+            img.setAttribute('data-fallback-bound', '1');
+            img.addEventListener('error', function () {
+                var fallback = String(img.getAttribute('data-icon-fallback') || '').trim();
+                if (!fallback || img.getAttribute('src') === fallback) return;
+                img.setAttribute('src', fallback);
+            });
+        });
     }
 
     function escHtml(value) {
@@ -565,7 +582,7 @@
     function themeToolbarDropdown(icon, menuHtml, extraClass, label) {
         return '<div class="metis-se-rich-dropdown ' + escHtml(extraClass || '') + '">' +
             '<button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger metis-se-rich-icon-btn" data-theme-rich-toggle="menu" title="' + escHtml(label || 'Menu') + '" aria-label="' + escHtml(label || 'Menu') + '">' +
-                '<img src="' + escHtml(iconUrl(icon)) + '" alt="" aria-hidden="true">' +
+                '<img src="' + escHtml(iconUrl(icon)) + '" data-icon-fallback="' + escHtml(iconFallbackUrl(icon)) + '" alt="" aria-hidden="true">' +
             '</button>' +
             '<div class="metis-se-rich-menu">' + menuHtml + '</div>' +
         '</div>';
@@ -627,7 +644,7 @@
             ['redo','redo','Redo']
         ].map(function (row) {
             return '<button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-theme-rich-cmd="' + escHtml(row[0]) + '" data-theme-target="' + escHtml(key) + '" title="' + escHtml(row[2]) + '" aria-label="' + escHtml(row[2]) + '">' +
-                '<img src="' + escHtml(iconUrl(row[1])) + '" alt="" aria-hidden="true"></button>';
+                '<img src="' + escHtml(iconUrl(row[1])) + '" data-icon-fallback="' + escHtml(iconFallbackUrl(row[1])) + '" alt="" aria-hidden="true"></button>';
         }).join('');
         return '<div class="metis-se-rich-toolbar"><div class="metis-se-rich-group metis-se-rich-group--actions">' +
             themeToolbarDropdown('h1', blockMenu, 'metis-se-rich-dropdown--format', 'Paragraph') +
@@ -643,6 +660,7 @@
             var key = String(node.getAttribute('data-theme-toolbar') || '').trim();
             if (!key) return;
             node.innerHTML = buildThemeToolbar(key);
+            bindIconFallbacks(node);
         });
     }
 

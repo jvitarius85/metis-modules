@@ -122,6 +122,9 @@ if ( ! function_exists( 'metis_stripe_webhook_verify_request' ) ) {
         } catch ( Throwable $e ) {
             $status = str_contains( strtolower( $e->getMessage() ), 'signature' ) ? 401 : 400;
             $code = $status === 401 ? 'webhook_signature_invalid' : 'webhook_payload_invalid';
+            if ( \function_exists( 'metis_stripe_record_webhook_failure' ) ) {
+                \metis_stripe_record_webhook_failure( $code, $status === 401 ? 'Stripe signature verification failed.' : 'Stripe payload is invalid.' );
+            }
             throw new Metis_Webhook_Exception( $status === 401 ? 'Stripe signature verification failed.' : 'Stripe payload is invalid.', $status, $code, [
                 'provider_error_class' => get_class( $e ),
             ] );
@@ -130,12 +133,18 @@ if ( ! function_exists( 'metis_stripe_webhook_verify_request' ) ) {
             throw new Metis_Webhook_Exception( 'Stripe payload could not be normalized.', 400, 'webhook_payload_invalid' );
         }
 
-        return [
+        $normalized = [
             'event_id'    => (string) ( $event_array['id'] ?? '' ),
             'event_type'  => (string) ( $event_array['type'] ?? '' ),
             'resource_id' => metis_text_clean( (string) ( $event_array['data']['object']['id'] ?? '' ) ),
             'payload'     => $event_array,
         ];
+
+        if ( \function_exists( 'metis_stripe_record_webhook_received' ) ) {
+            \metis_stripe_record_webhook_received( $normalized );
+        }
+
+        return $normalized;
     }
 }
 

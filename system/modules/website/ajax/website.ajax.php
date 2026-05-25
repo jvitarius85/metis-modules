@@ -479,10 +479,25 @@ function metis_website_ajax_donation_campaign_options(): array {
     if ( $table === '' ) {
         return [];
     }
-    $rows = $db->fetchAll(
-        "SELECT id, cid, campaign_code, code, cname FROM {$table} ORDER BY id DESC LIMIT 200",
-        []
-    );
+    try {
+        $rows = $db->fetchAll(
+            "SELECT id, cid, campaign_code, code, cname
+             FROM {$table}
+             WHERE active = 1
+               AND (public = 1 OR public IS NULL)
+             ORDER BY cname ASC, id DESC
+             LIMIT 200",
+            []
+        );
+    } catch ( \Throwable $e ) {
+        $rows = $db->fetchAll(
+            "SELECT id, cid, campaign_code, code, cname
+             FROM {$table}
+             ORDER BY id DESC
+             LIMIT 200",
+            []
+        );
+    }
     $options = [];
     foreach ( (array) $rows as $row ) {
         if ( ! is_array( $row ) ) {

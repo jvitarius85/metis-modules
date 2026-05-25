@@ -826,6 +826,9 @@ function metis_webhook_handle_router_request( Metis_Http_Request $request ): Met
             call_user_func( $provider['verify'], $request )
         );
     } catch ( Metis_Webhook_Exception $e ) {
+        if ( $provider_name === 'stripe' && function_exists( 'metis_stripe_record_webhook_failure' ) ) {
+            metis_stripe_record_webhook_failure( $e->code_name(), $e->getMessage() );
+        }
         if ( $e->status() >= 500 ) {
             metis_webhook_record_provider_failure( $provider_name, 'verify_failed' );
         }
@@ -959,6 +962,9 @@ function metis_webhook_handle_router_request( Metis_Http_Request $request ): Met
 
         metis_webhook_mark_provider_healthy( $provider_name );
         metis_webhook_mark_processed( $event_row_id );
+        if ( $provider_name === 'stripe' && function_exists( 'metis_stripe_record_webhook_processed' ) ) {
+            metis_stripe_record_webhook_processed( $event );
+        }
         metis_audit_log_activity( 'webhook_processed', [
             'module'   => 'webhooks',
             'resource' => [
@@ -993,6 +999,9 @@ function metis_webhook_handle_router_request( Metis_Http_Request $request ): Met
     } catch ( Throwable $e ) {
         $provider_failure = metis_webhook_record_provider_failure( $provider_name, 'processing_failed' );
         metis_webhook_mark_failed( $event_row_id, $e );
+        if ( $provider_name === 'stripe' && function_exists( 'metis_stripe_record_webhook_failure' ) ) {
+            metis_stripe_record_webhook_failure( 'webhook_processing_failed', 'Webhook processing failed.' );
+        }
         metis_audit_log_security( 'webhook_processing_failed', [
             'module'   => 'webhooks',
             'severity' => 'error',

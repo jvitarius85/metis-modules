@@ -130,6 +130,9 @@ final class StripeApiClient {
                     'capture_headers' => true,
                 ]);
             } catch (\Throwable $e) {
+                if (\function_exists('metis_stripe_record_api_error')) {
+                    \metis_stripe_record_api_error($e, $method, $path);
+                }
                 $lastException = new StripeApiException(
                     $e->getMessage() !== '' ? $e->getMessage() : 'Stripe request failed.',
                     0,
@@ -149,11 +152,17 @@ final class StripeApiClient {
 
             $status = (int) ($response['status'] ?? 0);
             if ($status >= 200 && $status < 300) {
+                if (\function_exists('metis_stripe_record_api_success')) {
+                    \metis_stripe_record_api_success($method, $path);
+                }
                 $json = is_array($response['json'] ?? null) ? $response['json'] : [];
                 return $this->normalizeResource($json);
             }
 
             $exception = $this->exceptionFromResponse($status, is_array($response['json'] ?? null) ? $response['json'] : [], (array) ($response['headers'] ?? []));
+            if (\function_exists('metis_stripe_record_api_error')) {
+                \metis_stripe_record_api_error($exception, $method, $path);
+            }
             if ($exception->isRetryable() && $attempt < self::MAX_RETRIES) {
                 $this->backoff($attempt);
                 $lastException = $exception;
