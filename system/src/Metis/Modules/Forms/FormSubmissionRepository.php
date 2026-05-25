@@ -378,21 +378,15 @@ final class FormSubmissionRepository {
             ];
         }
 
-        if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\Stripe\PaymentIntent' ) ) {
-            return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe SDK is unavailable.' ];
-        }
-
-        \metis_stripe_init();
-        if ( \Stripe\Stripe::getApiKey() === null ) {
+        $stripe = \function_exists( 'metis_stripe_client' ) ? \metis_stripe_client() : null;
+        if ( ! $stripe ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe is not configured.' ];
         }
 
         try {
-            $intent = \Stripe\PaymentIntent::retrieve(
-                [
-                    'id'     => $payment_intent_id,
-                    'expand' => [ 'latest_charge.balance_transaction' ],
-                ]
+            $intent = $stripe->retrievePaymentIntent(
+                $payment_intent_id,
+                [ 'expand' => [ 'latest_charge.balance_transaction' ] ]
             );
         } catch ( \Throwable $e ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Payment intent could not be retrieved.' ];

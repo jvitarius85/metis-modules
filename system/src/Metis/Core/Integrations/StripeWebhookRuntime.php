@@ -98,7 +98,7 @@ if ( ! function_exists( 'metis_stripe_webhook_verify_request' ) ) {
     function metis_stripe_webhook_verify_request( Metis_Http_Request $request ): array {
         $payload   = $request->body();
         $signature = $request->header( 'stripe-signature' );
-        $secret    = (string) \Metis\Core\Services\CredentialService::getBySetting( 'stripe_webhook_secret' );
+        $secret    = \function_exists( 'metis_stripe_webhook_secret' ) ? metis_stripe_webhook_secret() : (string) \Metis\Core\Services\CredentialService::getBySetting( 'stripe_webhook_secret' );
 
         if ( $request->method() !== 'POST' ) {
             throw new Metis_Webhook_Exception( 'Webhook method not allowed.', 405, 'webhook_method_invalid' );
@@ -117,18 +117,15 @@ if ( ! function_exists( 'metis_stripe_webhook_verify_request' ) ) {
         }
 
         try {
-            $event = \Stripe\Webhook::constructEvent( $payload, $signature, $secret );
-        } catch ( \Stripe\Exception\SignatureVerificationException $e ) {
-            throw new Metis_Webhook_Exception( 'Stripe signature verification failed.', 401, 'webhook_signature_invalid', [
-                'provider_error_class' => get_class( $e ),
-            ] );
+            $verifier = new \Metis\Core\Integrations\StripeWebhookVerifier();
+            $event_array = $verifier->verify( $payload, $signature, $secret );
         } catch ( Throwable $e ) {
-            throw new Metis_Webhook_Exception( 'Stripe payload is invalid.', 400, 'webhook_payload_invalid', [
+            $status = str_contains( strtolower( $e->getMessage() ), 'signature' ) ? 401 : 400;
+            $code = $status === 401 ? 'webhook_signature_invalid' : 'webhook_payload_invalid';
+            throw new Metis_Webhook_Exception( $status === 401 ? 'Stripe signature verification failed.' : 'Stripe payload is invalid.', $status, $code, [
                 'provider_error_class' => get_class( $e ),
             ] );
         }
-
-        $event_array = json_decode( metis_json_encode( $event ), true );
         if ( ! is_array( $event_array ) ) {
             throw new Metis_Webhook_Exception( 'Stripe payload could not be normalized.', 400, 'webhook_payload_invalid' );
         }

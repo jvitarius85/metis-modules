@@ -273,14 +273,9 @@ metis_ajax_register_handler( 'metis_record_transaction_refund', function () {
     }
 
     if ( $source === 'stripe' ) {
-        if ( ! class_exists( '\Stripe\Stripe' ) || ! class_exists( '\Stripe\Refund' ) ) {
-            metis_runtime_send_json_error( [ 'message' => 'Stripe SDK not loaded.' ], 500 );
-        }
-        if ( \Stripe\Stripe::getApiKey() === null && function_exists( 'metis_stripe_init' ) ) {
-            metis_stripe_init();
-        }
-        if ( \Stripe\Stripe::getApiKey() === null ) {
-            metis_runtime_send_json_error( [ 'message' => 'Stripe secret key not configured.' ], 500 );
+        $stripe = function_exists( 'metis_stripe_client' ) ? metis_stripe_client() : null;
+        if ( ! $stripe ) {
+            metis_runtime_send_json_error( [ 'message' => 'Stripe is not configured.' ], 500 );
         }
         if ( $stripe_charge_id === '' && $stripe_payment_intent === '' ) {
             metis_runtime_send_json_error( [ 'message' => 'This transaction is not linked to a Stripe charge or payment intent.' ], 400 );
@@ -305,7 +300,7 @@ metis_ajax_register_handler( 'metis_record_transaction_refund', function () {
         }
 
         try {
-            $stripe_refund = \Stripe\Refund::create(
+            $stripe_refund = $stripe->createRefund(
                 $stripe_payload,
                 [ 'idempotency_key' => 'metis-refund-' . $tid . '-' . hash( 'sha256', $amount . '|' . $reason . '|' . $notes . '|' . $now ) ]
             );

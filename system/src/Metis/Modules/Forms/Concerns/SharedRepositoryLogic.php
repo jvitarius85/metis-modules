@@ -627,16 +627,12 @@ trait SharedRepositoryLogic {
     }
 
     private static function createPaymentIntent( array $form, string $session_key, array $totals, array $normalized = [] ): array {
-        if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\Stripe\PaymentIntent' ) ) {
-            return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe SDK is unavailable.' ];
-        }
-
-        \metis_stripe_init();
-        if ( \Stripe\Stripe::getApiKey() === null ) {
+        $stripe = \function_exists( 'metis_stripe_client' ) ? \metis_stripe_client() : null;
+        if ( ! $stripe ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe is not configured.' ];
         }
 
-        $publishable = self::stripePublishableKey();
+        $publishable = \function_exists( 'metis_stripe_publishable_key' ) ? \metis_stripe_publishable_key() : self::stripePublishableKey();
         if ( $publishable === '' ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe publishable key is not configured.' ];
         }
@@ -666,9 +662,6 @@ trait SharedRepositoryLogic {
             if ( $email === '' || ! metis_email_is_valid( $email ) ) {
                 return [ 'ok' => false, 'status' => 422, 'error' => 'Recurring donations require a valid donor email.' ];
             }
-            if ( ! \class_exists( '\Stripe\Customer' ) ) {
-                return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe customer support is unavailable.' ];
-            }
             $customer_payload = [
                 'email' => $email !== '' ? $email : null,
                 'name' => $name !== '' ? $name : null,
@@ -679,7 +672,7 @@ trait SharedRepositoryLogic {
             ];
             $customer_payload = array_filter( $customer_payload, static fn ( mixed $value ): bool => $value !== null );
             try {
-                $customer = \Stripe\Customer::create( $customer_payload );
+                $customer = $stripe->createCustomer( $customer_payload );
                 $intent_payload['customer'] = (string) ( $customer->id ?? '' );
                 $intent_payload['setup_future_usage'] = 'off_session';
             } catch ( \Throwable $e ) {
@@ -688,7 +681,7 @@ trait SharedRepositoryLogic {
         }
 
         try {
-            $intent = \Stripe\PaymentIntent::create( $intent_payload );
+            $intent = $stripe->createPaymentIntent( $intent_payload );
         } catch ( \Throwable $e ) {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Stripe payment intent could not be created.' ];
         }

@@ -46,15 +46,7 @@ if ( ! function_exists( 'metis_ajax_import_stripe_transactions' ) ) {
             metis_stripe_import_error_response( 'Unauthorized.', 403, 'permission_denied' );
         }
 
-        if ( ! class_exists( '\Stripe\Stripe' ) ) {
-            metis_stripe_import_error_response( 'Stripe SDK not loaded.', 500, 'stripe_sdk_missing' );
-        }
-
-        if ( \Stripe\Stripe::getApiKey() === null ) {
-            metis_stripe_init();
-        }
-
-        if ( \Stripe\Stripe::getApiKey() === null ) {
+        if ( ! \function_exists( 'metis_stripe_is_configured' ) || ! metis_stripe_is_configured() ) {
             metis_stripe_import_error_response( 'Stripe secret key not configured.', 500, 'stripe_secret_missing' );
         }
 

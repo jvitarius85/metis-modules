@@ -644,12 +644,13 @@ function metis_standalone_install_complete_defaults(): void {
     metis_standalone_install_set_default( 'release_manager_enabled', true, false );
     metis_standalone_install_set_default( 'release_auto_update_enabled', true, false );
     metis_standalone_install_set_default( 'release_auto_update_max_level', 'patch', false );
-    metis_standalone_install_set_default( 'release_cache_retention_items', 3, false );
-    metis_standalone_install_set_default( 'release_backup_retention_items', 2, false );
-    metis_standalone_install_set_default( 'job_queue_completed_retention_days', 14, false );
-    metis_standalone_install_set_default( 'job_queue_failed_retention_days', 45, false );
-    metis_standalone_install_set_default( 'job_queue_payload_compact_after_days', 7, false );
+    metis_standalone_install_set_default( 'release_cache_retention_items', 2, false );
+    metis_standalone_install_set_default( 'release_backup_retention_items', 1, false );
+    metis_standalone_install_set_default( 'job_queue_completed_retention_days', 7, false );
+    metis_standalone_install_set_default( 'job_queue_failed_retention_days', 14, false );
+    metis_standalone_install_set_default( 'job_queue_payload_compact_after_days', 3, false );
     metis_standalone_install_set_default( 'audit_verbose_operational_events', false, false );
+    metis_standalone_install_set_default( 'audit_log_successful_ajax_authorizations', false, false );
     metis_standalone_install_set_default( 'data_retention_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_auto_heal_enabled', true, false );
     metis_standalone_install_set_default( 'integrity_quarantine_enabled', true, false );

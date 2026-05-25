@@ -189,6 +189,18 @@ $summarize_log_row_message = static function ( string $level, string $message, a
     <div class="metis-settings-card">
         <div class="metis-settings-header"><h2>Cache</h2></div>
         <div class="metis-settings-body">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:16px;margin-bottom:16px;">
+                <div class="metis-field" style="margin:0;">
+                    <label for="release_cache_retention_items">Release cache artifacts to keep</label>
+                    <input type="number" id="release_cache_retention_items" name="release_cache_retention_items" class="metis-input" min="1" max="25" value="<?php echo metis_escape_attr( (string) ( $release_cache_retention_items ?? 2 ) ); ?>">
+                    <p class="metis-help">Includes extracted release folders and downloaded release archives.</p>
+                </div>
+                <div class="metis-field" style="margin:0;">
+                    <label for="release_backup_retention_items">Release rollback archives to keep</label>
+                    <input type="number" id="release_backup_retention_items" name="release_backup_retention_items" class="metis-input" min="1" max="25" value="<?php echo metis_escape_attr( (string) ( $release_backup_retention_items ?? 1 ) ); ?>">
+                    <p class="metis-help">Pre-update release snapshots stored under runtime release backups.</p>
+                </div>
+            </div>
             <div class="metis-settings-actions">
                 <button type="button" class="metis-btn" data-cache-action="clear_all">Clear All Cache</button>
                 <button type="button" class="metis-btn" data-cache-action="clear_group" data-cache-group="modules">Clear Module Cache</button>

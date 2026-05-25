@@ -147,6 +147,10 @@ final class RecurringDonationsService {
         return $map;
     }
 
+    private static function stripeClient(): ?\Metis\Core\Integrations\StripeApiClient {
+        return \function_exists( 'metis_stripe_client' ) ? \metis_stripe_client() : null;
+    }
+
     private static function flushMutationCaches(): void {
         if ( \function_exists( 'metis_reports_clear_cache' ) ) {
             \metis_reports_clear_cache();
@@ -184,11 +188,8 @@ final class RecurringDonationsService {
 
     public static function migrateStripeSubscriptions( bool $cancelStripeSubscriptions = false, int $limit = 100 ): array {
         self::ensureSchema();
-        if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\Stripe\Subscription' ) ) {
-            return [ 'ok' => false, 'message' => 'Stripe subscriptions are unavailable.' ];
-        }
-        \metis_stripe_init();
-        if ( \Stripe\Stripe::getApiKey() === null ) {
+        $stripe = self::stripeClient();
+        if ( ! $stripe ) {
             return [ 'ok' => false, 'message' => 'Stripe is not configured.' ];
         }
 
@@ -200,7 +201,7 @@ final class RecurringDonationsService {
         $rows = [];
 
         try {
-            $subscriptions = \Stripe\Subscription::all( [
+            $subscriptions = $stripe->listSubscriptions( [
                 'status' => 'active',
                 'limit' => max( 1, min( 100, $limit ) ),
                 'expand' => [ 'data.customer', 'data.default_payment_method', 'data.items.data.price', 'data.latest_invoice' ],
@@ -310,7 +311,7 @@ final class RecurringDonationsService {
             self::flushMutationCaches();
             if ( $cancelStripeSubscriptions ) {
                 try {
-                    $subscription->cancel();
+                    $stripe->cancelSubscription( $subscriptionId );
                     $cancelled++;
                 } catch ( \Throwable $e ) {
                     $errors[] = 'Imported but could not cancel ' . $subscriptionId . ': ' . $e->getMessage();
@@ -333,11 +334,8 @@ final class RecurringDonationsService {
 
     public static function importReviewedStripeSubscription( string $subscriptionId, array $overrides, bool $cancelStripeSubscription = false ): array {
         self::ensureSchema();
-        if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\\Stripe\\Subscription' ) ) {
-            return [ 'ok' => false, 'message' => 'Stripe subscriptions are unavailable.' ];
-        }
-        \metis_stripe_init();
-        if ( \Stripe\Stripe::getApiKey() === null ) {
+        $stripe = self::stripeClient();
+        if ( ! $stripe ) {
             return [ 'ok' => false, 'message' => 'Stripe is not configured.' ];
         }
 
@@ -353,10 +351,10 @@ final class RecurringDonationsService {
         }
 
         try {
-            $subscription = \Stripe\Subscription::retrieve( [
-                'id' => $subscriptionId,
-                'expand' => [ 'customer', 'default_payment_method', 'items.data.price', 'latest_invoice' ],
-            ] );
+            $subscription = $stripe->retrieveSubscription(
+                $subscriptionId,
+                [ 'expand' => [ 'customer', 'default_payment_method', 'items.data.price', 'latest_invoice' ] ]
+            );
         } catch ( \Throwable $e ) {
             return [ 'ok' => false, 'message' => 'Stripe subscription could not be retrieved: ' . $e->getMessage() ];
         }
@@ -430,7 +428,7 @@ final class RecurringDonationsService {
         $cancelled = false;
         if ( $cancelStripeSubscription ) {
             try {
-                $subscription->cancel();
+                $stripe->cancelSubscription( $subscriptionId );
                 $cancelled = true;
             } catch ( \Throwable $e ) {
                 return [ 'ok' => true, 'message' => 'Imported, but Stripe subscription could not be cancelled: ' . $e->getMessage(), 'cancelled' => false ];
@@ -532,11 +530,7 @@ final class RecurringDonationsService {
         if ( ! $force && ! self::insideProcessingWindow() ) {
             return [ 'status' => 'skipped', 'message' => 'Recurring donations only process between 1:00 AM and 5:00 AM America/Chicago.' ];
         }
-        if ( ! \function_exists( 'metis_stripe_init' ) || ! \class_exists( '\Stripe\PaymentIntent' ) ) {
-            return [ 'status' => 'failed', 'message' => 'Stripe SDK is unavailable.' ];
-        }
-        \metis_stripe_init();
-        if ( \Stripe\Stripe::getApiKey() === null ) {
+        if ( ! self::stripeClient() ) {
             return [ 'status' => 'failed', 'message' => 'Stripe is not configured.' ];
         }
 
@@ -577,9 +571,13 @@ final class RecurringDonationsService {
         $attemptCode = \metis_generate_code( 'RDA', $attemptsTable, 'attempt_code' );
         $amount = round( (float) ( $plan['amount'] ?? 0 ), 2 );
         $currency = strtolower( (string) ( $plan['currency'] ?? 'usd' ) );
+        $stripe = self::stripeClient();
+        if ( ! $stripe ) {
+            return [ 'status' => 'failed' ];
+        }
 
         try {
-            $intent = \Stripe\PaymentIntent::create(
+            $intent = $stripe->createPaymentIntent(
                 [
                     'amount' => (int) round( $amount * 100 ),
                     'currency' => $currency,
@@ -716,15 +714,13 @@ final class RecurringDonationsService {
             $chargeId = trim( (string) $charge );
         }
 
-        if ( $chargeId === '' || ! \class_exists( '\Stripe\Charge' ) ) {
+        $stripe = self::stripeClient();
+        if ( $chargeId === '' || ! $stripe ) {
             return is_object( $charge ) ? $charge : null;
         }
 
         try {
-            return \Stripe\Charge::retrieve( [
-                'id' => $chargeId,
-                'expand' => [ 'balance_transaction' ],
-            ] );
+            return $stripe->retrieveCharge( $chargeId, [ 'expand' => [ 'balance_transaction' ] ] );
         } catch ( \Throwable $e ) {
             if ( \class_exists( '\Metis_Logger', false ) ) {
                 \Metis_Logger::warn( 'donations.recurring_charge_lookup_failed', [
@@ -741,11 +737,12 @@ final class RecurringDonationsService {
             return $balanceTransaction;
         }
         $balanceTransactionId = trim( (string) $balanceTransaction );
-        if ( $balanceTransactionId === '' || ! \class_exists( '\Stripe\BalanceTransaction' ) ) {
+        $stripe = self::stripeClient();
+        if ( $balanceTransactionId === '' || ! $stripe ) {
             return null;
         }
         try {
-            return \Stripe\BalanceTransaction::retrieve( $balanceTransactionId );
+            return $stripe->retrieveBalanceTransaction( $balanceTransactionId );
         } catch ( \Throwable $e ) {
             if ( \class_exists( '\Metis_Logger', false ) ) {
                 \Metis_Logger::warn( 'donations.recurring_balance_transaction_lookup_failed', [
@@ -856,12 +853,13 @@ final class RecurringDonationsService {
         }
 
         $customerId = self::subscriptionCustomerId( $subscription );
-        if ( $customerId === '' || ! class_exists( '\\Stripe\\Customer' ) ) {
+        $stripe = self::stripeClient();
+        if ( $customerId === '' || ! $stripe ) {
             return is_object( $customer ) ? $customer : null;
         }
 
         try {
-            $retrieved = \Stripe\Customer::retrieve( $customerId );
+            $retrieved = $stripe->retrieveCustomer( $customerId );
             return is_object( $retrieved ) ? $retrieved : ( is_object( $customer ) ? $customer : null );
         } catch ( \Throwable $e ) {
             if ( class_exists( '\\Metis_Logger' ) ) {
@@ -925,12 +923,13 @@ final class RecurringDonationsService {
         }
 
         $productId = trim( (string) $product );
-        if ( $productId === '' || ! class_exists( '\Stripe\Product' ) ) {
+        $stripe = self::stripeClient();
+        if ( $productId === '' || ! $stripe ) {
             return null;
         }
 
         try {
-            $retrieved = \Stripe\Product::retrieve( $productId );
+            $retrieved = $stripe->retrieveProduct( $productId );
             return is_object( $retrieved ) ? $retrieved : null;
         } catch ( \Throwable $e ) {
             if ( class_exists( '\Metis_Logger' ) ) {

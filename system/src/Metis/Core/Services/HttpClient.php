@@ -13,16 +13,16 @@ final class HttpClient {
         $this->transport = $transport instanceof \Closure ? $transport : ($transport !== null ? \Closure::fromCallable($transport) : null);
     }
 
-    public function get(string $url, array $headers = []): array {
-        return $this->request('GET', $url, $headers);
+    public function get(string $url, array $headers = [], array $options = []): array {
+        return $this->request('GET', $url, $headers, '', $options);
     }
 
-    public function postJson(string $url, array $payload, array $headers = []): array {
+    public function postJson(string $url, array $payload, array $headers = [], array $options = []): array {
         $headers['Content-Type'] = 'application/json';
-        return $this->request('POST', $url, $headers, json_encode($payload, JSON_UNESCAPED_SLASHES) ?: '{}');
+        return $this->request('POST', $url, $headers, json_encode($payload, JSON_UNESCAPED_SLASHES) ?: '{}', $options);
     }
 
-    public function request(string $method, string $url, array $headers = [], string $body = ''): array {
+    public function request(string $method, string $url, array $headers = [], string $body = '', array $options = []): array {
         if ($this->transport instanceof \Closure) {
             return ($this->transport)($method, $url, $headers, $body);
         }
@@ -38,6 +38,9 @@ final class HttpClient {
             'Accept' => 'application/json',
             'User-Agent' => 'Metis-Core-HttpClient/1.0',
         ];
+        $timeout = max(1, (int) ($options['timeout'] ?? 30));
+        $connectTimeout = max(1, (int) ($options['connect_timeout'] ?? min(10, $timeout)));
+        $captureHeaders = (bool) ($options['capture_headers'] ?? false);
 
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
@@ -54,7 +57,8 @@ final class HttpClient {
                 CURLOPT_CUSTOMREQUEST => strtoupper($method),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_TIMEOUT => 30,
+                CURLOPT_TIMEOUT => $timeout,
+                CURLOPT_CONNECTTIMEOUT => $connectTimeout,
                 CURLOPT_HTTPHEADER => $formatted,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
@@ -69,15 +73,19 @@ final class HttpClient {
             if ($body !== '') {
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
             }
+            if ($captureHeaders) {
+                curl_setopt($ch, CURLOPT_HEADER, true);
+            }
 
-            $responseBody = curl_exec($ch);
+            $response = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $headerSize = $captureHeaders ? (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE) : 0;
             $error = curl_error($ch);
             if (\PHP_VERSION_ID < 80500) {
                 curl_close($ch);
             }
 
-            if ($responseBody === false) {
+            if ($response === false) {
                 if ($circuit instanceof \Metis\Core\Error\CircuitBreaker) {
                     $circuit->recordFailure($service);
                 }
@@ -88,10 +96,18 @@ final class HttpClient {
                 $circuit->recordSuccess($service);
             }
 
+            $responseBody = (string) $response;
+            $responseHeaders = [];
+            if ($captureHeaders && $headerSize > 0) {
+                $responseHeaders = $this->parseHeaders(substr($responseBody, 0, $headerSize));
+                $responseBody = (string) substr($responseBody, $headerSize);
+            }
+
             return [
                 'status' => $status,
-                'body' => (string) $responseBody,
-                'json' => $this->decodeJson((string) $responseBody),
+                'body' => $responseBody,
+                'json' => $this->decodeJson($responseBody),
+                'headers' => $responseHeaders,
             ];
         }
 
@@ -106,7 +122,7 @@ final class HttpClient {
                 'header' => $contextHeaders,
                 'content' => $body,
                 'ignore_errors' => true,
-                'timeout' => 30,
+                'timeout' => $timeout,
                 'follow_location' => 0,
                 'max_redirects' => 0,
             ],
@@ -134,6 +150,7 @@ final class HttpClient {
             'status' => $status,
             'body' => $responseBody,
             'json' => $this->decodeJson($responseBody),
+            'headers' => $captureHeaders ? $this->parseHeaders(implode("\r\n", $meta)) : [],
         ];
     }
 
@@ -161,5 +178,30 @@ final class HttpClient {
     private function decodeJson(string $body): array {
         $decoded = json_decode($body, true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function parseHeaders(string $rawHeaders): array {
+        $headers = [];
+        foreach (preg_split("/\r\n|\n|\r/", $rawHeaders) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || !str_contains($line, ':')) {
+                continue;
+            }
+            [$name, $value] = explode(':', $line, 2);
+            $normalized = strtolower(trim($name));
+            $trimmed = trim($value);
+            if ($normalized === '') {
+                continue;
+            }
+            if (isset($headers[$normalized])) {
+                if (!is_array($headers[$normalized])) {
+                    $headers[$normalized] = [$headers[$normalized]];
+                }
+                $headers[$normalized][] = $trimmed;
+            } else {
+                $headers[$normalized] = $trimmed;
+            }
+        }
+        return $headers;
     }
 }

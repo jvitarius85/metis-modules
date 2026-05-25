@@ -24,7 +24,7 @@ final class DataRetentionService {
                 'date_column' => 'completed_at',
                 'status_column' => 'status',
                 'status_values' => [ 'completed' ],
-                'retention_days' => 14,
+                'retention_days' => 7,
                 'index_columns' => [ 'status', 'completed_at' ],
             ],
             [
@@ -34,7 +34,7 @@ final class DataRetentionService {
                 'date_column' => 'failed_at',
                 'status_column' => 'status',
                 'status_values' => [ 'failed' ],
-                'retention_days' => 45,
+                'retention_days' => 14,
                 'index_columns' => [ 'status', 'failed_at' ],
             ],
             [
@@ -44,7 +44,7 @@ final class DataRetentionService {
                 'date_column' => 'created_at',
                 'status_column' => 'status',
                 'status_values' => [ 'processed' ],
-                'retention_days' => 30,
+                'retention_days' => 14,
                 'index_columns' => [ 'status', 'created_at' ],
             ],
             [
@@ -54,7 +54,7 @@ final class DataRetentionService {
                 'date_column' => 'created_at',
                 'status_column' => 'status',
                 'status_values' => [ 'failed' ],
-                'retention_days' => 90,
+                'retention_days' => 30,
                 'index_columns' => [ 'status', 'created_at' ],
             ],
             [
@@ -62,7 +62,7 @@ final class DataRetentionService {
                 'label' => 'Email send events',
                 'table_key' => 'email_send_events',
                 'date_column' => 'event_at',
-                'retention_days' => 90,
+                'retention_days' => 30,
                 'index_columns' => [ 'event_at' ],
             ],
             [
@@ -70,7 +70,7 @@ final class DataRetentionService {
                 'label' => 'Activity audit events',
                 'table_key' => 'audit_activity',
                 'date_column' => 'occurred_at',
-                'retention_days' => 180,
+                'retention_days' => 30,
                 'index_columns' => [ 'occurred_at' ],
             ],
             [
@@ -78,7 +78,7 @@ final class DataRetentionService {
                 'label' => 'Security audit events',
                 'table_key' => 'audit_security',
                 'date_column' => 'occurred_at',
-                'retention_days' => 365,
+                'retention_days' => 90,
                 'index_columns' => [ 'occurred_at' ],
             ],
             [
@@ -86,7 +86,7 @@ final class DataRetentionService {
                 'label' => 'People activity events',
                 'table_key' => 'people_activity',
                 'date_column' => 'created_at',
-                'retention_days' => 180,
+                'retention_days' => 90,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -94,7 +94,7 @@ final class DataRetentionService {
                 'label' => 'Newsletter tracking events',
                 'table_key' => 'newsletter_events',
                 'date_column' => 'event_at',
-                'retention_days' => 180,
+                'retention_days' => 90,
                 'index_columns' => [ 'event_at' ],
             ],
             [
@@ -102,7 +102,7 @@ final class DataRetentionService {
                 'label' => 'Drive audit events',
                 'table_key' => 'drive_audit',
                 'date_column' => 'created_at',
-                'retention_days' => 180,
+                'retention_days' => 90,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -110,7 +110,7 @@ final class DataRetentionService {
                 'label' => 'Inbound communications events',
                 'table_key' => 'communications_inbound_events',
                 'date_column' => 'created_at',
-                'retention_days' => 90,
+                'retention_days' => 30,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -118,7 +118,7 @@ final class DataRetentionService {
                 'label' => 'Hermes command logs',
                 'table_key' => 'hermes_command_logs',
                 'date_column' => 'created_at',
-                'retention_days' => 30,
+                'retention_days' => 14,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -126,7 +126,7 @@ final class DataRetentionService {
                 'label' => 'Hermes help issue logs',
                 'table_key' => 'hermes_help_issue_logs',
                 'date_column' => 'created_at',
-                'retention_days' => 90,
+                'retention_days' => 30,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -134,7 +134,7 @@ final class DataRetentionService {
                 'label' => 'Hermes diagnostic reports',
                 'table_key' => 'hermes_reports',
                 'date_column' => 'created_at',
-                'retention_days' => 180,
+                'retention_days' => 30,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -154,7 +154,7 @@ final class DataRetentionService {
                 'label' => 'Website revisions',
                 'table_key' => 'website_revisions',
                 'date_column' => 'created_at',
-                'retention_days' => 365,
+                'retention_days' => 90,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -162,7 +162,7 @@ final class DataRetentionService {
                 'label' => 'Legacy CMS revisions',
                 'table_key' => 'cms_revisions',
                 'date_column' => 'created_at',
-                'retention_days' => 365,
+                'retention_days' => 90,
                 'index_columns' => [ 'created_at' ],
             ],
             [
@@ -172,7 +172,7 @@ final class DataRetentionService {
                 'date_column' => 'updated_at',
                 'status_column' => 'status',
                 'status_values' => [ 'failed' ],
-                'retention_days' => 90,
+                'retention_days' => 30,
                 'index_columns' => [ 'status', 'updated_at' ],
             ],
         ];

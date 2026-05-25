@@ -895,17 +895,10 @@ final class DonationsModule {
             return;
         }
 
-        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+        $stripe = \function_exists( 'metis_stripe_client' ) ? \metis_stripe_client() : null;
+        if ( ! $stripe ) {
             return;
         }
-
-        $secret = \Metis\Core\Services\CredentialService::getBySetting( 'stripe_secret' );
-        if ( ! $secret ) {
-            \Metis_Logger::error( 'Stripe backfill: secret key not set' );
-            return;
-        }
-
-        \Stripe\Stripe::setApiKey( $secret );
 
         $table = \Metis_Tables::get( 'transactions' );
         $db    = self::db();
@@ -928,7 +921,7 @@ final class DonationsModule {
 
         foreach ( $rows as $r ) {
             try {
-                $pi        = \Stripe\PaymentIntent::retrieve( $r['stripe_pay_int'] );
+                $pi        = $stripe->retrievePaymentIntent( $r['stripe_pay_int'] );
                 $charge_id = $pi->latest_charge ?? ( $pi->charges->data[0]->id ?? null );
 
                 if ( ! $charge_id ) {
@@ -936,13 +929,13 @@ final class DonationsModule {
                     continue;
                 }
 
-                $charge = \Stripe\Charge::retrieve( $charge_id );
+                $charge = $stripe->retrieveCharge( (string) $charge_id );
                 if ( empty( $charge->balance_transaction ) ) {
                     \Metis_Logger::warn( 'Stripe backfill: no balance transaction', [ 'charge' => $charge_id ] );
                     continue;
                 }
 
-                $bt = \Stripe\BalanceTransaction::retrieve( $charge->balance_transaction );
+                $bt = $stripe->retrieveBalanceTransaction( (string) $charge->balance_transaction );
                 if ( empty( $bt->payout ) ) {
                     \Metis_Logger::warn( 'Stripe backfill: no payout on balance txn', [ 'bt' => $bt->id ] );
                     continue;
@@ -970,24 +963,17 @@ final class DonationsModule {
             return;
         }
 
-        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+        $stripe = \function_exists( 'metis_stripe_client' ) ? \metis_stripe_client() : null;
+        if ( ! $stripe ) {
             return;
         }
-
-        $secret = \Metis\Core\Services\CredentialService::getBySetting( 'stripe_secret' );
-        if ( ! $secret ) {
-            \Metis_Logger::error( 'Stripe backfill: secret key not set' );
-            return;
-        }
-
-        \Stripe\Stripe::setApiKey( $secret );
 
         $table   = \Metis_Tables::get( 'transactions' );
-        $payouts = \Stripe\Payout::all( [ 'limit' => $limit, 'status' => 'paid' ] );
+        $payouts = $stripe->listPayouts( [ 'limit' => $limit, 'status' => 'paid' ] );
         $db      = self::db();
 
         foreach ( $payouts->data as $payout ) {
-            $balance_txns = \Stripe\BalanceTransaction::all( [ 'payout' => $payout->id, 'limit' => 100 ] );
+            $balance_txns = $stripe->listBalanceTransactions( [ 'payout' => $payout->id, 'limit' => 100 ] );
 
             foreach ( $balance_txns->data as $bt ) {
                 $updated = $db->update(

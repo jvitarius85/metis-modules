@@ -258,9 +258,9 @@ class JobQueue {
         $this->recoverExpiredProcessingJobs();
 
         $limit = max( 100, min( 20000, (int) ( $options['limit'] ?? 5000 ) ) );
-        $completedRetentionDays = $this->retentionDaysSetting( 'job_queue_completed_retention_days', 14 );
-        $failedRetentionDays = $this->retentionDaysSetting( 'job_queue_failed_retention_days', 45 );
-        $compactAfterDays = $this->retentionDaysSetting( 'job_queue_payload_compact_after_days', 7 );
+        $completedRetentionDays = $this->retentionDaysSetting( 'job_queue_completed_retention_days', 7 );
+        $failedRetentionDays = $this->retentionDaysSetting( 'job_queue_failed_retention_days', 14 );
+        $compactAfterDays = $this->retentionDaysSetting( 'job_queue_payload_compact_after_days', 3 );
 
         $compacted = $this->compactTerminalHistoryPayloads( $compactAfterDays, $limit );
         $deletedCompleted = $this->deleteTerminalHistory(

@@ -401,6 +401,24 @@ function metis_register_core_services(): void {
         $registry->singleton( 'http_client', static fn (): \Metis\Core\Services\HttpClient => \Metis\Core\Application::service( 'http' ) );
     }
 
+    if ( ! $registry->has( 'stripe_api' ) ) {
+        $registry->singleton(
+            'stripe_api',
+            static function (): ?\Metis\Core\Integrations\StripeApiClient {
+                $secret = function_exists( 'metis_stripe_secret_key' ) ? metis_stripe_secret_key() : '';
+                if ( $secret === '' ) {
+                    return null;
+                }
+                $version = function_exists( 'metis_stripe_api_version' ) ? metis_stripe_api_version() : null;
+                return new \Metis\Core\Integrations\StripeApiClient(
+                    $secret,
+                    \Metis\Core\Application::service( 'http' ),
+                    $version
+                );
+            }
+        );
+    }
+
     if ( ! $registry->has( 'github' ) ) {
         $registry->singleton(
             'github',

@@ -13,8 +13,8 @@ final class ReleaseManager {
     private const CACHE_FILE = 'release-cache.json';
     private const STATE_FILE = 'state.json';
     private const HISTORY_FILE = 'release-history.json';
-    private const DEFAULT_RELEASE_CACHE_RETAIN = 3;
-    private const DEFAULT_RELEASE_BACKUP_RETAIN = 2;
+    private const DEFAULT_RELEASE_CACHE_RETAIN = 2;
+    private const DEFAULT_RELEASE_BACKUP_RETAIN = 1;
     private const ARCHIVE_PROTECTED_DIRS = [
         '.git',
         '.github',

@@ -3027,6 +3027,8 @@ if ( ! function_exists( 'metis_settings_save_logging_section' ) ) {
 
         $logging_enabled = ! empty( metis_request_post()['logging_enabled'] ) ? 1 : 0;
         $audit_verbose_operational_events = ! empty( metis_request_post()['audit_verbose_operational_events'] ) ? 1 : 0;
+        $release_cache_retention_items = max( 1, min( 25, (int) metis_runtime_unslash( metis_request_post()['release_cache_retention_items'] ?? 2 ) ) );
+        $release_backup_retention_items = max( 1, min( 25, (int) metis_runtime_unslash( metis_request_post()['release_backup_retention_items'] ?? 1 ) ) );
         $logging_force_url_token = trim( metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['logging_force_url_token'] ?? '' ) ) );
         if ( $logging_force_url_token !== '' && strlen( $logging_force_url_token ) < 16 ) {
             $errors[] = 'Force logging token must be at least 16 characters when enabled.';
@@ -3046,6 +3048,8 @@ if ( ! function_exists( 'metis_settings_save_logging_section' ) ) {
         Core_Settings_Service::set( 'logging_min_level', $logging_min_level, true );
         Core_Settings_Service::set( 'logging_force_url_token', $logging_force_url_token, false );
         Core_Settings_Service::set( 'audit_verbose_operational_events', $audit_verbose_operational_events, false );
+        Core_Settings_Service::set( 'release_cache_retention_items', $release_cache_retention_items, false );
+        Core_Settings_Service::set( 'release_backup_retention_items', $release_backup_retention_items, false );
         $saved = true;
     }
 }
@@ -4023,6 +4027,8 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         }
         $logging_force_url_token = (string) Core_Settings_Service::get( 'logging_force_url_token', '' );
         $audit_verbose_operational_events = (int) Core_Settings_Service::get( 'audit_verbose_operational_events', 0 ) === 1;
+        $release_cache_retention_items = max( 1, (int) Core_Settings_Service::get( 'release_cache_retention_items', 2 ) );
+        $release_backup_retention_items = max( 1, (int) Core_Settings_Service::get( 'release_backup_retention_items', 1 ) );
         $logging_view_lines = 200;
         $logging_available_logs = [];
         $logging_view_file = '';
@@ -4322,6 +4328,8 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'logging_min_level',
             'logging_force_url_token',
             'audit_verbose_operational_events',
+            'release_cache_retention_items',
+            'release_backup_retention_items',
             'logging_view_lines',
             'logging_view_file',
             'logging_available_logs',

@@ -6,7 +6,6 @@
     "ext-curl": "*",
     "ext-json": "*",
     "ext-mbstring": "*",
-    "stripe/stripe-php": "^16.6",
     "dompdf/dompdf": "^2.0"
   },
   "autoload": {

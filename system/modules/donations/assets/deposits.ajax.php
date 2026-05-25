@@ -40,10 +40,16 @@ metis_ajax_register_handler( 'metis_import_stripe_charges',   'metis_ajax_import
 metis_ajax_register_handler( 'metis_import_stripe_transactions', 'metis_ajax_import_stripe_charges' );
 metis_ajax_register_handler( 'metis_backfill_deposit_adjustments', 'metis_ajax_backfill_deposit_adjustments' );
 
-function metis_ajax_sync_deposits(): void {
-    if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Stripe SDK not loaded.' ], 500 );
+function metis_donations_stripe_client_or_error(): \Metis\Core\Integrations\StripeApiClient {
+    $stripe = function_exists( 'metis_stripe_client' ) ? metis_stripe_client() : null;
+    if ( ! $stripe ) {
+        metis_runtime_send_json_error( [ 'message' => 'Stripe is not configured.' ], 500 );
     }
+    return $stripe;
+}
+
+function metis_ajax_sync_deposits(): void {
+    $stripe = metis_donations_stripe_client_or_error();
 
     $db = metis_db();
     $deposits_table = Metis_Tables::get( 'deposits' );
@@ -65,7 +71,7 @@ function metis_ajax_sync_deposits(): void {
             $page++;
             if ( $page > 20 ) { $errors[] = 'Stopped: exceeded 20 pages.'; break; }
 
-            $payouts = \Stripe\Payout::all( $params );
+            $payouts = $stripe->listPayouts( $params );
             if ( empty( $payouts->data ) ) break;
 
             foreach ( $payouts->data as $payout ) {
@@ -172,9 +178,7 @@ function metis_ajax_sync_deposits(): void {
 // -------------------------------------------------------------------------
 
 function metis_ajax_backfill_deposit_totals(): void {
-    if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Stripe SDK not loaded.' ], 500 );
-    }
+    $stripe = metis_donations_stripe_client_or_error();
 
     $db = metis_db();
 
@@ -254,7 +258,7 @@ function metis_ajax_backfill_deposit_totals(): void {
                     if ( $starting_after ) $params['starting_after'] = $starting_after;
                     else unset( $params['starting_after'] );
 
-                    $bt_page = \Stripe\BalanceTransaction::all( $params );
+                    $bt_page = $stripe->listBalanceTransactions( $params );
 
                     foreach ( $bt_page->data as $bt ) {
                         $starting_after = $bt->id;
@@ -427,7 +431,7 @@ function metis_ajax_backfill_deposit_totals(): void {
 // =========================================================================
 
 function metis_ajax_backfill_deposit_adjustments(): void {
-    if ( ! class_exists( '\Stripe\Stripe' ) ) { metis_runtime_send_json_error( 'Stripe SDK not loaded.' ); }
+    $stripe = metis_donations_stripe_client_or_error();
 
     $db = metis_db();
     $deposits_table = Metis_Tables::get( 'deposits' );
@@ -463,7 +467,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
                 if ( $starting_after ) $params['starting_after'] = $starting_after;
                 else unset( $params['starting_after'] );
 
-                $bt_page = \Stripe\BalanceTransaction::all( $params );
+                $bt_page = $stripe->listBalanceTransactions( $params );
 
                 foreach ( $bt_page->data as $bt ) {
                     $starting_after = $bt->id;
@@ -503,7 +507,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
                 if ( ( $adj['type'] ?? '' ) !== 'refund' ) continue;
 
                 try {
-                    $bt        = \Stripe\BalanceTransaction::retrieve( [ 'id' => $adj['btxn'], 'expand' => [ 'source' ] ] );
+                    $bt        = $stripe->retrieveBalanceTransaction( (string) $adj['btxn'], [ 'expand' => [ 'source' ] ] );
                     $charge_id = (string) ( $bt->source->charge ?? '' );
                     $refund_id = (string) ( $bt->source->id     ?? '' );
 
@@ -618,9 +622,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
 }
 
 function metis_ajax_link_stripe_payouts(): void {
-    if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Stripe SDK not loaded.' ], 500 );
-    }
+    $stripe = metis_donations_stripe_client_or_error();
 
     $db             = metis_db();
     $tx_table       = Metis_Tables::get( 'transactions' );
@@ -700,10 +702,7 @@ function metis_ajax_link_stripe_payouts(): void {
 
             if ( $charge_id === '' || $balance_txn === '' ) {
                 // Fetch from Stripe
-                $pi = \Stripe\PaymentIntent::retrieve( [
-                    'id'     => $pi_id,
-                    'expand' => [ 'latest_charge' ],
-                ] );
+                $pi = $stripe->retrievePaymentIntent( $pi_id, [ 'expand' => [ 'latest_charge' ] ] );
 
                 $charge    = $pi->latest_charge ?? null;
                 $charge_id = $charge ? (string) $charge->id : '';
@@ -743,7 +742,7 @@ function metis_ajax_link_stripe_payouts(): void {
 
             // ── Step 2: Resolve payout ID from BalanceTransaction ──────────────
 
-            $bt = \Stripe\BalanceTransaction::retrieve( $balance_txn );
+            $bt = $stripe->retrieveBalanceTransaction( $balance_txn );
 
             $payout_id = '';
             if ( ! empty( $bt->payout ) ) {
@@ -811,7 +810,7 @@ function metis_ajax_link_stripe_payouts(): void {
                 if ( $existing ) {
                     $deposit_code = (string) $existing['provider_ref'];
                 } else {
-                    $payout_obj   = \Stripe\Payout::retrieve( $payout_id );
+                    $payout_obj   = $stripe->retrievePayout( $payout_id );
                     $arrival_date = ! empty( $payout_obj->arrival_date )
                         ? gmdate( 'Y-m-d', (int) $payout_obj->arrival_date )
                         : gmdate( 'Y-m-d', (int) $payout_obj->created );
@@ -927,9 +926,7 @@ function metis_ajax_link_stripe_payouts(): void {
 // =========================================================================
 
 function metis_ajax_verify_deposit_links(): void {
-    if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Stripe SDK not loaded.' ], 500 );
-    }
+    $stripe = metis_donations_stripe_client_or_error();
 
     $db             = metis_db();
     $tx_table       = Metis_Tables::get( 'transactions' );
@@ -979,7 +976,7 @@ function metis_ajax_verify_deposit_links(): void {
                 if ( $starting_after ) $params['starting_after'] = $starting_after;
                 else unset( $params['starting_after'] );
 
-                $page = \Stripe\BalanceTransaction::all( $params );
+                $page = $stripe->listBalanceTransactions( $params );
 
                 foreach ( $page->data as $bt ) {
                     if ( ( $bt->type ?? '' ) !== 'charge' ) continue;
@@ -1134,16 +1131,7 @@ function metis_ajax_verify_deposit_links(): void {
 // Platform: ST  |  Donor prefix: MW  |  Transaction prefix: TR
 
 function metis_ajax_import_stripe_charges(): void {
-    if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Stripe SDK not loaded.' ], 500 );
-    }
-
-    $secret = \Metis\Core\Services\CredentialService::getBySetting( 'stripe_secret' );
-    if ( ! $secret ) {
-        metis_runtime_send_json_error( [ 'message' => 'Stripe secret key not configured.' ] );
-    }
-
-    \Stripe\Stripe::setApiKey( $secret );
+    $stripe = metis_donations_stripe_client_or_error();
 
     $db       = metis_db();
     $tx_table  = Metis_Tables::get( 'transactions' );
@@ -1208,7 +1196,7 @@ function metis_ajax_import_stripe_charges(): void {
     while ( $has_more ) {
 
         try {
-            $response = \Stripe\PaymentIntent::all( $params );
+            $response = $stripe->listPaymentIntents( $params );
         } catch ( \Exception $e ) {
             if ( class_exists( 'Metis_Logger' ) ) {
                 Metis_Logger::warn( 'donations.payment_intents_sync_failed', [ 'error' => $e->getMessage() ] );
