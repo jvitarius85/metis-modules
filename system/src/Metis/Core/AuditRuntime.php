@@ -142,7 +142,7 @@ function metis_audit_compact_table( string $channel, int $limit = 1000 ): array 
     metis_audit_ensure_schema();
 
     $table = metis_audit_table_name( $channel );
-    $limit = max( 100, min( 5000, $limit ) );
+    $limit = max( 100, min( 20000, $limit ) );
     $rows = metis_db()->fetchAll(
         "SELECT id, context_json
          FROM {$table}

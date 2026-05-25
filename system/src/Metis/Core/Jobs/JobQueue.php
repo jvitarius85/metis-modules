@@ -253,6 +253,42 @@ class JobQueue {
         return max( 0, (int) $deleted );
     }
 
+    public function cleanupHistory( array $options = [] ): array {
+        $this->ensureSchema();
+        $this->recoverExpiredProcessingJobs();
+
+        $limit = max( 100, min( 20000, (int) ( $options['limit'] ?? 5000 ) ) );
+        $completedRetentionDays = $this->retentionDaysSetting( 'job_queue_completed_retention_days', 14 );
+        $failedRetentionDays = $this->retentionDaysSetting( 'job_queue_failed_retention_days', 45 );
+        $compactAfterDays = $this->retentionDaysSetting( 'job_queue_payload_compact_after_days', 7 );
+
+        $compacted = $this->compactTerminalHistoryPayloads( $compactAfterDays, $limit );
+        $deletedCompleted = $this->deleteTerminalHistory(
+            self::STATUS_COMPLETED,
+            'completed_at',
+            $completedRetentionDays,
+            $limit
+        );
+        $deletedFailed = $this->deleteTerminalHistory(
+            self::STATUS_FAILED,
+            'failed_at',
+            $failedRetentionDays,
+            $limit
+        );
+
+        return [
+            'status' => 'ok',
+            'compacted_rows' => $compacted,
+            'deleted_completed' => $deletedCompleted,
+            'deleted_failed' => $deletedFailed,
+            'retention_days' => [
+                'completed' => $completedRetentionDays,
+                'failed' => $failedRetentionDays,
+                'payload_compaction' => $compactAfterDays,
+            ],
+        ];
+    }
+
     public function registeredWorkers(): array {
         return $this->workers->all();
     }
@@ -357,6 +393,77 @@ class JobQueue {
             [ '%s', '%s', '%s', '%s', '%s' ],
             [ '%d' ]
         );
+    }
+
+    private function compactTerminalHistoryPayloads( int $olderThanDays, int $limit ): int {
+        $table = \Metis_Tables::get( 'job_queue' );
+        $cutoff = $this->formatTimestamp( $this->currentLocalTimestamp() - ( max( 1, $olderThanDays ) * 86400 ) );
+        $summary = $this->encodeJson( [
+            'compacted' => true,
+            'message' => 'Job payload and result were compacted by retention cleanup.',
+        ] );
+
+        $updated = $this->database()->execute( (string) $this->database()->prepare(
+            "UPDATE {$table}
+             SET payload_json = %s,
+                 result_json = CASE
+                    WHEN status = %s THEN %s
+                    ELSE result_json
+                 END
+             WHERE status IN (%s, %s)
+               AND COALESCE(completed_at, failed_at, updated_at, created_at) < %s
+               AND (
+                    payload_json IS NOT NULL
+                    OR (status = %s AND result_json IS NOT NULL)
+               )
+             ORDER BY COALESCE(completed_at, failed_at, updated_at, created_at) ASC, id ASC
+             LIMIT %d",
+            '{}',
+            self::STATUS_COMPLETED,
+            $summary,
+            self::STATUS_COMPLETED,
+            self::STATUS_FAILED,
+            $cutoff,
+            self::STATUS_COMPLETED,
+            $limit
+        ) );
+
+        return max( 0, (int) $updated );
+    }
+
+    private function deleteTerminalHistory( string $status, string $dateColumn, int $retentionDays, int $limit ): int {
+        if ( ! in_array( $status, [ self::STATUS_COMPLETED, self::STATUS_FAILED ], true ) ) {
+            return 0;
+        }
+        if ( ! in_array( $dateColumn, [ 'completed_at', 'failed_at' ], true ) ) {
+            return 0;
+        }
+
+        $table = \Metis_Tables::get( 'job_queue' );
+        $cutoff = $this->formatTimestamp( $this->currentLocalTimestamp() - ( max( 1, $retentionDays ) * 86400 ) );
+        $deleted = $this->database()->execute( (string) $this->database()->prepare(
+            "DELETE FROM {$table}
+             WHERE status = %s
+               AND {$dateColumn} IS NOT NULL
+               AND {$dateColumn} <> ''
+               AND {$dateColumn} < %s
+             ORDER BY {$dateColumn} ASC, id ASC
+             LIMIT %d",
+            $status,
+            $cutoff,
+            $limit
+        ) );
+
+        return max( 0, (int) $deleted );
+    }
+
+    private function retentionDaysSetting( string $key, int $default ): int {
+        $days = $default;
+        if ( \class_exists( 'Core_Settings_Service' ) ) {
+            $days = (int) \Core_Settings_Service::get( $key, $default );
+        }
+
+        return max( 1, min( 365, $days ) );
     }
 
     private function markFailed( array $job, \Throwable $e ): string {

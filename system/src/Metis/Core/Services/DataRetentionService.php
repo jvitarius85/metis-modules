@@ -34,7 +34,7 @@ final class DataRetentionService {
                 'date_column' => 'failed_at',
                 'status_column' => 'status',
                 'status_values' => [ 'failed' ],
-                'retention_days' => 90,
+                'retention_days' => 45,
                 'index_columns' => [ 'status', 'failed_at' ],
             ],
             [
@@ -221,6 +221,21 @@ final class DataRetentionService {
                     'status' => 'failed',
                     'message' => $exception->getMessage(),
                     'updated_rows' => 0,
+                ];
+            }
+        }
+
+        if ( \function_exists( 'metis_job_queue' ) && \method_exists( \metis_job_queue(), 'cleanupHistory' ) ) {
+            try {
+                $policyResults['job_queue_history_cleanup'] = \metis_job_queue()->cleanupHistory( [ 'limit' => $batchLimit ] );
+            } catch ( \Throwable $exception ) {
+                $failedPolicies++;
+                $policyResults['job_queue_history_cleanup'] = [
+                    'status' => 'failed',
+                    'message' => $exception->getMessage(),
+                    'compacted_rows' => 0,
+                    'deleted_completed' => 0,
+                    'deleted_failed' => 0,
                 ];
             }
         }

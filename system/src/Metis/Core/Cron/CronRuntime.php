@@ -998,12 +998,20 @@ final class Metis_Cron_Manager {
         $release_cleanup = \function_exists( 'metis_release_cleanup_artifacts' )
             ? \metis_release_cleanup_artifacts( 'cache_cleanup' )
             : [ 'status' => 'skipped', 'message' => 'Release manager is not available.' ];
+        $job_queue_cleanup = \function_exists( 'metis_job_queue' ) && \method_exists( \metis_job_queue(), 'cleanupHistory' )
+            ? \metis_job_queue()->cleanupHistory( [ 'limit' => 5000 ] )
+            : [ 'status' => 'skipped', 'message' => 'Job queue cleanup is not available.' ];
+        $audit_compaction = \function_exists( 'metis_audit_compact' )
+            ? \metis_audit_compact( 10000 )
+            : [ 'status' => 'skipped', 'message' => 'Audit compaction is not available.' ];
 
         return [
             'deleted_rows' => 0,
             'reports_cache_cleared' => true,
             'cache_groups_cleared' => [ 'query', 'fragments', 'hermes' ],
             'release_artifact_cleanup' => $release_cleanup,
+            'job_queue_history_cleanup' => $job_queue_cleanup,
+            'audit_context_compaction' => $audit_compaction,
         ];
     }
 
