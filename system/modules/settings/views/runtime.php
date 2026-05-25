@@ -165,6 +165,13 @@ $summarize_log_row_message = static function ( string $level, string $message, a
                 </label>
             </div>
             <div class="metis-field">
+                <label style="display:flex;align-items:center;gap:8px;font-weight:500;">
+                    <input type="checkbox" id="audit_verbose_operational_events" name="audit_verbose_operational_events" value="1" <?php metis_attr_checked( ! empty( $audit_verbose_operational_events ), true ); ?>>
+                    Enable verbose operational audit events
+                </label>
+                <p class="metis-help">Records high-volume successful file, process, cron, and enclave authorization events. Leave off unless diagnosing a specific issue.</p>
+            </div>
+            <div class="metis-field">
                 <label for="logging_min_level">Minimum log level</label>
                 <select id="logging_min_level" name="logging_min_level" class="metis-input metis-input-wide">
                     <option value="INFO" <?php metis_attr_selected( $logging_min_level, 'INFO' ); ?>>Info</option>

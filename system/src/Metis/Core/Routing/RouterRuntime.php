@@ -2132,19 +2132,24 @@ function metis_router_require_ajax_security( Metis_Http_Request $request, callab
         Profiler::mark( 'ROUTER_ENCLAVE_CHECK_DONE' );
     }
 
-    metis_audit_log_activity( 'ajax_action_authorized', [
-        'module'   => $module,
-        'resource' => [
-            'type'  => 'ajax_action',
-            'id'    => $ajax_action,
-            'label' => $permission,
-        ],
-        'context'  => [
-            'operation'  => $operation,
-            'permission' => $permission,
-            'route'      => 'ajax.metis.api',
-        ],
-    ] );
+    $log_success = class_exists( 'Core_Settings_Service', false )
+        ? (bool) Core_Settings_Service::get( 'audit_log_successful_ajax_authorizations', false )
+        : false;
+    if ( $log_success ) {
+        metis_audit_log_activity( 'ajax_action_authorized', [
+            'module'   => $module,
+            'resource' => [
+                'type'  => 'ajax_action',
+                'id'    => $ajax_action,
+                'label' => $permission,
+            ],
+            'context'  => [
+                'operation'  => $operation,
+                'permission' => $permission,
+                'route'      => 'ajax.metis.api',
+            ],
+        ] );
+    }
 
     return $next( $request->with_attribute( 'module', $module )->with_attribute( 'permission', $permission ) );
 }

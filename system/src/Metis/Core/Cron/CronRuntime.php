@@ -722,19 +722,21 @@ final class Metis_Cron_Manager {
                 ];
             }
 
-            metis_audit_log_activity( 'system_cron_task_completed', [
-                'module'     => $task['module'],
-                'request_id' => $request_id,
-                'resource'   => [
-                    'type'  => 'cron_task',
-                    'id'    => $slug,
-                    'label' => $task['label'],
-                ],
-                'context'    => [
-                    'trigger' => $trigger,
-                    'result'  => $result_payload,
-                ],
-            ] );
+            if ( self::verbose_operational_audit_enabled() ) {
+                metis_audit_log_activity( 'system_cron_task_completed', [
+                    'module'     => $task['module'],
+                    'request_id' => $request_id,
+                    'resource'   => [
+                        'type'  => 'cron_task',
+                        'id'    => $slug,
+                        'label' => $task['label'],
+                    ],
+                    'context'    => [
+                        'trigger' => $trigger,
+                        'result'  => $result_payload,
+                    ],
+                ] );
+            }
 
             Metis_Logger::info( 'Cron task completed', [
                 'task'       => $slug,
@@ -1013,6 +1015,19 @@ final class Metis_Cron_Manager {
             'job_queue_history_cleanup' => $job_queue_cleanup,
             'audit_context_compaction' => $audit_compaction,
         ];
+    }
+
+    private static function verbose_operational_audit_enabled(): bool {
+        if ( ! class_exists( 'Core_Settings_Service' ) ) {
+            return false;
+        }
+
+        $value = Core_Settings_Service::get( 'audit_verbose_operational_events', false );
+        if ( is_bool( $value ) ) {
+            return $value;
+        }
+
+        return in_array( strtolower( trim( (string) $value ) ), [ '1', 'true', 'yes', 'on' ], true );
     }
 
     private static function run_security_audit_digest(): array {

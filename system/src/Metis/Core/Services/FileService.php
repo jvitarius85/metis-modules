@@ -266,6 +266,10 @@ final class FileService {
     }
 
     private function auditFileOperation(string $event, string $path, array $context = []): void {
+        if (!$this->shouldAuditFileOperation($event, $path)) {
+            return;
+        }
+
         $payload = [
             'module' => 'system',
             'resource' => [
@@ -290,5 +294,54 @@ final class FileService {
         if (\class_exists('\Metis_Logger')) {
             \Metis_Logger::info($event, $payload['context']);
         }
+    }
+
+    private function shouldAuditFileOperation(string $event, string $path): bool {
+        if ($event === 'file_write_failed' || str_ends_with($event, '_failed')) {
+            return true;
+        }
+
+        if ($this->verboseOperationalAuditEnabled()) {
+            return true;
+        }
+
+        if ($event === 'file_write_attempted') {
+            return false;
+        }
+
+        if ($event === 'file_write_completed') {
+            return $this->isSensitiveWritePath($path);
+        }
+
+        return true;
+    }
+
+    private function verboseOperationalAuditEnabled(): bool {
+        if (!\class_exists('Core_Settings_Service')) {
+            return false;
+        }
+
+        $value = \Core_Settings_Service::get('audit_verbose_operational_events', false);
+        if (\is_bool($value)) {
+            return $value;
+        }
+
+        return \in_array(\strtolower(\trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function isSensitiveWritePath(string $path): bool {
+        $normalized = \str_replace('\\', '/', $path);
+        $root = \rtrim(\str_replace('\\', '/', $this->rootPath()), '/') . '/';
+        if (\str_starts_with($normalized, $root)) {
+            $normalized = \substr($normalized, \strlen($root));
+        }
+
+        foreach (['system/config/', 'config/', 'system/modules/', 'modules/'] as $prefix) {
+            if (\str_starts_with($normalized, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -8,6 +8,10 @@ if ( ! class_exists( 'Metis' ) ) {
 
 final class Metis_Runtime_Security_Logger implements Metis_Security_Audit_Logger_Interface {
     public function audit( string $event, array $context = [] ): void {
+        if ( $this->isRoutineApprovalEvent( $event ) && ! $this->verboseOperationalAuditEnabled() ) {
+            return;
+        }
+
         $meta   = (array) ( $context['meta'] ?? [] );
         $actor  = (array) ( $context['actor'] ?? [] );
         $policy = $context['policy'] ?? null;
@@ -27,6 +31,24 @@ final class Metis_Runtime_Security_Logger implements Metis_Security_Audit_Logger
         ] );
 
         Metis_Logger::info( 'AUDIT ' . $event, $context );
+    }
+
+    private function isRoutineApprovalEvent( string $event ): bool {
+        $normalized = \function_exists( 'metis_key_clean' ) ? \metis_key_clean( $event ) : strtolower( preg_replace( '/[^a-z0-9_]+/i', '', $event ) ?? '' );
+        return \in_array( $normalized, [ 'enclaveapproved', 'ajaxactionauthorized' ], true );
+    }
+
+    private function verboseOperationalAuditEnabled(): bool {
+        if ( ! \class_exists( 'Core_Settings_Service' ) ) {
+            return false;
+        }
+
+        $value = \Core_Settings_Service::get( 'audit_verbose_operational_events', false );
+        if ( \is_bool( $value ) ) {
+            return $value;
+        }
+
+        return \in_array( \strtolower( \trim( (string) $value ) ), [ '1', 'true', 'yes', 'on' ], true );
     }
 
     public function security( string $event, array $context = [] ): void {

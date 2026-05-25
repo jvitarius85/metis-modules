@@ -34,7 +34,9 @@ final class ProcessRunner {
             return [ 'exit_code' => 1, 'stdout' => '', 'stderr' => 'Process working directory is invalid.' ];
         }
 
-        $this->audit( 'process_execution_started', $validated, $workingDirectory, $context, 'attempted' );
+        if ( $this->verboseOperationalAuditEnabled() ) {
+            $this->audit( 'process_execution_started', $validated, $workingDirectory, $context, 'attempted' );
+        }
 
         $descriptors = [
             0 => [ 'pipe', 'r' ],
@@ -88,13 +90,16 @@ final class ProcessRunner {
             'stderr' => ( \is_string( $stderr ) ? $stderr : '' ) . ( $timedOut ? "\nProcess timed out." : '' ),
         ];
 
-        $this->audit(
-            $timedOut ? 'process_execution_timeout' : ( $result['exit_code'] === 0 ? 'process_execution_completed' : 'process_execution_failed' ),
-            $validated,
-            $workingDirectory,
-            $context + [ 'exit_code' => $result['exit_code'] ],
-            $timedOut ? 'blocked' : ( $result['exit_code'] === 0 ? 'completed' : 'failed' )
-        );
+        $event = $timedOut ? 'process_execution_timeout' : ( $result['exit_code'] === 0 ? 'process_execution_completed' : 'process_execution_failed' );
+        if ( $timedOut || $this->verboseOperationalAuditEnabled() ) {
+            $this->audit(
+                $event,
+                $validated,
+                $workingDirectory,
+                $context + [ 'exit_code' => $result['exit_code'] ],
+                $timedOut ? 'blocked' : ( $result['exit_code'] === 0 ? 'completed' : 'failed' )
+            );
+        }
 
         return $result;
     }
@@ -196,6 +201,19 @@ final class ProcessRunner {
         if ( \class_exists( '\Metis_Logger' ) ) {
             \Metis_Logger::info( $event, $payload );
         }
+    }
+
+    private function verboseOperationalAuditEnabled(): bool {
+        if ( ! \class_exists( 'Core_Settings_Service' ) ) {
+            return false;
+        }
+
+        $value = \Core_Settings_Service::get( 'audit_verbose_operational_events', false );
+        if ( \is_bool( $value ) ) {
+            return $value;
+        }
+
+        return \in_array( \strtolower( \trim( (string) $value ) ), [ '1', 'true', 'yes', 'on' ], true );
     }
 
     private function redactContext( array $context ): array {
