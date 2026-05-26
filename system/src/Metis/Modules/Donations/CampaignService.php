@@ -80,6 +80,33 @@ final class CampaignService {
         return $options;
     }
 
+    public static function goalStringForCampaign( string $campaign_id, int $year, float $amount ): ?string {
+        $campaign_id = trim( $campaign_id );
+        if ( $campaign_id === '' || $year <= 0 ) {
+            return null;
+        }
+
+        $table = \Metis_Tables::get( 'campaigns' );
+        $row = \metis_db()->fetchOne(
+            "SELECT goals FROM {$table} WHERE cid = %s LIMIT 1",
+            [ $campaign_id ]
+        );
+
+        if ( ! is_array( $row ) ) {
+            return null;
+        }
+
+        $goals = self::parseGoalString( (string) ( $row['goals'] ?? '' ) );
+        if ( $amount <= 0 ) {
+            unset( $goals[ $year ] );
+        } else {
+            $goals[ $year ] = round( $amount, 2 );
+        }
+
+        krsort( $goals );
+        return self::serializeGoalMap( $goals );
+    }
+
     /**
      * @return array<string,bool>
      */
@@ -115,5 +142,41 @@ final class CampaignService {
     private static function campaignLabel( array $row, string $fallback ): string {
         $label = trim( (string) ( $row['cname'] ?? $row['name'] ?? '' ) );
         return $label !== '' ? $label : $fallback;
+    }
+
+    /**
+     * @return array<int,float>
+     */
+    private static function parseGoalString( string $goal_string ): array {
+        $goals = [];
+        if ( $goal_string === '' ) {
+            return $goals;
+        }
+
+        foreach ( explode( '|', $goal_string ) as $entry ) {
+            $parts = explode( ':', $entry, 2 );
+            if ( count( $parts ) !== 2 || ! is_numeric( $parts[0] ) || ! is_numeric( $parts[1] ) ) {
+                continue;
+            }
+
+            $goals[ (int) $parts[0] ] = (float) $parts[1];
+        }
+
+        return $goals;
+    }
+
+    /**
+     * @param array<int,float> $goals
+     */
+    private static function serializeGoalMap( array $goals ): string {
+        if ( $goals === [] ) {
+            return '';
+        }
+
+        return implode( '|', array_map(
+            static fn( int $year, float $amount ): string => "{$year}:{$amount}",
+            array_keys( $goals ),
+            array_values( $goals )
+        ) );
     }
 }

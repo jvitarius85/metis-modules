@@ -1,6 +1,8 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
+use Metis\Modules\Donations\DonorIntelligenceService;
+
 /**
  * Donations Donor Intelligence AJAX Handler
  *
@@ -54,89 +56,7 @@ metis_ajax_register_handler( 'metis_donations_donor_intelligence', 'metis_ajax_d
 // -------------------------------------------------------------------------
 
 function metis_build_donor_intelligence_data( array $args ): array {
-    $db = metis_db();
-
-    $lifetime = ! empty( $args['lifetime'] );
-    $start    = $args['start']    ?? '';
-    $end      = $args['end']      ?? '';
-    $platform = $args['platform'] ?? null;
-    $status   = $args['status']   ?? null;
-
-    $service = new Core_Reports_Service( Metis_Tables::get( 'transactions' ) );
-
-    $result = $service->run_donor_intelligence( [
-        'start'    => $lifetime ? null : ( $start ?: null ),
-        'end'      => $lifetime ? null : ( $end   ?: null ),
-        'platform' => $platform,
-        'status'   => $status,
-        'limit'    => 200,
-        'lifetime' => $lifetime,
-    ] );
-
-    $rows = $result['rows'] ?? [];
-    $kpis = $result['kpis'] ?? [];
-
-    $contacts_table = Metis_Tables::get( 'contacts' );
-    $now            = new DateTime();
-    $segments       = [ 'recurring' => 0, 'returning' => 0, 'one-time' => 0, 'lapsed' => 0 ];
-
-    $dids        = array_filter( array_column( $rows, 'did' ) );
-    $contact_map = [];
-
-    if ( ! empty( $dids ) ) {
-        $placeholders = implode( ',', array_fill( 0, count( $dids ), '%s' ) );
-        $contact_rows = $db->fetchAll(
-            "SELECT did, first_name, last_name, email FROM {$contacts_table} WHERE did IN ({$placeholders})",
-            $dids
-        );
-        foreach ( $contact_rows as $c ) {
-            $contact_map[ $c['did'] ] = $c;
-        }
-    }
-
-    foreach ( $rows as &$row ) {
-        $did = $row['did'] ?? '';
-        $c   = $contact_map[ $did ] ?? null;
-
-        $full = $c ? trim( ( $c['first_name'] ?? '' ) . ' ' . ( $c['last_name'] ?? '' ) ) : '';
-        $row['display_name'] = $full !== '' ? $full : $did;
-        $row['email']        = $c['email'] ?? '';
-
-        $row['gross']          = (float) ( $row['gross']          ?? 0 );
-        $row['fee']            = (float) ( $row['fee']            ?? 0 );
-        $row['net']            = (float) ( $row['net']            ?? 0 );
-        $row['donation_count'] = (int)   ( $row['donation_count'] ?? 0 );
-        $row['avg_gift']       = $row['donation_count'] > 0
-            ? $row['gross'] / $row['donation_count'] : 0;
-
-        $months_since = 999;
-        if ( ! empty( $row['last_gift'] ) ) {
-            try {
-                $last_dt      = new DateTime( $row['last_gift'] );
-                $months_since = (int) $now->diff( $last_dt )->days / 30;
-            } catch ( Exception $e ) {}
-        }
-
-        if ( $months_since > 12 ) {
-            $seg = 'lapsed';
-        } elseif ( $row['donation_count'] >= 5 ) {
-            $seg = 'recurring';
-        } elseif ( $row['donation_count'] >= 2 ) {
-            $seg = 'returning';
-        } else {
-            $seg = 'one-time';
-        }
-
-        $row['segment'] = $seg;
-        if ( isset( $segments[ $seg ] ) ) $segments[ $seg ]++;
-    }
-    unset( $row );
-
-    return [
-        'rows'     => $rows,
-        'kpis'     => $kpis,
-        'segments' => $segments,
-    ];
+    return DonorIntelligenceService::buildData( $args );
 }
 
 function metis_ajax_donor_intelligence(): void {

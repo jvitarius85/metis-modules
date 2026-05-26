@@ -97,13 +97,6 @@ metis_ajax_register_handler( 'metis_media_library_list', function (): void {
     metis_media_ajax_verify_nonce();
     metis_media_ajax_require_permission( 'media.view' );
 
-    if ( function_exists( 'metis_media_ensure_schema' ) ) {
-        metis_media_ensure_schema();
-    }
-
-    $db = metis_db();
-    $table = function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : 'metis_media_files';
-
     $search = isset( metis_request_post()['search'] ) ? trim( metis_text_clean( metis_runtime_unslash( metis_request_post()['search'] ) ) ) : '';
     $type = isset( metis_request_post()['type'] ) ? trim( metis_key_clean( metis_runtime_unslash( metis_request_post()['type'] ) ) ) : '';
     $folder = isset( metis_request_post()['folder'] ) ? (string) metis_runtime_unslash( metis_request_post()['folder'] ) : '';
@@ -112,56 +105,7 @@ metis_ajax_register_handler( 'metis_media_library_list', function (): void {
     $folder = function_exists( 'metis_media_normalize_folder_path' ) ? metis_media_normalize_folder_path( $folder ) : metis_slug_clean( $folder );
     $category = function_exists( 'metis_media_normalize_category_key' ) ? metis_media_normalize_category_key( $category ) : metis_key_clean( $category );
     $limit = isset( metis_request_post()['limit'] ) ? (int) metis_request_post()['limit'] : 80;
-    $limit = max( 1, min( 200, $limit ) );
-    $sort_sql = match ( $sort ) {
-        'created_asc' => 'created_at ASC, id ASC',
-        'name_asc' => 'file_name ASC, id DESC',
-        'name_desc' => 'file_name DESC, id DESC',
-        'size_asc' => 'size ASC, id DESC',
-        'size_desc' => 'size DESC, id DESC',
-        default => 'id DESC',
-    };
-
-    $where = [];
-    $params = [];
-
-    if ( $search !== '' ) {
-        $where[] = 'file_name LIKE %s';
-        $params[] = '%' . $db->escapeLike( $search ) . '%';
-    }
-
-    if ( $type !== '' ) {
-        $where[] = 'mime_type LIKE %s';
-        $params[] = $type . '/%';
-    }
-    if ( $folder !== '' ) {
-        $where[] = 'folder_path = %s';
-        $params[] = $folder;
-    }
-    if ( $category !== '' ) {
-        $where[] = 'category_key = %s';
-        $params[] = $category;
-    }
-
-    $where_sql = $where !== [] ? ( 'WHERE ' . implode( ' AND ', $where ) ) : '';
-    $sql = "SELECT id, public_token, file_name, mime_type, size, folder_path, category_key, created_at FROM {$table} {$where_sql} ORDER BY {$sort_sql} LIMIT %d";
-    $params[] = $limit;
-
-    $rows = $db->fetchAll( $sql, $params );
-    $items = array_map( static function ( array $row ): array {
-        $token = (string) ( $row['public_token'] ?? '' );
-        return [
-            'id' => (int) ( $row['id'] ?? 0 ),
-            'token' => $token,
-            'url' => $token !== '' ? metis_home_url( '/media/' . $token ) : '',
-            'file_name' => (string) ( $row['file_name'] ?? '' ),
-            'mime_type' => (string) ( $row['mime_type'] ?? '' ),
-            'size' => (int) ( $row['size'] ?? 0 ),
-            'folder_path' => (string) ( $row['folder_path'] ?? '' ),
-            'category_key' => (string) ( $row['category_key'] ?? '' ),
-            'created_at' => (string) ( $row['created_at'] ?? '' ),
-        ];
-    }, is_array( $rows ) ? $rows : [] );
+    $items = \Metis\Modules\Media\MediaLibraryService::listItems( $search, $type, $folder, $category, $sort, $limit );
 
     metis_runtime_send_json_success( [ 'items' => $items ] );
 } );
@@ -170,52 +114,7 @@ metis_ajax_register_handler( 'metis_media_library_facets', function (): void {
     metis_media_ajax_verify_nonce();
     metis_media_ajax_require_permission( 'media.view' );
 
-    if ( function_exists( 'metis_media_ensure_schema' ) ) {
-        metis_media_ensure_schema();
-    }
-
-    $db = metis_db();
-    $table = function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : 'metis_media_files';
-
-    $folder_rows = $db->fetchAll( "SELECT folder_path, COUNT(*) AS item_count FROM {$table} WHERE folder_path <> '' GROUP BY folder_path ORDER BY folder_path ASC LIMIT 300" );
-    $category_rows = $db->fetchAll( "SELECT category_key, COUNT(*) AS item_count FROM {$table} WHERE category_key <> '' GROUP BY category_key ORDER BY category_key ASC LIMIT 300" );
-
-    $folders = [];
-    $folder_counts = [];
-    foreach ( is_array( $folder_rows ) ? $folder_rows : [] as $row ) {
-        if ( is_array( $row ) && isset( $row['folder_path'] ) ) {
-            $value = (string) $row['folder_path'];
-            if ( $value !== '' ) {
-                $folders[] = $value;
-                $folder_counts[] = [
-                    'value' => $value,
-                    'count' => (int) ( $row['item_count'] ?? 0 ),
-                ];
-            }
-        }
-    }
-
-    $categories = [];
-    $category_counts = [];
-    foreach ( is_array( $category_rows ) ? $category_rows : [] as $row ) {
-        if ( is_array( $row ) && isset( $row['category_key'] ) ) {
-            $value = (string) $row['category_key'];
-            if ( $value !== '' ) {
-                $categories[] = $value;
-                $category_counts[] = [
-                    'value' => $value,
-                    'count' => (int) ( $row['item_count'] ?? 0 ),
-                ];
-            }
-        }
-    }
-
-    metis_runtime_send_json_success( [
-        'folders' => array_values( array_unique( $folders ) ),
-        'categories' => array_values( array_unique( $categories ) ),
-        'folder_counts' => $folder_counts,
-        'category_counts' => $category_counts,
-    ] );
+    metis_runtime_send_json_success( \Metis\Modules\Media\MediaLibraryService::facets() );
 } );
 
 metis_ajax_register_handler( 'metis_media_library_update_meta', function (): void {
@@ -246,14 +145,7 @@ metis_ajax_register_handler( 'metis_media_library_delete', function (): void {
         metis_runtime_send_json_error( 'Invalid media token.', 400 );
     }
 
-    if ( function_exists( 'metis_media_ensure_schema' ) ) {
-        metis_media_ensure_schema();
-    }
-
-    $db = metis_db();
-    $table = function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : 'metis_media_files';
-
-    $row = $db->fetchOne( "SELECT id, storage_class, storage_path FROM {$table} WHERE public_token = %s LIMIT 1", [ $token ] );
+    $row = \Metis\Modules\Media\MediaLibraryService::findByToken( $token );
     if ( ! is_array( $row ) ) {
         metis_runtime_send_json_error( 'Media item not found.', 404 );
     }
@@ -274,7 +166,11 @@ metis_ajax_register_handler( 'metis_media_library_delete', function (): void {
         }
     }
 
-    $deleted = $db->delete( $table, [ 'id' => (int) ( $row['id'] ?? 0 ) ], [ '%d' ] );
+    $deleted = metis_db()->delete(
+        function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : 'metis_media_files',
+        [ 'id' => (int) ( $row['id'] ?? 0 ) ],
+        [ '%d' ]
+    );
     if ( ! $deleted ) {
         metis_runtime_send_json_error( 'Failed to delete media item.', 500 );
     }

@@ -4,6 +4,59 @@ declare(strict_types=1);
 namespace Metis\Modules\People;
 
 final class PersonProfileService {
+    public static function getById( int $person_id ): ?array {
+        if ( $person_id < 1 ) {
+            return null;
+        }
+
+        $people_table = \Metis_Tables::get( 'people' );
+        $row = \metis_db()->fetchOne(
+            "SELECT * FROM {$people_table} WHERE id = %d LIMIT 1",
+            [ $person_id ]
+        );
+
+        return is_array( $row ) ? $row : null;
+    }
+
+    public static function updateSelfProfile( int $person_id, array $payload ): ?array {
+        $people_table = \Metis_Tables::get( 'people' );
+
+        $ok = \metis_db()->update(
+            $people_table,
+            [
+                'first_name' => $payload['first_name'] !== '' ? $payload['first_name'] : null,
+                'last_name' => $payload['last_name'] !== '' ? $payload['last_name'] : null,
+                'display_name' => $payload['display_name'],
+                'email_notifications' => ! empty( $payload['email_notifications'] ) ? 1 : 0,
+                'requires_2fa' => ! empty( $payload['requires_2fa'] ) ? 1 : 0,
+                'mfa_method' => (string) $payload['mfa_method'],
+                'notification_prefs_json' => $payload['notification_prefs_json'] ?? null,
+                'updated_at' => \metis_current_time( 'mysql' ),
+            ],
+            [ 'id' => $person_id ],
+            [ '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s' ],
+            [ '%d' ]
+        );
+
+        if ( $ok === false ) {
+            \metis_runtime_send_json_error( 'Failed to save profile.', 500 );
+        }
+
+        return self::getById( $person_id );
+    }
+
+    public static function updateAvatar( int $person_id, string $avatar_url ): void {
+        $people_table = \Metis_Tables::get( 'people' );
+
+        \metis_db()->update(
+            $people_table,
+            [ 'avatar_url' => $avatar_url ],
+            [ 'id' => $person_id ],
+            [ '%s' ],
+            [ '%d' ]
+        );
+    }
+
     public static function saveProfile( array $data, array $roles, array $role_windows, array $workspace_group_emails, ?int $actor_id ): array {
         $db = \metis_db();
         $people_table = \Metis_Tables::get( 'people' );
@@ -338,6 +391,45 @@ final class PersonProfileService {
             'person_id' => $person_id,
             'pid' => (string) ( $person_before['pid'] ?? $pid ),
         ];
+    }
+
+    public static function expectedFolderName( int $person_id ): string {
+        if ( $person_id < 1 ) {
+            return '';
+        }
+
+        if ( function_exists( 'metis_drive_person_folder_display_name' ) ) {
+            $folder_name = (string) \metis_drive_person_folder_display_name( $person_id, 0 );
+            if ( $folder_name !== '' ) {
+                return $folder_name;
+            }
+        }
+
+        $people_table = \Metis_Tables::get( 'people' );
+        if ( ! $people_table ) {
+            return '';
+        }
+
+        $person_row = \metis_db()->fetchOne(
+            "SELECT first_name, last_name, display_name, email
+             FROM {$people_table}
+             WHERE id = %d
+             LIMIT 1",
+            [ $person_id ]
+        );
+        if ( ! is_array( $person_row ) ) {
+            return '';
+        }
+
+        $folder_name = trim( (string) ( $person_row['first_name'] ?? '' ) . ' ' . (string) ( $person_row['last_name'] ?? '' ) );
+        if ( $folder_name === '' ) {
+            $folder_name = trim( (string) ( $person_row['display_name'] ?? '' ) );
+        }
+        if ( $folder_name === '' ) {
+            $folder_name = trim( (string) ( $person_row['email'] ?? '' ) );
+        }
+
+        return $folder_name;
     }
 
     private static function syncWorkspaceGroupAssignments( array $workspace_group_emails, int $linked_workspace_user_id, string $workspace_groups_table, string $workspace_members_table, ?int $actor_id ): void {

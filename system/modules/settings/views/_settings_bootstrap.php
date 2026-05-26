@@ -2370,65 +2370,11 @@ if ( ! function_exists( 'metis_settings_build_performance_security_report' ) ) {
             );
         }
 
-        $security_offense_total = 0;
-        $security_offense_top = '';
-        $security_offense_breakdown = [];
-        $security_cutoff = metis_settings_recent_cutoff( 7 );
-        if ( class_exists( 'Metis_Tables' ) ) {
-            $security_table = Metis_Tables::get( 'audit_security' );
-            $security_offense_clause = metis_settings_health_security_offense_clause();
-            $security_offense_exclusion_clause = metis_settings_health_security_offense_exclusion_clause();
-            $security_offense_total = (int) metis_db()->scalar(
-                "SELECT COUNT(*)
-                 FROM {$security_table}
-                 WHERE occurred_at >= %s
-                   AND {$security_offense_clause}
-                   AND {$security_offense_exclusion_clause}",
-                [ $security_cutoff ]
-            );
-            $security_top_rows = metis_db()->fetchAll(
-                "SELECT action_type, COUNT(*) AS total
-                 FROM {$security_table}
-                 WHERE occurred_at >= %s
-                   AND {$security_offense_clause}
-                   AND {$security_offense_exclusion_clause}
-                 GROUP BY action_type
-                 ORDER BY total DESC
-                 LIMIT 1",
-                [ $security_cutoff ]
-            );
-            if ( is_array( $security_top_rows ) && ! empty( $security_top_rows[0]['action_type'] ) ) {
-                $security_offense_top = (string) $security_top_rows[0]['action_type'];
-            }
-
-            $security_offense_rows = metis_db()->fetchAll(
-                "SELECT module_slug, action_type, resource_label, COUNT(*) AS total
-                 FROM {$security_table}
-                 WHERE occurred_at >= %s
-                   AND {$security_offense_clause}
-                   AND {$security_offense_exclusion_clause}
-                 GROUP BY module_slug, action_type, resource_label
-                 ORDER BY total DESC
-                 LIMIT 3",
-                [ $security_cutoff ]
-            ) ?: [];
-
-            foreach ( $security_offense_rows as $offense_row ) {
-                $module = trim( (string) ( $offense_row['module_slug'] ?? '' ) );
-                $action = trim( (string) ( $offense_row['action_type'] ?? '' ) );
-                $resource = trim( (string) ( $offense_row['resource_label'] ?? '' ) );
-                $count = (int) ( $offense_row['total'] ?? 0 );
-                if ( $count < 1 ) {
-                    continue;
-                }
-
-                $descriptor = ( $module !== '' ? $module : 'unknown-module' ) . '/' . ( $action !== '' ? $action : 'unknown-action' );
-                if ( $resource !== '' ) {
-                    $descriptor .= ' [' . $resource . ']';
-                }
-                $security_offense_breakdown[] = $descriptor . ': ' . $count;
-            }
-        }
+        $security_offense_summary = \Metis\Modules\Settings\SecurityOffenseService::summarizeLastDays( 7 );
+        $security_offense_total = (int) ( $security_offense_summary['total'] ?? 0 );
+        $security_offense_top = (string) ( $security_offense_summary['top'] ?? '' );
+        $security_offense_breakdown = array_values( array_filter( array_map( 'strval', (array) ( $security_offense_summary['breakdown'] ?? [] ) ) ) );
+        $security_cutoff = (string) ( $security_offense_summary['cutoff'] ?? metis_settings_recent_cutoff( 7 ) );
         $security_offense_status = $security_offense_total > ( $is_production_like ? 100 : 200 )
             ? 'fail'
             : ( $security_offense_total > ( $is_production_like ? 20 : 50 ) ? 'warn' : 'pass' );

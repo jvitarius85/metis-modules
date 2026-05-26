@@ -15,6 +15,7 @@ $exclude = [
 $issues = [];
 $phpFiles = [];
 $ajaxFiles = [];
+$rawSqlPattern = '/\bSELECT\s+.+\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\s+\S+\s+SET\b|\bDELETE\s+FROM\b/us';
 
 $fileList = static function () use ($root, $exclude): array {
     $files = [];
@@ -108,7 +109,7 @@ foreach ($ajaxFiles as $relative) {
         $addIssue('Missing Permission Validation', $relative);
     }
 
-    if (preg_match('/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/u', $contents) === 1) {
+    if (preg_match($rawSqlPattern, $contents) === 1) {
         $addIssue('Raw SQL In Frontend Handlers', $relative);
     }
 }
@@ -118,7 +119,7 @@ foreach ($phpFiles as $relative) {
         continue;
     }
     $contents = $read($relative);
-    if ($contents !== '' && preg_match('/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/u', $contents) === 1) {
+    if ($contents !== '' && preg_match($rawSqlPattern, $contents) === 1) {
         $addIssue('Raw SQL In Frontend Handlers', $relative);
     }
 }

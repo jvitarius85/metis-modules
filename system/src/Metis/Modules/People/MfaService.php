@@ -4,6 +4,18 @@ declare(strict_types=1);
 namespace Metis\Modules\People;
 
 final class MfaService {
+    public static function activePasskeys( int $person_id ): array {
+        $passkeys_table = \Metis_Tables::get( 'people_passkeys' );
+
+        return \metis_db()->fetchAll(
+            "SELECT id, label, created_at, last_used_at
+             FROM {$passkeys_table}
+             WHERE person_id = %d AND revoked_at IS NULL
+             ORDER BY created_at DESC",
+            [ $person_id ]
+        ) ?: [];
+    }
+
     public static function getPersonIdentity( int $person_id ): ?array {
         $people_table = \Metis_Tables::get( 'people' );
         $row = \metis_db()->fetchOne(

@@ -25,6 +25,7 @@ use Metis\Modules\Website\Services\ReusableBlockService;
 use Metis\Modules\Website\Services\BlockRenderer;
 use Metis\Modules\Website\Services\WebsiteRenderer;
 use Metis\Modules\Website\Services\StructuredWebsiteBuilderService;
+use Metis\Modules\Website\Services\EditorOptionsService;
 use Metis\Modules\Website\BlockRegistry;
 use Metis\Core\Editor\EditorAutosaveService;
 use Metis\Core\Editor\EditorVersionService;
@@ -209,42 +210,7 @@ function metis_website_ajax_users_table(): string {
  * @return array<int,array{value:string,label:string}>
  */
 function metis_website_ajax_author_options(): array {
-    $db = metis_db();
-    $table = metis_website_ajax_users_table();
-    $rows = $db->fetchAll(
-        "SELECT ID, user_login, display_name, first_name, last_name, user_email FROM {$table} ORDER BY COALESCE(NULLIF(display_name,''), user_login) ASC LIMIT 250",
-        []
-    );
-    if ( ! is_array( $rows ) ) {
-        return [];
-    }
-    $options = [];
-    foreach ( $rows as $row ) {
-        if ( ! is_array( $row ) ) {
-            continue;
-        }
-        $id = (int) ( $row['ID'] ?? 0 );
-        if ( $id < 1 ) {
-            continue;
-        }
-        $first = trim( (string) ( $row['first_name'] ?? '' ) );
-        $last = trim( (string) ( $row['last_name'] ?? '' ) );
-        $full = trim( $first . ' ' . $last );
-        if ( $full === '' ) {
-            $full = trim( (string) ( $row['display_name'] ?? '' ) );
-        }
-        if ( $full === '' ) {
-            $full = trim( (string) ( $row['user_login'] ?? '' ) );
-        }
-        if ( $full === '' ) {
-            continue;
-        }
-        $options[] = [
-            'value' => (string) $id,
-            'label' => $full,
-        ];
-    }
-    return $options;
+    return EditorOptionsService::authorOptions();
 }
 
 /**
@@ -474,133 +440,21 @@ function metis_website_ajax_form_options(): array {
  * @return array<int,array{value:string,label:string}>
  */
 function metis_website_ajax_donation_campaign_options(): array {
-    $db = metis_db();
-    $table = \Metis_Tables::get( 'campaigns' );
-    if ( $table === '' ) {
-        return [];
-    }
-    try {
-        $rows = $db->fetchAll(
-            "SELECT id, cid, campaign_code, code, cname
-             FROM {$table}
-             WHERE active = 1
-               AND (public = 1 OR public IS NULL)
-             ORDER BY cname ASC, id DESC
-             LIMIT 200",
-            []
-        );
-    } catch ( \Throwable $e ) {
-        $rows = $db->fetchAll(
-            "SELECT id, cid, campaign_code, code, cname
-             FROM {$table}
-             ORDER BY id DESC
-             LIMIT 200",
-            []
-        );
-    }
-    $options = [];
-    foreach ( (array) $rows as $row ) {
-        if ( ! is_array( $row ) ) {
-            continue;
-        }
-        $value = trim( (string) ( $row['cid'] ?? $row['campaign_code'] ?? $row['code'] ?? '' ) );
-        if ( $value === '' ) {
-            $id = (int) ( $row['id'] ?? 0 );
-            if ( $id > 0 ) {
-                $value = (string) $id;
-            }
-        }
-        if ( $value === '' ) {
-            continue;
-        }
-        $name = trim( (string) ( $row['cname'] ?? '' ) );
-        $label = $name !== '' ? $name : ( 'Campaign ' . $value );
-        $options[] = [ 'value' => $value, 'label' => $label ];
-    }
-    return $options;
+    return EditorOptionsService::donationCampaignOptions();
 }
 
 /**
  * @return array<int,array{value:string,label:string}>
  */
 function metis_website_ajax_calendar_source_options(): array {
-    if ( function_exists( 'metis_calendar_workspace_settings_all' ) ) {
-        $workspace = metis_calendar_workspace_settings_all();
-        $configs = isset( $workspace['calendars'] ) && is_array( $workspace['calendars'] ) ? $workspace['calendars'] : [];
-        $options = [];
-        foreach ( $configs as $cfg ) {
-            if ( ! is_array( $cfg ) ) {
-                continue;
-            }
-            $id = trim( (string) ( $cfg['calendar_id'] ?? '' ) );
-            if ( $id === '' ) {
-                continue;
-            }
-            $label = trim( (string) ( $cfg['label'] ?? $cfg['name'] ?? '' ) );
-            $options[] = [ 'value' => $id, 'label' => ( $label !== '' ? $label : $id ) ];
-        }
-        if ( $options !== [] ) {
-            return $options;
-        }
-    }
-
-    $db = metis_db();
-    $table = \Metis_Tables::get( 'calendar_events' );
-    if ( $table === '' ) {
-        return [];
-    }
-    $rows = $db->fetchAll(
-        "SELECT calendar_id FROM {$table} WHERE calendar_id IS NOT NULL AND calendar_id <> '' GROUP BY calendar_id ORDER BY calendar_id ASC LIMIT 100",
-        []
-    );
-    $options = [];
-    foreach ( (array) $rows as $row ) {
-        if ( ! is_array( $row ) ) {
-            continue;
-        }
-        $id = trim( (string) ( $row['calendar_id'] ?? '' ) );
-        if ( $id === '' ) {
-            continue;
-        }
-        $options[] = [ 'value' => $id, 'label' => $id ];
-    }
-    return $options;
+    return EditorOptionsService::calendarSourceOptions();
 }
 
 /**
  * @return array<int,array{id:int,value:string,label:string,url:string,mime:string}>
  */
 function metis_website_ajax_media_options(): array {
-    $db = metis_db();
-    $table = function_exists( 'metis_media_table_name' ) ? metis_media_table_name() : \Metis_Tables::get( 'media_files' );
-    if ( $table === '' ) {
-        return [];
-    }
-    $rows = $db->fetchAll(
-        "SELECT id, public_token, file_name, mime_type, created_at FROM {$table} ORDER BY created_at DESC LIMIT 200",
-        []
-    );
-    $options = [];
-    foreach ( (array) $rows as $row ) {
-        if ( ! is_array( $row ) ) {
-            continue;
-        }
-        $token = trim( (string) ( $row['public_token'] ?? '' ) );
-        if ( $token === '' ) {
-            continue;
-        }
-        $name = trim( (string) ( $row['file_name'] ?? '' ) );
-        $mime = trim( (string) ( $row['mime_type'] ?? '' ) );
-        $url = function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/media/' . $token ) : ( '/media/' . $token );
-        $options[] = [
-            'id' => isset( $row['id'] ) ? (int) $row['id'] : 0,
-            'value' => $token,
-            'label' => $name !== '' ? $name : $token,
-            'url' => $url,
-            'mime' => $mime,
-        ];
-    }
-    return $options;
+    return EditorOptionsService::mediaOptions();
 }
 
 /**
@@ -3931,10 +3785,7 @@ metis_ajax_register_handler( 'metis_donations_campaign_list', function (): void 
     metis_website_ajax_verify_nonce();
     metis_website_ajax_require_permission( 'website.view' );
 
-    $db = metis_get_db();
-    $table = function_exists('metis_tables_get') ? metis_tables_get('donation_campaigns') : 'metis_donation_campaigns';
-    $rows = $db->fetchAll( "SELECT cid AS id, cname AS name FROM {$table} WHERE active = 1 ORDER BY cname ASC" );
-    metis_runtime_send_json_success( [ 'campaigns' => $rows ?: [] ] );
+    metis_runtime_send_json_success( [ 'campaigns' => EditorOptionsService::donationCampaignList() ] );
 } );
 
 \Metis_Logger::info( 'Website AJAX handlers loaded' );

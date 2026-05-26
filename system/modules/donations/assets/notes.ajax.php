@@ -3,6 +3,8 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 require_once dirname( __DIR__, 3 ) . '/src/Metis/Core/Integrations/StripeRuntimeBootstrap.php';
 
+use Metis\Modules\Donations\TransactionRecordService;
+
 /**
  * Donations Notes AJAX Handlers
  *
@@ -134,10 +136,7 @@ function metis_donations_current_user_id(): ?int {
 }
 
 function metis_donations_transaction_exists( string $tid ): ?array {
-    return metis_db()->fetchOne(
-        'SELECT tid, amount, stripe_charge_id, stripe_pay_int, stripe_refund_id FROM ' . Metis_Tables::get( 'transactions' ) . ' WHERE tid = %s LIMIT 1',
-        [ $tid ]
-    );
+    return TransactionRecordService::findByTransactionId( $tid );
 }
 
 // -------------------------------------------------------------------------
@@ -306,7 +305,7 @@ metis_ajax_register_handler( 'metis_record_transaction_refund', function () {
     $stripe_refund_id = null;
     $stripe_charge_id = trim( (string) ( $transaction['stripe_charge_id'] ?? '' ) );
     $stripe_payment_intent = trim( (string) ( $transaction['stripe_pay_int'] ?? '' ) );
-    $existing_refunded = (float) $db->scalar( "SELECT COALESCE(SUM(amount), 0) FROM {$refunds_table} WHERE tid = %s", [ $tid ] );
+    $existing_refunded = TransactionRecordService::refundedAmount( $tid );
     $remaining = max( 0, (float) ( $transaction['amount'] ?? 0 ) - $existing_refunded );
 
     if ( $amount > $remaining + 0.0001 ) {
@@ -368,7 +367,7 @@ metis_ajax_register_handler( 'metis_record_transaction_refund', function () {
         metis_runtime_send_json_error( [ 'message' => 'Failed to record refund.' ], 500 );
     }
 
-    $total_refunded = (float) $db->scalar( "SELECT COALESCE(SUM(amount), 0) FROM {$refunds_table} WHERE tid = %s", [ $tid ] );
+    $total_refunded = TransactionRecordService::refundedAmount( $tid );
     $tx_columns = $db->column( "SHOW COLUMNS FROM {$transactions_table}" );
     $update = [ 'updated_at' => $now ];
     if ( $stripe_refund_id !== null && $stripe_refund_id !== '' && in_array( 'stripe_refund_id', $tx_columns, true ) ) {

@@ -1,6 +1,8 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
+use Metis\Modules\Donations\CampaignService;
+
 /**
  * Campaigns AJAX handlers
  *
@@ -71,38 +73,10 @@ metis_ajax_register_handler( 'metis_campaign_save_goal', function () {
         metis_runtime_send_json_error( 'Missing required fields' );
     }
 
-    $campaign = $db->fetchOne( "SELECT id, goals FROM {$table} WHERE cid = %s LIMIT 1", [ $cid ] );
-    $campaign = $campaign ? (object) $campaign : null;
-
-    if ( ! $campaign ) {
+    $goals_str = CampaignService::goalStringForCampaign( $cid, $year, $amount );
+    if ( $goals_str === null ) {
         metis_runtime_send_json_error( 'Campaign not found' );
     }
-
-    // Parse existing goals
-    $goals = [];
-    if ( $campaign->goals ) {
-        foreach ( explode( '|', $campaign->goals ) as $entry ) {
-            $parts = explode( ':', $entry, 2 );
-            if ( count( $parts ) === 2 && is_numeric( $parts[0] ) && is_numeric( $parts[1] ) ) {
-                $goals[ (int) $parts[0] ] = (float) $parts[1];
-            }
-        }
-    }
-
-    if ( $amount <= 0 ) {
-        // Remove goal for this year
-        unset( $goals[ $year ] );
-    } else {
-        $goals[ $year ] = round( $amount, 2 );
-    }
-
-    // Re-serialize: year:amount|year:amount ...
-    krsort( $goals );
-    $goals_str = implode( '|', array_map(
-        fn( $y, $a ) => "{$y}:{$a}",
-        array_keys( $goals ),
-        array_values( $goals )
-    ) );
 
     $updated = $db->update(
         $table,
