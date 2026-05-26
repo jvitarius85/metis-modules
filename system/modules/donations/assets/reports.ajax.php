@@ -44,6 +44,38 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
 }
 
+function metis_donations_reports_ajax_verify( string $action, string $permission = 'view' ): void {
+    $nonce = '';
+    foreach ( [ 'metis_action_nonce', 'nonce' ] as $field ) {
+        $value = metis_request_post()[ $field ] ?? '';
+        if ( is_scalar( $value ) ) {
+            $nonce = trim( (string) metis_runtime_unslash( $value ) );
+            if ( $nonce !== '' ) {
+                break;
+            }
+        }
+    }
+
+    $nonce_action = function_exists( 'metis_ajax_nonce_action' )
+        ? metis_ajax_nonce_action( $action )
+        : $action;
+
+    if ( $nonce === '' || ! function_exists( 'metis_runtime_verify_nonce' ) || ! metis_runtime_verify_nonce( $nonce, $nonce_action ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Invalid nonce.' ], 403 );
+    }
+
+    $allowed = match ( $permission ) {
+        'delete' => function_exists( 'metis_donations_can_delete' ) && metis_donations_can_delete(),
+        'export' => function_exists( 'metis_donations_can_export' ) && metis_donations_can_export(),
+        'edit' => function_exists( 'metis_donations_can_manage' ) && metis_donations_can_manage(),
+        default => function_exists( 'metis_donations_can' ) && metis_donations_can( 'view' ),
+    };
+
+    if ( ! $allowed ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+}
+
 metis_ajax_register_handler( 'metis_donations_report',        'metis_ajax_donations_report' );
 metis_ajax_register_handler( 'metis_donations_report_pdf',    'metis_ajax_donations_report_pdf' );
 metis_ajax_register_handler( 'metis_donations_report_save',   'metis_ajax_report_save' );
@@ -379,6 +411,8 @@ function metis_build_top_donors( string $transactions_table, string $where, arra
 // -------------------------------------------------------------------------
 
 function metis_ajax_donations_report(): void {
+    metis_donations_reports_ajax_verify( 'metis_donations_report', 'view' );
+
     $filters_raw = metis_request_post()['filters'] ?? null;
     $filters     = [];
 
@@ -407,6 +441,8 @@ function metis_ajax_donations_report(): void {
 // -------------------------------------------------------------------------
 
 function metis_ajax_donations_report_pdf(): void {
+    metis_donations_reports_ajax_verify( 'metis_donations_report_pdf', 'export' );
+
     $money = function( $v ) { return '$' . number_format( (float) $v, 2 ); };
     $ints  = function( $v ) { return number_format( (int) $v ); };
 
@@ -792,6 +828,8 @@ HTML;
 // -------------------------------------------------------------------------
 
 function metis_ajax_report_save(): void {
+    metis_donations_reports_ajax_verify( 'metis_donations_report_save', 'edit' );
+
     $db = metis_db();
     $table = Metis_Tables::get( 'reports' );
 
@@ -848,6 +886,8 @@ function metis_ajax_report_save(): void {
 }
 
 function metis_ajax_report_list(): void {
+    metis_donations_reports_ajax_verify( 'metis_donations_report_list', 'view' );
+
     $db = metis_db();
     $table = Metis_Tables::get( 'reports' );
 
@@ -864,6 +904,8 @@ function metis_ajax_report_list(): void {
 }
 
 function metis_ajax_report_delete(): void {
+    metis_donations_reports_ajax_verify( 'metis_donations_report_delete', 'delete' );
+
     $db = metis_db();
     $table = Metis_Tables::get( 'reports' );
 

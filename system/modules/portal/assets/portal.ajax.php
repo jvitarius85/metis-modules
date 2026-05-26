@@ -2,6 +2,28 @@
 if (!defined('METIS_ROOT')) exit;
 
 function metis_portal_ajax_verify(): void {
+    $nonce = '';
+    foreach (['metis_action_nonce', 'nonce'] as $field) {
+        $value = metis_request_post()[$field] ?? '';
+        if (is_scalar($value)) {
+            $nonce = trim((string) metis_runtime_unslash($value));
+            if ($nonce !== '') {
+                break;
+            }
+        }
+    }
+
+    $nonce_action = function_exists('metis_ajax_nonce_action')
+        ? metis_ajax_nonce_action('metis_portal_fetch_board_actions')
+        : 'metis_portal_fetch_board_actions';
+
+    if ($nonce === '' || !function_exists('metis_runtime_verify_nonce') || !metis_runtime_verify_nonce($nonce, $nonce_action)) {
+        metis_runtime_send_json_error([ 'message' => 'Invalid nonce.' ], 403);
+    }
+
+    if (!function_exists('metis_security_user_can') || !metis_security_user_can('portal.view')) {
+        metis_runtime_send_json_error([ 'message' => 'Unauthorized.' ], 403);
+    }
 }
 
 function metis_portal_board_action_counts(object $db, string $board_actions_table, int $person_id): array {

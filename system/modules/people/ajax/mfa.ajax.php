@@ -22,13 +22,11 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 
 metis_ajax_register_handler( 'metis_people_generate_totp_secret', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
     $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     if ($person_id < 1) {
         metis_runtime_send_json_error('Invalid person id.', 400);
     }
-    $person = $db->fetchOne("SELECT email, display_name FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
+    $person = \Metis\Modules\People\MfaService::getPersonIdentity($person_id);
     $email = strtolower(trim((string) ($person['email'] ?? '')));
     $label = trim((string) ($person['display_name'] ?? ''));
     if ($label === '' && $email !== '') {
@@ -45,8 +43,6 @@ metis_ajax_register_handler( 'metis_people_generate_totp_secret', function () {
 
 metis_ajax_register_handler( 'metis_people_verify_totp_secret', function () {
     metis_people_ajax_verify();
-    $people_table = Metis_Tables::get('people');
-    $db = metis_db();
     $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     $secret = isset(metis_request_post()['secret']) ? strtoupper(metis_text_clean(metis_runtime_unslash(metis_request_post()['secret']))) : '';
     $code = isset(metis_request_post()['code']) ? preg_replace('/\D+/', '', (string) metis_runtime_unslash(metis_request_post()['code'])) : '';
@@ -68,18 +64,7 @@ metis_ajax_register_handler( 'metis_people_verify_totp_secret', function () {
     if ($enc === '') {
         metis_runtime_send_json_error('Failed to secure secret.', 500);
     }
-    $db->update(
-        $people_table,
-        [
-            'totp_secret_enc' => $enc,
-            'totp_enabled' => 1,
-            'requires_2fa' => 1,
-            'mfa_method' => 'totp',
-        ],
-        ['id' => $person_id],
-        ['%s', '%d', '%d', '%s'],
-        ['%d']
-    );
+    \Metis\Modules\People\MfaService::storeTotpSecret($person_id, $enc);
     metis_people_log_activity($person_id, 'totp_enabled', 'Enabled authenticator app MFA', []);
     metis_runtime_send_json_success(['ok' => 1]);
 });
@@ -143,22 +128,16 @@ metis_ajax_register_handler( 'metis_people_reset_metis_password', function () {
 
 metis_ajax_register_handler( 'metis_people_begin_passkey_registration', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-    $passkeys_table = Metis_Tables::get('people_passkeys');
     $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     if ($person_id < 1) {
         metis_runtime_send_json_error('Invalid person id.', 400);
     }
-    $person = $db->fetchOne("SELECT id, email, display_name FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
+    $person = \Metis\Modules\People\MfaService::getPersonIdentity($person_id);
     if (!$person) {
         metis_runtime_send_json_error('Person not found.', 404);
     }
     $challenge = metis_people_create_challenge($person_id, 'passkey_register', 600);
-    $exclude = $db->column(
-        "SELECT credential_id FROM {$passkeys_table} WHERE person_id = %d AND revoked_at IS NULL",
-        [ $person_id ]
-    );
+    $exclude = \Metis\Modules\People\MfaService::activePasskeyCredentialIds($person_id);
     $exclude_credentials = [];
     foreach ($exclude as $cred_id) {
         $exclude_credentials[] = [
@@ -201,9 +180,6 @@ metis_ajax_register_handler( 'metis_people_begin_passkey_registration', function
 
 metis_ajax_register_handler( 'metis_people_complete_passkey_registration', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-    $passkeys_table = Metis_Tables::get('people_passkeys');
     $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     $challenge_key = isset(metis_request_post()['challenge_key']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['challenge_key'])) : '';
     $credential_id = isset(metis_request_post()['credential_id']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['credential_id'])) : '';
@@ -214,7 +190,7 @@ metis_ajax_register_handler( 'metis_people_complete_passkey_registration', funct
     if ($person_id < 1 || $challenge_key === '' || $credential_id === '' || $client_data_json_b64 === '' || $attestation_object_b64 === '') {
         metis_runtime_send_json_error('Missing registration payload.', 400);
     }
-    $person = $db->fetchOne("SELECT id FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
+    $person = \Metis\Modules\People\MfaService::getPersonIdentity($person_id);
     if (!$person) {
         metis_runtime_send_json_error('Person not found.', 404);
     }
@@ -242,73 +218,36 @@ metis_ajax_register_handler( 'metis_people_complete_passkey_registration', funct
     if (!hash_equals((string) $challenge['challenge_value'], $challenge_value)) {
         metis_runtime_send_json_error('Challenge mismatch.', 400);
     }
-    $existing = (int) $db->scalar(
-        "SELECT id FROM {$passkeys_table} WHERE credential_id = %s LIMIT 1",
-        [ $credential_id ]
-    );
-    if ($existing > 0) {
+    if (\Metis\Modules\People\MfaService::passkeyExistsByCredentialId($credential_id)) {
         metis_runtime_send_json_error('Passkey already registered.', 400);
     }
     $actor_id = metis_people_get_current_person_id();
-    $ok = $db->insert($passkeys_table, [
-        'person_id' => $person_id,
-        'credential_id' => $credential_id,
-        'credential_public_key' => $attestation_object_b64,
-        'sign_count' => 0,
-        'transports_json' => $transports_json !== '' ? $transports_json : null,
-        'label' => $label !== '' ? $label : 'Passkey',
-        'created_by_person_id' => $actor_id > 0 ? $actor_id : null,
-    ], ['%d', '%s', '%s', '%d', '%s', '%s', '%d']);
-    if (!$ok) {
-        metis_runtime_send_json_error('Failed to persist passkey.', 500);
-    }
-    $passkey_id = (int) $db->lastInsertId();
-    $db->execute($db->prepare(
-        "UPDATE {$people_table}
-         SET passkey_enabled = 1,
-             requires_2fa = 1,
-             mfa_method = CASE WHEN mfa_method = 'none' THEN 'passkey' ELSE mfa_method END
-         WHERE id = %d",
-        $person_id
-    ));
-    $label_out = $label !== '' ? $label : 'Passkey';
+    $passkey = \Metis\Modules\People\MfaService::registerPasskey($person_id, $credential_id, $attestation_object_b64, $transports_json, $label, $actor_id > 0 ? $actor_id : null);
+    $label_out = (string) ($passkey['label'] ?? 'Passkey');
     metis_people_log_activity($person_id, 'passkey_registered', 'Registered passkey credential', ['label' => $label_out]);
     metis_runtime_send_json_success([
         'ok' => 1,
-        'passkey' => [
-            'id' => $passkey_id,
-            'label' => $label_out,
-            'created_at' => metis_current_time('mysql'),
-        ],
+        'passkey' => $passkey,
     ]);
 });
 
 metis_ajax_register_handler( 'metis_people_revoke_passkey', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-    $passkeys_table = Metis_Tables::get('people_passkeys');
     $passkey_id = isset(metis_request_post()['passkey_id']) ? (int) metis_runtime_unslash(metis_request_post()['passkey_id']) : 0;
     if ($passkey_id < 1) {
         metis_runtime_send_json_error('Invalid passkey id.', 400);
     }
-    $row = $db->fetchOne(
-        "SELECT id, person_id, label, revoked_at FROM {$passkeys_table} WHERE id = %d LIMIT 1",
-        [ $passkey_id ]
-    );
+    $row = \Metis\Modules\People\MfaService::getPasskeyById($passkey_id);
     if (!$row) {
         metis_runtime_send_json_error('Passkey not found.', 404);
     }
     if (!empty($row['revoked_at'])) {
         metis_runtime_send_json_error('Passkey already revoked.', 400);
     }
-    $db->update($passkeys_table, ['revoked_at' => metis_current_time('mysql')], ['id' => $passkey_id], ['%s'], ['%d']);
-    $active_count = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$passkeys_table} WHERE person_id = %d AND revoked_at IS NULL",
-        [ (int) $row['person_id'] ]
-    );
+    \Metis\Modules\People\MfaService::revokePasskey($passkey_id);
+    $active_count = \Metis\Modules\People\MfaService::activePasskeyCount((int) $row['person_id']);
     if ($active_count < 1) {
-        $db->update($people_table, ['passkey_enabled' => 0], ['id' => (int) $row['person_id']], ['%d'], ['%d']);
+        \Metis\Modules\People\MfaService::disablePasskeyFlag((int) $row['person_id']);
     }
     metis_people_log_activity((int) $row['person_id'], 'passkey_revoked', 'Revoked passkey credential', ['label' => (string) ($row['label'] ?? '')]);
     metis_runtime_send_json_success(['ok' => 1, 'active_count' => $active_count]);
@@ -316,61 +255,18 @@ metis_ajax_register_handler( 'metis_people_revoke_passkey', function () {
 
 metis_ajax_register_handler( 'metis_people_reset_mfa', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-    $passkeys_table = Metis_Tables::get('people_passkeys');
     $person_id = isset(metis_request_post()['person_id']) ? (int) metis_runtime_unslash(metis_request_post()['person_id']) : 0;
     if ($person_id < 1) {
         metis_runtime_send_json_error('Invalid person id.', 400);
     }
 
-    $person = $db->fetchOne(
-        "SELECT id, pid, email, display_name FROM {$people_table} WHERE id = %d LIMIT 1",
-        [ $person_id ]
-    );
+    $person = \Metis\Modules\People\MfaService::getPersonIdentity($person_id);
     if (!$person) {
         metis_runtime_send_json_error('Person not found.', 404);
     }
 
-    $revoked_passkeys = 0;
-    if (Metis_Tables::has('people_passkeys')) {
-        $active_passkey_rows = $db->fetchAll(
-            "SELECT id, label
-             FROM {$passkeys_table}
-             WHERE person_id = %d AND revoked_at IS NULL",
-            [ $person_id ]
-        );
-
-        foreach ($active_passkey_rows as $passkey_row) {
-            $updated = $db->update(
-                $passkeys_table,
-                ['revoked_at' => metis_current_time('mysql')],
-                ['id' => (int) ($passkey_row['id'] ?? 0)],
-                ['%s'],
-                ['%d']
-            );
-            if ($updated !== false) {
-                $revoked_passkeys++;
-            }
-        }
-    }
-
-    $updated = $db->update(
-        $people_table,
-        [
-            'requires_2fa' => 0,
-            'mfa_method' => 'none',
-            'totp_enabled' => 0,
-            'passkey_enabled' => 0,
-            'totp_secret_enc' => null,
-            'updated_at' => metis_current_time('mysql'),
-        ],
-        ['id' => $person_id],
-        ['%d', '%s', '%d', '%d', '%s', '%s'],
-        ['%d']
-    );
-
-    if ($updated === false) {
+    $revoked_passkeys = \Metis\Modules\People\MfaService::revokeAllActivePasskeys($person_id);
+    if (!\Metis\Modules\People\MfaService::resetMfa($person_id)) {
         metis_runtime_send_json_error('Failed to reset MFA.', 500);
     }
 

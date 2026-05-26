@@ -226,29 +226,12 @@ if (!function_exists('metis_people_workspace_write_group_permission_templates'))
 
 if (!function_exists('metis_people_workspace_find_template_group_row')) {
     function metis_people_workspace_find_template_group_row(string $template_key): ?array {
-        $db = metis_db();
-        $groups_table = Metis_Tables::get('people_workspace_groups');
-        $needle = $template_key === 'board' ? 'board' : 'suppl';
-        $row = $db->fetchOne(
-            "SELECT id, group_name, group_email, metadata_json
-             FROM {$groups_table}
-             WHERE LOWER(group_name) LIKE %s OR LOWER(group_email) LIKE %s
-             ORDER BY id ASC
-             LIMIT 1",
-            [ '%' . $needle . '%', '%' . $needle . '%' ]
-        );
-        return is_array($row) ? $row : null;
+        return \Metis\Modules\People\WorkspaceGroupService::findTemplateGroupRow($template_key);
     }
 }
 
 metis_ajax_register_handler( 'metis_people_bulk_workspace_group_action', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-
-    $people_table = Metis_Tables::get('people');
-    $workspace_groups_table = Metis_Tables::get('people_workspace_groups');
-    $workspace_users_table = Metis_Tables::get('people_workspace_users');
-    $workspace_members_table = Metis_Tables::get('people_workspace_group_members');
 
     $action_type = isset(metis_request_post()['bulk_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['bulk_action'])) : '';
     $group_email = strtolower(trim((string) (isset(metis_request_post()['group_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['group_email'])) : '')));
@@ -268,7 +251,7 @@ metis_ajax_register_handler( 'metis_people_bulk_workspace_group_action', functio
     if (!in_array($action_type, ['assign', 'remove'], true) || !metis_email_is_valid($group_email) || empty($person_pids)) {
         metis_runtime_send_json_error('Group, action, and people are required.', 400);
     }
-    $group_id = (int) $db->scalar("SELECT id FROM {$workspace_groups_table} WHERE group_email = %s LIMIT 1", [ $group_email ]);
+    $group_id = \Metis\Modules\People\WorkspaceGroupService::groupIdByEmail($group_email);
     if ($group_id < 1) {
         metis_runtime_send_json_error('Workspace group not found.', 404);
     }
@@ -276,58 +259,33 @@ metis_ajax_register_handler( 'metis_people_bulk_workspace_group_action', functio
     $updated = 0;
     $skipped = 0;
     foreach ($person_pids as $pid) {
-        $person = $db->fetchOne("SELECT id, workspace_email FROM {$people_table} WHERE pid = %s LIMIT 1", [ $pid ]);
+        $person = \Metis\Modules\People\WorkspaceGroupService::personWorkspaceSummaryByPid($pid);
         $workspace_email = strtolower(trim((string) ($person['workspace_email'] ?? '')));
         if (!$person || !metis_email_is_valid($workspace_email)) {
             $skipped++;
             continue;
         }
-        $workspace_user_id = (int) $db->scalar(
-            "SELECT id FROM {$workspace_users_table} WHERE person_id = %d OR primary_email = %s LIMIT 1",
-            [ (int) ($person['id'] ?? 0), $workspace_email ]
-        );
+        $workspace_user_id = \Metis\Modules\People\WorkspaceGroupService::workspaceUserIdForPerson((int) ($person['id'] ?? 0), $workspace_email);
         if ($workspace_user_id < 1) {
             $skipped++;
             continue;
         }
         if ($action_type === 'assign') {
-            $existing_member_id = (int) $db->scalar(
-                "SELECT id FROM {$workspace_members_table} WHERE group_id = %d AND workspace_user_id = %d LIMIT 1",
-                [ $group_id, $workspace_user_id ]
-            );
+            $existing_member_id = \Metis\Modules\People\WorkspaceGroupService::existingGroupMemberId($group_id, $workspace_user_id);
             if ($existing_member_id > 0) {
-                $ok = $db->update(
-                    $workspace_members_table,
-                    ['member_role' => $member_role],
-                    ['id' => $existing_member_id],
-                    ['%s'],
-                    ['%d']
-                );
+                $ok = \Metis\Modules\People\WorkspaceGroupService::updateMemberRoleById($existing_member_id, $member_role);
                 if ($ok !== false) $updated++;
             } else {
-                $ok = $db->insert($workspace_members_table, [
-                    'group_id' => $group_id,
-                    'workspace_user_id' => $workspace_user_id,
-                    'member_role' => $member_role,
-                ], ['%d', '%d', '%s']);
+                $ok = \Metis\Modules\People\WorkspaceGroupService::insertGroupMember($group_id, $workspace_user_id, $member_role);
                 if ($ok) $updated++;
             }
         } else {
-            $ok = $db->delete($workspace_members_table, [
-                'group_id' => $group_id,
-                'workspace_user_id' => $workspace_user_id,
-            ], ['%d', '%d']);
+            $ok = \Metis\Modules\People\WorkspaceGroupService::deleteGroupMember($group_id, $workspace_user_id);
             if ($ok) $updated += (int) $ok;
         }
     }
 
-    $db->execute(
-        "UPDATE {$workspace_groups_table}
-         SET direct_members_count = (SELECT COUNT(*) FROM {$workspace_members_table} WHERE group_id = %d),
-             sync_status = 'queued'
-         WHERE id = %d",
-        [ $group_id, $group_id ]
-    );
+    \Metis\Modules\People\WorkspaceGroupService::refreshDirectMemberCountAndQueue($group_id);
     $actor = metis_people_get_current_person_id();
     $job_id = metis_people_workspace_queue_job(
         'workspace_group_members_bulk_sync',
@@ -349,8 +307,6 @@ metis_ajax_register_handler( 'metis_people_bulk_workspace_group_action', functio
 
 metis_ajax_register_handler( 'metis_people_workspace_save_group', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     $group_email = strtolower(trim((string) (isset(metis_request_post()['group_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['group_email'])) : '')));
     $group_name = isset(metis_request_post()['group_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['group_name'])) : '';
@@ -358,27 +314,11 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group', function () {
     if (!metis_email_is_valid($group_email) || $group_name === '') {
         metis_runtime_send_json_error('Group name and valid group email are required.', 400);
     }
-    $conflict = (int) $db->scalar(
-        "SELECT id FROM {$groups_table} WHERE group_email = %s AND id <> %d LIMIT 1",
-        [ $group_email, $group_id ]
-    );
+    $conflict = \Metis\Modules\People\WorkspaceGroupService::groupEmailConflictId($group_email, $group_id);
     if ($conflict > 0) {
         metis_runtime_send_json_error('Group email already exists.', 400);
     }
-    $payload = [
-        'group_email' => $group_email,
-        'group_name' => $group_name,
-        'description' => $description !== '' ? $description : null,
-        'sync_status' => 'queued',
-    ];
-    if ($group_id > 0) {
-        $ok = $db->update($groups_table, $payload, ['id' => $group_id], ['%s', '%s', '%s', '%s'], ['%d']);
-        if ($ok === false) metis_runtime_send_json_error('Failed to update group.', 500);
-    } else {
-        $ok = $db->insert($groups_table, $payload, ['%s', '%s', '%s', '%s']);
-        if (!$ok) metis_runtime_send_json_error('Failed to create group.', 500);
-        $group_id = (int) $db->lastInsertId();
-    }
+    $group_id = \Metis\Modules\People\WorkspaceGroupService::saveGroup($group_id, $group_email, $group_name, $description);
     $actor = metis_people_get_current_person_id();
     $job_id = metis_people_workspace_queue_job(
         'workspace_group_upsert',
@@ -406,10 +346,6 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group', function () {
 
 metis_ajax_register_handler( 'metis_people_workspace_add_group_member', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $members_table = Metis_Tables::get('people_workspace_group_members');
 
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     $member_email = strtolower(trim((string) (isset(metis_request_post()['member_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['member_email'])) : '')));
@@ -418,32 +354,19 @@ metis_ajax_register_handler( 'metis_people_workspace_add_group_member', function
     if ($group_id < 1 || !metis_email_is_valid($member_email)) {
         metis_runtime_send_json_error('Group and member email are required.', 400);
     }
-    $group_exists = (int) $db->scalar("SELECT id FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
+    $group_exists = \Metis\Modules\People\WorkspaceGroupService::groupExists($group_id);
     if ($group_exists < 1) metis_runtime_send_json_error('Group not found.', 404);
-    $workspace_user_id = (int) $db->scalar("SELECT id FROM {$users_table} WHERE primary_email = %s LIMIT 1", [ $member_email ]);
+    $workspace_user_id = \Metis\Modules\People\WorkspaceGroupService::workspaceUserIdByPrimaryEmail($member_email);
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user not found for that email.', 404);
     }
-    $exists = (int) $db->scalar(
-        "SELECT id FROM {$members_table} WHERE group_id = %d AND workspace_user_id = %d LIMIT 1",
-        [ $group_id, $workspace_user_id ]
-    );
+    $exists = \Metis\Modules\People\WorkspaceGroupService::existingGroupMemberId($group_id, $workspace_user_id);
     if ($exists > 0) {
-        $db->update($members_table, ['member_role' => $member_role], ['id' => $exists], ['%s'], ['%d']);
+        \Metis\Modules\People\WorkspaceGroupService::updateMemberRoleById($exists, $member_role);
     } else {
-        $db->insert($members_table, [
-            'group_id' => $group_id,
-            'workspace_user_id' => $workspace_user_id,
-            'member_role' => $member_role,
-        ], ['%d', '%d', '%s']);
+        \Metis\Modules\People\WorkspaceGroupService::insertGroupMember($group_id, $workspace_user_id, $member_role);
     }
-    $db->execute(
-        "UPDATE {$groups_table}
-         SET direct_members_count = (SELECT COUNT(*) FROM {$members_table} WHERE group_id = %d),
-             sync_status = 'queued'
-         WHERE id = %d",
-        [ $group_id, $group_id ]
-    );
+    \Metis\Modules\People\WorkspaceGroupService::refreshDirectMemberCountAndQueue($group_id);
     $actor = metis_people_get_current_person_id();
     $job_id = metis_people_workspace_queue_job(
         'workspace_group_member_upsert',
@@ -463,45 +386,18 @@ metis_ajax_register_handler( 'metis_people_workspace_add_group_member', function
 
 metis_ajax_register_handler( 'metis_people_workspace_get_group_members_matrix', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $members_table = Metis_Tables::get('people_workspace_group_members');
 
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) {
         metis_runtime_send_json_error('Group is required.', 400);
     }
-    $group = $db->fetchOne(
-        "SELECT id, group_name, group_email, description
-         FROM {$groups_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $group_id ]
-    );
+    $group = \Metis\Modules\People\WorkspaceGroupService::groupSummary($group_id);
     if (!$group) {
         metis_runtime_send_json_error('Group not found.', 404);
     }
 
-    $users = $db->fetchAll(
-        "SELECT id, primary_email, first_name, last_name, display_name, metadata_json
-         FROM {$users_table}
-         ORDER BY display_name ASC, first_name ASC, last_name ASC, primary_email ASC"
-    ) ?: [];
-    $roles_by_user_id = [];
-    $member_rows = $db->fetchAll(
-        "SELECT workspace_user_id, member_role
-         FROM {$members_table}
-         WHERE group_id = %d",
-        [ $group_id ]
-    ) ?: [];
-    foreach ($member_rows as $row) {
-        $workspace_user_id = (int) ($row['workspace_user_id'] ?? 0);
-        $member_role = strtolower(trim((string) ($row['member_role'] ?? 'member')));
-        if ($workspace_user_id < 1) continue;
-        if (!in_array($member_role, ['member', 'manager', 'owner'], true)) $member_role = 'member';
-        $roles_by_user_id[$workspace_user_id] = $member_role;
-    }
+    $users = \Metis\Modules\People\WorkspaceGroupService::allWorkspaceUsers();
+    $roles_by_user_id = \Metis\Modules\People\WorkspaceGroupService::memberRolesByUserId($group_id);
 
     $remote_role_by_email = [];
     $cfg = metis_people_workspace_sync_settings();
@@ -555,26 +451,9 @@ metis_ajax_register_handler( 'metis_people_workspace_get_group_members_matrix', 
 
     $external_members = [];
     $external_emails = array_keys($remote_role_by_email);
-    $contact_name_by_email = [];
-    $contact_cid_by_email = [];
-    if (!empty($external_emails)) {
-        $contacts_table = Metis_Tables::get('contacts');
-        $in_placeholders = implode(',', array_fill(0, count($external_emails), '%s'));
-        $contact_rows = $db->fetchAll(
-            "SELECT email, first_name, last_name, cid
-             FROM {$contacts_table}
-             WHERE email IN ({$in_placeholders})",
-            $external_emails
-        ) ?: [];
-        foreach ($contact_rows as $contact_row) {
-            $email_key = strtolower(trim((string) ($contact_row['email'] ?? '')));
-            if ($email_key === '') continue;
-            $contact_name = trim((string) ($contact_row['first_name'] ?? '') . ' ' . (string) ($contact_row['last_name'] ?? ''));
-            if ($contact_name !== '') $contact_name_by_email[$email_key] = $contact_name;
-            $contact_cid = trim((string) ($contact_row['cid'] ?? ''));
-            if ($contact_cid !== '') $contact_cid_by_email[$email_key] = $contact_cid;
-        }
-    }
+    $contact_summaries = \Metis\Modules\People\WorkspaceGroupService::contactSummariesByEmails($external_emails);
+    $contact_name_by_email = (array) ($contact_summaries['names'] ?? []);
+    $contact_cid_by_email = (array) ($contact_summaries['cids'] ?? []);
     foreach ($remote_role_by_email as $email => $role) {
         $external_members[] = [
             'member_email' => (string) $email,
@@ -598,20 +477,10 @@ metis_ajax_register_handler( 'metis_people_workspace_get_group_members_matrix', 
 
 metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $members_table = Metis_Tables::get('people_workspace_group_members');
 
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
-    $group = $db->fetchOne(
-        "SELECT id, group_email
-         FROM {$groups_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $group_id ]
-    );
+    $group = \Metis\Modules\People\WorkspaceGroupService::groupIdentity($group_id);
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);
 
     $members_json = isset(metis_request_post()['members']) ? (string) metis_runtime_unslash(metis_request_post()['members']) : '[]';
@@ -628,11 +497,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
     }
     $candidate_user_ids = array_values(array_unique($candidate_user_ids));
     if (!empty($candidate_user_ids)) {
-        $placeholders = implode(',', array_fill(0, count($candidate_user_ids), '%d'));
-        $rows = $db->fetchAll(
-            "SELECT id, primary_email FROM {$users_table} WHERE id IN ({$placeholders})",
-            $candidate_user_ids
-        ) ?: [];
+        $rows = \Metis\Modules\People\WorkspaceGroupService::workspaceUsersByIds($candidate_user_ids);
         foreach ($rows as $row) {
             $id = (int) ($row['id'] ?? 0);
             if ($id < 1) continue;
@@ -661,23 +526,8 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
         }
     }
 
-    $db->delete($members_table, ['group_id' => $group_id], ['%d']);
-    $inserted_count = 0;
-    foreach ($to_insert as $workspace_user_id => $member_role) {
-        $inserted = $db->insert($members_table, [
-            'group_id' => $group_id,
-            'workspace_user_id' => (int) $workspace_user_id,
-            'member_role' => $member_role,
-        ], ['%d', '%d', '%s']);
-        if ($inserted) $inserted_count++;
-    }
-    $db->update(
-        $groups_table,
-        ['direct_members_count' => $inserted_count, 'sync_status' => 'queued'],
-        ['id' => $group_id],
-        ['%d', '%s'],
-        ['%d']
-    );
+    $inserted_count = \Metis\Modules\People\WorkspaceGroupService::replaceGroupMembers($group_id, $to_insert);
+    \Metis\Modules\People\WorkspaceGroupService::storeMemberCountAndSyncStatus($group_id, $inserted_count, 'queued');
 
     $cfg = metis_people_workspace_sync_settings();
     $group_email = strtolower(trim((string) ($group['group_email'] ?? '')));
@@ -704,7 +554,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
         foreach (array_keys($remote_existing) as $remote_email) {
             if (isset($desired_members[$remote_email])) continue;
             metis_people_workspace_google_request(
-                'DELETE',
+                'delete',
                 'groups/' . rawurlencode($group_email) . '/members/' . rawurlencode($remote_email),
                 null,
                 $cfg
@@ -719,7 +569,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
                 metis_people_workspace_google_request('PUT', 'groups/' . rawurlencode($group_email) . '/members/' . rawurlencode($desired_email), $payload_body, $cfg);
             }
         }
-        $db->update($groups_table, ['sync_status' => 'synced'], ['id' => $group_id], ['%s'], ['%d']);
+        \Metis\Modules\People\WorkspaceGroupService::storeMemberCountAndSyncStatus($group_id, $inserted_count, 'synced');
     }
 
     $actor = metis_people_get_current_person_id();
@@ -740,12 +590,10 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_members_bulk', f
 
 metis_ajax_register_handler( 'metis_people_workspace_get_group_permissions', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
 
-    $group = $db->fetchOne("SELECT id, group_email, metadata_json FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
+    $group = \Metis\Modules\People\WorkspaceGroupService::groupWithMetadata($group_id);
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);
 
     $permissions = [
@@ -790,11 +638,9 @@ metis_ajax_register_handler( 'metis_people_workspace_get_group_permissions', fun
 
 metis_ajax_register_handler( 'metis_people_workspace_save_group_permissions', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
-    $group = $db->fetchOne("SELECT id, group_email, metadata_json FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
+    $group = \Metis\Modules\People\WorkspaceGroupService::groupWithMetadata($group_id);
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);
 
     $permissions_payload = [];
@@ -845,13 +691,7 @@ metis_ajax_register_handler( 'metis_people_workspace_save_group_permissions', fu
     if (!is_array($metadata)) $metadata = [];
     $metadata['permissions'] = $permissions;
     $metadata['permissions_full'] = $permissions_full;
-    $db->update(
-        $groups_table,
-        ['metadata_json' => metis_json_encode($metadata), 'sync_status' => 'synced'],
-        ['id' => $group_id],
-        ['%s', '%s'],
-        ['%d']
-    );
+    \Metis\Modules\People\WorkspaceGroupService::storeGroupMetadataPermissions($group_id, $metadata, 'synced');
     metis_runtime_send_json_success(['group_id' => $group_id, 'permissions' => $permissions, 'permissions_full' => $permissions_full]);
 });
 
@@ -911,21 +751,18 @@ metis_ajax_register_handler( 'metis_people_workspace_capture_group_permission_te
 
 metis_ajax_register_handler( 'metis_people_workspace_delete_group', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $groups_table = Metis_Tables::get('people_workspace_groups');
-    $members_table = Metis_Tables::get('people_workspace_group_members');
     $group_id = isset(metis_request_post()['group_id']) ? (int) metis_runtime_unslash(metis_request_post()['group_id']) : 0;
     if ($group_id < 1) metis_runtime_send_json_error('Group is required.', 400);
-    $group = $db->fetchOne("SELECT id, group_email FROM {$groups_table} WHERE id = %d LIMIT 1", [ $group_id ]);
+    $group = \Metis\Modules\People\WorkspaceGroupService::groupIdentity($group_id);
     if (!$group) metis_runtime_send_json_error('Group not found.', 404);
     $group_email = strtolower(trim((string) ($group['group_email'] ?? '')));
 
     $cfg = metis_people_workspace_sync_settings();
     if (!empty($cfg['ok']) && metis_email_is_valid($group_email)) {
-        metis_people_workspace_google_request('DELETE', 'groups/' . rawurlencode($group_email), null, $cfg);
+        metis_people_workspace_google_request('delete', 'groups/' . rawurlencode($group_email), null, $cfg);
     }
-    $db->delete($members_table, ['group_id' => $group_id], ['%d']);
-    $deleted = $db->delete($groups_table, ['id' => $group_id], ['%d']);
+    \Metis\Modules\People\WorkspaceGroupService::deleteGroupMembers($group_id);
+    $deleted = \Metis\Modules\People\WorkspaceGroupService::deleteGroup($group_id);
     if (!$deleted) metis_runtime_send_json_error('Failed to delete group.', 500);
     metis_people_log_activity(null, 'workspace_group_deleted', 'Deleted workspace group', [
         'group_id' => $group_id,

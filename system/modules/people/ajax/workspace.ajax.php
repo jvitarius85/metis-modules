@@ -30,21 +30,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 
 if (!function_exists('metis_people_workspace_role_keys_for_user')) {
     function metis_people_workspace_role_keys_for_user(int $workspace_user_id): array {
-        if ($workspace_user_id < 1) return [];
-        $db = metis_db();
-        $user_roles_table = Metis_Tables::get('people_workspace_user_roles');
-        $rows = $db->fetchAll(
-            "SELECT role_key
-             FROM {$user_roles_table}
-             WHERE workspace_user_id = %d",
-            [ $workspace_user_id ]
-        ) ?: [];
-        $keys = [];
-        foreach ($rows as $row) {
-            $role_key = metis_key_clean((string) ($row['role_key'] ?? ''));
-            if ($role_key !== '') $keys[] = $role_key;
-        }
-        return array_values(array_unique($keys));
+        return \Metis\Modules\People\WorkspaceUserService::roleKeysForUser($workspace_user_id);
     }
 }
 
@@ -113,217 +99,7 @@ if (!function_exists('metis_people_workspace_format_time')) {
 
 if (!function_exists('metis_people_workspace_activity_payload')) {
     function metis_people_workspace_activity_payload(int $sync_page = 1, int $security_page = 1, int $sync_page_size = 12, int $security_page_size = 12): array {
-        $db = metis_db();
-        $workspace_users_table = Metis_Tables::get('people_workspace_users');
-        $workspace_groups_table = Metis_Tables::get('people_workspace_groups');
-        $workspace_security_actions_table = Metis_Tables::get('people_workspace_security_actions');
-        $workspace_sync_jobs_table = Metis_Tables::get('people_workspace_sync_jobs');
-        $people_table = Metis_Tables::get('people');
-        $labels = metis_people_workspace_log_type_labels();
-        $job_type_labels = (array) ($labels['job'] ?? []);
-        $security_action_labels = (array) ($labels['security'] ?? []);
-        $status_labels = (array) ($labels['status'] ?? []);
-
-        if ($sync_page < 1) $sync_page = 1;
-        if ($security_page < 1) $security_page = 1;
-        if ($sync_page_size < 1) $sync_page_size = 12;
-        if ($security_page_size < 1) $security_page_size = 12;
-
-        $sync_total = (int) $db->scalar("SELECT COUNT(*) FROM {$workspace_sync_jobs_table}");
-        $security_total = (int) $db->scalar("SELECT COUNT(*) FROM {$workspace_security_actions_table}");
-        $sync_total_pages = max(1, (int) ceil($sync_total / $sync_page_size));
-        $security_total_pages = max(1, (int) ceil($security_total / $security_page_size));
-        if ($sync_page > $sync_total_pages) $sync_page = $sync_total_pages;
-        if ($security_page > $security_total_pages) $security_page = $security_total_pages;
-        $sync_offset = ($sync_page - 1) * $sync_page_size;
-        $security_offset = ($security_page - 1) * $security_page_size;
-
-        $sync_jobs = $db->fetchAll(
-            "SELECT *
-             FROM {$workspace_sync_jobs_table}
-             ORDER BY created_at DESC
-             LIMIT {$sync_page_size} OFFSET {$sync_offset}"
-        ) ?: [];
-        $security_actions = $db->fetchAll(
-            "SELECT sa.*, wu.primary_email, wu.display_name, wu.person_id,
-                    p.pid AS person_pid, p.display_name AS person_display_name
-             FROM {$workspace_security_actions_table} sa
-             INNER JOIN {$workspace_users_table} wu ON wu.id = sa.workspace_user_id
-             LEFT JOIN {$people_table} p ON p.id = wu.person_id
-             ORDER BY sa.created_at DESC
-             LIMIT {$security_page_size} OFFSET {$security_offset}"
-        ) ?: [];
-
-        $normalize_person_name = static function (string $name): string {
-            $trimmed = trim($name);
-            if ($trimmed === '') return '';
-            return trim((string) preg_replace('/\s*\([A-Z]{2,6}-\d+\)\s*$/', '', $trimmed));
-        };
-
-        $sync_workspace_user_names = [];
-        $sync_workspace_group_names = [];
-        $sync_person_names = [];
-        $sync_workspace_user_urls = [];
-        $sync_person_urls = [];
-        $sync_workspace_user_ids = [];
-        $sync_workspace_group_ids = [];
-        $sync_person_ids = [];
-        foreach ($sync_jobs as $sync_job_row) {
-            $entity_type = strtolower(trim((string) ($sync_job_row['entity_type'] ?? '')));
-            $entity_id = (int) ($sync_job_row['entity_id'] ?? 0);
-            if ($entity_id < 1) continue;
-            if ($entity_type === 'workspace_user') $sync_workspace_user_ids[$entity_id] = true;
-            if ($entity_type === 'workspace_group') $sync_workspace_group_ids[$entity_id] = true;
-            if ($entity_type === 'person') $sync_person_ids[$entity_id] = true;
-        }
-        if (!empty($sync_workspace_user_ids)) {
-            $ids = implode(',', array_map('intval', array_keys($sync_workspace_user_ids)));
-            $rows = $db->fetchAll(
-                "SELECT wu.id, wu.primary_email, wu.display_name, wu.first_name, wu.last_name,
-                        p.pid AS person_pid, p.display_name AS person_display_name,
-                        p.first_name AS person_first_name, p.last_name AS person_last_name
-                 FROM {$workspace_users_table} wu
-                 LEFT JOIN {$people_table} p ON p.id = wu.person_id
-                 WHERE wu.id IN ({$ids})"
-            ) ?: [];
-            foreach ($rows as $row) {
-                $id = (int) ($row['id'] ?? 0);
-                if ($id < 1) continue;
-                $person_pid = trim((string) ($row['person_pid'] ?? ''));
-                $person_display = $normalize_person_name(trim((string) ($row['person_display_name'] ?? '')));
-                $person_name = trim((string) ($row['person_first_name'] ?? '') . ' ' . (string) ($row['person_last_name'] ?? ''));
-                if ($person_name === '') $person_name = $person_display;
-                if ($person_display !== '') {
-                    $sync_workspace_user_names[$id] = $person_name;
-                    if ($person_pid !== '') $sync_workspace_user_urls[$id] = metis_people_person_url($person_pid);
-                    continue;
-                }
-                $name = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
-                if ($name === '') $name = trim((string) ($row['display_name'] ?? ''));
-                if ($name === '') $name = 'Workspace user';
-                $sync_workspace_user_names[$id] = $name;
-            }
-        }
-        if (!empty($sync_workspace_group_ids)) {
-            $ids = implode(',', array_map('intval', array_keys($sync_workspace_group_ids)));
-            $rows = $db->fetchAll(
-                "SELECT id, group_name, group_email
-                 FROM {$workspace_groups_table}
-                 WHERE id IN ({$ids})"
-            ) ?: [];
-            foreach ($rows as $row) {
-                $id = (int) ($row['id'] ?? 0);
-                if ($id < 1) continue;
-                $group_name = trim((string) ($row['group_name'] ?? ''));
-                $group_email = trim((string) ($row['group_email'] ?? ''));
-                if ($group_name === '') $group_name = $group_email;
-                $sync_workspace_group_names[$id] = $group_name !== '' ? $group_name : 'Workspace group';
-            }
-        }
-        if (!empty($sync_person_ids)) {
-            $ids = implode(',', array_map('intval', array_keys($sync_person_ids)));
-            $rows = $db->fetchAll(
-                "SELECT id, pid, display_name, first_name, last_name
-                 FROM {$people_table}
-                 WHERE id IN ({$ids})"
-            ) ?: [];
-            foreach ($rows as $row) {
-                $id = (int) ($row['id'] ?? 0);
-                if ($id < 1) continue;
-                $display_name = $normalize_person_name(trim((string) ($row['display_name'] ?? '')));
-                $person_name = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
-                if ($person_name === '') $person_name = $display_name;
-                $pid = trim((string) ($row['pid'] ?? ''));
-                if ($person_name === '') $person_name = 'Person';
-                $sync_person_names[$id] = $person_name;
-                if ($pid !== '') $sync_person_urls[$id] = metis_people_person_url($pid);
-            }
-        }
-
-        $format_entity = static function (?string $entity_type, $entity_id) use ($sync_workspace_user_names, $sync_workspace_group_names, $sync_person_names): string {
-            $type = strtolower(trim((string) $entity_type));
-            $id = (int) $entity_id;
-            if ($type === 'workspace_user') return $id > 0 ? ($sync_workspace_user_names[$id] ?? 'Workspace user') : 'Workspace user';
-            if ($type === 'workspace_group') return $id > 0 ? ($sync_workspace_group_names[$id] ?? 'Workspace group') : 'Workspace group';
-            if ($type === 'person') return $id > 0 ? ($sync_person_names[$id] ?? 'Person') : 'Person';
-            return $type !== '' ? ucwords(str_replace('_', ' ', $type)) : 'Entity';
-        };
-        $format_entity_url = static function (?string $entity_type, $entity_id) use ($sync_workspace_user_urls, $sync_person_urls): string {
-            $type = strtolower(trim((string) $entity_type));
-            $id = (int) $entity_id;
-            if ($id < 1) return '';
-            if ($type === 'person') return (string) ($sync_person_urls[$id] ?? '');
-            if ($type === 'workspace_user') return (string) ($sync_workspace_user_urls[$id] ?? '');
-            return '';
-        };
-
-        $sync_rows_out = [];
-        foreach ($sync_jobs as $j) {
-            $job_type = strtolower(trim((string) ($j['job_type'] ?? '')));
-            $job_status = strtolower(trim((string) ($j['status'] ?? 'queued')));
-            $job_title = (string) ($job_type_labels[$job_type] ?? ucwords(str_replace('_', ' ', $job_type)));
-            $job_time = metis_people_workspace_format_time((string) ($j['created_at'] ?? ''));
-            $job_error = trim((string) ($j['last_error'] ?? ''));
-            $is_stripe_skip = $job_type === 'stripe_user_disable' && $job_status === 'failed' && stripos($job_error, 'workspace email not set') !== false;
-            $effective_job_status = $is_stripe_skip && $job_status === 'failed' ? 'completed' : $job_status;
-            if ($is_stripe_skip) $job_error = '';
-            $sync_rows_out[] = [
-                'title' => $job_title,
-                'error' => $job_error !== '' ? ('Failed: ' . substr($job_error, 0, 160)) : '',
-                'entity_label' => $format_entity((string) ($j['entity_type'] ?? ''), (int) ($j['entity_id'] ?? 0)),
-                'entity_url' => $format_entity_url((string) ($j['entity_type'] ?? ''), (int) ($j['entity_id'] ?? 0)),
-                'status_label' => metis_people_workspace_format_status($effective_job_status, $status_labels),
-                'status_class' => metis_people_workspace_status_chip_class($effective_job_status),
-                'time' => $job_time,
-            ];
-        }
-
-        $security_rows_out = [];
-        foreach ($security_actions as $s) {
-            $action_type = strtolower(trim((string) ($s['action_type'] ?? '')));
-            $action_status = strtolower(trim((string) ($s['status'] ?? 'pending')));
-            $action_title = (string) ($security_action_labels[$action_type] ?? ucwords(str_replace('_', ' ', $action_type)));
-            $security_name = trim((string) ($s['person_display_name'] ?? ''));
-            if ($security_name === '') $security_name = trim((string) ($s['display_name'] ?? ''));
-            $security_name = $normalize_person_name($security_name);
-            if ($security_name === '') $security_name = 'Workspace user';
-            $security_pid = trim((string) ($s['person_pid'] ?? ''));
-            $security_url = $security_pid !== '' ? metis_people_person_url($security_pid) : '';
-            $reason = trim((string) ($s['reason'] ?? ''));
-            if ($reason === 'bulk_workspace_action') $reason = 'Bulk update';
-            if ($reason === 'person_offboarded') $reason = 'Offboarding';
-            if ($reason === 'workspace_or_status_ineligible') $reason = '';
-            $security_rows_out[] = [
-                'title' => $action_title,
-                'reason' => $reason,
-                'user_name' => $security_name,
-                'user_url' => $security_url,
-                'status_label' => metis_people_workspace_format_status($action_status, $status_labels),
-                'status_class' => metis_people_workspace_status_chip_class($action_status),
-                'time' => metis_people_workspace_format_time((string) ($s['created_at'] ?? '')),
-            ];
-        }
-
-        return [
-            'sync' => [
-                'rows' => $sync_rows_out,
-                'page' => $sync_page,
-                'total_pages' => $sync_total_pages,
-                'has_prev' => $sync_page > 1,
-                'has_next' => $sync_page < $sync_total_pages,
-                'prev_page' => $sync_page > 1 ? ($sync_page - 1) : 1,
-                'next_page' => $sync_page < $sync_total_pages ? ($sync_page + 1) : $sync_total_pages,
-            ],
-            'security' => [
-                'rows' => $security_rows_out,
-                'page' => $security_page,
-                'total_pages' => $security_total_pages,
-                'has_prev' => $security_page > 1,
-                'has_next' => $security_page < $security_total_pages,
-                'prev_page' => $security_page > 1 ? ($security_page - 1) : 1,
-                'next_page' => $security_page < $security_total_pages ? ($security_page + 1) : $security_total_pages,
-            ],
-        ];
+        return \Metis\Modules\People\WorkspaceActivityService::payload($sync_page, $security_page, $sync_page_size, $security_page_size);
     }
 }
 
@@ -466,13 +242,6 @@ if (!function_exists('metis_people_workspace_send_welcome_email')) {
 
 metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $user_roles_table = Metis_Tables::get('people_workspace_user_roles');
-    $groups_table = Metis_Tables::get('people_workspace_groups');
-    $group_members_table = Metis_Tables::get('people_workspace_group_members');
-    $people_table = Metis_Tables::get('people');
-
     $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     $primary_email = strtolower(trim((string) (isset(metis_request_post()['primary_email']) ? metis_email_clean(metis_runtime_unslash(metis_request_post()['primary_email'])) : '')));
     $first_name = isset(metis_request_post()['first_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['first_name'])) : '';
@@ -513,463 +282,53 @@ metis_ajax_register_handler( 'metis_people_workspace_save_user', function () {
         }
     }
     $group_ids = array_values(array_unique($group_ids));
-
-    if (!metis_email_is_valid($primary_email)) {
-        metis_runtime_send_json_error('Valid primary email is required.', 400);
-    }
-    if ($recovery_email !== '' && !metis_email_is_valid($recovery_email)) {
-        metis_runtime_send_json_error('Recovery email is invalid.', 400);
-    }
-    if ($secondary_email !== '' && !metis_email_is_valid($secondary_email)) {
-        metis_runtime_send_json_error('Secondary email is invalid.', 400);
-    }
-    if ($org_unit_path === '') $org_unit_path = '/';
-    if ($display_name === '') {
-        $display_name = trim($first_name . ' ' . $last_name);
-    }
-    if ($display_name === '') $display_name = $primary_email;
-    if ($create_drive_folder && !$create_metis_user && $linked_pid === '') {
-        metis_runtime_send_json_error('Create a linked Metis user before creating a Drive folder.', 400);
-    }
-
-    $person_id = null;
-    if ($linked_pid !== '') {
-        $person_id = (int) $db->scalar("SELECT id FROM {$people_table} WHERE pid = %s LIMIT 1", [ $linked_pid ]);
-        if ($person_id < 1) {
-            metis_runtime_send_json_error('Linked PID was not found.', 400);
-        }
-    }
-
-    $email_conflict = (int) $db->scalar(
-        "SELECT id FROM {$users_table} WHERE primary_email = %s AND id <> %d LIMIT 1",
-        [ $primary_email, $workspace_user_id ]
-    );
-    if ($email_conflict > 0) {
-        if ($workspace_user_id < 1) {
-            $existing_user = $db->fetchOne(
-                "SELECT id, primary_email, first_name, last_name, display_name, org_unit_path, recovery_email, is_suspended, is_protected, metadata_json, person_id
-                 FROM {$users_table}
-                 WHERE id = %d
-                 LIMIT 1",
-                [ $email_conflict ]
-            );
-            if ($existing_user) {
-                $existing_metadata = json_decode((string) ($existing_user['metadata_json'] ?? ''), true);
-                if (!is_array($existing_metadata)) $existing_metadata = [];
-                $existing_group_rows = $db->fetchAll(
-                    "SELECT group_id
-                     FROM {$group_members_table}
-                     WHERE workspace_user_id = %d",
-                    [ $email_conflict ]
-                ) ?: [];
-                $existing_group_ids = [];
-                foreach ($existing_group_rows as $existing_group_row) {
-                    $existing_group_id = (int) ($existing_group_row['group_id'] ?? 0);
-                    if ($existing_group_id > 0) $existing_group_ids[] = $existing_group_id;
-                }
-                metis_runtime_send_json_success([
-                    'workspace_user_id' => $email_conflict,
-                    'sync_warning' => 'That Workspace email already exists in Metis. The existing account was returned instead of creating a duplicate.',
-                    'user' => [
-                        'id' => $email_conflict,
-                        'primary_email' => (string) ($existing_user['primary_email'] ?? $primary_email),
-                        'display_name' => (string) ($existing_user['display_name'] ?? ''),
-                        'first_name' => (string) ($existing_user['first_name'] ?? ''),
-                        'last_name' => (string) ($existing_user['last_name'] ?? ''),
-                        'org_unit_path' => (string) ($existing_user['org_unit_path'] ?? '/'),
-                        'recovery_email' => (string) ($existing_user['recovery_email'] ?? ''),
-                        'secondary_email' => (string) ($existing_metadata['secondary_email'] ?? ''),
-                        'linked_pid' => '',
-                        'linked_name' => '',
-                        'person_url' => '',
-                        'is_suspended' => !empty($existing_user['is_suspended']) ? 1 : 0,
-                        'is_protected' => !empty($existing_user['is_protected']) ? 1 : 0,
-                        'is_hidden' => !empty($existing_metadata['ui_hidden']) ? 1 : 0,
-                        'role_keys' => metis_people_workspace_role_keys_for_user($email_conflict),
-                        'group_ids' => $existing_group_ids,
-                    ],
-                ]);
-            }
-        }
-        metis_runtime_send_json_error('Primary email already exists in workspace users.', 400);
-    }
-    if ($person_id !== null && $person_id > 0) {
-        $person_email_conflict = (int) $db->scalar(
-            "SELECT id FROM {$people_table} WHERE email = %s AND id <> %d LIMIT 1",
-            [ $primary_email, $person_id ]
-        );
-        if ($person_email_conflict > 0) {
-            metis_runtime_send_json_error('Email is already used by a different Metis profile.', 400);
-        }
-    }
-
-    $valid_group_ids = [];
-    $group_email_by_id = [];
-    if (!empty($group_ids)) {
-        $placeholders = implode(',', array_fill(0, count($group_ids), '%d'));
-        $group_rows = $db->fetchAll(
-            "SELECT id, group_email
-             FROM {$groups_table}
-             WHERE id IN ({$placeholders})",
-            $group_ids
-        ) ?: [];
-        foreach ($group_rows as $group_row) {
-            $gid = (int) ($group_row['id'] ?? 0);
-            if ($gid < 1) continue;
-            $valid_group_ids[$gid] = true;
-            $group_email = strtolower(trim((string) ($group_row['group_email'] ?? '')));
-            if (metis_email_is_valid($group_email)) $group_email_by_id[$gid] = $group_email;
-        }
-        foreach ($group_ids as $gid) {
-            if (empty($valid_group_ids[$gid])) {
-                metis_runtime_send_json_error('One of the selected Workspace groups was not found.', 400);
-            }
-        }
-    }
-
-    $payload = [
-        'person_id' => $person_id ?: null,
+    $actor = metis_people_get_current_person_id();
+    $save = \Metis\Modules\People\WorkspaceUserService::saveUser([
+        'workspace_user_id' => $workspace_user_id,
         'primary_email' => $primary_email,
-        'first_name' => $first_name !== '' ? $first_name : null,
-        'last_name' => $last_name !== '' ? $last_name : null,
+        'first_name' => $first_name,
+        'last_name' => $last_name,
         'display_name' => $display_name,
         'org_unit_path' => $org_unit_path,
-        'recovery_email' => $recovery_email !== '' ? $recovery_email : null,
+        'secondary_email' => $secondary_email,
+        'recovery_email' => $recovery_email,
+        'linked_pid' => $linked_pid,
         'is_suspended' => $is_suspended,
         'is_protected' => $is_protected,
-        'sync_status' => 'queued',
-    ];
-    $previous_primary_email = '';
-    $existing_metadata = [];
-    if ($workspace_user_id > 0) {
-        $existing_row = $db->fetchOne(
-            "SELECT primary_email, metadata_json
-             FROM {$users_table}
-             WHERE id = %d
-             LIMIT 1",
-            [ $workspace_user_id ]
-        );
-        $previous_primary_email = strtolower(trim((string) ($existing_row['primary_email'] ?? '')));
-        $existing_metadata = json_decode((string) ($existing_row['metadata_json'] ?? ''), true);
-        if (!is_array($existing_metadata)) $existing_metadata = [];
-    }
-    if ($is_hidden) {
-        $existing_metadata['ui_hidden'] = 1;
-    } else {
-        unset($existing_metadata['ui_hidden']);
-    }
-    if ($secondary_email !== '') {
-        $existing_metadata['secondary_email'] = $secondary_email;
-    } else {
-        unset($existing_metadata['secondary_email']);
-    }
-    $payload['metadata_json'] = metis_json_encode($existing_metadata);
-    $is_new_user = $workspace_user_id < 1;
-    if ($is_new_user && $recovery_email === '') {
-        metis_runtime_send_json_error('A secondary/recovery email is required so Metis can send the first sign-in instructions.', 400);
-    }
-    if ($workspace_user_id > 0) {
-        $ok = $db->update($users_table, $payload, ['id' => $workspace_user_id], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s'], ['%d']);
-        if ($ok === false) {
-            metis_runtime_send_json_error('Failed to update workspace user.', 500);
-        }
-    } else {
-        $ok = $db->insert($users_table, $payload, ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']);
-        if (!$ok) {
-            metis_runtime_send_json_error('Failed to create workspace user.', 500);
-        }
-        $workspace_user_id = (int) $db->lastInsertId();
+        'is_hidden' => $is_hidden,
+        'create_metis_user' => $create_metis_user,
+        'create_drive_folder' => $create_drive_folder,
+        'role_keys' => $role_keys,
+        'group_ids' => $group_ids,
+    ], $actor > 0 ? $actor : null);
+
+    if (!empty($save['existing'])) {
+        metis_runtime_send_json_success([
+            'workspace_user_id' => (int) ($save['workspace_user_id'] ?? 0),
+            'sync_warning' => (string) ($save['sync_warning'] ?? ''),
+            'user' => $save['user'] ?? [],
+        ]);
     }
 
-    $db->delete($user_roles_table, ['workspace_user_id' => $workspace_user_id], ['%d']);
-    foreach ($role_keys as $role_key) {
-        $db->insert($user_roles_table, [
-            'workspace_user_id' => $workspace_user_id,
-            'role_key' => $role_key,
-        ], ['%d', '%s']);
-    }
-
-    $existing_group_rows = $db->fetchAll(
-        "SELECT gm.group_id, wg.group_email
-         FROM {$group_members_table} gm
-         INNER JOIN {$groups_table} wg ON wg.id = gm.group_id
-         WHERE gm.workspace_user_id = %d",
-        [ $workspace_user_id ]
-    ) ?: [];
-    $existing_group_ids = [];
-    $existing_group_email_by_id = [];
-    foreach ($existing_group_rows as $group_row) {
-        $gid = (int) ($group_row['group_id'] ?? 0);
-        if ($gid < 1) continue;
-        $existing_group_ids[] = $gid;
-        $group_email = strtolower(trim((string) ($group_row['group_email'] ?? '')));
-        if (metis_email_is_valid($group_email)) $existing_group_email_by_id[$gid] = $group_email;
-    }
-    $affected_group_ids = array_values(array_unique(array_merge($existing_group_ids, $group_ids)));
-    $db->delete($group_members_table, ['workspace_user_id' => $workspace_user_id], ['%d']);
-    foreach ($group_ids as $gid) {
-        $db->insert($group_members_table, [
-            'group_id' => $gid,
-            'workspace_user_id' => $workspace_user_id,
-            'member_role' => 'member',
-        ], ['%d', '%d', '%s']);
-    }
-    foreach ($affected_group_ids as $gid) {
-        $member_count = (int) $db->scalar(
-            "SELECT COUNT(*) FROM {$group_members_table} WHERE group_id = %d",
-            [ (int) $gid ]
-        );
-        $db->update(
-            $groups_table,
-            ['direct_members_count' => $member_count, 'sync_status' => 'queued'],
-            ['id' => (int) $gid],
-            ['%d', '%s'],
-            ['%d']
-        );
-    }
-
-    $sync_payload = [
-        'primary_email' => $primary_email,
-        'roles' => $role_keys,
-        'is_suspended' => $is_suspended,
-        'previous_primary_email' => $previous_primary_email,
-        'add_alias_email' => ($previous_primary_email !== '' && $previous_primary_email !== $primary_email) ? $previous_primary_email : '',
-    ];
-    $job_type = $is_new_user ? 'workspace_user_create' : 'workspace_user_upsert';
-    $job_id = 0;
-    $sync_warning = '';
-    if (function_exists('metis_people_workspace_sync_settings') && function_exists('metis_people_workspace_execute_job')) {
-        $cfg = metis_people_workspace_sync_settings();
-        if (empty($cfg['ok'])) {
-            $db->update($users_table, ['sync_status' => 'pending'], ['id' => $workspace_user_id], ['%s'], ['%d']);
-            $sync_warning = 'Workspace settings are not configured. Save was applied locally only.';
-        } else {
-            $sync_result = metis_people_workspace_execute_job([
-                'job_type' => $job_type,
-                'entity_type' => 'workspace_user',
-                'entity_id' => $workspace_user_id,
-                'payload_json' => metis_json_encode($sync_payload),
-            ], $cfg, false);
-            if (empty($sync_result['ok'])) {
-                $db->update($users_table, ['sync_status' => 'failed'], ['id' => $workspace_user_id], ['%s'], ['%d']);
-                $sync_warning = trim((string) ($sync_result['error'] ?? ''));
-                if ($sync_warning === '') $sync_warning = 'Workspace user saved locally, but Workspace sync failed.';
-            } elseif ($is_new_user && !empty($sync_result['temporary_password'])) {
-                $welcome = metis_people_workspace_send_welcome_email($primary_email, $recovery_email, $display_name, (string) $sync_result['temporary_password']);
-                $sync_result['temporary_password'] = '';
-                if (empty($welcome['ok'])) {
-                    $sync_warning = trim((string) ($welcome['error'] ?? ''));
-                    if ($sync_warning === '') $sync_warning = 'Workspace user was created, but the welcome email could not be sent.';
-                }
-            }
-            if (!empty($sync_result['ok']) && metis_email_is_valid($primary_email) && !empty($affected_group_ids)) {
-                foreach ($affected_group_ids as $gid) {
-                    $group_email = (string) ($group_email_by_id[$gid] ?? $existing_group_email_by_id[$gid] ?? '');
-                    if (!metis_email_is_valid($group_email)) continue;
-                    $include = in_array((int) $gid, $group_ids, true);
-                    if (function_exists('metis_people_workspace_set_group_membership')) {
-                        $membership = metis_people_workspace_set_group_membership($group_email, $primary_email, $include, $cfg);
-                        if (empty($membership['ok']) && $sync_warning === '') {
-                            $sync_warning = trim((string) ($membership['error'] ?? 'Workspace group membership sync failed.'));
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        $actor = metis_people_get_current_person_id();
-        $job_id = metis_people_workspace_queue_job(
-            $job_type,
-            'workspace_user',
-            $workspace_user_id,
-            $actor > 0 ? $actor : null,
-            $sync_payload
-        );
-    }
-
+    $person_id = isset($save['person_id']) ? (int) $save['person_id'] : null;
     metis_people_log_activity($person_id ?: null, 'workspace_user_saved', 'Saved workspace user profile', [
-        'workspace_user_id' => $workspace_user_id,
-        'primary_email' => $primary_email,
-        'job_id' => $job_id,
+        'workspace_user_id' => (int) ($save['workspace_user_id'] ?? 0),
+        'primary_email' => (string) (($save['user']['primary_email'] ?? $primary_email)),
+        'job_id' => (int) ($save['job_id'] ?? 0),
     ]);
 
-    $linked_pid_out = '';
-    $linked_name_out = '';
-    $person_url_out = '';
-    if ($person_id !== null && $person_id > 0) {
-        $person_update = [
-            'auth_provider' => 'workspace',
-            'email' => $primary_email,
-            'first_name' => $first_name !== '' ? $first_name : null,
-            'last_name' => $last_name !== '' ? $last_name : null,
-            'display_name' => $display_name,
-            'is_workspace_user' => 1,
-            'workspace_email' => $primary_email,
-        ];
-        $person_update_ok = $db->update(
-            $people_table,
-            $person_update,
-            ['id' => (int) $person_id],
-            ['%s', '%s', '%s', '%s', '%s', '%d', '%s'],
-            ['%d']
-        );
-        if ($person_update_ok === false) {
-            metis_runtime_send_json_error('Workspace user saved, but Metis profile update failed.', 500);
-        }
-
-        $person_row = $db->fetchOne(
-            "SELECT pid, display_name, first_name, last_name
-             FROM {$people_table}
-             WHERE id = %d
-             LIMIT 1",
-            [ (int) $person_id ]
-        );
-        if ($person_row) {
-            $linked_pid_out = (string) ($person_row['pid'] ?? '');
-            $linked_name_out = trim((string) ($person_row['first_name'] ?? '') . ' ' . (string) ($person_row['last_name'] ?? ''));
-            if ($linked_name_out === '') $linked_name_out = trim((string) ($person_row['display_name'] ?? ''));
-            if ($linked_pid_out !== '' && function_exists('metis_people_person_url')) {
-                $person_url_out = (string) metis_people_person_url($linked_pid_out);
-            }
-        }
-    }
-
-    $metis_user = null;
-    if ($create_metis_user && ($person_id === null || $person_id < 1)) {
-        $existing_person = $db->fetchOne(
-            "SELECT id, pid, display_name, first_name, last_name, is_workspace_user, workspace_email
-             FROM {$people_table}
-             WHERE workspace_email = %s OR email = %s
-             ORDER BY id ASC
-             LIMIT 1",
-            [ $primary_email, $primary_email ]
-        );
-        $person_id = (int) ($existing_person['id'] ?? 0);
-        $created_metis_user = false;
-        if ($person_id > 0) {
-            $update_payload = [
-                'auth_provider' => 'workspace',
-                'is_workspace_user' => 1,
-                'workspace_email' => $primary_email,
-            ];
-            $update_format = ['%s', '%d', '%s'];
-            if (trim((string) ($existing_person['display_name'] ?? '')) === '' && $display_name !== '') {
-                $update_payload['display_name'] = $display_name;
-                $update_format[] = '%s';
-            }
-            if (trim((string) ($existing_person['first_name'] ?? '')) === '' && $first_name !== '') {
-                $update_payload['first_name'] = $first_name;
-                $update_format[] = '%s';
-            }
-            if (trim((string) ($existing_person['last_name'] ?? '')) === '' && $last_name !== '') {
-                $update_payload['last_name'] = $last_name;
-                $update_format[] = '%s';
-            }
-            $updated = $db->update($people_table, $update_payload, ['id' => $person_id], $update_format, ['%d']);
-            if ($updated === false) {
-                metis_runtime_send_json_error('Workspace user saved, but Metis user linking failed.', 500);
-            }
-        } else {
-            $person_payload = [
-                'auth_provider' => 'workspace',
-                'email' => $primary_email,
-                'first_name' => $first_name !== '' ? $first_name : null,
-                'last_name' => $last_name !== '' ? $last_name : null,
-                'display_name' => $display_name,
-                'is_workspace_user' => 1,
-                'workspace_email' => $primary_email,
-            ];
-            $person_format = ['%s', '%s', '%s', '%s', '%s', '%d', '%s'];
-            if (function_exists('metis_entity_id_service')) {
-                $person_payload = metis_entity_id_service()->assignForInsert('person', $person_payload);
-                $person_format[] = '%s';
-            } else {
-                $person_payload['pid'] = metis_generate_code('PE', $people_table, 'pid');
-                $person_format[] = '%s';
-            }
-            $ok = $db->insert($people_table, $person_payload, $person_format);
-            if (!$ok) {
-                metis_runtime_send_json_error('Workspace user saved, but Metis user creation failed.', 500);
-            }
-            $person_id = (int) $db->lastInsertId();
-            $created_metis_user = true;
-            if ($person_id > 0 && function_exists('metis_entity_id_service')) {
-                metis_entity_id_service()->register('person', $person_id, (string) ($person_payload['person_uid'] ?? $person_payload['pid'] ?? ''));
-            }
-        }
-        if ($person_id > 0) {
-            $linked_pid_out = (string) $db->scalar("SELECT pid FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
-            $person_url_out = ($linked_pid_out !== '' && function_exists('metis_people_person_url')) ? (string) metis_people_person_url($linked_pid_out) : '';
-            $link_ok = $db->update(
-                $users_table,
-                ['person_id' => $person_id, 'sync_status' => 'synced'],
-                ['id' => $workspace_user_id],
-                ['%d', '%s'],
-                ['%d']
-            );
-            if ($link_ok === false) {
-                metis_runtime_send_json_error('Metis user was created but linking failed.', 500);
-            }
-            metis_people_log_activity($person_id, 'workspace_user_linked_to_person', 'Linked workspace user to Metis person', [
-                'workspace_user_id' => $workspace_user_id,
-                'primary_email' => $primary_email,
-                'pid' => $linked_pid_out,
-            ]);
-            $metis_user = [
-                'ok' => true,
-                'created' => $created_metis_user,
-                'person_id' => $person_id,
-                'pid' => $linked_pid_out,
-                'person_url' => $person_url_out,
-            ];
-        }
-    } elseif ($create_metis_user && $person_id !== null && $person_id > 0) {
-        $metis_user = [
-            'ok' => true,
-            'created' => false,
-            'person_id' => $person_id,
-            'pid' => $linked_pid_out,
-            'person_url' => $person_url_out,
-        ];
-    }
-
-    $drive_folder = null;
-    if ($create_drive_folder && $person_id !== null && $person_id > 0) {
-        $drive_folder = metis_people_workspace_autocreate_drive_folder((int) $person_id);
-    }
-
     metis_runtime_send_json_success([
-        'workspace_user_id' => $workspace_user_id,
-        'job_id' => $job_id,
-        'metis_user' => $metis_user,
-        'drive_folder' => $drive_folder,
-        'sync_warning' => $sync_warning,
-        'user' => [
-            'id' => $workspace_user_id,
-            'primary_email' => $primary_email,
-            'display_name' => $display_name,
-            'first_name' => $first_name,
-            'last_name' => $last_name,
-            'org_unit_path' => $org_unit_path,
-            'recovery_email' => $recovery_email,
-            'secondary_email' => $secondary_email,
-            'linked_pid' => $linked_pid_out !== '' ? $linked_pid_out : $linked_pid,
-            'linked_name' => $linked_name_out,
-            'person_url' => $person_url_out,
-            'is_suspended' => $is_suspended,
-            'is_protected' => $is_protected,
-            'is_hidden' => $is_hidden,
-            'role_keys' => $role_keys,
-            'group_ids' => $group_ids,
-        ],
+        'workspace_user_id' => (int) ($save['workspace_user_id'] ?? 0),
+        'job_id' => (int) ($save['job_id'] ?? 0),
+        'metis_user' => $save['metis_user'] ?? null,
+        'drive_folder' => $save['drive_folder'] ?? null,
+        'sync_warning' => (string) ($save['sync_warning'] ?? ''),
+        'user' => $save['user'] ?? [],
     ]);
 });
 
 metis_ajax_register_handler( 'metis_people_workspace_set_user_flags', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $users_table = Metis_Tables::get('people_workspace_users');
-
     $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user is required.', 400);
@@ -977,316 +336,86 @@ metis_ajax_register_handler( 'metis_people_workspace_set_user_flags', function (
 
     $has_hidden = isset(metis_request_post()['is_hidden']);
     $has_protected = isset(metis_request_post()['is_protected']);
-    if (!$has_hidden && !$has_protected) {
-        metis_runtime_send_json_error('No flag update was provided.', 400);
-    }
-
-    $row = $db->fetchOne(
-        "SELECT id, person_id, primary_email, is_suspended, is_protected, metadata_json
-         FROM {$users_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $workspace_user_id ]
+    $result = \Metis\Modules\People\WorkspaceUserService::updateFlags(
+        $workspace_user_id,
+        $has_hidden,
+        $has_protected,
+        !empty(metis_request_post()['is_hidden']) ? 1 : 0,
+        !empty(metis_request_post()['is_protected']) ? 1 : 0
     );
-    if (!$row) {
-        metis_runtime_send_json_error('Workspace user not found.', 404);
-    }
-
-    if ((int) ($row['person_id'] ?? 0) > 0) {
-        metis_runtime_send_json_error('Only non-Metis email users can be hidden or protected here.', 400);
-    }
-
-    $metadata = json_decode((string) ($row['metadata_json'] ?? ''), true);
-    if (!is_array($metadata)) $metadata = [];
-
-    $is_hidden = !empty($metadata['ui_hidden']) ? 1 : 0;
-    $is_protected = !empty($row['is_protected']) ? 1 : 0;
-    if ($has_hidden) {
-        $is_hidden = !empty(metis_request_post()['is_hidden']) ? 1 : 0;
-    }
-    if ($has_protected) {
-        $is_protected = !empty(metis_request_post()['is_protected']) ? 1 : 0;
-    }
-
-    if ($is_hidden) {
-        $metadata['ui_hidden'] = 1;
-    } else {
-        unset($metadata['ui_hidden']);
-    }
-
-    $ok = $db->update(
-        $users_table,
-        [
-            'is_protected' => $is_protected,
-            'metadata_json' => metis_json_encode($metadata),
-        ],
-        ['id' => $workspace_user_id],
-        ['%d', '%s'],
-        ['%d']
-    );
-    if ($ok === false) {
-        metis_runtime_send_json_error('Failed to update user flags.', 500);
-    }
 
     metis_people_log_activity(null, 'workspace_user_flags_updated', 'Updated workspace email user flags', [
-        'workspace_user_id' => $workspace_user_id,
-        'primary_email' => (string) ($row['primary_email'] ?? ''),
-        'is_hidden' => $is_hidden,
-        'is_protected' => $is_protected,
+        'workspace_user_id' => (int) ($result['workspace_user_id'] ?? $workspace_user_id),
+        'primary_email' => (string) ($result['primary_email'] ?? ''),
+        'is_hidden' => (int) ($result['is_hidden'] ?? 0),
+        'is_protected' => (int) ($result['is_protected'] ?? 0),
     ]);
 
     metis_runtime_send_json_success([
         'workspace_user_id' => $workspace_user_id,
         'user' => [
-            'is_hidden' => $is_hidden,
-            'is_protected' => $is_protected,
-            'is_suspended' => !empty($row['is_suspended']) ? 1 : 0,
+            'is_hidden' => (int) ($result['is_hidden'] ?? 0),
+            'is_protected' => (int) ($result['is_protected'] ?? 0),
+            'is_suspended' => (int) ($result['is_suspended'] ?? 0),
         ],
     ]);
 });
 
 metis_ajax_register_handler( 'metis_people_workspace_create_metis_user', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $people_table = Metis_Tables::get('people');
-
     $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user is required.', 400);
     }
-
-    $workspace_user = $db->fetchOne(
-        "SELECT id, person_id, primary_email, first_name, last_name, display_name
-         FROM {$users_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $workspace_user_id ]
-    );
-    if (!$workspace_user) {
-        metis_runtime_send_json_error('Workspace user not found.', 404);
-    }
-
-    $primary_email = strtolower(trim((string) ($workspace_user['primary_email'] ?? '')));
-    if (!metis_email_is_valid($primary_email)) {
-        metis_runtime_send_json_error('Workspace user email is invalid.', 400);
-    }
-
-    $linked_person_id = (int) ($workspace_user['person_id'] ?? 0);
-    if ($linked_person_id > 0) {
-        $pid = (string) $db->scalar("SELECT pid FROM {$people_table} WHERE id = %d LIMIT 1", [ $linked_person_id ]);
-        $drive_folder = metis_people_workspace_autocreate_drive_folder($linked_person_id);
-        metis_runtime_send_json_success([
-            'person_id' => $linked_person_id,
-            'pid' => $pid,
-            'already_linked' => 1,
-            'person_url' => $pid !== '' ? metis_people_person_url($pid) : '',
-            'drive_folder' => $drive_folder,
-        ]);
-    }
-
-    $existing_person = $db->fetchOne(
-        "SELECT id, pid, display_name, first_name, last_name, is_workspace_user, workspace_email
-         FROM {$people_table}
-         WHERE workspace_email = %s OR email = %s
-         ORDER BY id ASC
-         LIMIT 1",
-        [ $primary_email, $primary_email ]
-    );
-    $person_id = (int) ($existing_person['id'] ?? 0);
-
-    $first_name = trim((string) ($workspace_user['first_name'] ?? ''));
-    $last_name = trim((string) ($workspace_user['last_name'] ?? ''));
-    $display_name = $first_name;
-    if ($display_name === '') $display_name = trim((string) ($workspace_user['display_name'] ?? ''));
-    if ($display_name === '') $display_name = trim($first_name . ' ' . $last_name);
-    if ($display_name === '') {
-        $display_name = $primary_email;
-    }
-
-    if ($person_id > 0) {
-        $update_payload = [
-            'auth_provider' => 'workspace',
-            'is_workspace_user' => 1,
-            'workspace_email' => $primary_email,
-        ];
-        $update_format = ['%s', '%d', '%s'];
-
-        if (trim((string) ($existing_person['display_name'] ?? '')) === '' && $display_name !== '') {
-            $update_payload['display_name'] = $display_name;
-            $update_format[] = '%s';
-        }
-        if (trim((string) ($existing_person['first_name'] ?? '')) === '' && $first_name !== '') {
-            $update_payload['first_name'] = $first_name;
-            $update_format[] = '%s';
-        }
-        if (trim((string) ($existing_person['last_name'] ?? '')) === '' && $last_name !== '') {
-            $update_payload['last_name'] = $last_name;
-            $update_format[] = '%s';
-        }
-
-        $updated = $db->update($people_table, $update_payload, ['id' => $person_id], $update_format, ['%d']);
-        if ($updated === false) {
-            metis_runtime_send_json_error('Failed to link existing person.', 500);
-        }
-    } else {
-        $payload = [
-            'auth_provider' => 'workspace',
-            'email' => $primary_email,
-            'first_name' => $first_name !== '' ? $first_name : null,
-            'last_name' => $last_name !== '' ? $last_name : null,
-            'display_name' => $display_name,
-            'is_workspace_user' => 1,
-            'workspace_email' => $primary_email,
-        ];
-        $format = ['%s', '%s', '%s', '%s', '%s', '%d', '%s'];
-        if (function_exists('metis_entity_id_service')) {
-            $payload = metis_entity_id_service()->assignForInsert('person', $payload);
-            $format[] = '%s';
-        } else {
-            $payload['pid'] = metis_generate_code('PE', $people_table, 'pid');
-            $format[] = '%s';
-        }
-        $ok = $db->insert($people_table, $payload, $format);
-        if (!$ok) {
-            metis_runtime_send_json_error('Failed to create Metis user.', 500);
-        }
-        $person_id = (int) $db->lastInsertId();
-        if ($person_id > 0 && function_exists('metis_entity_id_service')) {
-            metis_entity_id_service()->register('person', $person_id, (string) ($payload['person_uid'] ?? $payload['pid'] ?? ''));
-        }
-    }
-
-    $pid = (string) $db->scalar("SELECT pid FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
-    $link_ok = $db->update(
-        $users_table,
-        ['person_id' => $person_id, 'sync_status' => 'synced'],
-        ['id' => $workspace_user_id],
-        ['%d', '%s'],
-        ['%d']
-    );
-    if ($link_ok === false) {
-        metis_runtime_send_json_error('Metis user was created but linking failed.', 500);
-    }
-
-    metis_people_log_activity($person_id, 'workspace_user_linked_to_person', 'Linked workspace user to Metis person', [
-        'workspace_user_id' => $workspace_user_id,
-        'primary_email' => $primary_email,
-        'pid' => $pid,
-    ]);
-
-    $drive_folder = metis_people_workspace_autocreate_drive_folder($person_id);
+    $result = \Metis\Modules\People\WorkspaceUserService::createMetisUser($workspace_user_id);
 
     metis_runtime_send_json_success([
-        'person_id' => $person_id,
-        'pid' => $pid,
-        'person_url' => $pid !== '' ? metis_people_person_url($pid) : '',
+        'person_id' => (int) ($result['person_id'] ?? 0),
+        'pid' => (string) ($result['pid'] ?? ''),
+        'already_linked' => !empty($result['already_linked']) ? 1 : 0,
+        'person_url' => (string) ($result['person_url'] ?? ''),
         'workspace_user_id' => $workspace_user_id,
-        'drive_folder' => $drive_folder,
+        'drive_folder' => $result['drive_folder'] ?? null,
     ]);
 });
 
 metis_ajax_register_handler( 'metis_people_workspace_delete_user', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $user_roles_table = Metis_Tables::get('people_workspace_user_roles');
-    $group_members_table = Metis_Tables::get('people_workspace_group_members');
-    $security_actions_table = Metis_Tables::get('people_workspace_security_actions');
-
     $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     if ($workspace_user_id < 1) {
         metis_runtime_send_json_error('Workspace user is required.', 400);
     }
-
-    $user_row = $db->fetchOne(
-        "SELECT id, person_id, primary_email, is_protected
-         FROM {$users_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $workspace_user_id ]
-    );
-    if (!$user_row) {
-        metis_runtime_send_json_error('Workspace user not found.', 404);
-    }
-    if (!empty($user_row['is_protected'])) {
-        metis_runtime_send_json_error('Protected workspace users cannot be deleted.', 400);
-    }
-    if ((int) ($user_row['person_id'] ?? 0) > 0) {
-        metis_runtime_send_json_error('Linked Metis users cannot be deleted here.', 400);
-    }
-
-    $primary_email = strtolower(trim((string) ($user_row['primary_email'] ?? '')));
-    if (!metis_email_is_valid($primary_email)) {
-        metis_runtime_send_json_error('Workspace email is invalid.', 400);
-    }
-
-    $cfg = metis_people_workspace_sync_settings();
-    if (!empty($cfg['ok'])) {
-        $remote = metis_people_workspace_google_request('DELETE', 'users/' . rawurlencode($primary_email), null, $cfg);
-        if (empty($remote['ok'])) {
-            metis_runtime_send_json_error('Failed to delete workspace account in Google.', 400);
-        }
-    }
-
-    $db->delete($group_members_table, ['workspace_user_id' => $workspace_user_id], ['%d']);
-    $db->delete($user_roles_table, ['workspace_user_id' => $workspace_user_id], ['%d']);
-    $db->delete($security_actions_table, ['workspace_user_id' => $workspace_user_id], ['%d']);
-    $deleted = $db->delete($users_table, ['id' => $workspace_user_id], ['%d']);
-    if ($deleted === false) {
-        metis_runtime_send_json_error('Failed to delete workspace user record.', 500);
-    }
-
+    $result = \Metis\Modules\People\WorkspaceUserService::deleteUser($workspace_user_id);
     metis_people_log_activity(null, 'workspace_user_deleted', 'Deleted workspace email user', [
-        'workspace_user_id' => $workspace_user_id,
-        'primary_email' => $primary_email,
+        'workspace_user_id' => (int) ($result['workspace_user_id'] ?? $workspace_user_id),
+        'primary_email' => (string) ($result['primary_email'] ?? ''),
     ]);
     metis_runtime_send_json_success(['workspace_user_id' => $workspace_user_id]);
 });
 
 metis_ajax_register_handler( 'metis_people_workspace_run_security_action', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $actions_table = Metis_Tables::get('people_workspace_security_actions');
-
     $workspace_user_id = isset(metis_request_post()['workspace_user_id']) ? (int) metis_runtime_unslash(metis_request_post()['workspace_user_id']) : 0;
     $action_type = isset(metis_request_post()['action_type']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['action_type'])) : '';
     $reason = isset(metis_request_post()['reason']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['reason'])) : '';
-    $allowed_actions = ['reset_password', 'revoke_sessions', 'force_2fa_reenroll', 'suspend_account', 'unsuspend_account'];
-    if ($workspace_user_id < 1 || !in_array($action_type, $allowed_actions, true) || trim($reason) === '') {
-        metis_runtime_send_json_error('Valid user, action, and reason are required.', 400);
-    }
-    $user_row = $db->fetchOne("SELECT id, person_id, primary_email FROM {$users_table} WHERE id = %d LIMIT 1", [ $workspace_user_id ]);
-    if (!$user_row) metis_runtime_send_json_error('Workspace user not found.', 404);
     $actor = metis_people_get_current_person_id();
-    $db->insert($actions_table, [
-        'workspace_user_id' => $workspace_user_id,
-        'action_type' => $action_type,
-        'requested_by_person_id' => $actor > 0 ? $actor : null,
-        'status' => 'pending',
-        'reason' => $reason,
-    ], ['%d', '%s', '%d', '%s', '%s']);
-    if ($action_type === 'suspend_account' || $action_type === 'unsuspend_account') {
-        $db->update($users_table, [
-            'is_suspended' => $action_type === 'suspend_account' ? 1 : 0,
-            'sync_status' => 'queued',
-        ], ['id' => $workspace_user_id], ['%d', '%s'], ['%d']);
-    }
-    $job_id = metis_people_workspace_queue_job(
-        'workspace_security_action',
-        'workspace_user',
+    $result = \Metis\Modules\People\WorkspaceUserService::queueSecurityAction(
         $workspace_user_id,
-        $actor > 0 ? $actor : null,
-        ['action_type' => $action_type, 'reason' => $reason]
+        $action_type,
+        $reason,
+        $actor > 0 ? $actor : null
     );
-    metis_people_log_activity((int) ($user_row['person_id'] ?? 0) ?: null, 'workspace_security_action', 'Queued workspace security action', [
-        'workspace_user_id' => $workspace_user_id,
-        'primary_email' => (string) ($user_row['primary_email'] ?? ''),
-        'action_type' => $action_type,
-        'job_id' => $job_id,
+    metis_people_log_activity((int) ($result['person_id'] ?? 0) ?: null, 'workspace_security_action', 'Queued workspace security action', [
+        'workspace_user_id' => (int) ($result['workspace_user_id'] ?? $workspace_user_id),
+        'primary_email' => (string) ($result['primary_email'] ?? ''),
+        'action_type' => (string) ($result['action_type'] ?? $action_type),
+        'job_id' => (int) ($result['job_id'] ?? 0),
     ]);
-    metis_runtime_send_json_success(['ok' => 1, 'job_id' => $job_id, 'action_type' => $action_type]);
+    metis_runtime_send_json_success([
+        'ok' => 1,
+        'job_id' => (int) ($result['job_id'] ?? 0),
+        'action_type' => (string) ($result['action_type'] ?? $action_type),
+    ]);
 });
 
 metis_ajax_register_handler( 'metis_people_workspace_get_activity_page', function () {
@@ -1301,12 +430,6 @@ metis_ajax_register_handler( 'metis_people_workspace_get_activity_page', functio
 
 metis_ajax_register_handler( 'metis_people_bulk_workspace_user_action', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-    $users_table = Metis_Tables::get('people_workspace_users');
-    $workspace_actions_table = Metis_Tables::get('people_workspace_security_actions');
-    $user_roles_table = Metis_Tables::get('people_user_roles');
-
     $action_type = isset(metis_request_post()['workspace_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['workspace_action'])) : '';
     $org_unit_path = isset(metis_request_post()['org_unit_path']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['org_unit_path'])) : '/';
     $person_pids = [];
@@ -1320,235 +443,32 @@ metis_ajax_register_handler( 'metis_people_bulk_workspace_user_action', function
         }
     }
     $person_pids = array_values(array_unique($person_pids));
-    if (empty($person_pids)) {
-        metis_runtime_send_json_error('Select at least one person.', 400);
-    }
-
-    $allowed_actions = [
-        'set_org_unit',
-        'suspend_account',
-        'unsuspend_account',
-        'reset_password',
-        'set_hidden',
-        'clear_hidden',
-        'create_drive_folder',
-        'sync_now',
-    ];
-    if (!in_array($action_type, $allowed_actions, true)) {
-        metis_runtime_send_json_error('Invalid workspace action.', 400);
-    }
-    if ($action_type === 'set_org_unit') {
-        $org_unit_path = trim($org_unit_path);
-        if ($org_unit_path === '') $org_unit_path = '/';
-        if (substr($org_unit_path, 0, 1) !== '/') {
-            metis_runtime_send_json_error('Org Unit must start with "/".', 400);
-        }
-    }
-
-    $needs_remote = in_array($action_type, ['set_org_unit', 'suspend_account', 'unsuspend_account', 'reset_password', 'sync_now'], true);
-    $cfg = [];
-    if ($needs_remote) {
-        $cfg = metis_people_workspace_sync_settings();
-        if (empty($cfg['ok'])) {
-            metis_runtime_send_json_error('Workspace settings are not configured.', 400);
-        }
-    }
-
     $actor = metis_people_get_current_person_id();
-    $updated = 0;
-    $skipped = 0;
-    $failed = 0;
-    $errors = [];
-
-    foreach ($person_pids as $pid) {
-        $person = $db->fetchOne(
-            "SELECT id, pid, display_name, email, workspace_email
-             FROM {$people_table}
-             WHERE pid = %s
-             LIMIT 1",
-            [ $pid ]
-        );
-        if (!$person) {
-            $skipped++;
-            continue;
-        }
-
-        $person_id = (int) ($person['id'] ?? 0);
-        $workspace_email = strtolower(trim((string) ($person['workspace_email'] ?? '')));
-        if (!metis_email_is_valid($workspace_email)) {
-            $workspace_email = strtolower(trim((string) ($person['email'] ?? '')));
-        }
-        $workspace_user = null;
-        if ($person_id > 0) {
-            $workspace_user = $db->fetchOne(
-                "SELECT id, person_id, primary_email, org_unit_path, is_suspended, metadata_json
-                 FROM {$users_table}
-                 WHERE person_id = %d
-                 LIMIT 1",
-                [ $person_id ]
-            );
-        }
-        if (!$workspace_user && metis_email_is_valid($workspace_email)) {
-            $workspace_user = $db->fetchOne(
-                "SELECT id, person_id, primary_email, org_unit_path, is_suspended, metadata_json
-                 FROM {$users_table}
-                 WHERE primary_email = %s
-                 LIMIT 1",
-                [ $workspace_email ]
-            );
-        }
-
-        if ($action_type === 'create_drive_folder') {
-            if ($person_id < 1) {
-                $skipped++;
-                continue;
-            }
-            $created = metis_people_workspace_autocreate_drive_folder($person_id);
-            if (empty($created['ok'])) {
-                $failed++;
-                $errors[] = (string) ($person['display_name'] ?? $pid) . ': ' . (string) ($created['error'] ?? 'Drive folder creation failed.');
-                continue;
-            }
-            $updated++;
-            continue;
-        }
-
-        if (!$workspace_user) {
-            $skipped++;
-            continue;
-        }
-        $workspace_user_id = (int) ($workspace_user['id'] ?? 0);
-        if ($workspace_user_id < 1) {
-            $skipped++;
-            continue;
-        }
-
-        if ($action_type === 'set_hidden' || $action_type === 'clear_hidden') {
-            $metadata = json_decode((string) ($workspace_user['metadata_json'] ?? ''), true);
-            if (!is_array($metadata)) $metadata = [];
-            if ($action_type === 'set_hidden') {
-                $metadata['ui_hidden'] = 1;
-            } else {
-                unset($metadata['ui_hidden']);
-            }
-            $ok = $db->update(
-                $users_table,
-                ['metadata_json' => metis_json_encode($metadata), 'updated_at' => metis_current_time('mysql')],
-                ['id' => $workspace_user_id],
-                ['%s', '%s'],
-                ['%d']
-            );
-            if ($ok === false) {
-                $failed++;
-                $errors[] = (string) ($person['display_name'] ?? $pid) . ': failed to update local hidden flag.';
-                continue;
-            }
-            $updated++;
-            continue;
-        }
-
-        if ($action_type === 'set_org_unit') {
-            $db->update(
-                $users_table,
-                ['org_unit_path' => $org_unit_path, 'sync_status' => 'queued', 'updated_at' => metis_current_time('mysql')],
-                ['id' => $workspace_user_id],
-                ['%s', '%s', '%s'],
-                ['%d']
-            );
-            $job_payload = [
-                'primary_email' => (string) ($workspace_user['primary_email'] ?? ''),
-                'roles' => metis_people_workspace_role_keys_for_user($workspace_user_id),
-                'is_suspended' => !empty($workspace_user['is_suspended']) ? 1 : 0,
-                'reason' => 'bulk_set_org_unit',
-            ];
-            $result = metis_people_workspace_execute_job([
-                'job_type' => 'workspace_user_upsert',
-                'entity_type' => 'workspace_user',
-                'entity_id' => $workspace_user_id,
-                'payload_json' => metis_json_encode($job_payload),
-            ], $cfg, false);
-            if (empty($result['ok'])) {
-                $failed++;
-                $errors[] = (string) ($person['display_name'] ?? $pid) . ': ' . (string) ($result['error'] ?? 'Org Unit update failed.');
-                continue;
-            }
-            $updated++;
-            continue;
-        }
-
-        if ($action_type === 'sync_now') {
-            $job_payload = [
-                'primary_email' => (string) ($workspace_user['primary_email'] ?? ''),
-                'roles' => metis_people_workspace_role_keys_for_user($workspace_user_id),
-                'is_suspended' => !empty($workspace_user['is_suspended']) ? 1 : 0,
-                'reason' => 'bulk_sync_now',
-            ];
-            $result = metis_people_workspace_execute_job([
-                'job_type' => 'workspace_user_upsert',
-                'entity_type' => 'workspace_user',
-                'entity_id' => $workspace_user_id,
-                'payload_json' => metis_json_encode($job_payload),
-            ], $cfg, false);
-            if (empty($result['ok'])) {
-                $failed++;
-                $errors[] = (string) ($person['display_name'] ?? $pid) . ': ' . (string) ($result['error'] ?? 'Sync failed.');
-                continue;
-            }
-            $updated++;
-            continue;
-        }
-
-        if (in_array($action_type, ['suspend_account', 'unsuspend_account', 'reset_password'], true)) {
-            $db->insert($workspace_actions_table, [
-                'workspace_user_id' => $workspace_user_id,
-                'action_type' => $action_type,
-                'requested_by_person_id' => $actor > 0 ? $actor : null,
-                'status' => 'pending',
-                'reason' => 'bulk_workspace_action',
-            ], ['%d', '%s', '%d', '%s', '%s']);
-            if ($action_type === 'suspend_account' || $action_type === 'unsuspend_account') {
-                $db->update(
-                    $users_table,
-                    ['is_suspended' => $action_type === 'suspend_account' ? 1 : 0, 'sync_status' => 'queued', 'updated_at' => metis_current_time('mysql')],
-                    ['id' => $workspace_user_id],
-                    ['%d', '%s', '%s'],
-                    ['%d']
-                );
-            }
-            $result = metis_people_workspace_execute_job([
-                'job_type' => 'workspace_security_action',
-                'entity_type' => 'workspace_user',
-                'entity_id' => $workspace_user_id,
-                'payload_json' => metis_json_encode(['action_type' => $action_type, 'reason' => 'bulk_workspace_action']),
-            ], $cfg, false);
-            if (empty($result['ok'])) {
-                $failed++;
-                $errors[] = (string) ($person['display_name'] ?? $pid) . ': ' . (string) ($result['error'] ?? 'Workspace security action failed.');
-                continue;
-            }
-            $updated++;
-            continue;
-        }
-    }
+    $result = \Metis\Modules\People\WorkspaceUserService::bulkAction(
+        $action_type,
+        $org_unit_path,
+        $person_pids,
+        $actor > 0 ? $actor : null
+    );
 
     metis_people_log_activity(null, 'bulk_workspace_user_action', 'Ran bulk workspace user action', [
-        'workspace_action' => $action_type,
-        'org_unit_path' => $action_type === 'set_org_unit' ? $org_unit_path : '',
-        'updated' => $updated,
-        'skipped' => $skipped,
-        'failed' => $failed,
+        'workspace_action' => (string) ($result['workspace_action'] ?? $action_type),
+        'org_unit_path' => (string) ($result['org_unit_path'] ?? ''),
+        'updated' => (int) ($result['updated'] ?? 0),
+        'skipped' => (int) ($result['skipped'] ?? 0),
+        'failed' => (int) ($result['failed'] ?? 0),
     ]);
 
     metis_runtime_send_json_success([
-        'updated' => $updated,
-        'skipped' => $skipped,
-        'failed' => $failed,
-        'errors' => array_slice($errors, 0, 5),
+        'updated' => (int) ($result['updated'] ?? 0),
+        'skipped' => (int) ($result['skipped'] ?? 0),
+        'failed' => (int) ($result['failed'] ?? 0),
+        'errors' => (array) ($result['errors'] ?? []),
     ]);
 });
 
 metis_ajax_register_handler( 'metis_people_attach_drive_folder', function () {
-    metis_people_ajax_verify();
+    metis_people_workspace_ajax_verify();
     if (
         !function_exists('metis_drive_workspace_settings')
         || !function_exists('metis_drive_find_or_create_user_folder')
@@ -1610,7 +530,7 @@ metis_ajax_register_handler( 'metis_people_attach_drive_folder', function () {
 });
 
 metis_ajax_register_handler( 'metis_people_drive_folder_picker', function () {
-    metis_people_ajax_verify();
+    metis_people_workspace_ajax_verify();
     if (
         !function_exists('metis_drive_workspace_settings')
         || !function_exists('metis_drive_get_users_root_folder')
@@ -1693,7 +613,7 @@ metis_ajax_register_handler( 'metis_people_drive_folder_picker', function () {
 });
 
 metis_ajax_register_handler( 'metis_people_attach_drive_folder_selection', function () {
-    metis_people_ajax_verify();
+    metis_people_workspace_ajax_verify();
     if (
         !function_exists('metis_drive_workspace_settings')
         || !function_exists('metis_drive_get_users_root_folder')
@@ -1845,9 +765,7 @@ metis_ajax_register_handler( 'metis_people_workspace_process_queue', function ()
         }
         if ($processed < 1) break;
     }
-    $jobs_table = Metis_Tables::get('people_workspace_sync_jobs');
-    $remaining = (int) metis_db()->scalar("SELECT COUNT(*) FROM {$jobs_table} WHERE status = 'queued'");
-    $total['remaining_queued'] = $remaining;
+    $total['remaining_queued'] = \Metis\Modules\People\WorkspaceActivityService::countQueuedJobs();
     $total['loops'] = $loops;
     metis_runtime_send_json_success($total);
 });

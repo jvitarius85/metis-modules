@@ -27,11 +27,6 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 metis_ajax_register_handler( 'metis_people_save_role', function () {
     metis_people_ajax_verify();
 
-    $db = metis_db();
-    $roles_table = Metis_Tables::get('people_roles');
-    $perms_table = Metis_Tables::get('people_permissions');
-    $role_perms_table = Metis_Tables::get('people_role_perms');
-
     $role_id = isset(metis_request_post()['role_id']) ? (int) metis_runtime_unslash(metis_request_post()['role_id']) : 0;
     $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
     $role_domain = isset(metis_request_post()['role_domain']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_domain'])) : 'metis';
@@ -58,44 +53,12 @@ metis_ajax_register_handler( 'metis_people_save_role', function () {
         $role_domain = 'metis';
     }
 
-    $conflict = (int) $db->scalar(
-        "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = %s AND id <> %d LIMIT 1",
-        [ $role_key, $role_domain, $role_id ]
-    );
+    $conflict = \Metis\Modules\People\RoleManagementService::roleConflictId($role_key, $role_domain, $role_id);
     if ($conflict > 0) {
         metis_runtime_send_json_error('Role key already exists.', 400);
     }
 
-    if ($role_id > 0) {
-        $ok = $db->update(
-            $roles_table,
-            ['role_key' => $role_key, 'role_domain' => $role_domain, 'role_name' => $role_name, 'description' => $description],
-            ['id' => $role_id],
-            ['%s', '%s', '%s', '%s'],
-            ['%d']
-        );
-        if ($ok === false) metis_runtime_send_json_error('Failed to update role.', 500);
-    } else {
-        $ok = $db->insert(
-            $roles_table,
-            ['role_key' => $role_key, 'role_domain' => $role_domain, 'role_name' => $role_name, 'description' => $description, 'is_system' => 0],
-            ['%s', '%s', '%s', '%s', '%d']
-        );
-        if (!$ok) metis_runtime_send_json_error('Failed to create role.', 500);
-        $role_id = (int) $db->lastInsertId();
-    }
-
-    $db->delete($role_perms_table, ['role_id' => $role_id], ['%d']);
-
-    foreach ($permissions as $perm_key) {
-        $perm_id = (int) $db->scalar("SELECT id FROM {$perms_table} WHERE permission_key = %s LIMIT 1", [ $perm_key ]);
-        if ($perm_id < 1) continue;
-        $db->insert($role_perms_table, [
-            'role_id' => $role_id,
-            'permission_id' => $perm_id,
-            'allow_access' => 1,
-        ], ['%d', '%d', '%d']);
-    }
+    $role_id = \Metis\Modules\People\RoleManagementService::saveRole($role_id, $role_key, $role_domain, $role_name, $description, $permissions);
     metis_people_log_activity(null, 'role_saved', 'Saved role definition', [
         'role_key' => $role_key,
         'role_domain' => $role_domain,
@@ -110,11 +73,6 @@ metis_ajax_register_handler( 'metis_people_save_role', function () {
 
 metis_ajax_register_handler( 'metis_people_bulk_role_action', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-
-    $people_table = Metis_Tables::get('people');
-    $roles_table = Metis_Tables::get('people_roles');
-    $user_roles_table = Metis_Tables::get('people_user_roles');
 
     $action_type = isset(metis_request_post()['bulk_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['bulk_action'])) : '';
     $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
@@ -133,26 +91,22 @@ metis_ajax_register_handler( 'metis_people_bulk_role_action', function () {
         metis_runtime_send_json_error('Role, action, and people are required.', 400);
     }
 
-    $role_id = (int) $db->scalar(
-        "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = 'metis' LIMIT 1",
-        [ $role_key ]
-    );
+    $role_id = \Metis\Modules\People\RoleManagementService::roleIdByKey($role_key, 'metis');
     if ($role_id < 1) {
         metis_runtime_send_json_error('Invalid Metis role.', 400);
     }
 
     $updated = 0;
     foreach ($person_pids as $pid) {
-        $person_id = (int) $db->scalar("SELECT id FROM {$people_table} WHERE pid = %s LIMIT 1", [ $pid ]);
+        $person_id = \Metis\Modules\People\RoleManagementService::personIdByPid($pid);
         if ($person_id < 1) continue;
         if ($action_type === 'assign') {
-            $exists = (int) $db->scalar("SELECT id FROM {$user_roles_table} WHERE person_id = %d AND role_id = %d LIMIT 1", [ $person_id, $role_id ]);
-            if ($exists > 0) continue;
-            $ok = $db->insert($user_roles_table, ['person_id' => $person_id, 'role_id' => $role_id], ['%d', '%d']);
+            $exists = \Metis\Modules\People\RoleManagementService::hasUserRole($person_id, $role_id);
+            if ($exists) continue;
+            $ok = \Metis\Modules\People\RoleManagementService::assignUserRole($person_id, $role_id);
             if ($ok) $updated++;
         } else {
-            $ok = $db->delete($user_roles_table, ['person_id' => $person_id, 'role_id' => $role_id], ['%d', '%d']);
-            if ($ok) $updated += (int) $ok;
+            $updated += \Metis\Modules\People\RoleManagementService::removeUserRole($person_id, $role_id);
         }
     }
 
@@ -166,10 +120,6 @@ metis_ajax_register_handler( 'metis_people_bulk_role_action', function () {
 
 metis_ajax_register_handler( 'metis_people_bulk_stripe_role_action', function () {
     metis_people_workspace_ajax_verify();
-    $db = metis_db();
-
-    $people_table = Metis_Tables::get('people');
-    $roles_table = Metis_Tables::get('people_roles');
 
     $action_type = isset(metis_request_post()['bulk_action']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['bulk_action'])) : '';
     $stripe_role = isset(metis_request_post()['stripe_role']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['stripe_role'])) : '';
@@ -189,10 +139,7 @@ metis_ajax_register_handler( 'metis_people_bulk_stripe_role_action', function ()
     }
     if ($action_type === 'set') {
         if ($stripe_role === '') metis_runtime_send_json_error('Stripe role is required for set action.', 400);
-        $role_exists = (int) $db->scalar(
-            "SELECT id FROM {$roles_table} WHERE role_key = %s AND role_domain = 'stripe' LIMIT 1",
-            [ $stripe_role ]
-        );
+        $role_exists = \Metis\Modules\People\RoleManagementService::roleIdByKey($stripe_role, 'stripe');
         if ($role_exists < 1) {
             metis_runtime_send_json_error('Invalid Stripe role.', 400);
         }
@@ -202,20 +149,12 @@ metis_ajax_register_handler( 'metis_people_bulk_stripe_role_action', function ()
     $updated = 0;
     $queued = 0;
     foreach ($person_pids as $pid) {
-        $person = $db->fetchOne(
-            "SELECT id, pid, workspace_email, is_workspace_user, status, lifecycle_status FROM {$people_table} WHERE pid = %s LIMIT 1",
-            [ $pid ]
-        );
+        $person = \Metis\Modules\People\RoleManagementService::getPersonSummaryByPid($pid);
         if (!$person) continue;
         $person_id = (int) ($person['id'] ?? 0);
         if ($person_id < 1) continue;
         $new_role = $action_type === 'set' ? $stripe_role : null;
-        $ok = $db->update(
-            $people_table,
-            ['stripe_role' => $new_role, 'updated_at' => metis_current_time('mysql')],
-            ['id' => $person_id]
-        );
-        if ($ok === false) continue;
+        if (!\Metis\Modules\People\RoleManagementService::updateStripeRole($person_id, $new_role)) continue;
         $updated++;
 
         $workspace_email = strtolower(trim((string) ($person['workspace_email'] ?? '')));
@@ -251,8 +190,6 @@ metis_ajax_register_handler( 'metis_people_bulk_stripe_role_action', function ()
 
 metis_ajax_register_handler( 'metis_people_bulk_profile_action', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
 
     $position_type = isset(metis_request_post()['position_type']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['position_type'])) : '';
     $position_value = isset(metis_request_post()['position_value']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['position_value'])) : '';
@@ -279,36 +216,9 @@ metis_ajax_register_handler( 'metis_people_bulk_profile_action', function () {
 
     $updated = 0;
     foreach ($person_pids as $pid) {
-        $person_id = (int) $db->scalar("SELECT id FROM {$people_table} WHERE pid = %s LIMIT 1", [ $pid ]);
+        $person_id = \Metis\Modules\People\RoleManagementService::personIdByPid($pid);
         if ($person_id < 1) continue;
-
-        $payload = [
-            'is_board' => 0,
-            'is_staff' => 0,
-            'is_volunteer' => 0,
-            'board_position' => null,
-            'staff_position' => null,
-            'volunteer_position' => null,
-            'updated_at' => metis_current_time('mysql'),
-        ];
-        if ($position_type === 'board') {
-            $payload['is_board'] = 1;
-            $payload['board_position'] = trim($position_value);
-        } elseif ($position_type === 'staff') {
-            $payload['is_staff'] = 1;
-            $payload['staff_position'] = trim($position_value);
-        } elseif ($position_type === 'volunteer') {
-            $payload['is_volunteer'] = 1;
-            $payload['volunteer_position'] = trim($position_value);
-        }
-
-        $ok = $db->update(
-            $people_table,
-            $payload,
-            ['id' => $person_id],
-            ['%d', '%d', '%d', '%s', '%s', '%s', '%s'],
-            ['%d']
-        );
+        $ok = \Metis\Modules\People\RoleManagementService::updateBulkProfilePosition($person_id, $position_type, $position_value);
         if ($ok !== false) $updated++;
     }
 

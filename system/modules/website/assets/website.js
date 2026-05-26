@@ -220,7 +220,6 @@ var MetisWebsite = {
     _bindingsApplied: false,
 
     init: function() {
-        this._ensureToast();
         if (!this._bindingsApplied) {
             this._bindDashboardActions();
             this._bindPageActions();
@@ -231,31 +230,6 @@ var MetisWebsite = {
             this._bindingsApplied = true;
         }
         this._maybeLaunchQuickAction();
-    },
-
-    _ensureToast: function() {
-        if (typeof window.metis_toast !== 'function') {
-            window.metis_toast = function(message, level) {
-                if (message && window.console && typeof window.console.log === 'function') {
-                    window.console.log(String(level || 'info') + ': ' + String(message));
-                }
-            };
-        }
-        if (typeof window.metis_confirm !== 'function') {
-            window.metis_confirm = function(message, onConfirm, options) {
-                if (window.Metis && Metis.confirm && typeof Metis.confirm.open === 'function') {
-                    return Metis.confirm.open(Object.assign({}, options || {}, {
-                        message: String(message || 'Are you sure?')
-                    })).then(function(confirmed) {
-                        if (confirmed && typeof onConfirm === 'function') {
-                            onConfirm();
-                        }
-                        return confirmed;
-                    });
-                }
-                return Promise.resolve(false);
-            };
-        }
     },
 
     _portalBasePath: function() {

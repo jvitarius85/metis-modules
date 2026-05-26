@@ -819,53 +819,7 @@
     }
 
     async function request(action, body) {
-      const actionNonces = Object.assign({}, coreAjax.action_nonces || {}, ajax.action_nonces || {});
-      const nonce = String(actionNonces[action] || ajax.nonce || coreAjax.nonce || '');
-      const ajaxUrl = String(
-        ajax.ajax_url ||
-        coreAjax.ajax_url ||
-        (typeof metisResolveAjaxUrl === 'function' ? metisResolveAjaxUrl() : '/api/ajax')
-      );
-      const params = new URLSearchParams({action, nonce});
-      Object.entries(body || {}).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) params.append(key, String(value));
-      });
-
-      let headers = typeof metisCsrfHeaders === 'function' ? metisCsrfHeaders(nonce) : new Headers();
-      if (!(headers instanceof Headers)) {
-        const normalized = new Headers();
-        Object.entries(headers || {}).forEach(([key, value]) => normalized.set(key, String(value)));
-        headers = normalized;
-      }
-      headers.set('X-Requested-With', 'XMLHttpRequest');
-      headers.set('Accept', 'application/json');
-
-      const response = await fetch(ajaxUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers,
-        body: params
-      });
-
-      const raw = await response.text();
-      let payload = null;
-      try {
-        payload = raw ? JSON.parse(raw) : null;
-      } catch (_) {
-        const plain = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        throw new Error(plain || `Request failed (${response.status || 500}).`);
-      }
-
-      if (!response.ok || !payload || payload.success === false) {
-        throw new Error(
-          payload?.data?.message ||
-          payload?.message ||
-          payload?.error ||
-          `Request failed (${response.status || 500}).`
-        );
-      }
-
-      return payload.data || {};
+      return performAjaxRequest(action, body);
     }
   }
 
@@ -2573,30 +2527,21 @@
   }
 
   async function adminRequest(action, body) {
-    const ajax = window.metisFormsAjax || {};
-    const coreAjax = window.metisAjax || {};
-    const actionNonces = Object.assign({}, coreAjax.action_nonces || {}, ajax.action_nonces || {});
-    const nonce = String(actionNonces[action] || ajax.nonce || coreAjax.nonce || '');
-    const ajaxUrl = String(
-      ajax.ajax_url ||
-      coreAjax.ajax_url ||
-      (typeof metisResolveAjaxUrl === 'function' ? metisResolveAjaxUrl() : '/api/ajax')
-    );
+    return performAjaxRequest(action, body);
+  }
 
-    const params = new URLSearchParams({action, nonce});
-    Object.entries(body || {}).forEach(([key, value]) => {
-      params.append(key, String(value));
-    });
+  async function performAjaxRequest(action, body) {
+    if (!(window.Metis && Metis.ui && Metis.ui.ajax && typeof Metis.ui.ajax.post === 'function')) {
+      throw new Error('Centralized AJAX service is unavailable.');
+    }
 
-    const response = await fetch(ajaxUrl, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-      body: params
-    });
-    const payload = await response.json();
-    if (!response.ok || payload.success === false) {
-      throw new Error(payload?.data?.message || payload?.message || 'Request failed.');
+    const payload = await Metis.ui.ajax.post(Object.assign({}, body || {}, {action: String(action || '')}));
+    if (!payload || payload.success === false) {
+      throw new Error(
+        payload?.data?.message ||
+        payload?.message ||
+        'Request failed.'
+      );
     }
     return payload.data || {};
   }
@@ -2665,15 +2610,17 @@
 
   function notify(kind, message) {
     const level = kind === 'success' ? 'success' : kind === 'warning' ? 'warning' : 'error';
-    if (window.Metis && Metis.toast && typeof Metis.toast[level] === 'function') {
-      Metis.toast[level](String(message || ''));
+    if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[level] === 'function') {
+      Metis.ui.toast[level](String(message || ''));
       return;
     }
     if (typeof window.metis_toast === 'function') {
       window.metis_toast(String(message || ''), level);
       return;
     }
-    window.alert(String(message || ''));
+    if (window.console && typeof window.console.warn === 'function') {
+      window.console.warn(String(message || ''));
+    }
   }
 
   function showPublicAlert(node, message, kind) {
@@ -2797,10 +2744,13 @@
   }
 
   function confirmAction(message) {
-    if (window.Metis && Metis.confirm && typeof Metis.confirm.open === 'function') {
-      return Metis.confirm.open({message});
+    if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
+      return Metis.ui.confirm.open({message});
     }
-    return Promise.resolve(window.confirm(String(message || '')));
+    if (typeof window.metis_confirm === 'function') {
+      return Promise.resolve(window.metis_confirm(String(message || ''), function() {}));
+    }
+    return Promise.resolve(false);
   }
 
   function downloadText(filename, text) {

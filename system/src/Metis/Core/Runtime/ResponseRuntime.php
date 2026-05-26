@@ -144,18 +144,22 @@ function metis_runtime_send_json( array $payload, int $status_code = 200 ): neve
 }
 
 function metis_runtime_send_json_success( array $data = [], int $status_code = 200 ): never {
-    $message = 'Operation completed';
+    $message = null;
 
     if ( isset( $data['message'] ) && is_string( $data['message'] ) && trim( $data['message'] ) !== '' ) {
         $message = (string) $data['message'];
         unset( $data['message'] );
     }
 
+    $request_id = function_exists( 'metis_audit_request_id' ) ? (string) metis_audit_request_id() : '';
+
     metis_runtime_send_json(
         [
             'status'  => 'success',
             'message' => $message,
             'data'    => $data,
+            'errors'  => [],
+            'request_id' => $request_id !== '' ? $request_id : null,
             'success' => true,
         ],
         $status_code
@@ -165,13 +169,14 @@ function metis_runtime_send_json_success( array $data = [], int $status_code = 2
 function metis_runtime_send_json_error( mixed $data = [], int $status_code = 400 ): never {
     $message = 'Operation failed';
     $errors  = [];
+    $payload = [];
 
     if ( is_string( $data ) ) {
         $trimmed = trim( $data );
         if ( $trimmed !== '' ) {
             $message = $trimmed;
         }
-        $data = [ 'message' => $message ];
+        $payload = [ 'message' => $message ];
     } elseif ( is_array( $data ) ) {
         if ( isset( $data['message'] ) && is_string( $data['message'] ) && trim( $data['message'] ) !== '' ) {
             $message = (string) $data['message'];
@@ -182,16 +187,21 @@ function metis_runtime_send_json_error( mixed $data = [], int $status_code = 400
         } elseif ( ! isset( $data['message'] ) ) {
             $errors = $data;
         }
+
+        $payload = $data;
     } else {
-        $data = [ 'message' => $message ];
+        $payload = [ 'message' => $message ];
     }
+
+    $request_id = function_exists( 'metis_audit_request_id' ) ? (string) metis_audit_request_id() : '';
 
     metis_runtime_send_json(
         [
             'status'  => 'error',
             'message' => $message,
             'errors'  => $errors,
-            'data'    => $data,
+            'data'    => $payload,
+            'request_id' => $request_id !== '' ? $request_id : null,
             'success' => false,
         ],
         $status_code

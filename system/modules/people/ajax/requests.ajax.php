@@ -15,10 +15,7 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 }
 
 metis_ajax_register_handler( 'metis_people_create_access_request', function () {
-    $db = metis_db();
-    $requests_table = Metis_Tables::get('people_access_requests');
-    $people_table = Metis_Tables::get('people');
-    $roles_table = Metis_Tables::get('people_roles');
+    metis_people_ajax_verify();
 
     $target_pid = isset(metis_request_post()['target_pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['target_pid'])) : '';
     $role_key = isset(metis_request_post()['role_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['role_key'])) : '';
@@ -27,8 +24,8 @@ metis_ajax_register_handler( 'metis_people_create_access_request', function () {
     $requested_end_at = isset(metis_request_post()['requested_end_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['requested_end_at'])) : '';
     $expires_at = isset(metis_request_post()['expires_at']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['expires_at'])) : '';
     $required_approvals = isset(metis_request_post()['required_approvals']) ? (int) metis_runtime_unslash(metis_request_post()['required_approvals']) : 2;
-    $role_id = (int) $db->scalar("SELECT id FROM {$roles_table} WHERE role_key=%s AND role_domain='metis' LIMIT 1", [ $role_key ]);
-    $target_person_id = (int) $db->scalar("SELECT id FROM {$people_table} WHERE pid=%s LIMIT 1", [ $target_pid ]);
+    $role_id = \Metis\Modules\People\AccessRequestService::resolveRoleIdByKey($role_key);
+    $target_person_id = \Metis\Modules\People\AccessRequestService::resolvePersonIdByPid($target_pid);
     if ($role_id < 1 || $target_person_id < 1 || trim($reason) === '') {
         metis_runtime_send_json_error('Target person and role are required.', 400);
     }
@@ -52,28 +49,20 @@ metis_ajax_register_handler( 'metis_people_create_access_request', function () {
         metis_runtime_send_json_error('Requested end must be after requested start.', 400);
     }
     $requester = metis_people_get_current_person_id();
-    $code = metis_generate_code('AR', $requests_table, 'request_code');
-    $db->insert($requests_table, [
-        'request_code' => $code,
+    $code = \Metis\Modules\People\AccessRequestService::createRequest([
         'requester_person_id' => $requester > 0 ? $requester : null,
         'target_person_id' => $target_person_id,
         'role_id' => $role_id,
-        'status' => 'pending',
         'reason' => $reason !== '' ? $reason : null,
         'required_approvals' => $required_approvals,
-        'approval_count' => 0,
-        'approval_log_json' => metis_json_encode([]),
         'requested_start_at' => $requested_start_at !== '' ? $requested_start_at : null,
         'requested_end_at' => $requested_end_at !== '' ? $requested_end_at : null,
         'expires_at' => $expires_at !== '' ? $expires_at : null,
-    ], ['%s', '%d', '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s']);
-    $target_row = $db->fetchOne(
-        "SELECT pid, display_name, first_name, last_name FROM {$people_table} WHERE id = %d LIMIT 1",
-        [ $target_person_id ]
-    ) ?: [];
+    ]);
+    $target_row = \Metis\Modules\People\AccessRequestService::getTargetSummary($target_person_id);
     $target_name = trim((string) ($target_row['first_name'] ?? '') . ' ' . (string) ($target_row['last_name'] ?? ''));
     if ($target_name === '') $target_name = (string) ($target_row['display_name'] ?? '');
-    $role_name = (string) $db->scalar("SELECT role_name FROM {$roles_table} WHERE id = %d LIMIT 1", [ $role_id ]);
+    $role_name = \Metis\Modules\People\AccessRequestService::getRoleName($role_id);
     metis_people_log_activity($target_person_id, 'access_request_created', 'Created access request', ['request_code' => $code, 'role_key' => $role_key, 'required_approvals' => $required_approvals]);
     metis_runtime_send_json_success([
         'request_code' => $code,
@@ -92,16 +81,13 @@ metis_ajax_register_handler( 'metis_people_create_access_request', function () {
 
 metis_ajax_register_handler( 'metis_people_resolve_access_request', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $requests_table = Metis_Tables::get('people_access_requests');
-    $user_roles_table = Metis_Tables::get('people_user_roles');
     $request_id = isset(metis_request_post()['request_id']) ? (int) metis_runtime_unslash(metis_request_post()['request_id']) : 0;
     $decision = isset(metis_request_post()['decision']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['decision'])) : '';
     $decision_note = isset(metis_request_post()['decision_note']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['decision_note'])) : '';
     if ($request_id < 1 || !in_array($decision, ['approved', 'rejected'], true) || trim($decision_note) === '') {
         metis_runtime_send_json_error('Invalid request or decision.', 400);
     }
-    $req = $db->fetchOne("SELECT * FROM {$requests_table} WHERE id = %d LIMIT 1", [ $request_id ]);
+    $req = \Metis\Modules\People\AccessRequestService::getRequestById($request_id);
     if (!$req || (string) ($req['status'] ?? '') !== 'pending') {
         metis_runtime_send_json_error('Request not found or already resolved.', 404);
     }
@@ -115,12 +101,7 @@ metis_ajax_register_handler( 'metis_people_resolve_access_request', function () 
     if (!is_array($approval_log)) $approval_log = [];
 
     if ($decision === 'rejected') {
-        $db->update($requests_table, [
-            'status' => 'rejected',
-            'decision_note' => $decision_note,
-            'resolver_person_id' => $resolver > 0 ? $resolver : null,
-            'resolved_at' => metis_current_time('mysql'),
-        ], ['id' => $request_id], ['%s', '%s', '%d', '%s'], ['%d']);
+        \Metis\Modules\People\AccessRequestService::rejectRequest($request_id, $decision_note, $resolver > 0 ? $resolver : null);
         metis_people_log_activity((int) $req['target_person_id'], 'access_request_resolved', 'Rejected access request', ['request_id' => $request_id, 'decision_note' => $decision_note]);
         metis_runtime_send_json_success(['status' => 'rejected']);
     }
@@ -144,26 +125,11 @@ metis_ajax_register_handler( 'metis_people_resolve_access_request', function () 
     $status = $approval_count >= $required_approvals ? 'approved' : 'pending';
     $resolver_person_id = $status === 'approved' ? ($resolver > 0 ? $resolver : null) : null;
     $resolved_at = $status === 'approved' ? metis_current_time('mysql') : null;
-    $db->update($requests_table, [
-        'status' => $status,
-        'approval_count' => $approval_count,
-        'approval_log_json' => metis_json_encode($approval_log),
-        'decision_note' => $decision_note,
-        'resolver_person_id' => $resolver_person_id,
-        'resolved_at' => $resolved_at,
-    ], ['id' => $request_id], ['%s', '%d', '%s', '%s', '%d', '%s'], ['%d']);
+    \Metis\Modules\People\AccessRequestService::updateApprovalState($request_id, $approval_log, $approval_count, $status, $decision_note, $resolver_person_id, $resolved_at);
     if ($status === 'approved') {
-        $exists = (int) $db->scalar(
-            "SELECT id FROM {$user_roles_table} WHERE person_id = %d AND role_id = %d LIMIT 1",
-            [ (int) $req['target_person_id'], (int) $req['role_id'] ]
-        );
-        if ($exists < 1) {
-            $db->insert($user_roles_table, [
-                'person_id' => (int) $req['target_person_id'],
-                'role_id' => (int) $req['role_id'],
-                'start_at' => !empty($req['requested_start_at']) ? (string) $req['requested_start_at'] : null,
-                'end_at' => !empty($req['requested_end_at']) ? (string) $req['requested_end_at'] : null,
-            ], ['%d', '%d', '%s', '%s']);
+        $exists = \Metis\Modules\People\AccessRequestService::hasAssignedRole((int) $req['target_person_id'], (int) $req['role_id']);
+        if (!$exists) {
+            \Metis\Modules\People\AccessRequestService::assignRoleFromRequest($req);
         }
         metis_people_log_activity((int) $req['target_person_id'], 'access_request_resolved', 'Approved access request', ['request_id' => $request_id, 'approvals' => $approval_count]);
         metis_runtime_send_json_success(['status' => 'approved', 'approval_count' => $approval_count, 'required_approvals' => $required_approvals]);

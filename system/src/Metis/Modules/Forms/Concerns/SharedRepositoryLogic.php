@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Forms\Concerns;
 
+use Metis\Modules\Donations\CampaignService;
 use Metis\Modules\Donations\DonationsModule;
 use Metis\Modules\Finance\FinanceV2Service;
 
@@ -1426,43 +1427,7 @@ trait SharedRepositoryLogic {
             return self::$campaignOptions;
         }
 
-        $table = \Metis_Tables::get( 'campaigns' );
-        if ( $table === '' ) {
-            self::$campaignOptions = [];
-            return self::$campaignOptions;
-        }
-
-        try {
-            $rows = self::db()->fetchAll(
-                "SELECT id, cid, campaign_code, code, cname
-                 FROM {$table}
-                 WHERE active = 1
-                 ORDER BY cname ASC, id DESC
-                 LIMIT 300"
-            );
-        } catch ( \Throwable $e ) {
-            $rows = self::db()->fetchAll(
-                "SELECT id, cid, campaign_code, code, cname
-                 FROM {$table}
-                 ORDER BY id DESC
-                 LIMIT 300"
-            );
-        }
-
-        $options = [];
-        foreach ( $rows as $row ) {
-            $value = trim( (string) ( $row['cid'] ?? $row['campaign_code'] ?? $row['code'] ?? '' ) );
-            if ( $value === '' ) {
-                continue;
-            }
-            $options[] = [
-                'label'    => trim( (string) ( $row['cname'] ?? $value ) ),
-                'value'    => $value,
-                'category' => '',
-            ];
-        }
-
-        self::$campaignOptions = $options;
+        self::$campaignOptions = CampaignService::getActiveCampaignOptions();
         return self::$campaignOptions;
     }
 

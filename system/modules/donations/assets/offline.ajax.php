@@ -1,6 +1,8 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
+use Metis\Modules\Donations\CampaignService;
+
 if ( function_exists( 'metis_ajax_register_controller' ) ) {
     metis_ajax_register_controller( 'metis_donations_lookup_donors', [
         'module' => 'donations',
@@ -14,22 +16,41 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
 }
 
+function metis_donations_offline_ajax_verify( string $action, string $permission = 'edit' ): void {
+    $nonce = '';
+    foreach ( [ 'metis_action_nonce', 'nonce' ] as $field ) {
+        $value = metis_request_post()[ $field ] ?? '';
+        if ( is_scalar( $value ) ) {
+            $nonce = trim( (string) metis_runtime_unslash( $value ) );
+            if ( $nonce !== '' ) {
+                break;
+            }
+        }
+    }
+
+    $nonce_action = function_exists( 'metis_ajax_nonce_action' )
+        ? metis_ajax_nonce_action( $action )
+        : $action;
+
+    if ( $nonce === '' || ! function_exists( 'metis_runtime_verify_nonce' ) || ! metis_runtime_verify_nonce( $nonce, $nonce_action ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Invalid nonce.' ], 403 );
+    }
+
+    $allowed = $permission === 'view'
+        ? ( function_exists( 'metis_donations_can' ) && metis_donations_can( 'view' ) )
+        : ( function_exists( 'metis_donations_can_manage' ) && metis_donations_can_manage() );
+
+    if ( ! $allowed ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+}
+
 function metis_donations_quick_action_offline_donation_form( array $action = [] ): array {
     unset( $action );
 
-    $db = metis_db();
-    $campaigns_table = Metis_Tables::get( 'campaigns' );
-    $campaigns = $db->get_results(
-        "SELECT cid, cname, active FROM {$campaigns_table} ORDER BY active DESC, cname ASC LIMIT 500"
-    ) ?: [];
-
     $campaignOptions = '<option value="">Select campaign</option>';
-    foreach ( $campaigns as $campaign ) {
-        $label = (string) ( $campaign->cname ?? '' );
-        if ( (int) ( $campaign->active ?? 0 ) !== 1 ) {
-            $label .= ' (Inactive)';
-        }
-        $campaignOptions .= '<option value="' . metis_escape_attr( (string) ( $campaign->cid ?? '' ) ) . '">' . metis_escape_html( $label ) . '</option>';
+    foreach ( CampaignService::getActiveCampaignOptions( 500 ) as $campaign ) {
+        $campaignOptions .= '<option value="' . metis_escape_attr( (string) ( $campaign['value'] ?? '' ) ) . '">' . metis_escape_html( (string) ( $campaign['label'] ?? '' ) ) . '</option>';
     }
 
     $html = '<form class="metis-offline-donation-form metis-quick-action-form" data-quick-action-form="donations_record_offline_donation">'
@@ -60,6 +81,8 @@ function metis_donations_quick_action_offline_donation_form( array $action = [] 
 }
 
 metis_ajax_register_handler( 'metis_donations_lookup_donors', static function (): void {
+    metis_donations_offline_ajax_verify( 'metis_donations_lookup_donors', 'view' );
+
     $query = trim( metis_text_clean( (string) ( metis_request_post()['q'] ?? '' ) ) );
     if ( $query === '' || strlen( $query ) < 2 ) {
         metis_runtime_send_json_success( [ 'matches' => [] ] );
@@ -75,13 +98,7 @@ metis_ajax_register_handler( 'metis_donations_lookup_donors', static function ()
 } );
 
 metis_ajax_register_handler( 'metis_donations_record_offline_donation', static function (): void {
-    $nonce = isset( metis_request_post()['nonce'] ) ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['nonce'] ) ) : '';
-    $valid = function_exists( 'metis_ajax_nonce_action' )
-        ? metis_runtime_verify_nonce( $nonce, metis_ajax_nonce_action( 'metis_donations_record_offline_donation' ) )
-        : metis_runtime_verify_nonce( $nonce, 'metis_donations_record_offline_donation' );
-    if ( ! $valid ) {
-        metis_runtime_send_json_error( 'Invalid nonce.', 403 );
-    }
+    metis_donations_offline_ajax_verify( 'metis_donations_record_offline_donation', 'edit' );
 
     $fields = [
         'donor_did' => '',

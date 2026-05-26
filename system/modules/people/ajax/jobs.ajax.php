@@ -16,9 +16,6 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
 
 metis_ajax_register_handler( 'metis_people_add_lifecycle_task', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-    $tasks_table = Metis_Tables::get('people_lifecycle_tasks');
     $pid = isset(metis_request_post()['pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['pid'])) : '';
     $phase = isset(metis_request_post()['phase']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['phase'])) : 'onboarding';
     $task_label = isset(metis_request_post()['task_label']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['task_label'])) : '';
@@ -34,49 +31,32 @@ metis_ajax_register_handler( 'metis_people_add_lifecycle_task', function () {
     if ($due_at !== '' && !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $due_at)) {
         $due_at = '';
     }
-    $person_id = (int) $db->scalar("SELECT id FROM {$people_table} WHERE pid = %s LIMIT 1", [ $pid ]);
+    $person_id = \Metis\Modules\People\LifecycleTaskService::findPersonIdByPid($pid);
     if ($person_id < 1) {
         metis_runtime_send_json_error('Person not found.', 404);
     }
-    $db->insert($tasks_table, [
-        'person_id' => $person_id,
-        'phase' => $phase,
-        'task_label' => $task_label,
-        'status' => 'pending',
-        'due_at' => $due_at !== '' ? $due_at : null,
-    ], ['%d', '%s', '%s', '%s', '%s']);
-    $task_id = (int) $db->lastInsertId();
+    $task = \Metis\Modules\People\LifecycleTaskService::addTask($person_id, $phase, $task_label, $due_at !== '' ? $due_at : null);
+    $task_id = (int) ($task['id'] ?? 0);
     metis_people_log_activity($person_id, 'lifecycle_task_added', 'Added lifecycle task', ['task_id' => $task_id, 'phase' => $phase]);
     metis_runtime_send_json_success([
-        'task' => [
-            'id' => $task_id,
-            'phase' => $phase,
-            'task_label' => $task_label,
-            'status' => 'pending',
-            'due_at' => $due_at,
-        ],
+        'task' => $task,
     ]);
 });
 
 metis_ajax_register_handler( 'metis_people_complete_lifecycle_task', function () {
     metis_people_ajax_verify();
-    $db = metis_db();
-    $tasks_table = Metis_Tables::get('people_lifecycle_tasks');
     $task_id = isset(metis_request_post()['task_id']) ? (int) metis_runtime_unslash(metis_request_post()['task_id']) : 0;
     if ($task_id < 1) {
         metis_runtime_send_json_error('Invalid task id.', 400);
     }
-    $task = $db->fetchOne("SELECT id, person_id, status FROM {$tasks_table} WHERE id = %d LIMIT 1", [ $task_id ]);
+    $task = \Metis\Modules\People\LifecycleTaskService::getTask($task_id);
     if (!$task) {
         metis_runtime_send_json_error('Task not found.', 404);
     }
     if ((string) ($task['status'] ?? '') === 'completed') {
         metis_runtime_send_json_success(['already_completed' => 1]);
     }
-    $db->update($tasks_table, [
-        'status' => 'completed',
-        'completed_at' => metis_current_time('mysql'),
-    ], ['id' => $task_id], ['%s', '%s'], ['%d']);
+    \Metis\Modules\People\LifecycleTaskService::completeTask($task_id);
     metis_people_log_activity((int) $task['person_id'], 'lifecycle_task_completed', 'Completed lifecycle task', ['task_id' => $task_id]);
     metis_runtime_send_json_success(['task_id' => $task_id, 'status' => 'completed']);
 });

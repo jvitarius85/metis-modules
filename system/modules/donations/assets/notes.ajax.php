@@ -42,6 +42,37 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
 }
 
+function metis_donations_notes_ajax_verify( string $action, string $permission = 'edit' ): void {
+    $nonce = '';
+    foreach ( [ 'metis_action_nonce', 'nonce' ] as $field ) {
+        $value = metis_request_post()[ $field ] ?? '';
+        if ( is_scalar( $value ) ) {
+            $nonce = trim( (string) metis_runtime_unslash( $value ) );
+            if ( $nonce !== '' ) {
+                break;
+            }
+        }
+    }
+
+    $nonce_action = function_exists( 'metis_ajax_nonce_action' )
+        ? metis_ajax_nonce_action( $action )
+        : $action;
+
+    if ( $nonce === '' || ! function_exists( 'metis_runtime_verify_nonce' ) || ! metis_runtime_verify_nonce( $nonce, $nonce_action ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Invalid nonce.' ], 403 );
+    }
+
+    $allowed = match ( $permission ) {
+        'delete' => function_exists( 'metis_donations_can_delete' ) && metis_donations_can_delete(),
+        'view' => function_exists( 'metis_donations_can' ) && metis_donations_can( 'view' ),
+        default => function_exists( 'metis_donations_can_manage' ) && metis_donations_can_manage(),
+    };
+
+    if ( ! $allowed ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+}
+
 function metis_donations_notes_ensure_tables(): void {
     $db = metis_db();
     $charset = function_exists( 'metis_core_db_charset_collate' ) ? metis_core_db_charset_collate() : 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
@@ -114,6 +145,8 @@ function metis_donations_transaction_exists( string $tid ): ?array {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_add_batch_note', function () {
+    metis_donations_notes_ajax_verify( 'metis_add_batch_note', 'edit' );
+
     $batch = metis_text_clean( metis_request_post()['batch_code'] ?? '' );
     $text  = metis_text_clean( metis_request_post()['text']       ?? '' );
 
@@ -135,6 +168,8 @@ metis_ajax_register_handler( 'metis_add_batch_note', function () {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_update_note', function () {
+    metis_donations_notes_ajax_verify( 'metis_update_note', 'edit' );
+
     $db = metis_db();
 
     $id    = intval( metis_request_post()['id']    ?? 0 );
@@ -164,6 +199,8 @@ metis_ajax_register_handler( 'metis_update_note', function () {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_delete_note', function () {
+    metis_donations_notes_ajax_verify( 'metis_delete_note', 'delete' );
+
     $db = metis_db();
 
     $id    = intval( metis_request_post()['id']    ?? 0 );
@@ -191,6 +228,8 @@ metis_ajax_register_handler( 'metis_delete_note', function () {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_add_transaction_note', function () {
+    metis_donations_notes_ajax_verify( 'metis_add_transaction_note', 'edit' );
+
     metis_donations_notes_ensure_tables();
 
     $post = metis_request_post();
@@ -236,6 +275,8 @@ metis_ajax_register_handler( 'metis_add_transaction_note', function () {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_record_transaction_refund', function () {
+    metis_donations_notes_ajax_verify( 'metis_record_transaction_refund', 'edit' );
+
     metis_donations_notes_ensure_tables();
 
     $post = metis_request_post();

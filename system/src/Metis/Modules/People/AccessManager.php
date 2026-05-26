@@ -489,6 +489,18 @@ final class AccessManager {
         } );
     }
 
+    public static function activePermissionKeysForPerson( int $person_id, bool $force_refresh = false ): array {
+        $matrix = self::permissionMatrixForPerson( $person_id, $force_refresh );
+
+        return array_values( array_filter(
+            array_map(
+                static fn( mixed $permission_key ): string => self::normalizePermissionKey( (string) $permission_key ),
+                (array) ( $matrix['permissions'] ?? [] )
+            ),
+            static fn( string $permission_key ): bool => $permission_key !== ''
+        ) );
+    }
+
     private static function declaredPermissions(): array {
         if ( Application::has_service( 'modules' ) ) {
             $modules = Application::service( 'modules' );

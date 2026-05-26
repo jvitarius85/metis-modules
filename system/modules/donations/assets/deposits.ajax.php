@@ -48,7 +48,22 @@ function metis_donations_stripe_client_or_error(): \Metis\Core\Integrations\Stri
     return $stripe;
 }
 
+function metis_donations_deposits_ajax_verify( string $action ): void {
+    $request = function_exists( 'metis_request_post' ) ? (array) metis_request_post() : [];
+    $nonce = (string) ( $request['metis_action_nonce'] ?? $request['nonce'] ?? '' );
+
+    if ( $nonce === '' || ! function_exists( 'metis_runtime_verify_nonce' ) || ! metis_runtime_verify_nonce( $nonce, metis_ajax_nonce_action( $action ) ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Invalid request.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_donations_can_manage' ) || ! metis_donations_can_manage() ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+}
+
 function metis_ajax_sync_deposits(): void {
+    metis_donations_deposits_ajax_verify( 'metis_sync_deposits' );
+
     $stripe = metis_donations_stripe_client_or_error();
 
     $db = metis_db();
@@ -178,6 +193,8 @@ function metis_ajax_sync_deposits(): void {
 // -------------------------------------------------------------------------
 
 function metis_ajax_backfill_deposit_totals(): void {
+    metis_donations_deposits_ajax_verify( 'metis_backfill_deposit_totals' );
+
     $stripe = metis_donations_stripe_client_or_error();
 
     $db = metis_db();
@@ -431,6 +448,8 @@ function metis_ajax_backfill_deposit_totals(): void {
 // =========================================================================
 
 function metis_ajax_backfill_deposit_adjustments(): void {
+    metis_donations_deposits_ajax_verify( 'metis_backfill_deposit_adjustments' );
+
     $stripe = metis_donations_stripe_client_or_error();
 
     $db = metis_db();
@@ -622,6 +641,8 @@ function metis_ajax_backfill_deposit_adjustments(): void {
 }
 
 function metis_ajax_link_stripe_payouts(): void {
+    metis_donations_deposits_ajax_verify( 'metis_link_stripe_payouts' );
+
     $stripe = metis_donations_stripe_client_or_error();
 
     $db             = metis_db();
@@ -926,6 +947,8 @@ function metis_ajax_link_stripe_payouts(): void {
 // =========================================================================
 
 function metis_ajax_verify_deposit_links(): void {
+    metis_donations_deposits_ajax_verify( 'metis_verify_deposit_links' );
+
     $stripe = metis_donations_stripe_client_or_error();
 
     $db             = metis_db();
@@ -1131,6 +1154,12 @@ function metis_ajax_verify_deposit_links(): void {
 // Platform: ST  |  Donor prefix: MW  |  Transaction prefix: TR
 
 function metis_ajax_import_stripe_charges(): void {
+    $request = function_exists( 'metis_request_post' ) ? (array) metis_request_post() : [];
+    $action = (string) ( $request['metis_action'] ?? '' ) === 'metis_import_stripe_transactions'
+        ? 'metis_import_stripe_transactions'
+        : 'metis_import_stripe_charges';
+    metis_donations_deposits_ajax_verify( $action );
+
     $stripe = metis_donations_stripe_client_or_error();
 
     $db       = metis_db();

@@ -28,11 +28,38 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ] );
 }
 
+function metis_donations_campaigns_ajax_verify( string $action ): void {
+    $nonce = '';
+    foreach ( [ 'metis_action_nonce', 'nonce' ] as $field ) {
+        $value = metis_request_post()[ $field ] ?? '';
+        if ( is_scalar( $value ) ) {
+            $nonce = trim( (string) metis_runtime_unslash( $value ) );
+            if ( $nonce !== '' ) {
+                break;
+            }
+        }
+    }
+
+    $nonce_action = function_exists( 'metis_ajax_nonce_action' )
+        ? metis_ajax_nonce_action( $action )
+        : $action;
+
+    if ( $nonce === '' || ! function_exists( 'metis_runtime_verify_nonce' ) || ! metis_runtime_verify_nonce( $nonce, $nonce_action ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Invalid nonce.' ], 403 );
+    }
+
+    if ( ! function_exists( 'metis_donations_can_manage' ) || ! metis_donations_can_manage() ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+    }
+}
+
 // -------------------------------------------------------------------------
 // Save annual goal
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_campaign_save_goal', function () {
+    metis_donations_campaigns_ajax_verify( 'metis_campaign_save_goal' );
+
     $db = metis_db();
     $table = Metis_Tables::get( 'campaigns' );
 
@@ -97,6 +124,8 @@ metis_ajax_register_handler( 'metis_campaign_save_goal', function () {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_campaign_save_desc', function () {
+    metis_donations_campaigns_ajax_verify( 'metis_campaign_save_desc' );
+
     $db = metis_db();
     $table = Metis_Tables::get( 'campaigns' );
 
@@ -127,6 +156,8 @@ metis_ajax_register_handler( 'metis_campaign_save_desc', function () {
 // -------------------------------------------------------------------------
 
 metis_ajax_register_handler( 'metis_campaign_save_info', function () {
+    metis_donations_campaigns_ajax_verify( 'metis_campaign_save_info' );
+
     $db = metis_db();
     $table = Metis_Tables::get( 'campaigns' );
 

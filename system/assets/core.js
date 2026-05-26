@@ -1132,6 +1132,10 @@ Metis.toast = (function() {
 
 }());
 
+Metis.ui = Metis.ui || {};
+Metis.ui.ajax = Metis.ajax;
+Metis.ui.toast = Metis.toast;
+
 /* ============================================================
    CORE TOOLTIP SYSTEM
    data-metis-tooltip="Message"
@@ -1554,6 +1558,8 @@ Metis.modal = (function() {
 
 }());
 
+Metis.ui.modal = Metis.modal;
+
 /* ============================================================
    CONFIRM DIALOG
    Metis.confirm.open({ title, message, confirmLabel, cancelLabel, tone })
@@ -1644,6 +1650,8 @@ Metis.confirm = (function() {
     return { open: open };
 
 }());
+
+Metis.ui.confirm = Metis.confirm;
 
 /* ============================================================
    INPUT PROMPT
