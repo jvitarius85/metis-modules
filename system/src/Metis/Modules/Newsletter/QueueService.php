@@ -4,6 +4,17 @@ declare(strict_types=1);
 namespace Metis\Modules\Newsletter;
 
 final class QueueService {
+    public static function messageCodeById( int $message_id ): string {
+        if ( $message_id < 1 ) {
+            return '';
+        }
+
+        return (string) self::db()->scalar(
+            'SELECT message_code FROM ' . \Metis_Tables::get( 'newsletter_messages' ) . ' WHERE id = %d LIMIT 1',
+            [ $message_id ]
+        );
+    }
+
     public static function queueCampaignMessages( int $campaign_id ): array {
         $db = self::db();
 

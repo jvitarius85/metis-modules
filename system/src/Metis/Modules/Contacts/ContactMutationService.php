@@ -4,6 +4,66 @@ declare(strict_types=1);
 namespace Metis\Modules\Contacts;
 
 final class ContactMutationService {
+    /**
+     * @return array<string,string>
+     */
+    public static function emailDidMap(): array {
+        $map = [];
+        $contacts_table = \Metis_Tables::get( 'contacts' );
+        foreach ( \metis_db()->fetchAll( "SELECT did, email FROM {$contacts_table} WHERE email IS NOT NULL AND email <> ''" ) as $row ) {
+            $email = trim( (string) ( $row['email'] ?? '' ) );
+            $did = trim( (string) ( $row['did'] ?? '' ) );
+            if ( $email === '' || $did === '' ) {
+                continue;
+            }
+
+            $map[ strtolower( $email ) ] = $did;
+            $map[ $email ] = $did;
+        }
+
+        return $map;
+    }
+
+    public static function resolveOrCreateDonorContact( string $email, string $first_name = '', string $last_name = '' ): array {
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        if ( $email === '' ) {
+            return [ 'did' => null, 'created' => false, 'status' => 'missing', 'error' => null ];
+        }
+
+        $db = \metis_db();
+        $contacts_table = \Metis_Tables::get( 'contacts' );
+        $existing = $db->fetchOne(
+            "SELECT id, did FROM {$contacts_table} WHERE email = %s LIMIT 1",
+            [ $email ]
+        );
+
+        if ( is_array( $existing ) && ! empty( $existing ) ) {
+            $did = trim( (string) ( $existing['did'] ?? '' ) );
+            if ( $did === '' ) {
+                $did = \metis_generate_code( 'MW', $contacts_table, 'did' );
+                $db->update( $contacts_table, [ 'did' => $did ], [ 'id' => (int) ( $existing['id'] ?? 0 ) ] );
+            }
+
+            return [ 'did' => $did, 'created' => false, 'status' => 'existing', 'error' => null ];
+        }
+
+        $did = \metis_generate_code( 'MW', $contacts_table, 'did' );
+        $ok = $db->insert( $contacts_table, [
+            'did' => $did,
+            'first_name' => $first_name !== '' ? $first_name : null,
+            'last_name' => $last_name !== '' ? $last_name : null,
+            'email' => $email,
+            'created_at' => \metis_current_time( 'mysql' ),
+            'updated_at' => \metis_current_time( 'mysql' ),
+        ] );
+
+        if ( ! $ok ) {
+            return [ 'did' => null, 'created' => false, 'status' => 'error', 'error' => 'Failed to create contact.' ];
+        }
+
+        return [ 'did' => $did, 'created' => true, 'status' => 'created', 'error' => null ];
+    }
+
     public static function collectLinkedDetailRows( string $details_table, string $cid, int $id, string $did ): array {
         $db = \metis_db();
         $rows = [];

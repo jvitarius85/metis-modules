@@ -3,6 +3,10 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
 
+use Metis\Modules\Donations\StripeDepositService;
+use Metis\Modules\Donations\TransactionRecordService;
+use Metis\Modules\Contacts\ContactMutationService;
+
 /**
  * Donations Deposits AJAX Handler
  *
@@ -97,64 +101,20 @@ function metis_ajax_sync_deposits(): void {
                 $status       = (string) ( $payout->status ?? 'paid' );
 
                 // Check if deposit already exists for this payout
-                $existing_data = $db->fetchOne(
-                    "SELECT id, provider_ref FROM {$deposits_table}
-                     WHERE provider = 'stripe'
-                       AND ( provider_ref = %s OR meta LIKE %s )
-                     LIMIT 1",
-                    [ $payout_id, '%' . $db->escapeLike( '"payout_id":"' . $payout_id . '"' ) . '%' ]
-                );
-                $existing = is_array( $existing_data ) ? (object) $existing_data : null;
-
-                if ( $existing ) {
-                    // Ensure arrival_date and status are up to date
-                    $db->update(
-                        $deposits_table,
-                        [ 'deposit_date' => $arrival_date, 'status' => $status === 'paid' ? 'deposited' : $status, 'updated_at' => metis_current_time( 'mysql' ) ],
-                        [ 'id' => (int) $existing->id ]
-                    );
-                    $updated++;
-                    continue;
-                }
-
-                // Create new deposit record
-                $meta = metis_json_encode( [
-                    'payout_id'     => $payout_id,
-                    'arrival_date'  => $arrival_date,
+                $deposit = StripeDepositService::syncFromStripePayout( [
+                    'payout_id' => $payout_id,
+                    'arrival_date' => $arrival_date,
+                    'net_amount' => $net_amount,
+                    'currency' => $currency,
+                    'status' => $status,
                     'generated_via' => 'sync-deposits',
                 ] );
 
-                $deposit_payload = [
-                    'provider'          => 'stripe',
-                    'deposit_type'      => 'stripe',
-                    'source'            => 'automatic',
-                    'status'            => $status === 'paid' ? 'deposited' : $status,
-                    'deposit_date'      => $arrival_date,
-                    'expected_date'     => $arrival_date,
-                    'total_amount'      => $net_amount,
-                    'currency'          => $currency,
-                    'batch_count'       => 1,
-                    'transaction_count' => 0,
-                    'meta'              => $meta,
-                    'created_at'        => metis_current_time( 'mysql' ),
-                    'updated_at'        => metis_current_time( 'mysql' ),
-                ];
-                if ( function_exists( 'metis_entity_id_service' ) ) {
-                    $deposit_payload = metis_entity_id_service()->assignForInsert( 'donation_deposit', $deposit_payload );
-                } else {
-                    $deposit_payload['provider_ref'] = metis_generate_code( 'DP', $deposits_table, 'provider_ref' );
-                }
-                $deposit_code = (string) ( $deposit_payload['deposit_uid'] ?? $deposit_payload['provider_ref'] ?? '' );
-
-                $ok = $db->insert( $deposits_table, $deposit_payload );
-
-                if ( $ok ) {
-                    if ( function_exists( 'metis_entity_id_service' ) ) {
-                        metis_entity_id_service()->register( 'donation_deposit', (int) $db->lastInsertId(), $deposit_code );
-                    }
+                if ( ! empty( $deposit['created'] ) ) {
                     $inserted++;
+                } else {
+                    $updated++;
                 }
-                else { $errors[] = "Insert failed for payout {$payout_id}."; }
             }
 
             $last = end( $payouts->data );
@@ -211,19 +171,7 @@ function metis_ajax_backfill_deposit_totals(): void {
 
     // Find all Stripe deposits missing or clearly bad financial totals.
     // net_total = 0 with a known payout_id is a sign of the payout-included-in-sum bug.
-    $deposits = array_map(
-        static fn( array $row ): object => (object) $row,
-        $db->fetchAll(
-        "SELECT id, provider_ref, meta
-         FROM {$deposits_table}
-         WHERE provider = 'stripe'
-           AND (
-               fee_total IS NULL OR gross_total IS NULL OR net_total IS NULL
-               OR ( net_total = 0 AND gross_total IS NOT NULL AND meta LIKE '%payout_id%' )
-           )
-         ORDER BY deposit_date DESC"
-        )
-    );
+    $deposits = StripeDepositService::listMissingTotals();
 
     if ( empty( $deposits ) ) {
         metis_runtime_send_json_success( [
@@ -243,10 +191,7 @@ function metis_ajax_backfill_deposit_totals(): void {
         $dep_code   = $dep->provider_ref;
 
         // Capture before state for reporting
-        $before_data = $db->fetchOne(
-            "SELECT fee_total, gross_total, net_total, transaction_count FROM {$deposits_table} WHERE id = %d",
-            [ (int) $dep->id ]
-        );
+        $before_data = StripeDepositService::financialSnapshot( (int) $dep->id );
         $before = is_array( $before_data ) ? (object) $before_data : null;
 
         // ── Attempt 1: pull totals directly from Stripe ──────────────────────
@@ -327,15 +272,7 @@ function metis_ajax_backfill_deposit_totals(): void {
 
         // ── Attempt 2: sum from local transactions ────────────────────────────
         if ( $fee_total === null || $gross_total === null || $net_total === null ) {
-            $sums_data = $db->fetchOne(
-                "SELECT
-                    SUM( amount + IFNULL(fee, 0) )  AS gross,
-                    SUM( IFNULL(fee, 0) )           AS fees,
-                    SUM( amount )                   AS net
-                 FROM {$transactions_table}
-                 WHERE deposit_batch_id = %s",
-                [ $dep_code ]
-            );
+            $sums_data = TransactionRecordService::localTotalsByDepositCode( $dep_code );
             $sums = is_array( $sums_data ) ? (object) $sums_data : null;
 
             if ( $sums && $sums->gross !== null ) {
@@ -358,16 +295,7 @@ function metis_ajax_backfill_deposit_totals(): void {
         }
 
         // ── Write totals back ─────────────────────────────────────────────────
-        $db->update(
-            $deposits_table,
-            [
-                'fee_total'   => $fee_total,
-                'gross_total' => $gross_total,
-                'net_total'   => $net_total,
-                'updated_at'  => metis_current_time( 'mysql' ),
-            ],
-            [ 'id' => (int) $dep->id ]
-        );
+        StripeDepositService::updateFinancialTotals( (int) $dep->id, (float) $fee_total, (float) $gross_total, (float) $net_total );
 
         $filled++;
         Metis_Logger::info( 'Backfill: deposit totals updated', [ 'deposit' => $dep_code, 'gross' => $gross_total, 'fees' => $fee_total, 'net' => $net_total ] );
@@ -375,16 +303,7 @@ function metis_ajax_backfill_deposit_totals(): void {
         // ── Link orphaned transactions ────────────────────────────────────────
         $rows_linked_here = 0;
         if ( $payout_id ) {
-            $prepared = $db->prepare(
-                "UPDATE {$transactions_table}
-                 SET    deposit_batch_id = %s,
-                        deposit_date     = deposit_date
-                 WHERE  stripe_payout_id = %s
-                   AND  ( deposit_batch_id IS NULL OR deposit_batch_id = '' )",
-                $dep_code,
-                $payout_id
-            );
-            $rows_linked_result = $db->execute( $prepared );
+            $rows_linked_result = TransactionRecordService::linkOrphanedByPayoutId( $dep_code, $payout_id );
             if ( $rows_linked_result ) {
                 $rows_linked_here = (int) $rows_linked_result;
                 $linked += $rows_linked_here;
@@ -460,14 +379,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
     $errors  = [];
     $rows    = [];
 
-    $deposits = array_map(
-        static fn( array $row ): object => (object) $row,
-        $db->fetchAll(
-        "SELECT id, provider_ref, meta FROM {$deposits_table}
-         WHERE provider = 'stripe' AND meta LIKE '%payout_id%'
-         ORDER BY deposit_date DESC"
-        )
-    );
+    $deposits = StripeDepositService::listWithPayoutMeta();
 
     foreach ( $deposits as $dep ) {
 
@@ -535,10 +447,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
                     $refund_ids_found[] = $charge_id;
 
                     // Find the local transaction
-                    $tx_data = $db->fetchOne(
-                        "SELECT tid, tran_date, amount FROM {$tx_table} WHERE stripe_charge_id = %s LIMIT 1",
-                        [ $charge_id ]
-                    );
+                    $tx_data = TransactionRecordService::findByStripeChargeId( $charge_id );
                     $tx = is_array( $tx_data ) ? (object) $tx_data : null;
 
                     if ( ! $tx ) continue;
@@ -554,10 +463,7 @@ function metis_ajax_backfill_deposit_adjustments(): void {
                     $adj['charge_id'] = $charge_id;
 
                     // Insert transaction_refunds record if not already present
-                    $existing_refund = $refund_id ? $db->scalar(
-                        "SELECT id FROM {$refunds_table} WHERE stripe_refund_id = %s LIMIT 1",
-                        [ $refund_id ]
-                    ) : null;
+                    $existing_refund = $refund_id !== '' && TransactionRecordService::hasStripeRefundRecord( $refund_id );
 
                     if ( ! $existing_refund ) {
                         $refund_amount = abs( (float) $adj['amount_cents'] / 100.0 );
@@ -604,17 +510,10 @@ function metis_ajax_backfill_deposit_adjustments(): void {
             // ── Filter out `payment` adjustments already covered by a linked transaction ──
             // Stripe sometimes returns Link/ACH payments as type=payment instead of charge.
             // If a transaction with the same net amount already exists for this deposit, exclude it.
-            $adjustments = array_filter( $adjustments, function( $adj ) use ( $db, $tx_table, $dep ) {
+            $adjustments = array_filter( $adjustments, function( $adj ) use ( $dep ) {
                 if ( ( $adj['type'] ?? '' ) !== 'payment' ) return true;
                 $adj_net = (int) ( $adj['amount_cents'] ?? 0 );
-                // Check if any linked transaction's payout amount (in cents) matches
-                $exists = $db->scalar(
-                    "SELECT COUNT(*) FROM {$tx_table}
-                     WHERE deposit_batch_id = %s
-                       AND ROUND( payout * 100 ) = %d",
-                    [ $dep->provider_ref, $adj_net ]
-                );
-                return ! ( $exists > 0 );
+                return ! TransactionRecordService::hasPayoutAmountForDeposit( (string) $dep->provider_ref, $adj_net );
             } );
             $adjustments = array_values( $adjustments );
 
@@ -656,18 +555,7 @@ function metis_ajax_link_stripe_payouts(): void {
     $rows           = []; // per-transaction result for the UI
 
     // Find all Stripe transactions with a payment intent but no payout ID yet
-    $transactions = array_map(
-        static fn( array $row ): object => (object) $row,
-        $db->fetchAll(
-        "SELECT id, tid, stripe_pay_int, stripe_charge_id, stripe_balance_txn, stripe_payout_id, deposit_batch_id, tran_date
-         FROM {$tx_table}
-         WHERE platform = 'ST'
-           AND stripe_pay_int  IS NOT NULL
-           AND stripe_pay_int  <> ''
-           AND ( stripe_payout_id IS NULL OR stripe_payout_id = '' )
-         ORDER BY tran_date ASC"
-        )
-    );
+    $transactions = TransactionRecordService::listStripeTransactionsMissingPayout();
 
     if ( empty( $transactions ) ) {
         metis_runtime_send_json_success( [
@@ -782,14 +670,7 @@ function metis_ajax_link_stripe_payouts(): void {
 
                 if ( $available_on ) {
                     $window_end = gmdate( 'Y-m-d', strtotime( $available_on . ' +10 days' ) );
-                    $date_match = $db->fetchOne(
-                        "SELECT id, provider_ref FROM {$deposits_table}
-                         WHERE provider = 'stripe'
-                           AND deposit_date >= %s
-                           AND deposit_date <= %s
-                         ORDER BY deposit_date ASC LIMIT 1",
-                        [ $available_on, $window_end ]
-                    );
+                    $date_match = StripeDepositService::findByDateWindow( $available_on, $window_end );
 
                     if ( $date_match ) {
                         $payout_id                  = 'date:' . $available_on;
@@ -820,13 +701,7 @@ function metis_ajax_link_stripe_payouts(): void {
             if ( isset( $payout_cache[ $payout_id ] ) ) {
                 $deposit_code = $payout_cache[ $payout_id ];
             } else {
-                $existing = $db->fetchOne(
-                    "SELECT id, provider_ref FROM {$deposits_table}
-                     WHERE provider = 'stripe'
-                       AND ( provider_ref = %s OR meta LIKE %s )
-                     LIMIT 1",
-                    [ $payout_id, '%' . $db->escapeLike( '"payout_id":"' . $payout_id . '"' ) . '%' ]
-                );
+                $existing = StripeDepositService::findByPayoutId( $payout_id );
 
                 if ( $existing ) {
                     $deposit_code = (string) $existing['provider_ref'];
@@ -839,38 +714,15 @@ function metis_ajax_link_stripe_payouts(): void {
                     $currency     = strtolower( (string) ( $payout_obj->currency ?? 'usd' ) );
                     $po_status    = (string) ( $payout_obj->status ?? 'paid' );
 
-                    $meta = metis_json_encode( [
-                        'payout_id'     => $payout_id,
+                    $deposit = StripeDepositService::syncFromStripePayout( [
+                        'payout_id' => $payout_id,
+                        'arrival_date' => $arrival_date,
+                        'net_amount' => $net_amount,
+                        'currency' => $currency,
+                        'status' => $po_status,
                         'generated_via' => 'link-payouts-backfill',
-                        'arrival_date'  => $arrival_date,
                     ] );
-
-                    $deposit_payload = [
-                        'provider'          => 'stripe',
-                        'deposit_type'      => 'stripe',
-                        'source'            => 'automatic',
-                        'status'            => $po_status === 'paid' ? 'deposited' : $po_status,
-                        'deposit_date'      => $arrival_date,
-                        'expected_date'     => $arrival_date,
-                        'total_amount'      => $net_amount,
-                        'currency'          => $currency,
-                        'batch_count'       => 1,
-                        'transaction_count' => 0,
-                        'meta'              => $meta,
-                        'created_at'        => metis_current_time( 'mysql' ),
-                        'updated_at'        => metis_current_time( 'mysql' ),
-                    ];
-                    if ( function_exists( 'metis_entity_id_service' ) ) {
-                        $deposit_payload = metis_entity_id_service()->assignForInsert( 'donation_deposit', $deposit_payload );
-                    } else {
-                        $deposit_payload['provider_ref'] = metis_generate_code( 'DP', $deposits_table, 'provider_ref' );
-                    }
-                    $deposit_code = (string) ( $deposit_payload['deposit_uid'] ?? $deposit_payload['provider_ref'] ?? '' );
-
-                    $db->insert( $deposits_table, $deposit_payload );
-                    if ( $db->lastInsertId() > 0 && function_exists( 'metis_entity_id_service' ) ) {
-                        metis_entity_id_service()->register( 'donation_deposit', $db->lastInsertId(), $deposit_code );
-                    }
+                    $deposit_code = (string) ( $deposit['provider_ref'] ?? '' );
 
                     $deposits_made++;
                     Metis_Logger::info( 'Link payouts: deposit auto-created', [ 'code' => $deposit_code, 'payout' => $payout_id ] );
@@ -911,17 +763,7 @@ function metis_ajax_link_stripe_payouts(): void {
     // Update transaction_count on any newly-created deposits
     if ( $deposits_made > 0 ) {
         foreach ( array_unique( array_values( $payout_cache ) ) as $dep_code ) {
-            $count = (int) $db->scalar(
-                "SELECT COUNT(*) FROM {$tx_table} WHERE deposit_batch_id = %s",
-                [ $dep_code ]
-            );
-            if ( $count > 0 ) {
-                $db->update(
-                    $deposits_table,
-                    [ 'transaction_count' => $count, 'updated_at' => metis_current_time( 'mysql' ) ],
-                    [ 'provider_ref' => $dep_code ]
-                );
-            }
+            StripeDepositService::refreshTransactionCount( $dep_code );
         }
     }
 
@@ -963,15 +805,7 @@ function metis_ajax_verify_deposit_links(): void {
     $errors     = [];
     $rows       = [];
 
-    $deposits = array_map(
-        static fn( array $row ): object => (object) $row,
-        $db->fetchAll(
-        "SELECT id, provider_ref, deposit_date, meta
-         FROM {$deposits_table}
-         WHERE provider = 'stripe'
-         ORDER BY deposit_date ASC"
-        )
-    );
+    $deposits = StripeDepositService::listWithPayoutMeta();
 
     if ( empty( $deposits ) ) {
         metis_runtime_send_json_success( [ 'message' => 'No Stripe deposits found. Run Sync Stripe Deposits first.', 'verified' => 0, 'corrected' => 0, 'linked' => 0, 'rows' => [] ] );
@@ -1040,19 +874,11 @@ function metis_ajax_verify_deposit_links(): void {
             $local_tx = null;
 
             if ( $sbt['btxn'] ) {
-                $local_tx = $db->fetchOne(
-                    "SELECT id, tid, deposit_batch_id FROM {$tx_table}
-                     WHERE stripe_balance_txn = %s LIMIT 1",
-                    [ $sbt['btxn'] ]
-                );
+                $local_tx = TransactionRecordService::findDepositLinkCandidateByBalanceTransaction( (string) $sbt['btxn'] );
             }
 
             if ( ! $local_tx && $sbt['charge_id'] ) {
-                $local_tx = $db->fetchOne(
-                    "SELECT id, tid, deposit_batch_id FROM {$tx_table}
-                     WHERE stripe_charge_id = %s LIMIT 1",
-                    [ $sbt['charge_id'] ]
-                );
+                $local_tx = TransactionRecordService::findDepositLinkCandidateByChargeId( (string) $sbt['charge_id'] );
             }
 
             if ( ! $local_tx ) {
@@ -1118,15 +944,7 @@ function metis_ajax_verify_deposit_links(): void {
 
     // Update transaction_count on all deposits
     foreach ( $deposits as $dep ) {
-        $count = (int) $db->scalar(
-            "SELECT COUNT(*) FROM {$tx_table} WHERE deposit_batch_id = %s",
-            [ $dep->provider_ref ]
-        );
-        $db->update(
-            $deposits_table,
-            [ 'transaction_count' => $count, 'updated_at' => metis_current_time( 'mysql' ) ],
-            [ 'id' => (int) $dep->id ]
-        );
+        StripeDepositService::refreshTransactionCount( (string) $dep->provider_ref );
     }
 
     metis_reports_clear_cache();
@@ -1173,37 +991,21 @@ function metis_ajax_import_stripe_charges(): void {
 
     // ── Build po_xxx → deposit_code lookup ────────────────────────────────────
     $payout_to_deposit = [];
-    foreach ( $db->fetchAll( "SELECT provider_ref, meta FROM {$dep_table} WHERE provider = 'stripe'" ) as $dr ) {
-        $m = json_decode( $dr['meta'] ?? '', true );
-        if ( ! empty( $m['payout_id'] ) ) {
-            $payout_to_deposit[ $m['payout_id'] ] = $dr['provider_ref'];
-        }
-    }
+    $payout_to_deposit = StripeDepositService::payoutToDepositMap();
 
     // Cache deposit_date values to avoid repeated DB queries
     $deposit_date_cache = [];
 
     // ── Build dedupe sets ─────────────────────────────────────────────────────
     // Skip if we already have a transaction with this charge ID (ch_ or py_)
-    $existing_charge_ids = array_flip( $db->column(
-        "SELECT stripe_charge_id FROM {$tx_table}
-         WHERE stripe_charge_id IS NOT NULL AND stripe_charge_id <> ''"
-    ) );
+    $existing_charge_ids = TransactionRecordService::existingStripeChargeIds();
 
     // Also skip if we already have a transaction for this Payment Intent ID
     // (handles the case where the charge ID changed but the PI is the same)
-    $existing_pi_ids = array_flip( $db->column(
-        "SELECT stripe_pay_int FROM {$tx_table}
-         WHERE stripe_pay_int IS NOT NULL AND stripe_pay_int <> ''"
-    ) );
+    $existing_pi_ids = TransactionRecordService::existingStripePaymentIntentIds();
 
     // ── Build email → did lookup ──────────────────────────────────────────────
-    $email_to_did = [];
-    foreach ( $db->fetchAll( "SELECT did, email FROM {$ct_table} WHERE email IS NOT NULL AND email <> ''" ) as $cr ) {
-        $key = strtolower( trim( (string) $cr['email'] ) );
-        $email_to_did[ $key ]                = $cr['did'];
-        $email_to_did[ trim( (string) $cr['email'] ) ] = $cr['did']; // also index raw case
-    }
+    $email_to_did = ContactMutationService::emailDidMap();
 
     $imported   = 0;
     $skipped    = 0;
@@ -1255,12 +1057,7 @@ function metis_ajax_import_stripe_charges(): void {
             // ── Dedupe: skip if charge ID or PI already in DB ──────────────────
             if ( isset( $existing_charge_ids[ $charge_id ] ) || isset( $existing_pi_ids[ $pi_id ] ) ) {
                 if ( $has_donations_module ) {
-                    $existing_tx_id = (int) $db->scalar(
-                        "SELECT id FROM {$tx_table}
-                         WHERE stripe_charge_id = %s OR stripe_pay_int = %s
-                         LIMIT 1",
-                        [ $charge_id, $pi_id ]
-                    );
+                    $existing_tx_id = TransactionRecordService::idByStripeChargeOrPaymentIntent( $charge_id, $pi_id );
                     if ( $existing_tx_id > 0 ) {
                         $method_details = \Metis\Modules\Donations\DonationsModule::stripePaymentMethodDetails( $charge );
                         $db->update( $tx_table, [
@@ -1317,44 +1114,19 @@ function metis_ajax_import_stripe_charges(): void {
             }
 
             if ( $email && ! $did ) {
-                // Contact might exist but have no did (null stored in cache) — look up directly
-                $existing_ct = $db->fetchOne(
-                    "SELECT id, did FROM {$ct_table} WHERE email = %s LIMIT 1",
-                    [ $email ]
-                );
+                $contact_resolution = ContactMutationService::resolveOrCreateDonorContact( $email, $first_name, $last_name );
+                $did = is_string( $contact_resolution['did'] ?? null ) ? $contact_resolution['did'] : null;
 
-                if ( $existing_ct ) {
-                    // Contact exists — assign a did if missing
-                    if ( ! empty( $existing_ct['did'] ) ) {
-                        $did = $existing_ct['did'];
-                    } else {
-                        $did = metis_generate_code( 'MW', $ct_table, 'did' );
-                        $db->update( $ct_table, [ 'did' => $did ], [ 'id' => (int) $existing_ct['id'] ] );
-                        Metis_Logger::info( 'Stripe import: did assigned to existing contact', [ 'did' => $did, 'email' => $email ] );
-                    }
-                    $email_to_did[ $email ]              = $did;
+                if ( $did ) {
+                    $email_to_did[ $email ] = $did;
                     $email_to_did[ strtolower( $email ) ] = $did;
-                } else {
-                    // Truly new contact
-                    $did = metis_generate_code( 'MW', $ct_table, 'did' );
-                    $ok  = $db->insert( $ct_table, [
-                        'did'        => $did,
-                        'first_name' => $first_name ?: null,
-                        'last_name'  => $last_name  ?: null,
-                        'email'      => $email,
-                        'created_at' => metis_current_time( 'mysql' ),
-                        'updated_at' => metis_current_time( 'mysql' ),
-                    ] );
-                    if ( $ok ) {
-                        $email_to_did[ $email ]              = $did;
-                        $email_to_did[ strtolower( $email ) ] = $did;
+                    if ( ! empty( $contact_resolution['created'] ) ) {
                         $donor_status = 'created';
                         $new_donors++;
                         Metis_Logger::info( 'Stripe import: contact created', [ 'did' => $did, 'email' => $email ] );
-                    } else {
-                        $errors[] = "Contact insert failed for {$email}.";
-                        $did = null;
                     }
+                } else {
+                    $errors[] = 'Contact insert failed for ' . $email . '.';
                 }
             }
 
@@ -1365,10 +1137,7 @@ function metis_ajax_import_stripe_charges(): void {
             if ( $payout_id && isset( $payout_to_deposit[ $payout_id ] ) ) {
                 $deposit_batch_id = $payout_to_deposit[ $payout_id ];
                 if ( ! isset( $deposit_date_cache[ $deposit_batch_id ] ) ) {
-                    $deposit_date_cache[ $deposit_batch_id ] = $db->scalar(
-                        "SELECT deposit_date FROM {$dep_table} WHERE provider_ref = %s",
-                        [ $deposit_batch_id ]
-                    ) ?: null;
+                    $deposit_date_cache[ $deposit_batch_id ] = StripeDepositService::depositDateByCode( $deposit_batch_id );
                 }
                 $deposit_date = $deposit_date_cache[ $deposit_batch_id ];
             }

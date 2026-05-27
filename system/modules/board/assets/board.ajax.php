@@ -4,6 +4,14 @@ if (!defined('METIS_ROOT')) exit;
 require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
 require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
 
+use Metis\Modules\Board\PacketRecipientService;
+use Metis\Modules\Board\BylawsService;
+use Metis\Modules\Board\CalendarLinkService;
+use Metis\Modules\Board\DecisionAttendanceService;
+use Metis\Modules\Board\DocumentService;
+use Metis\Modules\Board\ReadService;
+use Metis\Modules\Board\WorkflowTemplateService;
+
 function metis_board_ajax_verify(bool $manage = true): void {
     $allowed = $manage
         ? ( function_exists( 'metis_board_can_manage' ) && metis_board_can_manage() )
@@ -15,32 +23,7 @@ function metis_board_ajax_verify(bool $manage = true): void {
 }
 
 function metis_board_fetch_meeting_documents(int $meeting_id): array {
-    $db = metis_db();
-    if ($meeting_id < 1) return [];
-    $documents_table = Metis_Tables::get('board_documents');
-    $rows = $db->fetchAll(
-        "SELECT id, title, doc_type, google_file_id, google_drive_url, mime_type, file_size, updated_at
-         FROM {$documents_table}
-         WHERE meeting_id = %d
-         ORDER BY updated_at DESC, id DESC",
-        [ $meeting_id ]
-    ) ?: [];
-    $docs = [];
-    foreach ($rows as $row) {
-        $doc_type = (string) ($row['doc_type'] ?? '');
-        $docs[] = [
-            'id' => (int) ($row['id'] ?? 0),
-            'title' => (string) ($row['title'] ?? ''),
-            'doc_type' => $doc_type,
-            'doc_type_label' => function_exists('metis_board_doc_type_label') ? metis_board_doc_type_label($doc_type) : $doc_type,
-            'google_file_id' => (string) ($row['google_file_id'] ?? ''),
-            'google_drive_url' => (string) ($row['google_drive_url'] ?? ''),
-            'mime_type' => (string) ($row['mime_type'] ?? ''),
-            'file_size' => (int) ($row['file_size'] ?? 0),
-            'updated_at' => (string) ($row['updated_at'] ?? ''),
-        ];
-    }
-    return $docs;
+    return ReadService::meetingDocuments($meeting_id);
 }
 
 function metis_board_fetch_committee_summary(int $committee_id): array {
@@ -70,284 +53,36 @@ function metis_board_fetch_committee_summary(int $committee_id): array {
 }
 
 function metis_board_newsletter_list_exists(int $list_id): bool {
-    if ($list_id < 1) return false;
-    $newsletter_lists_table = Metis_Tables::get('newsletter_lists');
-    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($newsletter_lists_table)) {
-        return false;
-    }
-    $db = metis_db();
-    return (int) $db->scalar(
-        "SELECT id FROM {$newsletter_lists_table} WHERE id = %d AND is_active = 1 LIMIT 1",
-        [ $list_id ]
-    ) > 0;
+    return PacketRecipientService::newsletterListExists($list_id);
 }
 
 function metis_board_collect_newsletter_list_recipients(int $list_id): array {
-    if ($list_id < 1) return [];
-
-    if (function_exists('metis_newsletter_collect_recipients')) {
-        $rows = metis_newsletter_collect_recipients(0, [
-            'list_ids' => [ $list_id ],
-        ]);
-        return array_values(array_filter(array_map(static function (array $row): array {
-            $email = strtolower(trim((string) ($row['email'] ?? '')));
-            if (!metis_email_is_valid($email)) {
-                return [];
-            }
-            return [
-                'email' => $email,
-                'first_name' => trim((string) ($row['first_name'] ?? '')),
-                'display_name' => trim((string) ((($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ($row['contact_cid'] ?? ''))),
-            ];
-        }, is_array($rows) ? $rows : []), static fn(array $row): bool => !empty($row['email'])));
-    }
-
-    $db = metis_db();
-    $subs_table = Metis_Tables::get('newsletter_subs');
-    $contacts_table = Metis_Tables::get('contacts');
-    $suppressions_table = Metis_Tables::get('newsletter_suppressions');
-    if (!function_exists('metis_board_table_exists')
-        || !metis_board_table_exists($subs_table)
-        || !metis_board_table_exists($contacts_table)) {
-        return [];
-    }
-
-    $join_suppressions = metis_board_table_exists($suppressions_table)
-        ? " LEFT JOIN {$suppressions_table} sup ON (sup.contact_id = c.id OR sup.email = LOWER(TRIM(c.email))) AND sup.is_active = 1"
-        : '';
-    $suppression_where = metis_board_table_exists($suppressions_table) ? " AND sup.id IS NULL" : '';
-    $rows = $db->fetchAll(
-        "SELECT DISTINCT c.email, c.first_name, c.last_name, c.cid
-         FROM {$subs_table} s
-         INNER JOIN {$contacts_table} c ON c.id = s.contact_id
-         {$join_suppressions}
-         WHERE s.list_id = %d
-           AND s.status = 'subscribed'
-           AND c.email IS NOT NULL
-           AND TRIM(c.email) <> ''
-           {$suppression_where}
-         ORDER BY c.first_name ASC, c.last_name ASC, c.email ASC",
-        [ $list_id ]
-    ) ?: [];
-
-    $recipients = [];
-    foreach ($rows as $row) {
-        $email = strtolower(trim((string) ($row['email'] ?? '')));
-        if (!metis_email_is_valid($email)) continue;
-        $display_name = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
-        if ($display_name === '') {
-            $display_name = trim((string) ($row['cid'] ?? ''));
-        }
-        $recipients[] = [
-            'email' => $email,
-            'first_name' => trim((string) ($row['first_name'] ?? '')),
-            'display_name' => $display_name,
-        ];
-    }
-
-    return $recipients;
+    return PacketRecipientService::collectNewsletterListRecipients($list_id);
 }
 
 function metis_board_resolve_packet_recipients(array $meeting): array {
-    $meeting_type = metis_key_clean((string) ($meeting['meeting_type'] ?? 'board'));
-    $committee_id = (int) ($meeting['committee_id'] ?? 0);
-    $db = metis_db();
-    $people_table = Metis_Tables::get('people');
-
-    if ($meeting_type === 'committee') {
-        if ($committee_id < 1) {
-            return ['ok' => false, 'error' => 'Committee meetings must be linked to a committee before sending packets.'];
-        }
-
-        $committee = metis_board_fetch_committee_summary($committee_id);
-        if (!$committee) {
-            return ['ok' => false, 'error' => 'Committee settings could not be loaded.'];
-        }
-
-        $newsletter_list_id = (int) ($committee['newsletter_list_id'] ?? 0);
-        if ($newsletter_list_id < 1) {
-            return ['ok' => false, 'error' => 'This committee does not have a newsletter list configured for packet delivery.'];
-        }
-        if (!metis_board_newsletter_list_exists($newsletter_list_id)) {
-            return ['ok' => false, 'error' => 'The committee newsletter list is missing or inactive.'];
-        }
-
-        $recipients = [];
-        foreach (metis_board_collect_newsletter_list_recipients($newsletter_list_id) as $row) {
-            $email = strtolower(trim((string) ($row['email'] ?? '')));
-            if (!metis_email_is_valid($email)) continue;
-            $recipients[$email] = [
-                'email' => $email,
-                'first_name' => trim((string) ($row['first_name'] ?? '')),
-                'display_name' => trim((string) ($row['display_name'] ?? '')),
-            ];
-        }
-
-        if (empty($recipients)) {
-            return ['ok' => false, 'error' => 'No active subscribed committee recipients were found in the configured newsletter list.'];
-        }
-
-        return [
-            'ok' => true,
-            'recipients' => $recipients,
-            'audience_label' => 'committee members',
-            'packet_heading' => 'Committee Packet',
-            'committee_name' => (string) ($committee['name'] ?? ''),
-        ];
+    $committee = [];
+    if ((int) ($meeting['committee_id'] ?? 0) > 0) {
+        $committee = metis_board_fetch_committee_summary((int) ($meeting['committee_id'] ?? 0));
     }
 
-    $recipient_rows = $db->fetchAll(
-        "SELECT id, email, first_name, display_name
-         FROM {$people_table}
-         WHERE is_board = 1
-           AND status = 'active'
-           AND email IS NOT NULL
-           AND email <> ''
-         ORDER BY display_name ASC, email ASC"
-    ) ?: [];
-    $recipients = [];
-    foreach ($recipient_rows as $row) {
-        $email = strtolower(trim((string) ($row['email'] ?? '')));
-        if (!metis_email_is_valid($email)) continue;
-        $recipients[$email] = [
-            'email' => $email,
-            'first_name' => trim((string) ($row['first_name'] ?? '')),
-            'display_name' => trim((string) ($row['display_name'] ?? '')),
-        ];
-    }
-    if (empty($recipients)) {
-        return ['ok' => false, 'error' => 'No board member recipients found.'];
-    }
-
-    return [
-        'ok' => true,
-        'recipients' => $recipients,
-        'audience_label' => 'board members',
-        'packet_heading' => 'Board Packet',
-        'committee_name' => '',
-    ];
+    return PacketRecipientService::resolvePacketRecipients($meeting, $committee);
 }
 
 function metis_board_fetch_meeting_summary(int $meeting_id): array {
-    if ($meeting_id < 1) return [];
-    $db = metis_db();
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $row = $db->fetchOne(
-        "SELECT m.agenda_json, m.minutes_html
-         FROM {$meetings_table} m
-         WHERE m.id = %d
-         LIMIT 1",
-        [ $meeting_id ]
-    );
-    $summary = null;
-    foreach ( metis_board_fetch_dashboard_meetings(300) as $candidate ) {
-        if ( (int) ( $candidate['id'] ?? 0 ) === $meeting_id ) {
-            $summary = $candidate;
-            break;
-        }
-    }
-    if ( ! $summary ) return [];
-    if (!$row) return [];
-    $meeting_code = (string) ($summary['meeting_code'] ?? '');
-    return [
-        'id' => (int) ($summary['id'] ?? 0),
-        'meeting_code' => $meeting_code,
-        'title' => (string) ($summary['title'] ?? ''),
-        'committee_id' => (int) ($summary['committee_id'] ?? 0),
-        'meeting_date' => (string) ($summary['meeting_date'] ?? ''),
-        'meeting_type' => (string) ($summary['meeting_type'] ?? 'board'),
-        'location' => (string) ($summary['location'] ?? ''),
-        'status' => (string) ($summary['status'] ?? 'draft'),
-        'updated_at' => (string) ($summary['updated_at'] ?? ''),
-        'google_calendar_event_id' => (string) ($summary['google_calendar_event_id'] ?? ''),
-        'google_drive_folder_id' => (string) ($summary['google_drive_folder_id'] ?? ''),
-        'agenda_json' => (string) ($row['agenda_json'] ?? ''),
-        'minutes_html' => (string) ($row['minutes_html'] ?? ''),
-        'committee_name' => (string) ($summary['committee_name'] ?? ''),
-        'open_actions' => (int) ($summary['open_actions'] ?? 0),
-        'decisions_count' => (int) ($summary['decisions_count'] ?? 0),
-        'meeting_url' => ($meeting_code !== '' && function_exists('metis_board_meeting_url')) ? (string) metis_board_meeting_url($meeting_code) : '',
-    ];
+    return ReadService::meetingSummary($meeting_id);
 }
 
 function metis_board_fetch_decision_summary(int $decision_id): array {
-    if ($decision_id < 1) return [];
-    $db = metis_db();
-    $table = Metis_Tables::get('board_decisions');
-    $row = $db->fetchOne(
-        "SELECT d.*
-         FROM {$table} d
-         WHERE d.id = %d
-         LIMIT 1",
-        [ $decision_id ]
-    );
-    if (!$row) return [];
-    return [
-        'id' => (int) ($row['id'] ?? 0),
-        'meeting_id' => (int) ($row['meeting_id'] ?? 0),
-        'title' => (string) ($row['title'] ?? ''),
-        'agenda_section_title' => (string) ($row['agenda_section_title'] ?? ''),
-        'agenda_item_title' => (string) ($row['agenda_item_title'] ?? ''),
-        'decision_text' => (string) ($row['decision_text'] ?? ''),
-        'outcome' => (string) ($row['outcome'] ?? 'pending'),
-        'votes_for' => (int) ($row['votes_for'] ?? 0),
-        'votes_against' => (int) ($row['votes_against'] ?? 0),
-        'votes_abstain' => (int) ($row['votes_abstain'] ?? 0),
-        'decision_votes_json' => (string) ($row['decision_votes_json'] ?? '{"for":[],"against":[],"abstain":[]}'),
-    ];
+    return ReadService::decisionSummary($decision_id);
 }
 
 function metis_board_fetch_announcement_summary(int $announcement_id): array {
-    if ($announcement_id < 1) return [];
-    $db = metis_db();
-    $table = Metis_Tables::get('board_announcements');
-    $row = $db->fetchOne(
-        "SELECT id, announcement_code, title, status, publish_at, updated_at
-         FROM {$table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $announcement_id ]
-    );
-    if (!$row) return [];
-    return [
-        'id' => (int) ($row['id'] ?? 0),
-        'announcement_code' => (string) ($row['announcement_code'] ?? ''),
-        'title' => (string) ($row['title'] ?? ''),
-        'status' => (string) ($row['status'] ?? 'draft'),
-        'publish_at' => (string) ($row['publish_at'] ?? ''),
-        'updated_at' => (string) ($row['updated_at'] ?? ''),
-    ];
+    return ReadService::announcementSummary($announcement_id);
 }
 
 function metis_board_fetch_action_item_summary(int $action_item_id): array {
-    if ($action_item_id < 1) return [];
-    $db = metis_db();
-    $table = Metis_Tables::get('board_action_items');
-    $people_table = Metis_Tables::get('people');
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $row = $db->fetchOne(
-        "SELECT a.id, a.meeting_id, a.owner_person_id, a.title, a.due_date, a.status,
-                p.display_name AS owner_name,
-                m.meeting_code, m.title AS meeting_title
-         FROM {$table} a
-         LEFT JOIN {$people_table} p ON p.id = a.owner_person_id
-         LEFT JOIN {$meetings_table} m ON m.id = a.meeting_id
-         WHERE a.id = %d
-         LIMIT 1",
-        [ $action_item_id ]
-    );
-    if (!$row) return [];
-    return [
-        'id' => (int) ($row['id'] ?? 0),
-        'meeting_id' => (int) ($row['meeting_id'] ?? 0),
-        'owner_person_id' => (int) ($row['owner_person_id'] ?? 0),
-        'title' => (string) ($row['title'] ?? ''),
-        'owner_name' => (string) ($row['owner_name'] ?? ''),
-        'meeting_code' => (string) ($row['meeting_code'] ?? ''),
-        'meeting_title' => (string) ($row['meeting_title'] ?? ''),
-        'due_date' => (string) ($row['due_date'] ?? ''),
-        'status' => (string) ($row['status'] ?? 'open'),
-    ];
+    return ReadService::actionItemSummary($action_item_id);
 }
 
 function metis_board_can_resolve_action_item(array $action_item): bool {
@@ -366,147 +101,15 @@ function metis_board_can_resolve_action_item(array $action_item): bool {
 }
 
 function metis_board_fetch_bylaws_summary(int $bylaw_id = 0): array {
-    $table = Metis_Tables::get('board_bylaws');
-    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) {
-        return [];
-    }
-
-    $db = metis_db();
-    if ($bylaw_id > 0) {
-        $row = $db->fetchOne(
-            "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
-                    signed_pdf_title, status, approval_stage, version_number, document_hash, pdf_hash, generated_pdf_path,
-                    meeting_id, decision_id, action_item_id, secretary_person_id, secretary_signature_name,
-                    secretary_certified_at, secretary_context_json, president_person_id, president_signature_name,
-                    president_approved_at, president_context_json, board_vote_context_json,
-                    approved_by_person_id, approved_signature_name, approval_context_json, change_summary,
-                    effective_date, approved_at, updated_at
-             FROM {$table}
-             WHERE id = %d
-             LIMIT 1",
-            [ $bylaw_id ]
-        );
-    } else {
-        $row = $db->fetchOne(
-            "SELECT id, bylaw_code, title, source_text, formatted_html, signed_pdf_file_id, signed_pdf_url,
-                    signed_pdf_title, status, approval_stage, version_number, document_hash, pdf_hash, generated_pdf_path,
-                    meeting_id, decision_id, action_item_id, secretary_person_id, secretary_signature_name,
-                    secretary_certified_at, secretary_context_json, president_person_id, president_signature_name,
-                    president_approved_at, president_context_json, board_vote_context_json,
-                    approved_by_person_id, approved_signature_name, approval_context_json, change_summary,
-                    effective_date, approved_at, updated_at
-             FROM {$table}
-             WHERE status = 'active'
-             ORDER BY version_number DESC, (effective_date IS NULL), effective_date DESC, updated_at DESC, id DESC
-             LIMIT 1"
-        );
-    }
-
-    if (!is_array($row)) {
-        return [];
-    }
-
-    $effective_date = (string) ($row['effective_date'] ?? '');
-    $approved_at = (string) ($row['approved_at'] ?? '');
-    $updated_at = (string) ($row['updated_at'] ?? '');
-
-    return [
-        'id' => (int) ($row['id'] ?? 0),
-        'bylaw_code' => (string) ($row['bylaw_code'] ?? ''),
-        'title' => (string) ($row['title'] ?? 'Bylaws'),
-        'source_text' => (string) ($row['source_text'] ?? ''),
-        'formatted_html' => (string) ($row['formatted_html'] ?? ''),
-        'signed_pdf_file_id' => (string) ($row['signed_pdf_file_id'] ?? ''),
-        'signed_pdf_url' => (string) ($row['signed_pdf_url'] ?? ''),
-        'signed_pdf_title' => (string) ($row['signed_pdf_title'] ?? ''),
-        'status' => (string) ($row['status'] ?? 'active'),
-        'approval_stage' => (string) ($row['approval_stage'] ?? ($row['status'] ?? 'active')),
-        'version_number' => (int) ($row['version_number'] ?? 1),
-        'document_hash' => (string) ($row['document_hash'] ?? ''),
-        'pdf_hash' => (string) ($row['pdf_hash'] ?? ''),
-        'generated_pdf_path' => (string) ($row['generated_pdf_path'] ?? ''),
-        'meeting_id' => (int) ($row['meeting_id'] ?? 0),
-        'decision_id' => (int) ($row['decision_id'] ?? 0),
-        'action_item_id' => (int) ($row['action_item_id'] ?? 0),
-        'secretary_person_id' => (int) ($row['secretary_person_id'] ?? 0),
-        'secretary_signature_name' => (string) ($row['secretary_signature_name'] ?? ''),
-        'secretary_certified_at' => (string) ($row['secretary_certified_at'] ?? ''),
-        'secretary_certified_at_label' => !empty($row['secretary_certified_at']) ? metis_board_format_datetime((string) $row['secretary_certified_at']) : '—',
-        'president_person_id' => (int) ($row['president_person_id'] ?? 0),
-        'president_signature_name' => (string) ($row['president_signature_name'] ?? ''),
-        'president_approved_at' => (string) ($row['president_approved_at'] ?? ''),
-        'president_approved_at_label' => !empty($row['president_approved_at']) ? metis_board_format_datetime((string) $row['president_approved_at']) : '—',
-        'approved_by_person_id' => (int) ($row['approved_by_person_id'] ?? 0),
-        'approved_signature_name' => (string) ($row['approved_signature_name'] ?? ''),
-        'approval_context_json' => (string) ($row['approval_context_json'] ?? ''),
-        'change_summary' => (string) ($row['change_summary'] ?? ''),
-        'effective_date' => $effective_date,
-        'effective_date_label' => $effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($effective_date, null, null, null, '—') : ($effective_date !== '' ? $effective_date : '—'),
-        'approved_at' => $approved_at,
-        'approved_at_label' => $approved_at !== '' ? metis_board_format_datetime($approved_at) : '—',
-        'updated_at' => $updated_at,
-        'updated_at_label' => $updated_at !== '' ? metis_board_format_datetime($updated_at) : '—',
-    ];
+    return ReadService::bylawsSummary($bylaw_id);
 }
 
 function metis_board_fetch_bylaws_history(int $limit = 20): array {
-    $table = Metis_Tables::get('board_bylaws');
-    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) {
-        return [];
-    }
-    $db = metis_db();
-    $rows = $db->fetchAll(
-        "SELECT id, bylaw_code, title, signed_pdf_url, signed_pdf_title, status, approval_stage, version_number,
-                document_hash, pdf_hash, approved_signature_name, president_signature_name, secretary_signature_name, change_summary,
-                effective_date, approved_at, updated_at
-         FROM {$table}
-         WHERE status IN ('active', 'archived')
-         ORDER BY version_number DESC, approved_at DESC, updated_at DESC, id DESC
-         LIMIT %d",
-        [ max(1, min(100, $limit)) ]
-    ) ?: [];
-    $out = [];
-    foreach ($rows as $row) {
-        if (!is_array($row)) continue;
-        $effective_date = (string) ($row['effective_date'] ?? '');
-        $approved_at = (string) ($row['approved_at'] ?? '');
-        $updated_at = (string) ($row['updated_at'] ?? '');
-        $out[] = [
-            'id' => (int) ($row['id'] ?? 0),
-            'bylaw_code' => (string) ($row['bylaw_code'] ?? ''),
-            'title' => (string) ($row['title'] ?? 'Bylaws'),
-            'signed_pdf_url' => (string) ($row['signed_pdf_url'] ?? ''),
-            'signed_pdf_title' => (string) ($row['signed_pdf_title'] ?? ''),
-            'status' => (string) ($row['status'] ?? ''),
-            'approval_stage' => (string) ($row['approval_stage'] ?? ''),
-            'version_number' => (int) ($row['version_number'] ?? 1),
-            'document_hash' => (string) ($row['document_hash'] ?? ''),
-            'pdf_hash' => (string) ($row['pdf_hash'] ?? ''),
-            'approved_signature_name' => (string) ($row['approved_signature_name'] ?? ''),
-            'president_signature_name' => (string) ($row['president_signature_name'] ?? ''),
-            'secretary_signature_name' => (string) ($row['secretary_signature_name'] ?? ''),
-            'change_summary' => (string) ($row['change_summary'] ?? ''),
-            'effective_date_label' => $effective_date !== '' && function_exists('metis_runtime_format_date') ? metis_runtime_format_date($effective_date, null, null, null, '—') : ($effective_date !== '' ? $effective_date : '—'),
-            'approved_at_label' => $approved_at !== '' ? metis_board_format_datetime($approved_at) : '—',
-            'updated_at_label' => $updated_at !== '' ? metis_board_format_datetime($updated_at) : '—',
-        ];
-    }
-    return $out;
+    return ReadService::bylawsHistory($limit);
 }
 
 function metis_board_bylaws_signature_name(): string {
-    $person_id = metis_board_current_person_id();
-    if ($person_id > 0) {
-        $people_table = Metis_Tables::get('people');
-        $name = (string) metis_db()->scalar("SELECT display_name FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
-        if (trim($name) !== '') return trim($name);
-    }
-    $user = function_exists('metis_runtime_current_user') ? metis_runtime_current_user() : null;
-    if (is_object($user)) {
-        $name = trim((string) ($user->display_name ?? $user->user_login ?? ''));
-        if ($name !== '') return $name;
-    }
-    return 'Metis approver';
+    return ReadService::bylawsSignatureName();
 }
 
 function metis_board_render_bylaws_pdf_bytes(array $formatted, array $metadata): array {
@@ -585,39 +188,15 @@ function metis_board_bylaws_audit_context(string $stage, string $document_hash =
 }
 
 function metis_board_fetch_bylaws_row(int $bylaw_id): array {
-    if ($bylaw_id < 1) return [];
-    $table = Metis_Tables::get('board_bylaws');
-    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) return [];
-    $row = metis_db()->fetchOne("SELECT * FROM {$table} WHERE id = %d LIMIT 1", [ $bylaw_id ]);
-    return is_array($row) ? $row : [];
+    return ReadService::bylawsRow($bylaw_id);
 }
 
 function metis_board_fetch_bylaws_decision(int $decision_id): array {
-    if ($decision_id < 1) return [];
-    $table = Metis_Tables::get('board_decisions');
-    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) return [];
-    $row = metis_db()->fetchOne(
-        "SELECT id, decision_code, meeting_id, title, outcome, votes_for, votes_against, votes_abstain, passed, passed_at
-         FROM {$table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $decision_id ]
-    );
-    return is_array($row) ? $row : [];
+    return ReadService::bylawsDecision($decision_id);
 }
 
 function metis_board_fetch_bylaws_action_item(int $action_item_id): array {
-    if ($action_item_id < 1) return [];
-    $table = Metis_Tables::get('board_action_items');
-    if (!function_exists('metis_board_table_exists') || !metis_board_table_exists($table)) return [];
-    $row = metis_db()->fetchOne(
-        "SELECT id, action_code, meeting_id, decision_id, title, status
-         FROM {$table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $action_item_id ]
-    );
-    return is_array($row) ? $row : [];
+    return ReadService::bylawsActionItem($action_item_id);
 }
 
 function metis_board_register_ajax_controllers(): void {
@@ -1015,347 +594,24 @@ metis_ajax_register_handler( 'metis_board_format_bylaws', function () {
 
 metis_ajax_register_handler( 'metis_board_save_bylaws', function () {
     metis_board_ajax_verify(true);
-
-    $db = metis_db();
-    $table = Metis_Tables::get('board_bylaws');
-    $post = metis_request_post();
-
-    $bylaw_id = (int) ($post['bylaw_id'] ?? 0);
-    $title = metis_text_clean(metis_runtime_unslash($post['title'] ?? 'Bylaws'));
-    $source_text = trim((string) metis_runtime_unslash($post['source_text'] ?? ''));
-    $signed_pdf_url = metis_board_normalize_pdf_url((string) metis_runtime_unslash($post['signed_pdf_url'] ?? ''));
-    $signed_pdf_file_id = metis_text_clean(metis_runtime_unslash($post['signed_pdf_file_id'] ?? ''));
-    $signed_pdf_title = metis_text_clean(metis_runtime_unslash($post['signed_pdf_title'] ?? 'Signed bylaws PDF'));
-    $change_summary = metis_textarea_clean(metis_runtime_unslash($post['change_summary'] ?? ''));
-    $effective_date = metis_board_normalize_bylaws_date(metis_text_clean(metis_runtime_unslash($post['effective_date'] ?? '')));
-    $meeting_id = max(0, (int) ($post['meeting_id'] ?? 0));
-    $decision_id = max(0, (int) ($post['decision_id'] ?? 0));
-    $action_item_id = max(0, (int) ($post['action_item_id'] ?? 0));
-
-    if ($title === '') {
-        $title = 'Bylaws';
-    }
-    if ($source_text === '') {
-        metis_runtime_send_json_error('Bylaws text is required.', 422);
-    }
-    if (strlen($source_text) > 500000) {
-        metis_runtime_send_json_error('Bylaws text is too large to save safely.', 422);
-    }
-    if ($signed_pdf_file_id === '' && $signed_pdf_url !== '') {
-        $signed_pdf_file_id = metis_board_extract_google_id($signed_pdf_url, 'drive_file');
-    }
-    if ($signed_pdf_title === '') {
-        $signed_pdf_title = 'Signed bylaws PDF';
-    }
-
-    $formatted = \Metis\Modules\Board\BylawsFormatter::format($source_text, $title);
-    $person_id = metis_board_current_person_id();
-    $document_hash = hash('sha256', $title . "\n" . $source_text . "\n" . (string) ($formatted['html'] ?? ''));
-
-    $current = metis_board_fetch_bylaws_row($bylaw_id);
-    $can_update_existing = $current
-        && in_array((string) ($current['status'] ?? ''), ['draft', 'pending_president'], true)
-        && !in_array((string) ($current['approval_stage'] ?? ''), ['active', 'archived'], true);
-    $next_version = $can_update_existing
-        ? (int) ($current['version_number'] ?? 1)
-        : (int) $db->scalar("SELECT COALESCE(MAX(version_number), 0) + 1 FROM {$table}");
-    if ($next_version < 1) $next_version = 1;
-
-    $payload = [
-        'title' => $title,
-        'source_text' => $source_text,
-        'formatted_html' => (string) ($formatted['html'] ?? ''),
-        'signed_pdf_file_id' => $signed_pdf_file_id !== '' ? $signed_pdf_file_id : null,
-        'signed_pdf_url' => $signed_pdf_url !== '' ? $signed_pdf_url : null,
-        'signed_pdf_title' => $signed_pdf_title,
-        'status' => 'draft',
-        'approval_stage' => 'draft',
-        'version_number' => $next_version,
-        'document_hash' => $document_hash,
-        'meeting_id' => $meeting_id > 0 ? $meeting_id : null,
-        'decision_id' => $decision_id > 0 ? $decision_id : null,
-        'action_item_id' => $action_item_id > 0 ? $action_item_id : null,
-        'change_summary' => $change_summary !== '' ? $change_summary : null,
-        'effective_date' => $effective_date,
-    ];
-
-    if ($can_update_existing) {
-        $ok = $db->update(
-            $table,
-            $payload,
-            ['id' => $bylaw_id],
-            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s'],
-            ['%d']
-        );
-    } else {
-        $payload['bylaw_code'] = metis_board_generate_code('BB', $table, 'bylaw_code');
-        $payload['created_by_person_id'] = $person_id > 0 ? $person_id : null;
-        $ok = $db->insert(
-            $table,
-            $payload,
-            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%d']
-        );
-        if ($ok) {
-            $bylaw_id = (int) $db->lastInsertId();
-        }
-    }
-    if (!$ok) {
-        metis_runtime_send_json_error('Failed to save bylaws.', 500);
-    }
-
-    if (function_exists('metis_audit_log_activity')) {
-        metis_audit_log_activity('board_bylaws_draft_saved', [
-            'bylaw_id' => $bylaw_id,
-            'version_number' => $next_version,
-            'document_hash' => $document_hash,
-            'meeting_id' => $meeting_id,
-            'decision_id' => $decision_id,
-            'action_item_id' => $action_item_id,
-            'has_signed_pdf' => $signed_pdf_url !== '' || $signed_pdf_file_id !== '',
-            'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
-        ]);
-    }
-
-    metis_portal_dashboard_forget_all();
-    metis_runtime_send_json_success([
-        'bylaw_id' => $bylaw_id,
-        'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
-        'history' => metis_board_fetch_bylaws_history(20),
-    ]);
+    metis_runtime_send_json_success(BylawsService::saveDraft(metis_request_post()));
 });
 
 metis_ajax_register_handler( 'metis_board_secretary_certify_bylaws', function () {
     metis_board_ajax_verify(true);
-
-    $db = metis_db();
-    $table = Metis_Tables::get('board_bylaws');
     $bylaw_id = (int) (metis_request_post()['bylaw_id'] ?? 0);
-    $row = metis_board_fetch_bylaws_row($bylaw_id);
-    if (!$row) metis_runtime_send_json_error('Bylaws draft not found.', 404);
-    if (!in_array((string) ($row['status'] ?? ''), ['draft', 'pending_president'], true)) {
-        metis_runtime_send_json_error('Only a draft bylaws version can be certified by the secretary.', 422);
-    }
-
-    $person_id = metis_board_current_person_id();
-    $signature_name = metis_board_bylaws_signature_name();
-    $document_hash = (string) ($row['document_hash'] ?? '');
-    $context = metis_board_bylaws_audit_context('secretary_certification', $document_hash);
-    $now = metis_current_time('mysql');
-    $ok = $db->update(
-        $table,
-        [
-            'status' => 'pending_president',
-            'approval_stage' => 'secretary_certified',
-            'secretary_person_id' => $person_id > 0 ? $person_id : null,
-            'secretary_signature_name' => $signature_name,
-            'secretary_certified_at' => $now,
-            'secretary_context_json' => metis_json_encode($context),
-        ],
-        ['id' => $bylaw_id],
-        ['%s', '%s', '%d', '%s', '%s', '%s'],
-        ['%d']
-    );
-    if ($ok === false) metis_runtime_send_json_error('Failed to certify bylaws.', 500);
-
-    if (function_exists('metis_audit_log_activity')) {
-        metis_audit_log_activity('board_bylaws_secretary_certified', [
-            'bylaw_id' => $bylaw_id,
-            'document_hash' => $document_hash,
-            'secretary_signature_name' => $signature_name,
-            'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
-        ]);
-    }
-
-    metis_portal_dashboard_forget_all();
-    metis_runtime_send_json_success([
-        'bylaw_id' => $bylaw_id,
-        'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
-        'history' => metis_board_fetch_bylaws_history(20),
-    ]);
+    metis_runtime_send_json_success(BylawsService::secretaryCertify($bylaw_id));
 });
 
 metis_ajax_register_handler( 'metis_board_president_approve_bylaws', function () {
     metis_board_ajax_verify(true);
-
-    $db = metis_db();
-    $table = Metis_Tables::get('board_bylaws');
     $bylaw_id = (int) (metis_request_post()['bylaw_id'] ?? 0);
-    $row = metis_board_fetch_bylaws_row($bylaw_id);
-    if (!$row) metis_runtime_send_json_error('Bylaws draft not found.', 404);
-    if ((string) ($row['approval_stage'] ?? '') !== 'secretary_certified') {
-        metis_runtime_send_json_error('Secretary certification is required before president approval.', 422);
-    }
-
-    $decision_id = (int) ($row['decision_id'] ?? 0);
-    $action_item_id = (int) ($row['action_item_id'] ?? 0);
-    if ($decision_id < 1) {
-        metis_runtime_send_json_error('Link an approved board vote before president approval.', 422);
-    }
-    if ($action_item_id < 1) {
-        metis_runtime_send_json_error('Link the bylaws approval to a board action item before president approval.', 422);
-    }
-
-    $decision = metis_board_fetch_bylaws_decision($decision_id);
-    if (!$decision || (int) ($decision['passed'] ?? 0) !== 1 || (string) ($decision['outcome'] ?? '') !== 'approved') {
-        metis_runtime_send_json_error('The linked board vote must be approved before president approval.', 422);
-    }
-    $action_item = metis_board_fetch_bylaws_action_item($action_item_id);
-    if (!$action_item) {
-        metis_runtime_send_json_error('The linked board action item could not be found.', 422);
-    }
-
-    $person_id = metis_board_current_person_id();
-    $secretary_person_id = (int) ($row['secretary_person_id'] ?? 0);
-    if ($person_id > 0 && $secretary_person_id > 0 && $person_id === $secretary_person_id) {
-        metis_runtime_send_json_error('President approval must be performed by a different signer than secretary certification.', 422);
-    }
-
-    $title = (string) ($row['title'] ?? 'Bylaws');
-    $source_text = (string) ($row['source_text'] ?? '');
-    $formatted = \Metis\Modules\Board\BylawsFormatter::format($source_text, $title);
-    $document_hash = hash('sha256', $title . "\n" . $source_text . "\n" . (string) ($formatted['html'] ?? ''));
-    $approved_at = metis_current_time('mysql');
-    $signature_name = metis_board_bylaws_signature_name();
-    $pdf_hash = '';
-    $generated_pdf_path = '';
-    $pdf_result = metis_board_render_bylaws_pdf_bytes($formatted, [
-        'title' => $title,
-        'signature' => 'Secretary: ' . (string) ($row['secretary_signature_name'] ?? '') . ' | President: ' . $signature_name,
-        'approved_at' => $approved_at,
-        'document_hash' => $document_hash,
-    ]);
-    if (!empty($pdf_result['ok'])) {
-        $pdf_bytes = (string) ($pdf_result['bytes'] ?? '');
-        $pdf_hash = $pdf_bytes !== '' ? hash('sha256', $pdf_bytes) : '';
-        $generated_pdf_path = $pdf_bytes !== '' ? metis_board_store_bylaws_pdf((string) ($row['bylaw_code'] ?? ('BB' . $bylaw_id)), $pdf_bytes) : '';
-    }
-
-    $vote_context = [
-        'meeting_id' => (int) ($decision['meeting_id'] ?? 0),
-        'decision_id' => $decision_id,
-        'decision_code' => (string) ($decision['decision_code'] ?? ''),
-        'decision_title' => (string) ($decision['title'] ?? ''),
-        'votes_for' => (int) ($decision['votes_for'] ?? 0),
-        'votes_against' => (int) ($decision['votes_against'] ?? 0),
-        'votes_abstain' => (int) ($decision['votes_abstain'] ?? 0),
-        'passed_at' => (string) ($decision['passed_at'] ?? ''),
-        'action_item_id' => $action_item_id,
-        'action_item_code' => (string) ($action_item['action_code'] ?? ''),
-        'action_item_title' => (string) ($action_item['title'] ?? ''),
-    ];
-    $president_context = metis_board_bylaws_audit_context('president_approval', $document_hash, $pdf_hash);
-    $approval_context = [
-        'approval_model' => 'metis_two_step_bylaws_approval',
-        'secretary_context' => json_decode((string) ($row['secretary_context_json'] ?? '{}'), true) ?: [],
-        'president_context' => $president_context,
-        'board_vote_context' => $vote_context,
-    ];
-
-    $db->execute("UPDATE {$table} SET status = 'archived', approval_stage = 'archived' WHERE status = 'active'");
-    $ok = $db->update(
-        $table,
-        [
-            'status' => 'active',
-            'approval_stage' => 'active',
-            'formatted_html' => (string) ($formatted['html'] ?? ''),
-            'document_hash' => $document_hash,
-            'pdf_hash' => $pdf_hash !== '' ? $pdf_hash : null,
-            'generated_pdf_path' => $generated_pdf_path !== '' ? $generated_pdf_path : null,
-            'president_person_id' => $person_id > 0 ? $person_id : null,
-            'president_signature_name' => $signature_name,
-            'president_approved_at' => $approved_at,
-            'president_context_json' => metis_json_encode($president_context),
-            'board_vote_context_json' => metis_json_encode($vote_context),
-            'approved_by_person_id' => $person_id > 0 ? $person_id : null,
-            'approved_signature_name' => $signature_name,
-            'approval_context_json' => metis_json_encode($approval_context),
-            'approved_at' => $approved_at,
-        ],
-        ['id' => $bylaw_id],
-        ['%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s'],
-        ['%d']
-    );
-    if ($ok === false) metis_runtime_send_json_error('Failed to approve bylaws.', 500);
-
-    if (function_exists('metis_audit_log_activity')) {
-        metis_audit_log_activity('board_bylaws_president_approved', [
-            'bylaw_id' => $bylaw_id,
-            'document_hash' => $document_hash,
-            'pdf_hash' => $pdf_hash,
-            'decision_id' => $decision_id,
-            'action_item_id' => $action_item_id,
-            'president_signature_name' => $signature_name,
-            'request_id' => function_exists('metis_audit_request_id') ? metis_audit_request_id() : '',
-        ]);
-    }
-
-    metis_portal_dashboard_forget_all();
-    metis_runtime_send_json_success([
-        'bylaw_id' => $bylaw_id,
-        'bylaws' => metis_board_fetch_bylaws_summary($bylaw_id),
-        'history' => metis_board_fetch_bylaws_history(20),
-    ]);
+    metis_runtime_send_json_success(BylawsService::presidentApprove($bylaw_id));
 });
 
 metis_ajax_register_handler( 'metis_board_list_bylaws_pdf_options', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $options = [];
-    $drive_enabled = false;
-
-    if (function_exists('metis_drive_workspace_settings')) {
-        $cfg = metis_drive_workspace_settings();
-        $drive_enabled = !empty($cfg['ok']);
-    }
-
-    if ($drive_enabled && Metis_Tables::has('drive_items')) {
-        $items_table = Metis_Tables::get('drive_items');
-        $drive_rows = $db->fetchAll(
-            "SELECT item_id, item_name, mime_type, web_view_link, drive_id, modified_time
-             FROM {$items_table}
-             WHERE is_folder = 0
-               AND (mime_type = 'application/pdf' OR item_name LIKE '%.pdf')
-             ORDER BY modified_time DESC, synced_at DESC
-             LIMIT 100"
-        ) ?: [];
-        foreach ($drive_rows as $row) {
-            if (!is_array($row)) continue;
-            $options[] = [
-                'source' => 'drive',
-                'id' => (string) ($row['item_id'] ?? ''),
-                'title' => (string) ($row['item_name'] ?? 'Drive PDF'),
-                'url' => (string) ($row['web_view_link'] ?? ''),
-                'meta' => 'Google Drive',
-            ];
-        }
-    }
-
-    if (!$drive_enabled && Metis_Tables::has('board_documents')) {
-        $docs_table = Metis_Tables::get('board_documents');
-        $doc_rows = $db->fetchAll(
-            "SELECT id, title, google_file_id, google_drive_url, mime_type, updated_at
-             FROM {$docs_table}
-             WHERE status = 'active'
-               AND (mime_type = 'application/pdf' OR title LIKE '%.pdf')
-             ORDER BY updated_at DESC, id DESC
-             LIMIT 100"
-        ) ?: [];
-        foreach ($doc_rows as $row) {
-            if (!is_array($row)) continue;
-            $options[] = [
-                'source' => 'upload',
-                'id' => (string) ($row['google_file_id'] ?? ('doc:' . (int) ($row['id'] ?? 0))),
-                'title' => (string) ($row['title'] ?? 'Uploaded PDF'),
-                'url' => (string) ($row['google_drive_url'] ?? ''),
-                'meta' => 'Uploaded board document',
-            ];
-        }
-    }
-
-    metis_runtime_send_json_success([
-        'drive_enabled' => $drive_enabled,
-        'options' => $options,
-    ]);
+    metis_runtime_send_json_success(BylawsService::pdfOptions());
 });
 
 function metis_board_drive_cfg(): array {
@@ -1372,7 +628,7 @@ function metis_board_drive_request(string $method, string $path_or_url, ?array $
 }
 
 function metis_board_shared_drive_id(): string {
-    return trim((string) Core_Settings_Service::get('workspace_shared_drive_id', ''));
+    return \Metis\Modules\Board\WorkspaceService::sharedDriveId();
 }
 
 function metis_board_calendar_cfg(): array {
@@ -1572,132 +828,15 @@ function metis_board_upsert_calendar_event_for_meeting(array $meeting, bool $cre
 }
 
 function metis_board_fetch_drive_folder_summary(string $folder_id): array {
-    $id = trim($folder_id);
-    if ($id === '') return ['ok' => false, 'error' => 'Drive folder is required.'];
-    $url = 'files/' . rawurlencode($id) . '?fields=id,name,webViewLink&supportsAllDrives=true';
-    $resp = metis_board_drive_request('GET', $url, null);
-    if (empty($resp['ok'])) return ['ok' => false, 'error' => 'Failed to fetch Drive folder.'];
-    $folder = (array) ($resp['body'] ?? []);
-    return [
-        'ok' => true,
-        'id' => (string) ($folder['id'] ?? $id),
-        'name' => trim((string) ($folder['name'] ?? '')) !== '' ? trim((string) $folder['name']) : 'Drive folder',
-        'url' => (string) ($folder['webViewLink'] ?? ''),
-    ];
+    return \Metis\Modules\Board\WorkspaceService::fetchDriveFolderSummary($folder_id);
 }
 
 function metis_board_drive_ensure_named_folder(string $name, string $parent_id, string $shared_drive_id): array {
-    $name = trim($name);
-    if ($name === '' || $parent_id === '' || $shared_drive_id === '') {
-        return ['ok' => false, 'error' => 'Folder name, parent, and drive are required.'];
-    }
-
-    $q = "trashed = false and mimeType = 'application/vnd.google-apps.folder' and '" . str_replace("'", "\\'", $parent_id) . "' in parents and name = '" . str_replace("'", "\\'", $name) . "'";
-    $lookup_url = metis_add_query_arg([
-        'q' => $q,
-        'corpora' => 'drive',
-        'driveId' => $shared_drive_id,
-        'includeItemsFromAllDrives' => 'true',
-        'supportsAllDrives' => 'true',
-        'useDomainAdminAccess' => 'true',
-        'pageSize' => 1,
-        'fields' => 'files(id,name,webViewLink)',
-    ], 'https://www.googleapis.com/drive/v3/files');
-    $lookup = metis_board_drive_request('GET', $lookup_url, null);
-    if (empty($lookup['ok'])) {
-        return ['ok' => false, 'error' => 'Failed to find folder.'];
-    }
-    $match = (array) (($lookup['body']['files'][0] ?? []));
-    if (!empty($match['id'])) {
-        $folder_id = (string) $match['id'];
-        return [
-            'ok' => true,
-            'folder_id' => $folder_id,
-            'folder_url' => 'https://drive.google.com/drive/folders/' . rawurlencode($folder_id),
-            'created' => false,
-        ];
-    }
-
-    $create_payload = [
-        'name' => $name,
-        'mimeType' => 'application/vnd.google-apps.folder',
-        'parents' => [$parent_id],
-        'driveId' => $shared_drive_id,
-    ];
-    $create_url = metis_add_query_arg(['supportsAllDrives' => 'true'], 'https://www.googleapis.com/drive/v3/files');
-    $created = metis_board_drive_request('POST', $create_url, $create_payload);
-    if (empty($created['ok']) || empty($created['body']['id'])) {
-        return ['ok' => false, 'error' => 'Failed to create folder.'];
-    }
-    $folder_id = (string) $created['body']['id'];
-    return [
-        'ok' => true,
-        'folder_id' => $folder_id,
-        'folder_url' => 'https://drive.google.com/drive/folders/' . rawurlencode($folder_id),
-        'created' => true,
-    ];
+    return \Metis\Modules\Board\WorkspaceService::ensureNamedFolder($name, $parent_id, $shared_drive_id);
 }
 
 function metis_board_prepare_workspace_folders(int $meeting_id): array {
-    $db = metis_db();
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $meeting = $db->fetchOne("SELECT id, meeting_code, title, meeting_date FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]);
-    if (!$meeting) {
-        return ['ok' => false, 'error' => 'Meeting not found.'];
-    }
-
-    $shared_drive_id = metis_board_shared_drive_id();
-    if ($shared_drive_id === '') {
-        return ['ok' => false, 'error' => 'Shared Drive ID is not configured in Settings.'];
-    }
-
-    $meeting_ts = strtotime((string) ($meeting['meeting_date'] ?? ''));
-    if (!$meeting_ts) {
-        return ['ok' => false, 'error' => 'Meeting date is invalid.'];
-    }
-    $year = metis_runtime_date('Y', $meeting_ts, metis_runtime_timezone());
-    $month = metis_runtime_date('Y-m', $meeting_ts, metis_runtime_timezone());
-
-    $root = metis_board_drive_ensure_named_folder('01 Board Meetings', $shared_drive_id, $shared_drive_id);
-    if (empty($root['ok'])) return $root;
-    $year_folder = metis_board_drive_ensure_named_folder($year, (string) $root['folder_id'], $shared_drive_id);
-    if (empty($year_folder['ok'])) return $year_folder;
-    $month_folder = metis_board_drive_ensure_named_folder($month, (string) $year_folder['folder_id'], $shared_drive_id);
-    if (empty($month_folder['ok'])) return $month_folder;
-    $agenda_folder = metis_board_drive_ensure_named_folder('Agenda', (string) $month_folder['folder_id'], $shared_drive_id);
-    if (empty($agenda_folder['ok'])) return $agenda_folder;
-    $packet_folder = metis_board_drive_ensure_named_folder('Packet', (string) $month_folder['folder_id'], $shared_drive_id);
-    if (empty($packet_folder['ok'])) return $packet_folder;
-    $minutes_folder = metis_board_drive_ensure_named_folder('Minutes', (string) $month_folder['folder_id'], $shared_drive_id);
-    if (empty($minutes_folder['ok'])) return $minutes_folder;
-    $financials_folder = metis_board_drive_ensure_named_folder('Financials', (string) $month_folder['folder_id'], $shared_drive_id);
-    if (empty($financials_folder['ok'])) return $financials_folder;
-    $supporting_folder = metis_board_drive_ensure_named_folder('Supporting Docs', (string) $month_folder['folder_id'], $shared_drive_id);
-    if (empty($supporting_folder['ok'])) return $supporting_folder;
-
-    $meeting_payload = [
-        'google_drive_folder_id' => (string) $month_folder['folder_id'],
-        'google_drive_folder_url' => (string) $month_folder['folder_url'],
-    ];
-    $meeting_formats = ['%s', '%s'];
-    if (metis_board_table_has_column($meetings_table, 'google_drive_folder_name')) {
-        $meeting_payload['google_drive_folder_name'] = (string) $month;
-        $meeting_formats[] = '%s';
-    }
-    $db->update($meetings_table, $meeting_payload, ['id' => $meeting_id], $meeting_formats, ['%d']);
-
-    return [
-        'ok' => true,
-        'meeting' => $meeting,
-        'root' => $root,
-        'year' => $year_folder,
-        'month' => $month_folder,
-        'agenda' => $agenda_folder,
-        'packet' => $packet_folder,
-        'minutes' => $minutes_folder,
-        'financials' => $financials_folder,
-        'supporting' => $supporting_folder,
-    ];
+    return \Metis\Modules\Board\WorkspaceService::prepareWorkspaceFolders($meeting_id);
 }
 
 function metis_board_drive_upload_bytes(string $filename, string $mime, string $bytes, string $folder_id): array {
@@ -2129,262 +1268,44 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
 
 metis_ajax_register_handler( 'metis_board_get_workflow_templates', function () {
     metis_board_ajax_verify(false);
-    $db = metis_db();
-    $agenda_table = Metis_Tables::get('board_agenda_templates');
-    $decision_table = Metis_Tables::get('board_decision_templates');
-    $agenda = $db->fetchAll("SELECT id, template_code, name, description, default_items_json, sort_order, is_required, is_active FROM {$agenda_table} ORDER BY sort_order ASC, id ASC") ?: [];
-    $decisions = $db->fetchAll("SELECT id, template_code, title, description, default_outcome, sort_order, is_active FROM {$decision_table} ORDER BY sort_order ASC, id ASC") ?: [];
-    metis_runtime_send_json_success(['agenda' => $agenda, 'decisions' => $decisions]);
+    metis_runtime_send_json_success(WorkflowTemplateService::listTemplates());
 });
 
 metis_ajax_register_handler( 'metis_board_save_agenda_template', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $table = Metis_Tables::get('board_agenda_templates');
-    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
-    $name = metis_text_clean(metis_runtime_unslash(metis_request_post()['name'] ?? ''));
-    $description = metis_text_clean(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
-    $sort_order = max(0, (int) (metis_request_post()['sort_order'] ?? 0));
-    $is_required = (int) (metis_request_post()['is_required'] ?? 0) === 1 ? 1 : 0;
-    $is_active = (int) (metis_request_post()['is_active'] ?? 1) === 1 ? 1 : 0;
-    $default_items_raw = (string) metis_runtime_unslash(metis_request_post()['default_items_json'] ?? '[]');
-    $default_items = json_decode($default_items_raw, true);
-    if (!is_array($default_items)) $default_items = [];
-    if ($name === '') metis_runtime_send_json_error('Template name is required.', 422);
-    $payload = [
-        'name' => $name,
-        'description' => $description,
-        'default_items_json' => metis_json_encode(array_values(array_filter(array_map('strval', $default_items), function ($v) { return trim($v) !== ''; }))),
-        'sort_order' => $sort_order,
-        'is_required' => $is_required,
-        'is_active' => $is_active,
-    ];
-    if ($template_id > 0) {
-        $ok = $db->update($table, $payload, ['id' => $template_id], ['%s', '%s', '%s', '%d', '%d', '%d'], ['%d']);
-        if ($ok === false) metis_runtime_send_json_error('Failed to update agenda template.', 500);
-    } else {
-        $payload['template_code'] = metis_board_generate_code('BS', $table, 'template_code');
-        $ok = $db->insert($table, $payload, ['%s', '%s', '%s', '%d', '%d', '%d', '%s']);
-        if (!$ok) metis_runtime_send_json_error('Failed to save agenda template.', 500);
-        $template_id = (int) $db->lastInsertId();
-    }
-    metis_runtime_send_json_success(['template_id' => $template_id]);
+    metis_runtime_send_json_success(WorkflowTemplateService::saveAgendaTemplate(metis_request_post()));
 });
 
 metis_ajax_register_handler( 'metis_board_delete_agenda_template', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
-    if ($template_id < 1) metis_runtime_send_json_error('Template is required.', 422);
-    $table = Metis_Tables::get('board_agenda_templates');
-    $ok = $db->update($table, ['is_active' => 0], ['id' => $template_id], ['%d'], ['%d']);
-    if ($ok === false) metis_runtime_send_json_error('Failed to deactivate template.', 500);
-    metis_runtime_send_json_success(['template_id' => $template_id]);
+    metis_runtime_send_json_success(WorkflowTemplateService::deactivateAgendaTemplate((int) (metis_request_post()['template_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_save_decision_template', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $table = Metis_Tables::get('board_decision_templates');
-    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
-    $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
-    $description = metis_text_clean(metis_runtime_unslash(metis_request_post()['description'] ?? ''));
-    $sort_order = max(0, (int) (metis_request_post()['sort_order'] ?? 0));
-    $default_outcome = metis_key_clean(metis_runtime_unslash(metis_request_post()['default_outcome'] ?? 'pending'));
-    if (!in_array($default_outcome, ['pending', 'approved', 'rejected', 'tabled'], true)) $default_outcome = 'pending';
-    $is_active = (int) (metis_request_post()['is_active'] ?? 1) === 1 ? 1 : 0;
-    if ($title === '') metis_runtime_send_json_error('Decision template title is required.', 422);
-    $payload = [
-        'title' => $title,
-        'description' => $description,
-        'sort_order' => $sort_order,
-        'default_outcome' => $default_outcome,
-        'is_active' => $is_active,
-    ];
-    if ($template_id > 0) {
-        $ok = $db->update($table, $payload, ['id' => $template_id], ['%s', '%s', '%d', '%s', '%d'], ['%d']);
-        if ($ok === false) metis_runtime_send_json_error('Failed to update decision template.', 500);
-    } else {
-        $payload['template_code'] = metis_board_generate_code('BT', $table, 'template_code');
-        $ok = $db->insert($table, $payload, ['%s', '%s', '%d', '%s', '%d', '%s']);
-        if (!$ok) metis_runtime_send_json_error('Failed to save decision template.', 500);
-        $template_id = (int) $db->lastInsertId();
-    }
-    metis_runtime_send_json_success(['template_id' => $template_id]);
+    metis_runtime_send_json_success(WorkflowTemplateService::saveDecisionTemplate(metis_request_post()));
 });
 
 metis_ajax_register_handler( 'metis_board_delete_decision_template', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $template_id = (int) (metis_request_post()['template_id'] ?? 0);
-    if ($template_id < 1) metis_runtime_send_json_error('Template is required.', 422);
-    $table = Metis_Tables::get('board_decision_templates');
-    $ok = $db->update($table, ['is_active' => 0], ['id' => $template_id], ['%d'], ['%d']);
-    if ($ok === false) metis_runtime_send_json_error('Failed to deactivate template.', 500);
-    metis_runtime_send_json_success(['template_id' => $template_id]);
+    metis_runtime_send_json_success(WorkflowTemplateService::deactivateDecisionTemplate((int) (metis_request_post()['template_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_drive_list', function () {
     metis_board_ajax_verify(false);
-    $db = metis_db();
-
     $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     $folder_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
     $search = metis_text_clean(metis_runtime_unslash(metis_request_post()['search'] ?? ''));
-
-    $meetings_table = Metis_Tables::get('board_meetings');
-    if ($folder_id === '' && $meeting_id > 0) {
-        $folder_id = (string) $db->scalar("SELECT google_drive_folder_id FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]);
-    }
-    if ($folder_id === '') $folder_id = 'root';
-
-    $q_parts = ["trashed = false"];
-    if ($folder_id !== '') {
-        $q_parts[] = "'" . str_replace("'", "\\'", $folder_id) . "' in parents";
-    }
-    if ($search !== '') {
-        $q_parts[] = "name contains '" . str_replace("'", "\\'", $search) . "'";
-    }
-    $query = implode(' and ', $q_parts);
-    $url = metis_add_query_arg([
-        'q' => $query,
-        'pageSize' => 200,
-        'orderBy' => 'folder,name',
-        'fields' => 'files(id,name,mimeType,webViewLink,modifiedTime,size,parents)',
-        'includeItemsFromAllDrives' => 'true',
-        'supportsAllDrives' => 'true',
-    ], 'https://www.googleapis.com/drive/v3/files');
-
-    $resp = metis_board_drive_request('GET', $url, null);
-    if (empty($resp['ok'])) {
-        metis_runtime_send_json_error('Failed to list Drive files.', 500);
-    }
-
-    $files = [];
-    foreach ((array) (($resp['body']['files'] ?? [])) as $file) {
-        if (!is_array($file)) continue;
-        $files[] = [
-            'id' => (string) ($file['id'] ?? ''),
-            'name' => (string) ($file['name'] ?? ''),
-            'mimeType' => (string) ($file['mimeType'] ?? ''),
-            'isFolder' => ((string) ($file['mimeType'] ?? '')) === 'application/vnd.google-apps.folder',
-            'webViewLink' => (string) ($file['webViewLink'] ?? ''),
-            'modifiedTime' => (string) ($file['modifiedTime'] ?? ''),
-            'size' => (string) ($file['size'] ?? ''),
-        ];
-    }
-
-    $parent_id = '';
-    $folder_name = '';
-    $path_segments = [];
-    $meeting_folder_id = '';
-    if ($meeting_id > 0) {
-        $meeting_folder_id = trim((string) $db->scalar("SELECT google_drive_folder_id FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]));
-    }
-    if ($folder_id !== '' && $folder_id !== 'root') {
-        $folder_url = metis_add_query_arg([
-            'fields' => 'id,name,parents',
-            'supportsAllDrives' => 'true',
-        ], 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($folder_id));
-        $parent_resp = metis_board_drive_request('GET', $folder_url, null);
-        if (!empty($parent_resp['ok'])) {
-            $parents = (array) (($parent_resp['body']['parents'] ?? []));
-            $parent_id = !empty($parents) ? (string) $parents[0] : '';
-            $folder_name = (string) (($parent_resp['body']['name'] ?? ''));
-            if ($folder_name !== '') {
-                $path_segments[] = $folder_name;
-            }
-            $current_id = $parent_id;
-            $loop_guard = 0;
-            while ($current_id !== '' && $loop_guard < 12) {
-                $loop_guard++;
-                if ($meeting_folder_id !== '' && $current_id === $meeting_folder_id) {
-                    $meeting_name = '';
-                    if (metis_board_table_has_column($meetings_table, 'google_drive_folder_name')) {
-                        $meeting_name = trim((string) $db->scalar("SELECT google_drive_folder_name FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]));
-                    }
-                    if ($meeting_name === '') {
-                        $meeting_meta_url = metis_add_query_arg([
-                            'fields' => 'id,name',
-                            'supportsAllDrives' => 'true',
-                        ], 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($current_id));
-                        $meeting_meta_resp = metis_board_drive_request('GET', $meeting_meta_url, null);
-                        if (!empty($meeting_meta_resp['ok'])) {
-                            $meeting_name = trim((string) (($meeting_meta_resp['body']['name'] ?? '')));
-                        }
-                    }
-                    if ($meeting_name !== '') array_unshift($path_segments, $meeting_name);
-                    break;
-                }
-                $meta_url = metis_add_query_arg([
-                    'fields' => 'id,name,parents',
-                    'supportsAllDrives' => 'true',
-                ], 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($current_id));
-                $meta_resp = metis_board_drive_request('GET', $meta_url, null);
-                if (empty($meta_resp['ok'])) break;
-                $meta = (array) ($meta_resp['body'] ?? []);
-                $meta_name = trim((string) ($meta['name'] ?? ''));
-                if ($meta_name !== '') array_unshift($path_segments, $meta_name);
-                $next_parents = (array) ($meta['parents'] ?? []);
-                $current_id = !empty($next_parents) ? (string) $next_parents[0] : '';
-            }
-        }
-    }
-
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'folder_id' => $folder_id,
-        'folder_name' => $folder_name,
-        'folder_path' => implode(' > ', array_values(array_filter($path_segments, static function ($s) {
-            return trim((string) $s) !== '';
-        }))),
-        'parent_id' => $parent_id,
-        'files' => $files,
-    ]);
+    metis_runtime_send_json_success(\Metis\Modules\Board\WorkspaceService::listDriveFiles($meeting_id, $folder_id, $search));
 });
 
 metis_ajax_register_handler( 'metis_board_drive_create_folder', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
     $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     $parent_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['parent_id'] ?? 'root'));
     $folder_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_name'] ?? ''));
     $set_as_meeting = (int) (metis_request_post()['set_as_meeting'] ?? 0) === 1;
-    if ($folder_name === '') metis_runtime_send_json_error('Folder name is required.', 422);
-
-    $payload = [
-        'name' => $folder_name,
-        'mimeType' => 'application/vnd.google-apps.folder',
-        'parents' => [$parent_id !== '' ? $parent_id : 'root'],
-    ];
-    $url = metis_add_query_arg(['supportsAllDrives' => 'true'], 'https://www.googleapis.com/drive/v3/files');
-    $resp = metis_board_drive_request('POST', $url, $payload);
-    if (empty($resp['ok'])) {
-        metis_runtime_send_json_error('Failed to create folder.', 500);
-    }
-
-    $folder_id = (string) (($resp['body']['id'] ?? ''));
-    $folder_link = 'https://drive.google.com/drive/folders/' . rawurlencode($folder_id);
-    if ($set_as_meeting && $meeting_id > 0 && $folder_id !== '') {
-        $meetings_table = Metis_Tables::get('board_meetings');
-        $meeting_payload = [
-            'google_drive_folder_id' => $folder_id,
-            'google_drive_folder_url' => $folder_link,
-        ];
-        $meeting_formats = ['%s', '%s'];
-        if (metis_board_table_has_column($meetings_table, 'google_drive_folder_name')) {
-            $meeting_payload['google_drive_folder_name'] = $folder_name;
-            $meeting_formats[] = '%s';
-        }
-        $db->update($meetings_table, $meeting_payload, ['id' => $meeting_id], $meeting_formats, ['%d']);
-    }
-
-    metis_runtime_send_json_success([
-        'folder_id' => $folder_id,
-        'folder_link' => $folder_link,
-        'name' => $folder_name,
-    ]);
+    metis_runtime_send_json_success(\Metis\Modules\Board\WorkspaceService::createDriveFolder($meeting_id, $parent_id, $folder_name, $set_as_meeting));
 });
 
 metis_ajax_register_handler( 'metis_board_drive_upload', function () {
@@ -2459,14 +1380,8 @@ metis_ajax_register_handler( 'metis_board_drive_upload', function () {
         metis_runtime_send_json_error('Failed to upload file to Drive.', 500);
     }
 
-    $docs_table = Metis_Tables::get('board_documents');
     if ($meeting_id > 0) {
-        $db = metis_db();
-        $existing_id = (int) $db->scalar(
-            "SELECT id FROM {$docs_table} WHERE meeting_id = %d AND google_file_id = %s LIMIT 1",
-            [ $meeting_id, (string) $decoded['id'] ]
-        );
-        $doc_payload = [
+        $document_id = DocumentService::upsertMeetingDocument([
             'meeting_id' => $meeting_id,
             'title' => $item_title !== '' ? $item_title : (string) ($decoded['name'] ?? $name),
             'doc_type' => $doc_type !== '' ? $doc_type : 'board_packet',
@@ -2475,20 +1390,7 @@ metis_ajax_register_handler( 'metis_board_drive_upload', function () {
             'mime_type' => (string) ($decoded['mimeType'] ?? $mime),
             'file_size' => isset($decoded['size']) ? (int) $decoded['size'] : (int) filesize($tmp),
             'status' => 'active',
-        ];
-        if ($existing_id > 0) {
-            $db->update($docs_table, $doc_payload, ['id' => $existing_id], ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s'], ['%d']);
-        } else {
-            $entity_type = \Metis\Modules\Board\Support::documentEntityType((string) ($doc_payload['doc_type'] ?? ''));
-            if ($entity_type !== '' && function_exists('metis_entity_id_service')) {
-                $doc_payload = metis_entity_id_service()->assignForInsert($entity_type, $doc_payload, false);
-                $db->insert($docs_table, $doc_payload, ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s']);
-                metis_entity_id_service()->register($entity_type, (int) $db->lastInsertId(), metis_board_first_document_uid($doc_payload));
-            } else {
-                $doc_payload['document_code'] = metis_board_generate_code('BF', $docs_table, 'document_code');
-                $db->insert($docs_table, $doc_payload, ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']);
-            }
-        }
+        ]);
     }
 
     metis_runtime_send_json_success([
@@ -2507,48 +1409,15 @@ metis_ajax_register_handler( 'metis_board_drive_upload', function () {
 
 metis_ajax_register_handler( 'metis_board_drive_set_meeting_folder', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
     $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     $folder_input = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_id'] ?? ''));
     $folder_name_input = metis_text_clean(metis_runtime_unslash(metis_request_post()['folder_name'] ?? ''));
     $folder_id = metis_board_extract_google_id($folder_input, 'drive_folder');
-    if ($meeting_id < 1 || $folder_id === '') metis_runtime_send_json_error('Meeting and folder are required.', 422);
-    $folder_url = 'https://drive.google.com/drive/folders/' . rawurlencode($folder_id);
-    $folder_name = trim((string) $folder_name_input);
-    if ($folder_name === '') $folder_name = 'Drive folder';
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $meeting_payload = [
-        'google_drive_folder_id' => $folder_id,
-        'google_drive_folder_url' => $folder_url,
-    ];
-    $meeting_formats = ['%s', '%s'];
-    if (metis_board_table_has_column($meetings_table, 'google_drive_folder_name')) {
-        $meeting_payload['google_drive_folder_name'] = $folder_name;
-        $meeting_formats[] = '%s';
-    }
-    $ok = $db->update(
-        $meetings_table,
-        $meeting_payload,
-        ['id' => $meeting_id],
-        $meeting_formats,
-        ['%d']
-    );
-    if ($ok === false) {
-        Metis_Logger::error('Board folder assign failed', [
-            'meeting_id' => $meeting_id,
-            'folder_id' => $folder_id,
-            'db_error' => $db->lastError(),
-        ]);
-        metis_runtime_send_json_error('Failed to set meeting folder.', 500);
-    }
-    metis_runtime_send_json_success(['folder_id' => $folder_id, 'folder_url' => $folder_url, 'folder_name' => $folder_name]);
+    metis_runtime_send_json_success(\Metis\Modules\Board\WorkspaceService::assignMeetingFolder($meeting_id, $folder_id, $folder_name_input));
 });
 
 metis_ajax_register_handler( 'metis_board_drive_link_document', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
     $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
     $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
@@ -2560,12 +1429,7 @@ metis_ajax_register_handler( 'metis_board_drive_link_document', function () {
     if ($title === '') $title = 'Drive file';
     if ($doc_type === '') $doc_type = 'board_packet';
 
-    $docs_table = Metis_Tables::get('board_documents');
-    $existing_id = (int) $db->scalar(
-        "SELECT id FROM {$docs_table} WHERE meeting_id = %d AND google_file_id = %s LIMIT 1",
-        [ $meeting_id, $file_id ]
-    );
-    $payload = [
+    $document_id = DocumentService::upsertMeetingDocument([
         'meeting_id' => $meeting_id,
         'title' => $title,
         'doc_type' => $doc_type,
@@ -2574,52 +1438,20 @@ metis_ajax_register_handler( 'metis_board_drive_link_document', function () {
         'mime_type' => $mime_type,
         'file_size' => $size > 0 ? $size : null,
         'status' => 'active',
-    ];
-    if ($existing_id > 0) {
-        $ok = $db->update($docs_table, $payload, ['id' => $existing_id], ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s'], ['%d']);
-        if ($ok === false) metis_runtime_send_json_error('Failed to update linked document.', 500);
-        metis_runtime_send_json_success([
-            'document_id' => $existing_id,
-            'documents' => metis_board_fetch_meeting_documents($meeting_id),
-        ]);
-        return;
-    }
-    $entity_type = \Metis\Modules\Board\Support::documentEntityType((string) ($payload['doc_type'] ?? ''));
-    if ($entity_type !== '' && function_exists('metis_entity_id_service')) {
-        $payload = metis_entity_id_service()->assignForInsert($entity_type, $payload, false);
-        $ok = $db->insert($docs_table, $payload, ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s']);
-    } else {
-        $payload['document_code'] = metis_board_generate_code('BF', $docs_table, 'document_code');
-        $ok = $db->insert($docs_table, $payload, ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']);
-    }
-    if (!$ok) metis_runtime_send_json_error('Failed to link document.', 500);
-    if ($entity_type !== '' && function_exists('metis_entity_id_service')) {
-        metis_entity_id_service()->register($entity_type, (int) $db->lastInsertId(), metis_board_first_document_uid($payload));
-    }
+    ]);
     metis_runtime_send_json_success([
-        'document_id' => (int) $db->lastInsertId(),
+        'document_id' => $document_id,
         'documents' => metis_board_fetch_meeting_documents($meeting_id),
     ]);
 });
 
 metis_ajax_register_handler( 'metis_board_drive_unlink_document', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $document_id = (int) (metis_request_post()['document_id'] ?? 0);
-    if ($document_id < 1) metis_runtime_send_json_error('Document is required.', 422);
-    $docs_table = Metis_Tables::get('board_documents');
-    $meeting_id = (int) $db->scalar("SELECT meeting_id FROM {$docs_table} WHERE id = %d LIMIT 1", [ $document_id ]);
-    $deleted = $db->delete($docs_table, ['id' => $document_id], ['%d']);
-    if (!$deleted) metis_runtime_send_json_error('Failed to unlink document.', 500);
-    metis_runtime_send_json_success([
-        'document_id' => $document_id,
-        'documents' => $meeting_id > 0 ? metis_board_fetch_meeting_documents($meeting_id) : [],
-    ]);
+    metis_runtime_send_json_success(DocumentService::unlinkDocument((int) (metis_request_post()['document_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_drive_delete_file', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
     $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
     $file_id = metis_text_clean(metis_runtime_unslash(metis_request_post()['file_id'] ?? ''));
     if ($file_id === '') metis_runtime_send_json_error('File is required.', 422);
@@ -2630,19 +1462,7 @@ metis_ajax_register_handler( 'metis_board_drive_delete_file', function () {
         metis_runtime_send_json_error('Failed to delete file from Drive.', 500);
     }
 
-    if ($meeting_id > 0) {
-        $docs_table = Metis_Tables::get('board_documents');
-        $db->delete(
-            $docs_table,
-            [ 'meeting_id' => $meeting_id, 'google_file_id' => $file_id ],
-            [ '%d', '%s' ]
-        );
-    }
-
-    metis_runtime_send_json_success([
-        'file_id' => $file_id,
-        'documents' => $meeting_id > 0 ? metis_board_fetch_meeting_documents($meeting_id) : [],
-    ]);
+    metis_runtime_send_json_success(DocumentService::deleteMeetingDocumentByFileId($meeting_id, $file_id));
 });
 
 metis_ajax_register_handler( 'metis_board_get_meeting_documents', function () {
@@ -2657,332 +1477,31 @@ metis_ajax_register_handler( 'metis_board_get_meeting_documents', function () {
 
 metis_ajax_register_handler( 'metis_board_get_workspace_links_summary', function () {
     metis_board_ajax_verify(false);
-    $db = metis_db();
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
-
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $has_calendar_name = metis_board_table_has_column($meetings_table, 'google_calendar_event_name');
-    $has_drive_name = metis_board_table_has_column($meetings_table, 'google_drive_folder_name');
-    $select_fields = "id, google_calendar_event_id, google_calendar_html_link, google_drive_folder_id, google_drive_folder_url";
-    if ($has_calendar_name) $select_fields .= ", google_calendar_event_name";
-    if ($has_drive_name) $select_fields .= ", google_drive_folder_name";
-    $meeting = $db->fetchOne(
-        "SELECT {$select_fields}
-         FROM {$meetings_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $meeting_id ]
-    );
-    if (!$meeting) metis_runtime_send_json_error('Meeting not found.', 404);
-
-    $calendar_id = trim((string) ($meeting['google_calendar_event_id'] ?? ''));
-    $calendar_link = trim((string) ($meeting['google_calendar_html_link'] ?? ''));
-    $calendar_name = trim((string) ($meeting['google_calendar_event_name'] ?? ''));
-    if ($calendar_name === '') $calendar_name = $calendar_id !== '' ? 'Linked calendar event' : 'Not linked';
-
-    $folder_id = trim((string) ($meeting['google_drive_folder_id'] ?? ''));
-    $folder_link = trim((string) ($meeting['google_drive_folder_url'] ?? ''));
-    $folder_name = trim((string) ($meeting['google_drive_folder_name'] ?? ''));
-    if ($folder_name === '') $folder_name = $folder_id !== '' ? 'Linked Drive folder' : 'Not linked';
-
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'calendar' => [
-            'id' => $calendar_id,
-            'name' => $calendar_name,
-            'url' => $calendar_link,
-        ],
-        'folder' => [
-            'id' => $folder_id,
-            'name' => $folder_name,
-            'url' => $folder_link,
-        ],
-    ]);
+    metis_runtime_send_json_success(CalendarLinkService::workspaceLinksSummary((int) (metis_request_post()['meeting_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_list_calendar_events', function () {
     metis_board_ajax_verify(false);
-    $db = metis_db();
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
-    $events_table = Metis_Tables::get('calendar_events');
-    $rows = [];
-    $seen = [];
-
-    $calendar_ids = [];
-    if (function_exists('metis_calendar_workspace_settings_all')) {
-        $workspace = metis_calendar_workspace_settings_all();
-        if (!empty($workspace['ok']) && !empty($workspace['calendars']) && is_array($workspace['calendars'])) {
-            foreach ($workspace['calendars'] as $cfg) {
-                if (!is_array($cfg)) continue;
-                $calendar_id = trim((string) ($cfg['calendar_id'] ?? ''));
-                if ($calendar_id === '') continue;
-                $label = strtolower(trim((string) (($cfg['calendar_label'] ?? '') ?: ($cfg['calendar_name'] ?? ''))));
-                $is_board_calendar = str_contains($label, 'board') || str_contains(strtolower($calendar_id), 'board');
-                if ($is_board_calendar) {
-                    $calendar_ids[] = $calendar_id;
-                }
-            }
-        }
-    }
-    if (empty($calendar_ids) && function_exists('metis_calendar_workspace_settings')) {
-        $cfg = metis_calendar_workspace_settings();
-        if (!empty($cfg['ok'])) {
-            $calendar_id = trim((string) ($cfg['calendar_id'] ?? ''));
-            if ($calendar_id !== '') $calendar_ids[] = $calendar_id;
-        }
-    }
-    $calendar_ids = array_values(array_unique($calendar_ids));
-    if (!empty($calendar_ids) && $events_table !== '') {
-        $now_utc = gmdate('Y-m-d H:i:s');
-        $cal_placeholders = implode(',', array_fill(0, count($calendar_ids), '%s'));
-        $calendar_source = $db->fetchAll(
-            "SELECT event_id, summary, event_start
-             FROM {$events_table}
-             WHERE calendar_id IN ({$cal_placeholders})
-               AND event_id IS NOT NULL AND event_id <> ''
-               AND event_start IS NOT NULL
-               AND event_start >= %s
-               AND COALESCE(event_status, 'confirmed') <> 'cancelled'
-             ORDER BY event_start ASC, id ASC
-             LIMIT 500",
-            array_merge($calendar_ids, [$now_utc])
-        ) ?: [];
-        foreach ($calendar_source as $item) {
-            if (!is_array($item)) continue;
-            $event_id = trim((string) ($item['event_id'] ?? ''));
-            if ($event_id === '' || isset($seen[$event_id])) continue;
-            $seen[$event_id] = true;
-            $summary = trim((string) ($item['summary'] ?? ''));
-            $event_start = trim((string) ($item['event_start'] ?? ''));
-            $label = $summary !== '' ? $summary : 'Calendar event';
-            if ($event_start !== '') {
-                $label .= ' · ' . $event_start;
-            }
-            $rows[] = ['id' => $event_id, 'name' => $label];
-        }
-    }
-
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'events' => $rows,
-    ]);
+    metis_runtime_send_json_success(CalendarLinkService::listCalendarEvents((int) (metis_request_post()['meeting_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_list_drive_folders', function () {
     metis_board_ajax_verify(false);
-    $db = metis_db();
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
-    $items_table = Metis_Tables::get('drive_items');
-    $rows = [];
-    $seen = [];
-
-    $drive_ids = [];
-    if (function_exists('metis_drive_configured_drives')) {
-        $configured = metis_drive_configured_drives();
-        if (is_array($configured)) {
-            foreach ($configured as $row) {
-                if (!is_array($row)) continue;
-                $drive_id = trim((string) ($row['drive_id'] ?? ''));
-                if ($drive_id !== '') $drive_ids[] = $drive_id;
-            }
-        }
-    } elseif (function_exists('metis_drive_workspace_settings')) {
-        $cfg = metis_drive_workspace_settings();
-        if (!empty($cfg['ok'])) {
-            $drive_id = trim((string) ($cfg['shared_drive_id'] ?? ''));
-            if ($drive_id !== '') $drive_ids[] = $drive_id;
-        }
-    }
-    $drive_ids = array_values(array_unique($drive_ids));
-    if (!empty($drive_ids) && $items_table !== '') {
-        $year = gmdate('Y');
-        $drive_placeholders = implode(',', array_fill(0, count($drive_ids), '%s'));
-        $board_root_source = $db->fetchAll(
-            "SELECT item_id, item_name, drive_id
-             FROM {$items_table}
-             WHERE drive_id IN ({$drive_placeholders})
-               AND is_folder = 1
-               AND item_name = %s
-             ORDER BY id DESC
-             LIMIT 100",
-            array_merge($drive_ids, ['01 Board Meetings'])
-        ) ?: [];
-        $board_root_ids = [];
-        foreach ($board_root_source as $item) {
-            if (!is_array($item)) continue;
-            $folder_id = trim((string) ($item['item_id'] ?? ''));
-            if ($folder_id === '' || isset($seen[$folder_id])) continue;
-            $seen[$folder_id] = true;
-            $board_root_ids[] = $folder_id;
-        }
-
-        if (!empty($board_root_ids)) {
-            $root_placeholders = implode(',', array_fill(0, count($board_root_ids), '%s'));
-            $year_source = $db->fetchAll(
-                "SELECT item_id
-                 FROM {$items_table}
-                 WHERE is_folder = 1
-                   AND item_name = %s
-                   AND parent_id IN ({$root_placeholders})
-                 ORDER BY id DESC
-                 LIMIT 100",
-                array_merge([$year], $board_root_ids)
-            ) ?: [];
-
-            $year_ids = [];
-            foreach ($year_source as $item) {
-                if (!is_array($item)) continue;
-                $folder_id = trim((string) ($item['item_id'] ?? ''));
-                if ($folder_id !== '') $year_ids[] = $folder_id;
-            }
-
-            if (!empty($year_ids)) {
-                $year_ids = array_values(array_unique($year_ids));
-                $year_placeholders = implode(',', array_fill(0, count($year_ids), '%s'));
-                $month_source = $db->fetchAll(
-                    "SELECT item_id, item_name
-                     FROM {$items_table}
-                     WHERE is_folder = 1
-                       AND parent_id IN ({$year_placeholders})
-                       AND item_id IS NOT NULL AND item_id <> ''
-                     ORDER BY item_name ASC, id ASC
-                     LIMIT 200",
-                    $year_ids
-                ) ?: [];
-                foreach ($month_source as $item) {
-                    if (!is_array($item)) continue;
-                    $folder_id = trim((string) ($item['item_id'] ?? ''));
-                    if ($folder_id === '' || isset($seen[$folder_id])) continue;
-                    $seen[$folder_id] = true;
-                    $name = trim((string) ($item['item_name'] ?? ''));
-                    $rows[] = ['id' => $folder_id, 'name' => $name !== '' ? $name : $folder_id];
-                }
-            }
-        }
-
-        if (empty($rows)) {
-            $drive_source = $db->fetchAll(
-            "SELECT item_id, item_name, modified_time
-             FROM {$items_table}
-             WHERE drive_id IN ({$drive_placeholders})
-               AND is_folder = 1
-               AND item_id IS NOT NULL AND item_id <> ''
-             ORDER BY modified_time DESC, id DESC
-             LIMIT 50",
-            $drive_ids
-        ) ?: [];
-            foreach ($drive_source as $item) {
-                if (!is_array($item)) continue;
-                $folder_id = trim((string) ($item['item_id'] ?? ''));
-                if ($folder_id === '' || isset($seen[$folder_id])) continue;
-                $seen[$folder_id] = true;
-                $name = trim((string) ($item['item_name'] ?? ''));
-                if ($name === '') $name = 'Drive folder';
-                $rows[] = ['id' => $folder_id, 'name' => $name];
-            }
-        }
-    }
-
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'folders' => $rows,
-    ]);
+    metis_runtime_send_json_success(CalendarLinkService::listDriveFolders((int) (metis_request_post()['meeting_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_assign_calendar_event', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    $event_input = metis_text_clean(metis_runtime_unslash(metis_request_post()['event_id'] ?? ''));
-    $event_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['event_name'] ?? ''));
-    if ($meeting_id < 1 || trim($event_input) === '') {
-        metis_runtime_send_json_error('Meeting and calendar event are required.', 422);
-    }
-    $event_id = metis_board_extract_google_id($event_input, 'calendar_event');
-    if ($event_id === '') {
-        metis_runtime_send_json_error('Invalid calendar event ID or URL.', 422);
-    }
-    if ($event_name === '') $event_name = 'Linked calendar event';
-
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $ok = $db->update(
-        $meetings_table,
-        [
-            'google_calendar_event_id' => (string) $event_id,
-            'google_calendar_event_name' => (string) $event_name,
-        ],
-        ['id' => $meeting_id],
-        ['%s', '%s'],
-        ['%d']
-    );
-    if ($ok === false) {
-        Metis_Logger::error('Board calendar assign failed', [
-            'meeting_id' => $meeting_id,
-            'event_id' => $event_id,
-            'db_error' => $db->lastError(),
-        ]);
-        metis_runtime_send_json_error('Failed to assign calendar event.', 500);
-    }
-
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'calendar' => [
-            'id' => (string) $event_id,
-            'name' => (string) $event_name,
-        ],
-    ]);
+    metis_runtime_send_json_success(CalendarLinkService::assignCalendarEvent(
+        (int) (metis_request_post()['meeting_id'] ?? 0),
+        metis_text_clean(metis_runtime_unslash(metis_request_post()['event_id'] ?? '')),
+        metis_text_clean(metis_runtime_unslash(metis_request_post()['event_name'] ?? ''))
+    ));
 });
 
 metis_ajax_register_handler( 'metis_board_generate_calendar_event', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    if ($meeting_id < 1) {
-        metis_runtime_send_json_error('Meeting is required.', 422);
-    }
-
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $meeting = $db->fetchOne(
-        "SELECT id, meeting_code, title, meeting_date, location, status, google_calendar_event_id
-         FROM {$meetings_table}
-         WHERE id = %d
-         LIMIT 1",
-        [ $meeting_id ]
-    );
-    if (!$meeting) {
-        metis_runtime_send_json_error('Meeting not found.', 404);
-    }
-
-    $calendar = metis_board_upsert_calendar_event_for_meeting($meeting, true);
-    if (empty($calendar['ok']) || trim((string) ($calendar['id'] ?? '')) === '') {
-        metis_runtime_send_json_error('Failed to generate calendar event.', 500);
-    }
-
-    $db->update(
-        $meetings_table,
-        [
-            'google_calendar_event_id' => (string) $calendar['id'],
-            'google_calendar_event_name' => (string) ($calendar['name'] ?? 'Linked calendar event'),
-            'google_calendar_html_link' => (string) ($calendar['url'] ?? ''),
-        ],
-        ['id' => $meeting_id],
-        ['%s', '%s', '%s'],
-        ['%d']
-    );
-
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'calendar' => [
-            'id' => (string) $calendar['id'],
-            'name' => (string) ($calendar['name'] ?? 'Linked calendar event'),
-            'url' => (string) ($calendar['url'] ?? ''),
-        ],
-    ]);
+    metis_runtime_send_json_success(CalendarLinkService::generateCalendarEvent((int) (metis_request_post()['meeting_id'] ?? 0)));
 });
 
 metis_ajax_register_handler( 'metis_board_sync_decision_points', function () {
@@ -3509,168 +2028,17 @@ metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
 
 metis_ajax_register_handler( 'metis_board_update_decision', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
-    $decision_id = (int) (metis_request_post()['decision_id'] ?? 0);
-    if ($decision_id < 1) {
-        metis_runtime_send_json_error('Decision is required.', 422);
-    }
-
-    $table = Metis_Tables::get('board_decisions');
-    $decision_row = $db->fetchOne("SELECT id, meeting_id FROM {$table} WHERE id = %d LIMIT 1", [ $decision_id ]);
-    if (!$decision_row) {
-        metis_runtime_send_json_error('Decision not found.', 404);
-    }
-
-    $votes_for = max(0, (int) (metis_request_post()['votes_for'] ?? 0));
-    $votes_against = max(0, (int) (metis_request_post()['votes_against'] ?? 0));
-    $votes_abstain = max(0, (int) (metis_request_post()['votes_abstain'] ?? 0));
-    $vote_assignments_payload = null;
-
-    if (array_key_exists('vote_assignments_json', metis_request_post())) {
-        $raw = trim((string) metis_runtime_unslash(metis_request_post()['vote_assignments_json'] ?? ''));
-        $decoded = json_decode($raw, true);
-        if (is_array($decoded)) {
-            $people_table = Metis_Tables::get('people');
-            $valid_ids = $db->fetchAll("SELECT id FROM {$people_table} WHERE status = 'active' AND is_board = 1") ?: [];
-            $valid_lookup = [];
-            foreach ($valid_ids as $row) {
-                $pid = (int) ($row['id'] ?? 0);
-                if ($pid > 0) $valid_lookup[$pid] = true;
-            }
-            $used = [];
-            $normalized = ['for' => [], 'against' => [], 'abstain' => []];
-            foreach (['for', 'against', 'abstain'] as $bucket) {
-                $list = isset($decoded[$bucket]) && is_array($decoded[$bucket]) ? $decoded[$bucket] : [];
-                foreach ($list as $id_val) {
-                    $pid = (int) $id_val;
-                    if ($pid < 1 || isset($used[$pid]) || !isset($valid_lookup[$pid])) continue;
-                    $used[$pid] = true;
-                    $normalized[$bucket][] = $pid;
-                }
-            }
-            $votes_for = count($normalized['for']);
-            $votes_against = count($normalized['against']);
-            $votes_abstain = count($normalized['abstain']);
-            $encoded = metis_json_encode($normalized, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $vote_assignments_payload = is_string($encoded) ? $encoded : '{"for":[],"against":[],"abstain":[]}';
-        }
-    }
-
-    $people_table = Metis_Tables::get('people');
-    $eligible_count = (int) $db->scalar("SELECT COUNT(1) FROM {$people_table} WHERE status = 'active' AND is_board = 1");
-    if ($eligible_count < 1) $eligible_count = 1;
-    $required_count = (int) floor($eligible_count / 2) + 1;
-    $outcome = 'pending';
-    if ($votes_for >= $required_count) {
-        $outcome = 'approved';
-    } elseif ($votes_against >= $required_count) {
-        $outcome = 'rejected';
-    }
-
-    $payload = [
-        'outcome' => $outcome,
-        'votes_for' => $votes_for,
-        'votes_against' => $votes_against,
-        'votes_abstain' => $votes_abstain,
-        'passed' => $outcome === 'approved' ? 1 : 0,
-        'passed_at' => $outcome === 'approved' ? metis_current_time('mysql') : null,
-    ];
-    $formats = ['%s', '%d', '%d', '%d', '%d', '%s'];
-    if ($vote_assignments_payload !== null) {
-        $payload['decision_votes_json'] = $vote_assignments_payload;
-        $formats[] = '%s';
-    }
-
-    $ok = $db->update($table, $payload, ['id' => $decision_id], $formats, ['%d']);
-    if ($ok === false) {
-        Metis_Logger::error('Board decision update failed', [
-            'decision_id' => $decision_id,
-            'payload' => $payload,
-            'db_error' => $db->lastError(),
-        ]);
-        metis_runtime_send_json_error('Failed to update decision.', 500);
-    }
-
-    metis_portal_dashboard_forget_all();
-    metis_runtime_send_json_success([
-        'decision_id' => $decision_id,
-        'outcome' => $outcome,
-        'votes_for' => $votes_for,
-        'votes_against' => $votes_against,
-        'votes_abstain' => $votes_abstain,
-    ]);
+    metis_runtime_send_json_success(DecisionAttendanceService::updateDecision(
+        (int) (metis_request_post()['decision_id'] ?? 0),
+        metis_request_post()
+    ));
 });
 
 metis_ajax_register_handler( 'metis_board_upsert_attendance', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    $person_id = (int) (metis_request_post()['person_id'] ?? 0);
-    if ($meeting_id < 1 || $person_id < 1) {
-        metis_runtime_send_json_error('Meeting and member are required.', 422);
-    }
-
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $locked = (int) $db->scalar("SELECT attendance_locked FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]);
-    if ($locked === 1) {
-        metis_runtime_send_json_error('Attendance is locked for this meeting.', 423);
-    }
-
-    $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'absent'));
-    if (!in_array($status, ['present', 'remote', 'absent', 'excused'], true)) {
-        $status = 'absent';
-    }
-
-    $role_label = metis_text_clean(metis_runtime_unslash(metis_request_post()['role_label'] ?? ''));
-    $notes = metis_text_clean(metis_runtime_unslash(metis_request_post()['notes'] ?? ''));
-
-    $table = Metis_Tables::get('board_attendance');
-    $existing_id = (int) $db->scalar(
-        "SELECT id FROM {$table} WHERE meeting_id = %d AND person_id = %d LIMIT 1",
-        [ $meeting_id, $person_id ]
-    );
-
-    $payload = [
-        'meeting_id' => $meeting_id,
-        'person_id' => $person_id,
-        'role_label' => $role_label,
-        'status' => $status,
-        'checkin_at' => in_array($status, ['present', 'remote'], true) ? metis_current_time('mysql') : null,
-        'notes' => $notes,
-    ];
-
-    if ($existing_id > 0) {
-        $ok = $db->update($table, $payload, ['id' => $existing_id], ['%d', '%d', '%s', '%s', '%s', '%s'], ['%d']);
-        if ($ok === false) {
-            metis_runtime_send_json_error('Failed to update attendance.', 500);
-        }
-    } else {
-        $ok = $db->insert($table, $payload, ['%d', '%d', '%s', '%s', '%s', '%s']);
-        if (!$ok) {
-            metis_runtime_send_json_error('Failed to save attendance.', 500);
-        }
-        $existing_id = (int) $db->lastInsertId();
-    }
-
-    $people_table = Metis_Tables::get('people');
-    $board_eligible = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE status = 'active' AND is_board = 1");
-    $present_count = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$table} WHERE meeting_id = %d AND status IN ('present','remote')",
-        [ $meeting_id ]
-    );
-    if ($board_eligible < 1) {
-        $board_eligible = max(1, (int) $db->scalar("SELECT COUNT(*) FROM {$table} WHERE meeting_id = %d", [ $meeting_id ]));
-    }
-    $required = (int) floor($board_eligible / 2) + 1;
-
-    metis_portal_dashboard_forget_all();
-    metis_runtime_send_json_success([
-        'attendance_id' => $existing_id,
-        'present_count' => $present_count,
-        'eligible_count' => $board_eligible,
-        'required_count' => $required,
-        'quorum_met' => $present_count >= $required,
-    ]);
+    metis_runtime_send_json_success(DecisionAttendanceService::upsertAttendance(
+        (int) (metis_request_post()['meeting_id'] ?? 0),
+        (int) (metis_request_post()['person_id'] ?? 0),
+        metis_request_post()
+    ));
 });

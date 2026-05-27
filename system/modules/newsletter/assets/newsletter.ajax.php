@@ -3,6 +3,11 @@ if (!defined('METIS_ROOT')) exit;
 
 require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
 
+use Metis\Modules\Newsletter\ContactService;
+use Metis\Modules\Newsletter\CampaignService;
+use Metis\Modules\Newsletter\TemplateService;
+use Metis\Modules\Newsletter\SubscriptionService;
+
 function metis_newsletter_ajax_verify_nonce(): void {
     $nonce = isset(metis_request_post()['nonce']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['nonce'])) : '';
     $action_nonce = isset(metis_request_post()['metis_action_nonce']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['metis_action_nonce'])) : '';
@@ -95,127 +100,11 @@ function metis_newsletter_normalize_klipy_search_url(string $raw_url): string {
 }
 
 function metis_newsletter_find_or_create_contact(string $email, string $first_name = '', string $last_name = ''): int {
-    $db = metis_db();
-
-    $contacts_table = Metis_Tables::get('contacts');
-    $email = strtolower(trim($email));
-    if ($email === '') return 0;
-
-    $contact_id = (int) $db->scalar("SELECT id FROM {$contacts_table} WHERE email = %s LIMIT 1", [$email]);
-    if ($contact_id > 0) return $contact_id;
-
-    $payload = [
-        'email' => $email,
-        'first_name' => $first_name,
-        'last_name' => $last_name,
-    ];
-    $format = ['%s', '%s', '%s'];
-
-    if (function_exists('metis_entity_id_service')) {
-        $payload = metis_entity_id_service()->assignForInsert('contact', $payload);
-        $format[] = '%s';
-        $format[] = '%s';
-    } elseif (metis_newsletter_column_exists($contacts_table, 'cid')) {
-        $payload['cid'] = metis_generate_code('CN', $contacts_table, 'cid');
-        $format[] = '%s';
-    }
-
-    $ok = $db->insert($contacts_table, $payload, $format);
-    if ($ok === false) return 0;
-    $contact_id = $db->lastInsertId();
-    if ($contact_id > 0 && function_exists('metis_entity_id_service')) {
-        metis_entity_id_service()->register('contact', $contact_id, (string) ($payload['contact_uid'] ?? $payload['cid'] ?? ''));
-    }
-    return $contact_id;
+    return ContactService::findOrCreateContactId($email, $first_name, $last_name);
 }
 
 function metis_newsletter_preview_contact_payload(): array {
-    $user = function_exists('metis_runtime_current_user') ? metis_runtime_current_user() : null;
-    $email = strtolower(trim((string) (($user->user_email ?? '') ?: '')));
-    $first_name = trim((string) (($user->first_name ?? '') ?: ''));
-    $last_name = trim((string) (($user->last_name ?? '') ?: ''));
-    $display_name = trim((string) (($user->display_name ?? '') ?: ''));
-
-    $contact = [
-        'contact_id' => 0,
-        'contact_cid' => '',
-        'first_name' => $first_name,
-        'last_name' => $last_name,
-        'full_name' => trim($first_name . ' ' . $last_name),
-        'name' => $first_name !== '' ? $first_name : ($display_name !== '' ? $display_name : trim($first_name . ' ' . $last_name)),
-        'email' => $email,
-        'city' => '',
-        'state' => '',
-    ];
-
-    if ($email === '') {
-        if ($contact['full_name'] === '') {
-            $contact['full_name'] = $display_name;
-        }
-        return $contact;
-    }
-
-    $db = metis_db();
-    $contacts_table = Metis_Tables::get('contacts');
-    $details_table = Metis_Tables::get('contact_details');
-
-    $contact_row = metis_newsletter_table_exists($contacts_table)
-        ? $db->fetchOne(
-            "SELECT id, cid, first_name, last_name, email
-             FROM {$contacts_table}
-             WHERE LOWER(email) = %s
-             LIMIT 1",
-            [$email]
-        )
-        : null;
-
-    if (is_array($contact_row) && !empty($contact_row)) {
-        $contact['contact_id'] = (int) ($contact_row['id'] ?? 0);
-        $contact['contact_cid'] = (string) ($contact_row['cid'] ?? '');
-        $contact['first_name'] = trim((string) ($contact_row['first_name'] ?? $contact['first_name']));
-        $contact['last_name'] = trim((string) ($contact_row['last_name'] ?? $contact['last_name']));
-        $contact['email'] = strtolower(trim((string) ($contact_row['email'] ?? $contact['email'])));
-
-        $detail_row = null;
-        if (
-            metis_newsletter_table_exists($details_table)
-            && metis_newsletter_column_exists($details_table, 'city')
-            && metis_newsletter_column_exists($details_table, 'state')
-        ) {
-            $detail_where = [];
-            $detail_args = [];
-            if (metis_newsletter_column_exists($details_table, 'contact_id')) {
-                $detail_where[] = 'contact_id = %d';
-                $detail_args[] = (int) ($contact_row['id'] ?? 0);
-            }
-            if (metis_newsletter_column_exists($details_table, 'contact_cid')) {
-                $detail_where[] = 'contact_cid = %s';
-                $detail_args[] = (string) ($contact_row['cid'] ?? '');
-            }
-            if (!empty($detail_where)) {
-                $detail_row = $db->fetchOne(
-                    "SELECT city, state
-                     FROM {$details_table}
-                     WHERE " . implode(' OR ', $detail_where) . "
-                     ORDER BY id DESC
-                     LIMIT 1",
-                    $detail_args
-                );
-            }
-        }
-        if (is_array($detail_row) && !empty($detail_row)) {
-            $contact['city'] = trim((string) ($detail_row['city'] ?? ''));
-            $contact['state'] = trim((string) ($detail_row['state'] ?? ''));
-        }
-    }
-
-    $contact['full_name'] = trim($contact['first_name'] . ' ' . $contact['last_name']);
-    if ($contact['full_name'] === '') {
-        $contact['full_name'] = $display_name;
-    }
-    $contact['name'] = $contact['first_name'] !== '' ? $contact['first_name'] : ($contact['full_name'] !== '' ? $contact['full_name'] : $display_name);
-
-    return $contact;
+    return ContactService::previewPayload();
 }
 
 function metis_newsletter_theme_html_allowed_tags(): array {
@@ -542,13 +431,10 @@ metis_ajax_register_handler( 'metis_newsletter_save_template', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $table = Metis_Tables::get('newsletter_templates');
-
     $template_code = metis_newsletter_sanitize_ref_code(metis_request_post()['template_code'] ?? '');
     $template_id = 0;
     if ($template_code !== '') {
-        $template_id = (int) $db->scalar("SELECT id FROM {$table} WHERE template_code = %s LIMIT 1", [$template_code]);
+        $template_id = TemplateService::resolveId($template_code);
         if ($template_id < 1) {
             metis_runtime_send_json_error('Template not found.', 404);
         }
@@ -589,27 +475,12 @@ metis_ajax_register_handler( 'metis_newsletter_save_template', function () {
         'text_body' => $text_body !== '' ? $text_body : null,
         'updated_at' => metis_current_time('mysql'),
     ];
-    $format = ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'];
-
-    if ($template_id > 0) {
-        $ok = $db->update($table, $payload, ['id' => $template_id], $format, ['%d']);
-        if ($ok === false) metis_runtime_send_json_error('Failed to update template.', 500);
-    } else {
-        if (function_exists('metis_entity_id_service')) {
-            $payload = metis_entity_id_service()->assignForInsert('newsletter_template', $payload);
-        } else {
-            $payload['template_code'] = metis_generate_code('NT', $table, 'template_code');
-        }
-        $payload['created_by'] = metis_current_user_id() ?: null;
-        $ok = $db->insert($table, $payload, ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d']);
-        if ($ok === false) metis_runtime_send_json_error('Failed to create template.', 500);
-        $template_id = $db->lastInsertId();
-        if ($template_id > 0 && function_exists('metis_entity_id_service')) {
-            metis_entity_id_service()->register('newsletter_template', $template_id, (string) ($payload['newsletter_template_uid'] ?? $payload['template_code'] ?? ''));
-        }
+    $save_result = TemplateService::save($template_id, $payload);
+    if (empty($save_result['success'])) {
+        metis_runtime_send_json_error($template_id > 0 ? 'Failed to update template.' : 'Failed to create template.', 500);
     }
-
-    $saved_template_code = (string) $db->scalar("SELECT template_code FROM {$table} WHERE id = %d LIMIT 1", [$template_id]);
+    $template_id = (int) ($save_result['template_id'] ?? 0);
+    $saved_template_code = (string) ($save_result['template_code'] ?? '');
 
     metis_newsletter_save_revision('template', $template_id, (string) ($payload['doc_json'] ?? ''), (string) ($payload['html_body'] ?? ''), (string) ($payload['text_body'] ?? ''), 'Template saved');
     metis_newsletter_audit_log('template_saved', 'template', $template_id, ['name' => $name]);
@@ -626,32 +497,13 @@ metis_ajax_register_handler( 'metis_newsletter_template_get', function () {
     if (!metis_newsletter_can_view()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $table = Metis_Tables::get('newsletter_templates');
-
     $template_code = metis_newsletter_sanitize_ref_code(metis_request_post()['template_code'] ?? (metis_request_post()['key'] ?? ''));
     $template_id = isset(metis_request_post()['template_id']) ? (int) metis_runtime_unslash(metis_request_post()['template_id']) : 0;
     if ($template_code === '' && $template_id < 1) {
         metis_runtime_send_json_error('Template reference is required.', 400);
     }
 
-    if ($template_code !== '') {
-        $row = $db->fetchOne(
-            "SELECT id, template_code, name, subject, from_name, from_email, reply_to, doc_json, html_body, text_body, is_active, updated_at
-             FROM {$table}
-             WHERE template_code = %s
-             LIMIT 1",
-            [ $template_code ]
-        );
-    } else {
-        $row = $db->fetchOne(
-            "SELECT id, template_code, name, subject, from_name, from_email, reply_to, doc_json, html_body, text_body, is_active, updated_at
-             FROM {$table}
-             WHERE id = %d
-             LIMIT 1",
-            [ $template_id ]
-        );
-    }
+    $row = TemplateService::get($template_id, $template_code);
 
     if (!$row) {
         metis_runtime_send_json_error('Template not found.', 404);
@@ -735,7 +587,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
     $campaign_code = metis_newsletter_sanitize_ref_code(metis_request_post()['campaign_code'] ?? '');
     $campaign_id = 0;
     if ($campaign_code !== '') {
-        $campaign_id = (int) $db->scalar("SELECT id FROM {$campaigns_table} WHERE campaign_code = %s LIMIT 1", [$campaign_code]);
+        $campaign_id = CampaignService::resolveId($campaign_code);
         if ($campaign_id < 1) {
             metis_runtime_send_json_error('Campaign not found.', 404);
         }
@@ -745,7 +597,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
     $template_code = metis_newsletter_sanitize_ref_code(metis_request_post()['template_code'] ?? '');
     $template_id = 0;
     if ($template_code !== '') {
-        $template_id = (int) $db->scalar("SELECT id FROM {$templates_table} WHERE template_code = %s LIMIT 1", [$template_code]);
+        $template_id = TemplateService::resolveId($template_code);
         if ($template_id < 1) {
             metis_runtime_send_json_error('Template not found.', 404);
         }
@@ -822,12 +674,7 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
     $persisted_editor_body_html = (string) ($persisted_settings['body_html'] ?? '');
 
     if (!empty($list_ids)) {
-        $valid_query = $db->prepare(
-            'SELECT id FROM ' . $lists_table . ' WHERE id IN (' . implode(',', array_fill(0, count($list_ids), '%d')) . ')',
-            ...$list_ids
-        );
-        $valid_ids = $db->column($valid_query);
-        $list_ids = array_values(array_map('intval', $valid_ids));
+        $list_ids = CampaignService::normalizeListIds($list_ids);
     }
 
     $payload = [
@@ -880,75 +727,14 @@ metis_ajax_register_handler( 'metis_newsletter_save_campaign', function () {
         $payload_formats[] = $field_formats[$payload_key] ?? '%s';
     }
 
-    if ($campaign_id > 0) {
-        $ok = $db->update(
-            $campaigns_table,
-            $payload,
-            ['id' => $campaign_id],
-            $payload_formats,
-            ['%d']
-        );
-        if ($ok === false) metis_runtime_send_json_error('Failed to update campaign.', 500);
-    } else {
-        if (function_exists('metis_entity_id_service')) {
-            $payload = metis_entity_id_service()->assignForInsert('newsletter_campaign', $payload);
-        } else {
-            $payload['campaign_code'] = metis_generate_code('NC', $campaigns_table, 'campaign_code');
-        }
-        $payload['created_by'] = metis_current_user_id() ?: null;
-        $payload_formats = [];
-        foreach (array_keys($payload) as $payload_key) {
-            $payload_formats[] = $field_formats[$payload_key] ?? '%s';
-        }
-        $ok = $db->insert(
-            $campaigns_table,
-            $payload,
-            $payload_formats
-        );
-        if ($ok === false) metis_runtime_send_json_error('Failed to create campaign.', 500);
-        $campaign_id = $db->lastInsertId();
-        if ($campaign_id > 0 && function_exists('metis_entity_id_service')) {
-            metis_entity_id_service()->register('newsletter_campaign', $campaign_id, (string) ($payload['newsletter_campaign_uid'] ?? $payload['campaign_code'] ?? ''));
-        }
-    }
-
-    $delete_ok = $db->delete($campaign_lists_table, ['campaign_id' => $campaign_id], ['%d']);
-    if ($delete_ok === false) metis_runtime_send_json_error('Failed to reset campaign lists.', 500);
-
-    foreach ($list_ids as $list_id) {
-        $ok = $db->insert(
-            $campaign_lists_table,
-            ['campaign_id' => $campaign_id, 'list_id' => $list_id],
-            ['%d', '%d']
-        );
-        if ($ok === false) {
-            metis_runtime_send_json_error('Failed to assign campaign lists.', 500);
-        }
-    }
+    $save_result = CampaignService::save($campaign_id, $payload, $payload_formats, $list_ids);
+    if (empty($save_result['success'])) metis_runtime_send_json_error($campaign_id > 0 ? 'Failed to update campaign.' : 'Failed to create campaign.', 500);
+    $campaign_id = (int) ($save_result['campaign_id'] ?? 0);
 
     metis_newsletter_save_revision('campaign', $campaign_id, (string) ($payload['doc_json'] ?? ''), (string) ($payload['html_body'] ?? ''), (string) ($payload['text_body'] ?? ''), 'Campaign saved');
     metis_newsletter_audit_log('campaign_saved', 'campaign', $campaign_id, ['status' => $status, 'list_ids' => $list_ids]);
-
-    $saved_row = $db->fetchOne(
-        "SELECT c.id, c.campaign_code, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
-                c.doc_json, c.editor_body_html, c.html_body, c.text_body, c.status, c.scheduled_at, c.audience_json, c.attachments_json, c.updated_at,
-                t.template_code
-         FROM {$campaigns_table} c
-         LEFT JOIN {$templates_table} t ON t.id = c.template_id
-         WHERE c.id = %d
-         LIMIT 1",
-        [ $campaign_id ]
-    ) ?: [];
-    $saved_list_rows = $campaign_id > 0
-        ? ($db->fetchAll(
-            "SELECT list_id FROM {$campaign_lists_table} WHERE campaign_id = %d ORDER BY list_id ASC",
-            [ $campaign_id ]
-        ) ?: [])
-        : [];
-    $saved_list_ids = [];
-    foreach ($saved_list_rows as $saved_list_row) {
-        $saved_list_ids[] = (int) ($saved_list_row['list_id'] ?? 0);
-    }
+    $saved_row = is_array($save_result['campaign'] ?? null) ? $save_result['campaign'] : [];
+    $saved_list_ids = is_array($save_result['list_ids'] ?? null) ? array_values(array_map('intval', $save_result['list_ids'])) : [];
 
     $saved_doc = metis_newsletter_doc_parse((string) ($saved_row['doc_json'] ?? ''));
     $saved_settings = isset($saved_doc['settings']) && is_array($saved_doc['settings']) ? $saved_doc['settings'] : [];
@@ -1028,55 +814,19 @@ metis_ajax_register_handler( 'metis_newsletter_campaign_get', function () {
     if (!metis_newsletter_can_view()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $campaigns_table = Metis_Tables::get('newsletter_campaigns');
-    $templates_table = Metis_Tables::get('newsletter_templates');
-    $campaign_lists_table = Metis_Tables::get('newsletter_campaign_lists');
-
     $campaign_code = metis_newsletter_sanitize_ref_code(metis_request_post()['campaign_code'] ?? (metis_request_post()['key'] ?? ''));
     $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_code === '' && $campaign_id < 1) {
         metis_runtime_send_json_error('Campaign reference is required.', 400);
     }
 
-    if ($campaign_code !== '') {
-        $row = $db->fetchOne(
-            "SELECT c.id, c.campaign_code, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
-                    c.doc_json, c.editor_body_html, c.html_body, c.text_body, c.status, c.scheduled_at, c.audience_json, c.attachments_json, c.updated_at,
-                    t.template_code
-             FROM {$campaigns_table} c
-             LEFT JOIN {$templates_table} t ON t.id = c.template_id
-             WHERE c.campaign_code = %s
-             LIMIT 1",
-            [ $campaign_code ]
-        );
-    } else {
-        $row = $db->fetchOne(
-            "SELECT c.id, c.campaign_code, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
-                    c.doc_json, c.editor_body_html, c.html_body, c.text_body, c.status, c.scheduled_at, c.audience_json, c.attachments_json, c.updated_at,
-                    t.template_code
-             FROM {$campaigns_table} c
-             LEFT JOIN {$templates_table} t ON t.id = c.template_id
-             WHERE c.id = %d
-             LIMIT 1",
-            [ $campaign_id ]
-        );
-    }
+    $row = CampaignService::get($campaign_id, $campaign_code);
     if (!$row) {
         metis_runtime_send_json_error('Campaign not found.', 404);
     }
 
     $campaign_id = (int) ($row['id'] ?? 0);
-    $list_rows = $campaign_id > 0
-        ? ($db->fetchAll(
-            "SELECT list_id FROM {$campaign_lists_table} WHERE campaign_id = %d ORDER BY list_id ASC",
-            [ $campaign_id ]
-        ) ?: [])
-        : [];
-    $list_ids = [];
-    foreach ($list_rows as $list_row) {
-        $list_ids[] = (int) ($list_row['list_id'] ?? 0);
-    }
+    $list_ids = CampaignService::listIds($campaign_id);
 
     $doc = metis_newsletter_doc_parse((string) ($row['doc_json'] ?? ''));
     $settings = isset($doc['settings']) && is_array($doc['settings']) ? $doc['settings'] : [];
@@ -1142,8 +892,6 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $campaigns_table = Metis_Tables::get('newsletter_campaigns');
     $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     $test_email = metis_email_clean(metis_runtime_unslash(metis_request_post()['test_email'] ?? ''));
     $override_from_name = metis_text_clean(metis_runtime_unslash(metis_request_post()['from_name'] ?? ''));
@@ -1151,7 +899,7 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
     $override_reply_to = metis_email_clean(metis_runtime_unslash(metis_request_post()['reply_to'] ?? ''));
     if ($campaign_id < 1 || !metis_email_is_valid($test_email)) metis_runtime_send_json_error('Campaign and valid test email are required.', 400);
 
-    $campaign = $db->fetchOne("SELECT * FROM {$campaigns_table} WHERE id = %d LIMIT 1", [$campaign_id]);
+    $campaign = CampaignService::rawById($campaign_id);
     if (!$campaign) metis_runtime_send_json_error('Campaign not found.', 404);
 
     $doc_json = metis_newsletter_normalize_campaign_doc_json(
@@ -1171,21 +919,7 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
     if ($contact_ref === '') {
         $contact_ref = (string) ((int) ($preview_contact['contact_id'] ?? 0));
     }
-    $list_ref = '';
-    $campaign_lists_table = Metis_Tables::get('newsletter_campaign_lists');
-    $lists_table = Metis_Tables::get('newsletter_lists');
-    $list_row = $db->fetchOne(
-        "SELECT l.newsletter_list_uid, l.list_key
-         FROM {$campaign_lists_table} cl
-         INNER JOIN {$lists_table} l ON l.id = cl.list_id
-         WHERE cl.campaign_id = %d
-         ORDER BY cl.list_id ASC
-         LIMIT 1",
-        [$campaign_id]
-    );
-    if (is_array($list_row) && !empty($list_row)) {
-        $list_ref = trim((string) (($list_row['newsletter_list_uid'] ?? '') ?: ($list_row['list_key'] ?? '')));
-    }
+    $list_ref = CampaignService::firstListRef($campaign_id);
     $newsletter_ref = trim((string) ($campaign['campaign_code'] ?? ''));
     if ($newsletter_ref === '') {
         $newsletter_ref = (string) $campaign_id;
@@ -1243,7 +977,7 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
     if (empty($send['ok'])) {
         metis_runtime_send_json_error('Test send failed.', 500);
     }
-    $db->update($campaigns_table, ['status' => 'test_ready', 'test_sent_at' => metis_current_time('mysql'), 'updated_at' => metis_current_time('mysql')], ['id' => $campaign_id], ['%s', '%s', '%s'], ['%d']);
+    metis_db()->update(Metis_Tables::get('newsletter_campaigns'), ['status' => 'test_ready', 'test_sent_at' => metis_current_time('mysql'), 'updated_at' => metis_current_time('mysql')], ['id' => $campaign_id], ['%s', '%s', '%s'], ['%d']);
     metis_newsletter_audit_log('campaign_test_sent', 'campaign', $campaign_id, ['test_email' => $test_email]);
     metis_portal_dashboard_forget_all();
     metis_portal_dashboard_forget_all();
@@ -1255,12 +989,9 @@ metis_ajax_register_handler( 'metis_newsletter_archive_campaign', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $campaigns_table = Metis_Tables::get('newsletter_campaigns');
     $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
-    $ok = $db->update($campaigns_table, ['status' => 'archived', 'archived_at' => metis_current_time('mysql'), 'updated_at' => metis_current_time('mysql')], ['id' => $campaign_id], ['%s', '%s', '%s'], ['%d']);
-    if ($ok === false) metis_runtime_send_json_error('Unable to archive campaign.', 500);
+    if (!CampaignService::archive($campaign_id)) metis_runtime_send_json_error('Unable to archive campaign.', 500);
     metis_newsletter_audit_log('campaign_archived', 'campaign', $campaign_id);
     metis_portal_dashboard_forget_all();
     metis_runtime_send_json_success(['campaign_id' => $campaign_id]);
@@ -1271,33 +1002,12 @@ metis_ajax_register_handler( 'metis_newsletter_delete_campaign', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $campaigns_table = Metis_Tables::get('newsletter_campaigns');
-    $campaign_lists_table = Metis_Tables::get('newsletter_campaign_lists');
-    $messages_table = Metis_Tables::get('newsletter_messages');
-    $events_table = Metis_Tables::get('newsletter_events');
-
     $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
+    $result = CampaignService::delete($campaign_id);
+    if (empty($result['success'])) metis_runtime_send_json_error((string) ($result['message'] ?? 'Unable to delete campaign.'), (int) ($result['status'] ?? 500));
 
-    $campaign = $db->fetchOne(
-        "SELECT id, status FROM {$campaigns_table} WHERE id = %d LIMIT 1",
-        [$campaign_id]
-    );
-    if (!$campaign) metis_runtime_send_json_error('Campaign not found.', 404);
-
-    $status = strtolower((string) ($campaign['status'] ?? 'draft'));
-    if (in_array($status, ['sending', 'sent', 'archived'], true)) {
-        metis_runtime_send_json_error('Sent, sending, or archived campaigns cannot be deleted.', 400);
-    }
-
-    $db->execute($db->prepare("DELETE FROM {$events_table} WHERE campaign_id = %d", $campaign_id));
-    $db->execute($db->prepare("DELETE FROM {$messages_table} WHERE campaign_id = %d", $campaign_id));
-    $db->execute($db->prepare("DELETE FROM {$campaign_lists_table} WHERE campaign_id = %d", $campaign_id));
-    $ok = $db->delete($campaigns_table, ['id' => $campaign_id], ['%d']);
-    if ($ok === false) metis_runtime_send_json_error('Unable to delete campaign.', 500);
-
-    metis_newsletter_audit_log('campaign_deleted', 'campaign', $campaign_id, ['status' => $status]);
+    metis_newsletter_audit_log('campaign_deleted', 'campaign', $campaign_id, ['status' => (string) ($result['campaign_status'] ?? '')]);
     metis_runtime_send_json_success(['campaign_id' => $campaign_id]);
 });
 
@@ -1306,95 +1016,11 @@ metis_ajax_register_handler( 'metis_newsletter_campaign_status', function () {
     if (!metis_newsletter_can_view()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $campaigns_table = Metis_Tables::get('newsletter_campaigns');
-    $messages_table = Metis_Tables::get('newsletter_messages');
-    $contacts_table = Metis_Tables::get('contacts');
-
     $campaign_id = isset(metis_request_post()['campaign_id']) ? (int) metis_runtime_unslash(metis_request_post()['campaign_id']) : 0;
     if ($campaign_id < 1) metis_runtime_send_json_error('Invalid campaign.', 400);
-
-    $campaign = $db->fetchOne(
-        "SELECT id, campaign_code, name, subject, status, total_recipients, sent_count, failed_count, bounced_count, rejected_count, updated_at
-         FROM {$campaigns_table}
-         WHERE id = %d
-         LIMIT 1",
-        [$campaign_id]
-    );
-    if (!$campaign) metis_runtime_send_json_error('Campaign not found.', 404);
-
-    $message_rows = $db->fetchAll(
-        "SELECT m.id, m.email, m.status, m.sent_at, m.delivered_at, m.bounced_at, m.rejected_at, m.opened_at, m.clicked_at, m.last_error,
-                c.first_name, c.last_name, c.cid
-         FROM {$messages_table} m
-         LEFT JOIN {$contacts_table} c ON c.id = m.contact_id
-         WHERE m.campaign_id = %d
-         ORDER BY m.id ASC
-         LIMIT 500",
-        [$campaign_id]
-    );
-
-    $current = $db->fetchOne(
-        "SELECT email, status
-         FROM {$messages_table}
-         WHERE campaign_id = %d AND status IN ('queued','sending')
-         ORDER BY id ASC
-         LIMIT 1",
-        [$campaign_id]
-    );
-
-    $total = (int) ($campaign['total_recipients'] ?? 0);
-    if ($total < 1) {
-        $total = (int) $db->scalar(
-            "SELECT COUNT(*) FROM {$messages_table} WHERE campaign_id = %d",
-            [$campaign_id]
-        );
-    }
-    $sent = (int) ($campaign['sent_count'] ?? 0);
-    $failed = (int) ($campaign['failed_count'] ?? 0);
-    $bounced = (int) ($campaign['bounced_count'] ?? 0);
-    $rejected = (int) ($campaign['rejected_count'] ?? 0);
-    $processed = $sent + $failed + $bounced + $rejected;
-    $progress_pct = $total > 0 ? min(100, max(0, (int) round(($processed / $total) * 100))) : 0;
-
-    metis_runtime_send_json_success([
-        'campaign' => [
-            'id' => (int) ($campaign['id'] ?? 0),
-            'campaign_code' => (string) ($campaign['campaign_code'] ?? ''),
-            'name' => (string) ($campaign['name'] ?? ''),
-            'subject' => (string) ($campaign['subject'] ?? ''),
-            'status' => (string) ($campaign['status'] ?? 'draft'),
-            'updated_at' => (string) ($campaign['updated_at'] ?? ''),
-        ],
-        'summary' => [
-            'total' => $total,
-            'sent' => $sent,
-            'failed' => $failed,
-            'bounced' => $bounced,
-            'rejected' => $rejected,
-            'processed' => $processed,
-            'progress_pct' => $progress_pct,
-            'current_email' => (string) ($current['email'] ?? ''),
-            'current_status' => (string) ($current['status'] ?? ''),
-        ],
-        'messages' => array_values(array_map(static function (array $row): array {
-            return [
-                'id' => (int) ($row['id'] ?? 0),
-                'email' => (string) ($row['email'] ?? ''),
-                'status' => (string) ($row['status'] ?? ''),
-                'sent_at' => (string) ($row['sent_at'] ?? ''),
-                'delivered_at' => (string) ($row['delivered_at'] ?? ''),
-                'bounced_at' => (string) ($row['bounced_at'] ?? ''),
-                'rejected_at' => (string) ($row['rejected_at'] ?? ''),
-                'opened_at' => (string) ($row['opened_at'] ?? ''),
-                'clicked_at' => (string) ($row['clicked_at'] ?? ''),
-                'last_error' => (string) ($row['last_error'] ?? ''),
-                'first_name' => (string) ($row['first_name'] ?? ''),
-                'last_name' => (string) ($row['last_name'] ?? ''),
-                'cid' => (string) ($row['cid'] ?? ''),
-            ];
-        }, $message_rows)),
-    ]);
+    $status_payload = CampaignService::status($campaign_id);
+    if (!$status_payload) metis_runtime_send_json_error('Campaign not found.', 404);
+    metis_runtime_send_json_success($status_payload);
 });
 
 metis_ajax_register_handler( 'metis_newsletter_search_contacts', function () {
@@ -1402,37 +1028,11 @@ metis_ajax_register_handler( 'metis_newsletter_search_contacts', function () {
     if (!metis_newsletter_can_view()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $contacts_table = Metis_Tables::get('contacts');
     $query = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['query'] ?? ''));
     $query = trim($query);
     if ($query === '') metis_runtime_send_json_success(['results' => []]);
 
-    $like = '%' . $db->escapeLike(strtolower($query)) . '%';
-    $rows = $db->fetchAll(
-        "SELECT cid, first_name, last_name, email
-         FROM {$contacts_table}
-         WHERE LOWER(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) LIKE %s
-            OR LOWER(email) LIKE %s
-            OR LOWER(COALESCE(cid,'')) LIKE %s
-         ORDER BY first_name ASC, last_name ASC
-         LIMIT 20",
-        [$like, $like, $like]
-    );
-
-    $results = array_values(array_filter(array_map(static function (array $row): array {
-        $email = strtolower(trim((string) ($row['email'] ?? '')));
-        if ($email === '' || !metis_email_is_valid($email)) return [];
-        $name = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
-        return [
-            'cid' => (string) ($row['cid'] ?? ''),
-            'email' => $email,
-            'name' => $name !== '' ? $name : $email,
-            'label' => trim(($name !== '' ? $name . ' - ' : '') . $email . ((string) ($row['cid'] ?? '') !== '' ? (' - ' . (string) ($row['cid'] ?? '')) : '')),
-        ];
-    }, $rows), static fn(array $r): bool => !empty($r)));
-
-    metis_runtime_send_json_success(['results' => $results]);
+    metis_runtime_send_json_success(['results' => ContactService::searchContacts($query)]);
 });
 
 metis_ajax_register_handler( 'metis_newsletter_run_queue', function () {
@@ -1449,115 +1049,7 @@ metis_ajax_register_handler( 'metis_newsletter_run_queue', function () {
 
 
 function metis_newsletter_upsert_subscription_record( array $input ): array {
-    metis_newsletter_ensure_schema();
-
-    $db = metis_db();
-    $subs_table = Metis_Tables::get('newsletter_subs');
-    $suppressions_table = Metis_Tables::get('newsletter_suppressions');
-
-    $email = metis_email_clean((string) ($input['email'] ?? ''));
-    $first_name = metis_text_clean((string) ($input['first_name'] ?? ''));
-    $last_name = metis_text_clean((string) ($input['last_name'] ?? ''));
-    $list_id = (int) ($input['list_id'] ?? 0);
-    $status = metis_newsletter_sanitize_sub_status((string) ($input['status'] ?? 'subscribed'));
-
-    if ($email === '' || $list_id < 1) {
-        return ['success' => false, 'status' => 400, 'message' => 'Email and list are required.'];
-    }
-
-    $contact_id = metis_newsletter_find_or_create_contact($email, $first_name, $last_name);
-    if ($contact_id < 1) {
-        return ['success' => false, 'status' => 500, 'message' => 'Unable to resolve contact.'];
-    }
-
-    $existing_id = (int) $db->scalar(
-        "SELECT id FROM {$subs_table} WHERE contact_id = %d AND list_id = %d LIMIT 1",
-        [$contact_id, $list_id]
-    );
-
-    $now = metis_current_time('mysql');
-    $payload = [
-        'status' => $status,
-        'source' => 'metis_manual',
-        'last_event_at' => $now,
-        'updated_at' => $now,
-    ];
-
-    if ($status === 'subscribed') {
-        $payload['subscribed_at'] = $now;
-        $payload['unsubscribed_at'] = null;
-        $db->execute($db->prepare(
-            "UPDATE {$suppressions_table} SET is_active = 0, updated_at = %s WHERE (contact_id = %d OR email = %s) AND is_active = 1",
-            $now,
-            $contact_id,
-            strtolower($email)
-        ));
-    } else {
-        $payload['subscribed_at'] = null;
-        $payload['unsubscribed_at'] = $now;
-        $exists_sup = (int) $db->scalar(
-            "SELECT id FROM {$suppressions_table} WHERE (contact_id = %d OR email = %s) AND is_active = 1 LIMIT 1",
-            [$contact_id, strtolower($email)]
-        );
-
-        if ($exists_sup < 1) {
-            $db->insert(
-                $suppressions_table,
-                [
-                    'suppression_code' => metis_generate_code('NS', $suppressions_table, 'suppression_code'),
-                    'contact_id' => $contact_id,
-                    'email' => strtolower($email),
-                    'reason' => $status,
-                    'source' => 'manual',
-                    'is_active' => 1,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                ['%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s']
-            );
-        }
-    }
-
-    if ($existing_id > 0) {
-        $ok = $db->update(
-            $subs_table,
-            $payload,
-            ['id' => $existing_id],
-            ['%s', '%s', '%s', '%s', '%s', '%s'],
-            ['%d']
-        );
-        if ($ok === false) {
-            return ['success' => false, 'status' => 500, 'message' => 'Failed to update subscription.'];
-        }
-    } else {
-        $payload = array_merge(
-            [
-                'contact_id' => $contact_id,
-                'list_id' => $list_id,
-                'bounce_count' => 0,
-                'created_at' => $now,
-            ],
-            $payload
-        );
-
-        $ok = $db->insert(
-            $subs_table,
-            $payload,
-            ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
-        );
-        if ($ok === false) {
-            return ['success' => false, 'status' => 500, 'message' => 'Failed to create subscription.'];
-        }
-    }
-
-    return [
-        'success' => true,
-        'status' => 200,
-        'message' => 'Subscriber processed successfully.',
-        'contact_id' => $contact_id,
-        'list_id' => $list_id,
-        'status_value' => $status,
-    ];
+    return SubscriptionService::upsert($input);
 }
 
 metis_ajax_register_handler( 'metis_newsletter_upsert_subscription', function () {
@@ -1588,9 +1080,6 @@ metis_ajax_register_handler( 'metis_newsletter_record_event', function () {
     if (!metis_newsletter_can_manage()) metis_runtime_send_json_error('Unauthorized', 403);
     metis_newsletter_ensure_schema();
 
-    $db = metis_db();
-    $messages_table = Metis_Tables::get('newsletter_messages');
-
     $message_id = isset(metis_request_post()['message_id']) ? (int) metis_runtime_unslash(metis_request_post()['message_id']) : 0;
     $message_code = metis_text_clean((string) metis_runtime_unslash(metis_request_post()['message_code'] ?? ''));
     $event_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['event_type'] ?? ''));
@@ -1598,7 +1087,7 @@ metis_ajax_register_handler( 'metis_newsletter_record_event', function () {
     if ($event_type === '') metis_runtime_send_json_error('Event type required.', 400);
 
     if ($message_code === '' && $message_id > 0) {
-        $message_code = (string) $db->scalar("SELECT message_code FROM {$messages_table} WHERE id = %d LIMIT 1", [$message_id]);
+        $message_code = \Metis\Modules\Newsletter\QueueService::messageCodeById($message_id);
     }
     if ($message_code === '') metis_runtime_send_json_error('Message reference required.', 400);
 
