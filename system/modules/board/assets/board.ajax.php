@@ -9,6 +9,9 @@ use Metis\Modules\Board\BylawsService;
 use Metis\Modules\Board\CalendarLinkService;
 use Metis\Modules\Board\DecisionAttendanceService;
 use Metis\Modules\Board\DocumentService;
+use Metis\Modules\Board\MeetingWorkflowService;
+use Metis\Modules\Board\PacketEmailService;
+use Metis\Modules\Board\PacketService;
 use Metis\Modules\Board\ReadService;
 use Metis\Modules\Board\WorkflowTemplateService;
 
@@ -1031,106 +1034,22 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
         metis_runtime_send_json_error('Failed to prepare meeting folders.', 500);
     }
 
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $decisions_table = Metis_Tables::get('board_decisions');
-    $actions_table = Metis_Tables::get('board_action_items');
-    $attendance_table = Metis_Tables::get('board_attendance');
-    $documents_table = Metis_Tables::get('board_documents');
-    $people_table = Metis_Tables::get('people');
-
-    $meeting = $db->fetchOne("SELECT * FROM {$meetings_table} WHERE id = %d LIMIT 1", [ $meeting_id ]);
-    if (!$meeting) metis_runtime_send_json_error('Meeting not found.', 404);
-
-    $minutes_reference_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['packet_source_minutes_reference'] ?? ''));
-    if ($minutes_reference_raw === '') {
-        $minutes_reference_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['packet_source_minutes_meeting_id'] ?? ''));
-    }
-    $selected_prior_doc_id = 0;
-    $selected_prior_meeting_id = 0;
-    if (preg_match('/^doc:(\d+)$/', $minutes_reference_raw, $minutes_match)) {
-        $selected_prior_doc_id = (int) ($minutes_match[1] ?? 0);
-    } else {
-        $selected_prior_meeting_id = (int) ($minutes_reference_raw !== '' ? $minutes_reference_raw : (string) ($meeting['packet_source_minutes_meeting_id'] ?? 0));
-    }
-    $selected_financial_doc_id = (int) (metis_request_post()['packet_financial_document_id'] ?? ($meeting['packet_financial_document_id'] ?? 0));
-    $db->update(
-        $meetings_table,
-        [
-            'packet_source_minutes_meeting_id' => $selected_prior_meeting_id > 0 ? $selected_prior_meeting_id : null,
-            'packet_financial_document_id' => $selected_financial_doc_id > 0 ? $selected_financial_doc_id : null,
-        ],
-        ['id' => $meeting_id],
-        ['%d', '%d'],
-        ['%d']
-    );
-
-    $agenda = json_decode((string) ($meeting['agenda_json'] ?? ''), true);
-    if (!is_array($agenda)) $agenda = [];
-    $decisions = $db->fetchAll("SELECT * FROM {$decisions_table} WHERE meeting_id = %d ORDER BY id ASC", [ $meeting_id ]) ?: [];
-    $actions = $db->fetchAll("SELECT a.*, p.display_name AS owner_name FROM {$actions_table} a LEFT JOIN {$people_table} p ON p.id = a.owner_person_id WHERE a.meeting_id = %d ORDER BY a.id ASC", [ $meeting_id ]) ?: [];
-    $attendance = $db->fetchAll("SELECT atn.*, p.display_name FROM {$attendance_table} atn LEFT JOIN {$people_table} p ON p.id = atn.person_id WHERE atn.meeting_id = %d ORDER BY p.display_name ASC", [ $meeting_id ]) ?: [];
-    $linked_docs_for_packet = array_values(array_filter(metis_board_fetch_meeting_documents($meeting_id), function ($doc) {
-        $type = strtolower((string) ($doc['doc_type'] ?? ''));
-        return in_array($type, ['supporting_doc', 'agenda_attachment', 'minutes_attachment', 'policy', 'other'], true);
-    }));
+    $packet_context = PacketService::loadPacketContext($meeting_id, metis_request_post());
+    $meeting = (array) ($packet_context['meeting'] ?? []);
+    $agenda = (array) ($packet_context['agenda'] ?? []);
+    $decisions = (array) ($packet_context['decisions'] ?? []);
+    $actions = (array) ($packet_context['actions'] ?? []);
+    $attendance = (array) ($packet_context['attendance'] ?? []);
+    $linked_docs_for_packet = (array) ($packet_context['linked_docs_for_packet'] ?? []);
+    $extra_packet_data = (array) ($packet_context['extra_packet_data'] ?? []);
+    $selected_prior_doc_id = (int) ($packet_context['selected_prior_doc_id'] ?? 0);
+    $selected_prior_meeting_id = (int) ($packet_context['selected_prior_meeting_id'] ?? 0);
+    $prior = (array) ($packet_context['prior'] ?? []);
+    $prior_doc = (array) ($packet_context['prior_doc'] ?? []);
+    $financial_doc = $packet_context['financial_doc'] ?? null;
 
     if (!class_exists('Core_PDF_Service')) {
         metis_runtime_send_json_error('PDF service is not available.', 500);
-    }
-
-    $extra_packet_data = [];
-    $prior = [];
-    $prior_doc = [];
-    if ($selected_prior_meeting_id > 0) {
-        $prior = $db->fetchOne(
-            "SELECT id, meeting_code, title, meeting_date, minutes_html
-             FROM {$meetings_table}
-             WHERE id = %d
-             LIMIT 1",
-            [ $selected_prior_meeting_id ]
-        );
-        if ($prior && trim((string) ($prior['minutes_html'] ?? '')) !== '') {
-            $extra_packet_data['prior_minutes_title'] = (string) ($prior['meeting_code'] ?? '') . ' · ' . (string) ($prior['title'] ?? 'Prior meeting') . ' · ' . metis_board_format_datetime((string) ($prior['meeting_date'] ?? ''));
-            $extra_packet_data['prior_minutes_html'] = (string) ($prior['minutes_html'] ?? '');
-        }
-    } elseif ($selected_prior_doc_id > 0) {
-        $prior_doc = $db->fetchOne(
-            "SELECT id, title, google_file_id, google_drive_url, mime_type
-             FROM {$documents_table}
-             WHERE id = %d
-             LIMIT 1",
-            [ $selected_prior_doc_id ]
-        );
-        if ($prior_doc) {
-            $prior_title = trim((string) ($prior_doc['title'] ?? 'Legacy Meeting Minutes'));
-            $prior_link = trim((string) ($prior_doc['google_drive_url'] ?? ''));
-            $extra_packet_data['prior_minutes_title'] = $prior_title !== '' ? $prior_title : 'Legacy Meeting Minutes';
-            if ($prior_link !== '') {
-                $extra_packet_data['prior_minutes_html'] =
-                    '<p><strong>Legacy minutes document:</strong> <a href="' .
-                    metis_escape_url($prior_link) .
-                    '" target="_blank" rel="noopener">' .
-                    metis_escape_html($extra_packet_data['prior_minutes_title']) .
-                    '</a></p>';
-            } else {
-                $extra_packet_data['prior_minutes_html'] = '<p><strong>Legacy minutes document:</strong> ' . metis_escape_html($extra_packet_data['prior_minutes_title']) . '</p>';
-            }
-        }
-    }
-
-    $financial_doc = null;
-    if ($selected_financial_doc_id > 0) {
-        $financial_doc = $db->fetchOne(
-            "SELECT id, title, google_file_id, google_drive_url, mime_type
-             FROM {$documents_table}
-             WHERE id = %d
-             LIMIT 1",
-            [ $selected_financial_doc_id ]
-        );
-        if ($financial_doc) {
-            $extra_packet_data['financial_title'] = (string) ($financial_doc['title'] ?? 'Financial Report');
-            $extra_packet_data['financial_link'] = (string) ($financial_doc['google_drive_url'] ?? '');
-        }
     }
 
     try {
@@ -1178,33 +1097,6 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
             $copy = metis_board_drive_copy_file((string) $financial_doc['google_file_id'], $copy_name, (string) $prepared['financials']['folder_id']);
             if (!empty($copy['ok']) && !empty($copy['file']) && is_array($copy['file'])) {
                 $financial_copy = (array) $copy['file'];
-                $existing_id = (int) $db->scalar(
-                    "SELECT id FROM {$documents_table} WHERE meeting_id = %d AND google_file_id = %s LIMIT 1",
-                    [ $meeting_id, (string) ($financial_copy['id'] ?? '') ]
-                );
-                $payload = [
-                    'meeting_id' => $meeting_id,
-                    'title' => (string) ($financial_copy['name'] ?? 'Financial Report'),
-                    'doc_type' => 'financial_report',
-                    'google_file_id' => (string) ($financial_copy['id'] ?? ''),
-                    'google_drive_url' => (string) ($financial_copy['webViewLink'] ?? ''),
-                    'mime_type' => (string) ($financial_copy['mimeType'] ?? (string) ($financial_doc['mime_type'] ?? 'application/octet-stream')),
-                    'file_size' => isset($financial_copy['size']) ? (int) $financial_copy['size'] : 0,
-                    'status' => 'active',
-                ];
-                if ($existing_id > 0) {
-                    $db->update($documents_table, $payload, ['id' => $existing_id], ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s'], ['%d']);
-                } else {
-                    $entity_type = \Metis\Modules\Board\Support::documentEntityType((string) ($payload['doc_type'] ?? ''));
-                    if ($entity_type !== '' && function_exists('metis_entity_id_service')) {
-                        $payload = metis_entity_id_service()->assignForInsert($entity_type, $payload, false);
-                        $db->insert($documents_table, $payload, ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s']);
-                        metis_entity_id_service()->register($entity_type, (int) $db->lastInsertId(), metis_board_first_document_uid($payload));
-                    } else {
-                        $payload['document_code'] = metis_board_generate_code('BF', $documents_table, 'document_code');
-                        $db->insert($documents_table, $payload, ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']);
-                    }
-                }
             }
         }
 
@@ -1213,37 +1105,7 @@ metis_ajax_register_handler( 'metis_board_generate_packet_pdf', function () {
             'agenda' => (array) ($agenda_upload['file'] ?? []),
             'minutes' => (array) $minutes_file,
         ];
-        foreach ($uploads as $doc_type => $file) {
-            $file_id = (string) ($file['id'] ?? '');
-            if ($file_id === '') continue;
-            $existing_id = (int) $db->scalar(
-                "SELECT id FROM {$documents_table} WHERE meeting_id = %d AND google_file_id = %s LIMIT 1",
-                [ $meeting_id, $file_id ]
-            );
-            $payload = [
-                'meeting_id' => $meeting_id,
-                'title' => (string) ($file['name'] ?? ucfirst($doc_type)),
-                'doc_type' => $doc_type,
-                'google_file_id' => $file_id,
-                'google_drive_url' => (string) ($file['webViewLink'] ?? ''),
-                'mime_type' => (string) ($file['mimeType'] ?? 'application/pdf'),
-                'file_size' => isset($file['size']) ? (int) $file['size'] : 0,
-                'status' => 'active',
-            ];
-            if ($existing_id > 0) {
-                $db->update($documents_table, $payload, ['id' => $existing_id], ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s'], ['%d']);
-            } else {
-                $entity_type = \Metis\Modules\Board\Support::documentEntityType((string) ($payload['doc_type'] ?? ''));
-                if ($entity_type !== '' && function_exists('metis_entity_id_service')) {
-                    $payload = metis_entity_id_service()->assignForInsert($entity_type, $payload, false);
-                    $db->insert($documents_table, $payload, ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s']);
-                    metis_entity_id_service()->register($entity_type, (int) $db->lastInsertId(), metis_board_first_document_uid($payload));
-                } else {
-                    $payload['document_code'] = metis_board_generate_code('BF', $documents_table, 'document_code');
-                    $db->insert($documents_table, $payload, ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']);
-                }
-            }
-        }
+        PacketService::persistGeneratedPacketDocuments($meeting_id, $uploads, $financial_copy, is_array($financial_doc) ? $financial_doc : null);
     } catch (Throwable $e) {
         if (class_exists('Metis_Logger')) {
             Metis_Logger::warn('board.packet_generation_failed', [
@@ -1457,7 +1319,7 @@ metis_ajax_register_handler( 'metis_board_drive_delete_file', function () {
     if ($file_id === '') metis_runtime_send_json_error('File is required.', 422);
 
     $url = metis_add_query_arg(['supportsAllDrives' => 'true'], 'https://www.googleapis.com/drive/v3/files/' . rawurlencode($file_id));
-    $resp = metis_board_drive_request('DELETE', $url, null);
+    $resp = metis_board_drive_request('delete', $url, null);
     if (empty($resp['ok'])) {
         metis_runtime_send_json_error('Failed to delete file from Drive.', 500);
     }
@@ -1506,32 +1368,10 @@ metis_ajax_register_handler( 'metis_board_generate_calendar_event', function () 
 
 metis_ajax_register_handler( 'metis_board_sync_decision_points', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    if ($meeting_id < 1) metis_runtime_send_json_error('Meeting is required.', 422);
-
-    $agenda = null;
-    if (array_key_exists('agenda_json', metis_request_post())) {
-        $agenda_json_raw = trim((string) metis_runtime_unslash(metis_request_post()['agenda_json'] ?? ''));
-        if ($agenda_json_raw !== '') {
-            $decoded = json_decode($agenda_json_raw, true);
-            if (!is_array($decoded)) metis_runtime_send_json_error('Agenda JSON is invalid.', 422);
-            $agenda = $decoded;
-        } else {
-            $agenda = [];
-        }
-    } else {
-        $meetings_table = Metis_Tables::get('board_meetings');
-        $agenda_json_raw = (string) $db->scalar(
-            "SELECT agenda_json FROM {$meetings_table} WHERE id = %d LIMIT 1",
-            [ $meeting_id ]
-        );
-        $decoded = json_decode($agenda_json_raw, true);
-        $agenda = is_array($decoded) ? $decoded : [];
-    }
-
-    $created = function_exists('metis_board_sync_decision_points') ? metis_board_sync_decision_points($meeting_id, $agenda) : 0;
-    metis_runtime_send_json_success(['meeting_id' => $meeting_id, 'created_decisions' => $created]);
+    metis_runtime_send_json_success(MeetingWorkflowService::syncDecisionPoints(
+        (int) (metis_request_post()['meeting_id'] ?? 0),
+        metis_request_post()
+    ));
 });
 
 function metis_board_portal_logo_url(): string {
@@ -1637,192 +1477,7 @@ function metis_board_drive_download_file_payload(string $file_id): array {
 }
 
 function metis_board_send_packet_publish_email(int $meeting_id): array {
-    if ($meeting_id < 1) return ['ok' => false, 'error' => 'Meeting is required.'];
-    if (!class_exists('\Metis\Core\Services\EmailService')) {
-        return ['ok' => false, 'error' => 'Email delivery service is unavailable.'];
-    }
-
-    $db = metis_db();
-    $meetings_table = Metis_Tables::get('board_meetings');
-    $documents_table = Metis_Tables::get('board_documents');
-    $people_table = Metis_Tables::get('people');
-
-    $committees_table = Metis_Tables::get('board_committees');
-    $meeting = $db->fetchOne(
-        "SELECT m.id, m.title, m.meeting_code, m.meeting_date, m.location, m.board_packet_notes, m.meeting_type, m.committee_id,
-                c.name AS committee_name
-         FROM {$meetings_table} m
-         LEFT JOIN {$committees_table} c ON c.id = m.committee_id
-         WHERE m.id = %d
-         LIMIT 1",
-        [ $meeting_id ]
-    );
-    if (!$meeting) return ['ok' => false, 'error' => 'Meeting not found.'];
-
-    $president = $db->fetchOne(
-        "SELECT id, email, display_name, first_name, last_name
-         FROM {$people_table}
-         WHERE is_board = 1
-           AND status = 'active'
-           AND email <> ''
-           AND LOWER(TRIM(COALESCE(board_position, ''))) IN ('president', 'board president')
-         ORDER BY id ASC
-         LIMIT 1"
-    );
-    $packet_doc = $db->fetchOne(
-        "SELECT id, title, google_file_id, google_drive_url
-         FROM {$documents_table}
-         WHERE meeting_id = %d
-           AND doc_type = 'board_packet'
-           AND google_file_id IS NOT NULL
-           AND google_file_id <> ''
-         ORDER BY updated_at DESC, id DESC
-         LIMIT 1",
-        [ $meeting_id ]
-    );
-    if (!$packet_doc) {
-        return ['ok' => false, 'error' => 'Board packet document is not available yet.'];
-    }
-
-    $recipient_context = metis_board_resolve_packet_recipients($meeting);
-    if (empty($recipient_context['ok'])) {
-        return ['ok' => false, 'error' => (string) ($recipient_context['error'] ?? 'No packet recipients found.')];
-    }
-    $recipients = (array) ($recipient_context['recipients'] ?? []);
-    $audience_label = (string) ($recipient_context['audience_label'] ?? 'recipients');
-    $packet_heading = (string) ($recipient_context['packet_heading'] ?? 'Meeting Packet');
-
-    $download = metis_board_drive_download_file_payload((string) ($packet_doc['google_file_id'] ?? ''));
-    if (empty($download['ok'])) {
-        return ['ok' => false, 'error' => (string) ($download['error'] ?? 'Unable to attach board packet.')];
-    }
-
-    $meeting_title = trim((string) ($meeting['title'] ?? 'Board Meeting'));
-    if ($meeting_title === '') $meeting_title = 'Board Meeting';
-    $meeting_date = metis_board_format_datetime((string) ($meeting['meeting_date'] ?? ''));
-    $meeting_code = trim((string) ($meeting['meeting_code'] ?? ''));
-    $packet_notes = trim((string) ($meeting['board_packet_notes'] ?? ''));
-    $meeting_location = trim((string) ($meeting['location'] ?? ''));
-    $logo_url = metis_board_portal_logo_url();
-
-    $settings_from_name = class_exists('Core_Settings_Service') ? trim((string) Core_Settings_Service::get('newsletter_default_from_name', '')) : '';
-    $settings_from_email = class_exists('Core_Settings_Service') ? strtolower(trim((string) Core_Settings_Service::get('newsletter_default_from_email', ''))) : '';
-    $settings_reply_to = class_exists('Core_Settings_Service') ? strtolower(trim((string) Core_Settings_Service::get('newsletter_default_reply_to', ''))) : '';
-    $org_name = class_exists('Core_Settings_Service') ? trim((string) Core_Settings_Service::get('org_name', '')) : '';
-
-    $president_email = strtolower(trim((string) ($president['email'] ?? '')));
-    $from_email = metis_email_is_valid($settings_from_email) ? $settings_from_email : $president_email;
-    if (!metis_email_is_valid($from_email)) {
-        return ['ok' => false, 'error' => 'A default sender email or Board President email is required before sending packet emails.'];
-    }
-    $reply_to = metis_email_is_valid($settings_reply_to) ? $settings_reply_to : $from_email;
-
-    $from_name = $settings_from_name;
-    if ($from_name === '') {
-        $from_name = trim((string) ($president['display_name'] ?? ''));
-    }
-    if ($from_name === '') {
-        $from_name = trim((string) ($president['first_name'] ?? '') . ' ' . (string) ($president['last_name'] ?? ''));
-    }
-    if ($from_name === '' && $org_name !== '') {
-        $from_name = $org_name;
-    }
-    if ($from_name === '') $from_name = 'Board Office';
-    $subject = $packet_heading . ': ' . $meeting_title . ($meeting_date !== '' ? (' - ' . $meeting_date) : '');
-
-    $sent = 0;
-    $failed = [];
-    foreach ($recipients as $recipient) {
-        $greeting_name = trim((string) ($recipient['first_name'] ?? ''));
-        if ($greeting_name === '') {
-            $greeting_name = trim((string) ($recipient['display_name'] ?? ''));
-        }
-        if ($greeting_name === '') $greeting_name = $audience_label === 'committee members' ? 'Committee Member' : 'Board Member';
-        $safe_notes = $packet_notes !== '' ? metis_runtime_kses_post($packet_notes) : '<p>No additional packet notes were provided.</p>';
-        // Normalize common non-breaking-space/mojibake artifacts that Apple Mail can render as stray "Â".
-        $safe_notes = str_replace(["\xC2\xA0", '&nbsp;', '&#160;'], ' ', $safe_notes);
-        $safe_notes = preg_replace('/Â(?=\s|<|$)/u', '', (string) $safe_notes) ?? (string) $safe_notes;
-        $safe_title = metis_escape_html($meeting_title);
-        $safe_date = metis_escape_html($meeting_date);
-        $safe_code = metis_escape_html($meeting_code);
-        $safe_location = metis_escape_html($meeting_location);
-        $safe_greeting = metis_escape_html($greeting_name);
-        $safe_sender = metis_escape_html($from_name);
-        $inline_images = [];
-        $logo_src = trim($logo_url);
-        if (stripos($logo_src, 'data:') === 0) {
-            $inline_logo = metis_board_email_inline_logo_from_data_uri($logo_src);
-            if (!empty($inline_logo)) {
-                $inline_images[] = $inline_logo;
-                $logo_src = 'cid:' . (string) ($inline_logo['cid'] ?? 'metis-board-logo');
-            } else {
-                $logo_src = '';
-            }
-        }
-        $logo_markup = '';
-        if ($logo_src !== '') {
-            $logo_markup =
-                '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">'
-                . '<tr><td align="center" style="text-align:center;">'
-                . '<img src="' . metis_escape_attr($logo_src) . '" alt="Organization logo" width="120" style="display:block;border:0;outline:none;text-decoration:none;max-width:120px;max-height:64px;height:auto;width:auto;">'
-                . '</td></tr>'
-                . '<tr><td height="20" style="line-height:20px;font-size:20px;">&nbsp;</td></tr>'
-                . '</table>';
-        }
-        $location_markup = $safe_location !== '' ? '<p style="margin:0 0 16px;color:#334155;"><strong>Location:</strong> ' . $safe_location . '</p>' : '';
-        $html = '<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:20px;">'
-            . '<div style="max-width:700px;margin:0 auto;background:#fff;border:1px solid #dfe5f2;border-radius:12px;padding:24px;">'
-            . $logo_markup
-            . '<h2 style="margin:0 0 8px;color:#1f2937;">' . metis_escape_html($packet_heading) . '</h2>'
-            . '<p style="margin:0 0 14px;color:#334155;">' . $safe_title . '</p>'
-            . '<p style="margin:0 0 16px;color:#334155;"><strong>Date:</strong> ' . $safe_date . ($safe_code !== '' ? (' &nbsp;|&nbsp; <strong>Code:</strong> ' . $safe_code) : '') . '</p>'
-            . $location_markup
-            . '<p style="margin:0 0 14px;color:#1f2937;">Hi ' . $safe_greeting . ',</p>'
-            . '<div style="margin:0 0 16px;color:#1f2937;line-height:1.55;">' . $safe_notes . '</div>'
-            . '<p style="margin:18px 0 0;color:#334155;">Thank you,<br><strong>' . $safe_sender . '</strong></p>'
-            . '</div></div>';
-
-        $result = \Metis\Core\Services\EmailService::sendHtml(
-            (string) $recipient['email'],
-            $subject,
-            $html,
-            [
-                'from_name' => $from_name,
-                'from_email' => $from_email,
-                'reply_to' => $reply_to,
-                'inline_images' => $inline_images,
-                'attachments' => [
-                    [
-                        'path' => (string) ($download['path'] ?? ''),
-                        'name' => (string) ($download['name'] ?? 'Board-Packet.pdf'),
-                        'mime' => (string) ($download['mime'] ?? 'application/pdf'),
-                    ],
-                ],
-            ]
-        );
-        if (!empty($result['ok'])) {
-            $sent++;
-        } else {
-            $failed[] = [
-                'email' => (string) ($recipient['email'] ?? ''),
-                'error' => (string) ($result['error'] ?? 'Email send failed.'),
-            ];
-        }
-    }
-
-    $tmp = (string) ($download['path'] ?? '');
-    if ($tmp !== '' && file_exists($tmp)) {
-        @unlink($tmp);
-    }
-
-    return [
-        'ok' => $sent > 0,
-        'total' => count($recipients),
-        'sent' => $sent,
-        'failed' => $failed,
-        'audience_label' => $audience_label,
-        'packet_heading' => $packet_heading,
-    ];
+    return PacketEmailService::sendPacketPublishEmail($meeting_id);
 }
 
 metis_ajax_register_handler( 'metis_board_resend_packet_email', function () {
@@ -1843,187 +1498,10 @@ metis_ajax_register_handler( 'metis_board_resend_packet_email', function () {
 
 metis_ajax_register_handler( 'metis_board_update_meeting_detail', function () {
     metis_board_ajax_verify(true);
-    $db = metis_db();
-
-    $meeting_id = (int) (metis_request_post()['meeting_id'] ?? 0);
-    if ($meeting_id < 1) {
-        metis_runtime_send_json_error('Meeting is required.', 422);
-    }
-
-    $table = Metis_Tables::get('board_meetings');
-    $existing_meeting = $db->fetchOne("SELECT id, published_at FROM {$table} WHERE id = %d LIMIT 1", [ $meeting_id ]);
-    if (!$existing_meeting) {
-        metis_runtime_send_json_error('Meeting not found.', 404);
-    }
-    $was_published = trim((string) ($existing_meeting['published_at'] ?? '')) !== '';
-    $payload = [];
-    $formats = [];
-    $setup_changed = false;
-    $send_publish_email = false;
-
-    if (array_key_exists('title', metis_request_post())) {
-        $title = metis_text_clean(metis_runtime_unslash(metis_request_post()['title'] ?? ''));
-        if ($title === '') {
-            metis_runtime_send_json_error('Meeting title is required.', 422);
-        }
-        $payload['title'] = $title;
-        $formats[] = '%s';
-        $setup_changed = true;
-    }
-
-    if (array_key_exists('meeting_date', metis_request_post())) {
-        $meeting_date_raw = metis_text_clean(metis_runtime_unslash(metis_request_post()['meeting_date'] ?? ''));
-        if ($meeting_date_raw === '') {
-            metis_runtime_send_json_error('Meeting date is required.', 422);
-        }
-        $meeting_ts = strtotime($meeting_date_raw);
-        if (!$meeting_ts) {
-            metis_runtime_send_json_error('Invalid meeting date.', 422);
-        }
-        $payload['meeting_date'] = gmdate('Y-m-d H:i:s', $meeting_ts);
-        $formats[] = '%s';
-        $setup_changed = true;
-    }
-
-    if (array_key_exists('meeting_type', metis_request_post())) {
-        $meeting_type = metis_key_clean(metis_runtime_unslash(metis_request_post()['meeting_type'] ?? 'board'));
-        if (!in_array($meeting_type, ['board', 'committee', 'special'], true)) {
-            $meeting_type = 'board';
-        }
-        $payload['meeting_type'] = $meeting_type;
-        $formats[] = '%s';
-        $setup_changed = true;
-    }
-
-    if (array_key_exists('location', metis_request_post())) {
-        $payload['location'] = metis_text_clean(metis_runtime_unslash(metis_request_post()['location'] ?? ''));
-        $formats[] = '%s';
-        $setup_changed = true;
-    }
-
-    if (array_key_exists('status', metis_request_post())) {
-        $status = metis_key_clean(metis_runtime_unslash(metis_request_post()['status'] ?? 'draft'));
-        if (!in_array($status, ['draft', 'scheduled', 'completed', 'cancelled'], true)) {
-            $status = 'draft';
-        }
-        $payload['status'] = $status;
-        $formats[] = '%s';
-        $setup_changed = true;
-    }
-
-    if (array_key_exists('agenda_json', metis_request_post())) {
-        $agenda_json_raw = trim((string) metis_runtime_unslash(metis_request_post()['agenda_json'] ?? ''));
-        if ($agenda_json_raw === '') {
-            $payload['agenda_json'] = null;
-            $formats[] = '%s';
-        } else {
-            json_decode($agenda_json_raw, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                metis_runtime_send_json_error('Agenda JSON is invalid.', 422);
-            }
-            $payload['agenda_json'] = $agenda_json_raw;
-            $formats[] = '%s';
-        }
-    }
-
-    if (array_key_exists('minutes_html', metis_request_post())) {
-        $payload['minutes_html'] = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['minutes_html'] ?? ''));
-        $formats[] = '%s';
-    }
-
-    if (array_key_exists('board_packet_notes', metis_request_post())) {
-        $payload['board_packet_notes'] = metis_runtime_kses_post(metis_runtime_unslash(metis_request_post()['board_packet_notes'] ?? ''));
-        $formats[] = '%s';
-    }
-
-    if (array_key_exists('packet_source_minutes_meeting_id', metis_request_post())) {
-        $val = (int) (metis_request_post()['packet_source_minutes_meeting_id'] ?? 0);
-        $payload['packet_source_minutes_meeting_id'] = $val > 0 ? $val : null;
-        $formats[] = '%d';
-    }
-
-    if (array_key_exists('packet_financial_document_id', metis_request_post())) {
-        $val = (int) (metis_request_post()['packet_financial_document_id'] ?? 0);
-        $payload['packet_financial_document_id'] = $val > 0 ? $val : null;
-        $formats[] = '%d';
-    }
-
-    if (array_key_exists('packet_published', metis_request_post())) {
-        $packet_published = (int) (metis_request_post()['packet_published'] ?? 0) === 1;
-        $payload['published_at'] = $packet_published ? metis_current_time('mysql') : null;
-        $formats[] = '%s';
-        if ($packet_published && !$was_published) {
-            $send_publish_email = true;
-        }
-    }
-
-    if (array_key_exists('attendance_locked', metis_request_post())) {
-        $payload['attendance_locked'] = (int) (metis_request_post()['attendance_locked'] ?? 0) === 1 ? 1 : 0;
-        $formats[] = '%d';
-    }
-
-    if (empty($payload)) {
-        metis_runtime_send_json_error('No meeting fields to update.', 422);
-    }
-
-    $ok = $db->update($table, $payload, ['id' => $meeting_id], $formats, ['%d']);
-    if ($ok === false) {
-        metis_runtime_send_json_error('Failed to update meeting detail.', 500);
-    }
-
-    $calendar_sync = null;
-    $publish_email = null;
-    if ($setup_changed) {
-        $sync_calendar = !array_key_exists('sync_calendar_event', metis_request_post()) || (int) (metis_request_post()['sync_calendar_event'] ?? 1) === 1;
-        if ($sync_calendar) {
-            $meeting_row = $db->fetchOne(
-                "SELECT id, meeting_code, title, meeting_date, location, status, google_calendar_event_id
-                 FROM {$table}
-                 WHERE id = %d
-                 LIMIT 1",
-                [ $meeting_id ]
-            );
-            if ($meeting_row && trim((string) ($meeting_row['google_calendar_event_id'] ?? '')) !== '') {
-                $calendar = metis_board_upsert_calendar_event_for_meeting($meeting_row, false);
-                if (!empty($calendar['ok']) && trim((string) ($calendar['id'] ?? '')) !== '') {
-                    $calendar_sync = [
-                        'ok' => true,
-                        'id' => (string) $calendar['id'],
-                        'name' => (string) ($calendar['name'] ?? 'Linked calendar event'),
-                        'url' => (string) ($calendar['url'] ?? ''),
-                    ];
-                    $db->update(
-                        $table,
-                        [
-                            'google_calendar_event_name' => (string) ($calendar['name'] ?? 'Linked calendar event'),
-                            'google_calendar_html_link' => (string) ($calendar['url'] ?? ''),
-                        ],
-                        ['id' => $meeting_id],
-                        ['%s', '%s'],
-                        ['%d']
-                    );
-                } else {
-                    $calendar_sync = [
-                        'ok' => false,
-                        'error' => (string) ($calendar['error'] ?? 'Failed to update linked calendar event.'),
-                    ];
-                }
-            }
-        }
-    }
-
-    if ($send_publish_email) {
-        $publish_email = metis_board_send_packet_publish_email($meeting_id);
-    }
-
-    metis_portal_dashboard_forget_all();
-    metis_runtime_send_json_success([
-        'meeting_id' => $meeting_id,
-        'payload' => $payload,
-        'created_decisions' => 0,
-        'calendar_sync' => $calendar_sync,
-        'publish_email' => $publish_email,
-    ]);
+    metis_runtime_send_json_success(MeetingWorkflowService::updateMeetingDetail(
+        (int) (metis_request_post()['meeting_id'] ?? 0),
+        metis_request_post()
+    ));
 });
 
 metis_ajax_register_handler( 'metis_board_update_decision', function () {

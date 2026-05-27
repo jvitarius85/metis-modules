@@ -8,24 +8,13 @@ if ( ! metis_contacts_can_view() ) {
 
 metis_contacts_ensure_schema();
 
-$db = metis_db();
-
-$contacts_table = Metis_Tables::get( 'contacts' );
-$details_table  = Metis_Tables::get( 'contact_details' );
-$notes_table    = Metis_Tables::get( 'contact_notes' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$campaigns_table = Metis_Tables::get( 'campaigns' );
-$newsletter_lists_table = Metis_Tables::get( 'newsletter_lists' );
-$newsletter_subs_table = Metis_Tables::get( 'newsletter_subs' );
-
 $cid = isset( metis_request_get()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_get()['cid'] ) ) : '';
 if ( $cid === '' ) {
     echo '<div class="metis-alert metis-alert-error">Missing contact CID.</div>';
     return;
 }
 
-$contact_row = $db->fetchOne( "SELECT * FROM {$contacts_table} WHERE cid = %s LIMIT 1", [ $cid ] );
-$contact = $contact_row ? (object) $contact_row : null;
+$contact = \Metis\Modules\Contacts\ContactReadService::getByCid( $cid );
 
 if ( ! $contact ) {
     echo '<div class="metis-alert metis-alert-error">Contact not found.</div>';
@@ -42,30 +31,10 @@ $total_contributions = 0.0;
 $donor_profile_url = '';
 $last_donation = null;
 
-if ( $is_donor && metis_contacts_table_exists( $transactions_table ) ) {
-    $sum = $db->scalar( "SELECT SUM(amount) FROM {$transactions_table} WHERE did = %s", [ $did ] );
-    $total_contributions = is_numeric( $sum ) ? (float) $sum : 0.0;
-
-    if ( metis_contacts_table_exists( $campaigns_table ) ) {
-        $last_donation = (object) ( $db->fetchOne(
-            "SELECT t.amount, t.tran_date, t.campaign_code, c.cname AS campaign_name
-             FROM {$transactions_table} t
-             LEFT JOIN {$campaigns_table} c ON c.cid = t.campaign_code
-             WHERE t.did = %s
-             ORDER BY t.tran_date DESC, t.id DESC
-             LIMIT 1",
-            [ $did ]
-        ) ?? [] );
-    } else {
-        $last_donation = (object) ( $db->fetchOne(
-            "SELECT t.amount, t.tran_date, t.campaign_code
-             FROM {$transactions_table} t
-             WHERE t.did = %s
-             ORDER BY t.tran_date DESC, t.id DESC
-             LIMIT 1",
-            [ $did ]
-        ) ?? [] );
-    }
+if ( $is_donor ) {
+    $donor_summary = \Metis\Modules\Contacts\ContactReadService::donorSummary( $did );
+    $total_contributions = (float) ( $donor_summary['total_contributions'] ?? 0 );
+    $last_donation = $donor_summary['last_donation'] ?? null;
 }
 
 if ( $is_donor ) {
@@ -76,42 +45,8 @@ if ( $is_donor ) {
     }
 }
 
-$details = null;
-$details_rows = [];
-if ( metis_contacts_table_exists( $details_table ) ) {
-    $seen_detail_ids = [];
-    $push_detail_row = static function ( $row ) use ( &$details_rows, &$seen_detail_ids ) {
-        if ( ! $row ) return;
-        $row_id = isset( $row->id ) ? (int) $row->id : 0;
-        $key = $row_id > 0 ? 'id:' . $row_id : 'hash:' . md5( metis_json_encode( $row ) );
-        if ( isset( $seen_detail_ids[ $key ] ) ) return;
-        $seen_detail_ids[ $key ] = true;
-        $details_rows[] = $row;
-    };
-
-    if ( metis_contacts_column_exists( $details_table, 'contact_cid' ) ) {
-        $rows = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll( "SELECT * FROM {$details_table} WHERE contact_cid = %s", [ $cid ] ) );
-        foreach ( $rows as $row ) {
-            $push_detail_row( $row );
-        }
-    }
-    if ( metis_contacts_column_exists( $details_table, 'contact_id' ) ) {
-        $rows = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll( "SELECT * FROM {$details_table} WHERE contact_id = %d", [ $contact_id ] ) );
-        foreach ( $rows as $row ) {
-            $push_detail_row( $row );
-        }
-    }
-    if ( ! empty( $contact->did ) && metis_contacts_column_exists( $details_table, 'did' ) ) {
-        $rows = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll( "SELECT * FROM {$details_table} WHERE did = %s", [ (string) $contact->did ] ) );
-        foreach ( $rows as $row ) {
-            $push_detail_row( $row );
-        }
-    }
-
-    if ( ! empty( $details_rows ) ) {
-        $details = $details_rows[0];
-    }
-}
+$details_rows = \Metis\Modules\Contacts\ContactReadService::detailRows( $cid, $contact_id, $did );
+$details = ! empty( $details_rows ) ? $details_rows[0] : null;
 
 $additional_emails = [];
 $relationships = [];
@@ -154,30 +89,8 @@ foreach ( $details_rows as $detail_row ) {
 $additional_emails = array_values( array_unique( $additional_emails ) );
 
 // Also include reverse relationships (other contacts pointing to this CID).
-if ( metis_contacts_table_exists( $details_table ) &&
-     ( metis_contacts_column_exists( $details_table, 'contact_id' ) || metis_contacts_column_exists( $details_table, 'contact_cid' ) ) &&
-     metis_contacts_column_exists( $details_table, 'relationships_json' ) ) {
-    $like = '%' . $db->escapeLike( '"related_contact_cid":"' . $cid . '"' ) . '%';
-    if ( metis_contacts_column_exists( $details_table, 'contact_cid' ) ) {
-        $incoming = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-                "SELECT c.cid AS source_cid, c.first_name AS source_first_name, c.last_name AS source_last_name, c.email AS source_email, d.relationships_json
-                 FROM {$details_table} d
-                 INNER JOIN {$contacts_table} c ON c.cid = d.contact_cid
-                 WHERE d.contact_cid <> %s
-                   AND d.relationships_json LIKE %s",
-                [ $cid, $like ]
-            ) );
-    } else {
-        $incoming = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-                "SELECT c.cid AS source_cid, c.first_name AS source_first_name, c.last_name AS source_last_name, c.email AS source_email, d.relationships_json
-                 FROM {$details_table} d
-                 INNER JOIN {$contacts_table} c ON c.id = d.contact_id
-                 WHERE d.contact_id <> %d
-                   AND d.relationships_json LIKE %s",
-                [ $contact_id, $like ]
-            ) );
-    }
-
+if ( ! empty( $details_rows ) ) {
+    $incoming = \Metis\Modules\Contacts\ContactReadService::incomingRelationships( $cid, $contact_id );
     foreach ( $incoming as $inc ) {
         $decoded_incoming = json_decode( (string) $inc->relationships_json, true );
         if ( ! is_array( $decoded_incoming ) ) {
@@ -226,71 +139,12 @@ foreach ( $relationships as $entry ) {
 }
 $relationships = $deduped_relationships;
 
-$notes = [];
-if ( metis_contacts_table_exists( $notes_table ) ) {
-    $auth_users_table = Metis_Tables::get( 'auth_users' );
-    if ( metis_contacts_column_exists( $notes_table, 'cid' ) ) {
-        $notes = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-                "SELECT n.note, n.created_at, n.admin_user_id, u.display_name AS author_name
-                 FROM {$notes_table} n
-                 LEFT JOIN {$auth_users_table} u ON u.ID = n.admin_user_id
-                 WHERE n.cid = %s
-                   AND (n.deleted_at IS NULL OR n.deleted_at = '')
-                 ORDER BY n.created_at DESC
-                 LIMIT 30",
-                [ $cid ]
-            ) );
-    } elseif ( ! empty( $contact->did ) && metis_contacts_column_exists( $notes_table, 'did' ) ) {
-        $notes = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-                "SELECT n.note, n.created_at, n.admin_user_id, u.display_name AS author_name
-                 FROM {$notes_table} n
-                 LEFT JOIN {$auth_users_table} u ON u.ID = n.admin_user_id
-                 WHERE n.did = %s
-                   AND (n.deleted_at IS NULL OR n.deleted_at = '')
-                 ORDER BY n.created_at DESC
-                 LIMIT 30",
-                [ (string) $contact->did ]
-            ) );
-    } elseif ( metis_contacts_column_exists( $notes_table, 'contact_id' ) ) {
-        $notes = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-                "SELECT n.note, n.created_at, n.admin_user_id, u.display_name AS author_name
-                 FROM {$notes_table} n
-                 LEFT JOIN {$auth_users_table} u ON u.ID = n.admin_user_id
-                 WHERE n.contact_id = %d
-                   AND (n.deleted_at IS NULL OR n.deleted_at = '')
-                 ORDER BY n.created_at DESC
-                 LIMIT 30",
-                [ $contact_id ]
-            ) );
-    }
-}
+$notes = \Metis\Modules\Contacts\ContactReadService::notes( $cid, $contact_id, $did );
 
-$all_contacts = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-        "SELECT cid, first_name, last_name, email
-         FROM {$contacts_table}
-         WHERE id <> %d
-         ORDER BY first_name ASC, last_name ASC, email ASC",
-        [ $contact_id ]
-    ) );
+$all_contacts = \Metis\Modules\Contacts\ContactReadService::allContactsExcept( $contact_id );
 
-$newsletter_lists = [];
-$newsletter_selected_ids = [];
-if ( metis_contacts_table_exists( $newsletter_lists_table ) ) {
-    $newsletter_lists = array_map( static fn( array $row ): object => (object) $row, $db->fetchAll(
-        "SELECT id, name
-         FROM {$newsletter_lists_table}
-         WHERE name IS NOT NULL
-           AND TRIM(name) <> ''
-         ORDER BY name ASC"
-    ) );
-}
-if ( metis_contacts_table_exists( $newsletter_subs_table ) && $contact_id > 0 ) {
-    $newsletter_selected_ids = $db->column(
-        "SELECT list_id FROM {$newsletter_subs_table} WHERE contact_id = %d",
-        [ $contact_id ]
-    );
-    $newsletter_selected_ids = array_map( 'intval', $newsletter_selected_ids );
-}
+$newsletter_lists = \Metis\Modules\Contacts\ContactReadService::newsletterLists();
+$newsletter_selected_ids = \Metis\Modules\Contacts\ContactReadService::newsletterSelectedIds( $contact_id );
 $newsletter_lists_by_id = [];
 foreach ( $newsletter_lists as $list_row ) {
     $lid = (int) ( $list_row->id ?? 0 );

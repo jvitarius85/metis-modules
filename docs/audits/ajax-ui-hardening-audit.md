@@ -241,3 +241,98 @@ Governance checker delta after the continuation pass:
 
 - `website.js` no longer reports duplicate modal/toast system definitions
 - `portal.ajax.php`, `campaigns.ajax.php`, and `offline.ajax.php` no longer report missing permission validation
+
+## Current State
+
+The repository has moved materially beyond the baseline captured above.
+
+AJAX handler hardening completed in this refactor pass:
+
+- `system/modules/board/assets/board.ajax.php`
+- `system/modules/contacts/ajax/contacts.ajax.php`
+- `system/modules/contacts/ajax/imports.ajax.php`
+- `system/modules/contacts/ajax/lists.ajax.php`
+- `system/modules/contacts/ajax/relationships.ajax.php`
+- `system/modules/donations/assets/campaigns.ajax.php`
+- `system/modules/donations/assets/deposits.ajax.php`
+- `system/modules/donations/assets/donor_intelligence.ajax.php`
+- `system/modules/donations/assets/notes.ajax.php`
+- `system/modules/donations/assets/offline.ajax.php`
+- `system/modules/donations/assets/reports.ajax.php`
+- `system/modules/media/assets/media.ajax.php`
+- `system/modules/newsletter/assets/newsletter.ajax.php`
+- `system/modules/people/ajax/groups.ajax.php`
+- `system/modules/people/ajax/jobs.ajax.php`
+- `system/modules/people/ajax/mfa.ajax.php`
+- `system/modules/people/ajax/people.ajax.php`
+- `system/modules/people/ajax/permissions.ajax.php`
+- `system/modules/people/ajax/requests.ajax.php`
+- `system/modules/people/ajax/roles.ajax.php`
+- `system/modules/people/ajax/templates.ajax.php`
+- `system/modules/people/ajax/workspace.ajax.php`
+- `system/modules/portal/assets/portal.ajax.php`
+- `system/modules/profile/assets/profile.ajax.php`
+- `system/modules/settings/assets/settings.ajax.php`
+- `system/modules/website/ajax/website.ajax.php`
+
+Board-specific service consolidation completed:
+
+- `system/src/Metis/Modules/Board/ReadService.php`
+- `system/src/Metis/Modules/Board/BylawsService.php`
+- `system/src/Metis/Modules/Board/WorkflowTemplateService.php`
+- `system/src/Metis/Modules/Board/WorkspaceService.php` strengthened
+- `system/src/Metis/Modules/Board/DocumentService.php`
+- `system/src/Metis/Modules/Board/CalendarLinkService.php`
+- `system/src/Metis/Modules/Board/DecisionAttendanceService.php`
+- `system/src/Metis/Modules/Board/PacketService.php`
+- `system/src/Metis/Modules/Board/PacketEmailService.php`
+- `system/src/Metis/Modules/Board/MeetingWorkflowService.php`
+
+Current governance checker status:
+
+- no current `Missing Permission Validation` findings
+- no current `Missing Nonce Validation` findings for the hardened handler set
+- `system/modules/board/assets/board.ajax.php` no longer appears on the raw-SQL handler list
+- `system/src/Metis/Core/Ajax/AjaxRuntime.php` is now off the raw-SQL governance list after moving code-resolution lookups into `system/src/Metis/Core/Services/AjaxCodeLookupService.php`
+- remaining governance debt is now concentrated in raw SQL still embedded in frontend view files
+
+Current remaining raw-SQL view/runtime findings from the checker:
+
+- `system/modules/board/views/meeting.php`
+- `system/modules/contacts/views/contact.php`
+- `system/modules/contacts/views/dashboard.php`
+- `system/modules/donations/views/batch-detail.php`
+- `system/modules/donations/views/campaign.php`
+- `system/modules/donations/views/campaigns.php`
+- `system/modules/donations/views/dashboard.php`
+- `system/modules/donations/views/deposit.php`
+- `system/modules/donations/views/donor.php`
+- `system/modules/donations/views/donors.php`
+- `system/modules/donations/views/recurring.php`
+- `system/modules/donations/views/transaction.php`
+- `system/modules/donations/views/transactions.php`
+- `system/modules/newsletter/views/campaigns.php`
+- `system/modules/newsletter/views/dashboard.php`
+- `system/modules/newsletter/views/editor.php`
+- `system/modules/newsletter/views/lists.php`
+- `system/modules/newsletter/views/subscribers.php`
+- `system/modules/people/views/access_requests.php`
+- `system/modules/people/views/bulk_actions.php`
+- `system/modules/people/views/dashboard.php`
+- `system/modules/people/views/people_list.php`
+- `system/modules/people/views/permissions.php`
+- `system/modules/people/views/person.php`
+- `system/modules/people/views/positions.php`
+- `system/modules/people/views/role.php`
+- `system/modules/people/views/roles_list.php`
+- `system/modules/people/views/templates.php`
+- `system/modules/people/views/workspace.php`
+- `system/modules/portal/views/_dashboard_data.php`
+- `system/modules/portal/views/dashboard.php`
+- `system/modules/profile/views/dashboard.php`
+- `system/modules/settings/views/_settings_bootstrap.php`
+
+Recommended next phase after handler hardening:
+
+- reduce raw SQL in views by moving data loading into the canonical services/repositories already introduced
+- refresh architecture docs after the handler/service consolidation so the canonical execution path and service map are current

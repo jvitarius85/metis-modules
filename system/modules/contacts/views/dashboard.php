@@ -6,33 +6,9 @@ if ( ! metis_contacts_can_view() ) {
     return;
 }
 
-$db = metis_db();
-
-$contacts_table = Metis_Tables::get( 'contacts' );
-$details_table  = Metis_Tables::get( 'contact_details' );
-$transactions_table = Metis_Tables::get( 'transactions' );
 $can_manage     = metis_contacts_can_manage();
 
-$rows = [];
-
-if ( metis_contacts_table_exists( $details_table ) && metis_contacts_column_exists( $details_table, 'contact_id' ) ) {
-    $rows = array_map( static function ( array $row ) {
-        return (object) $row;
-    }, $db->fetchAll( "
-        SELECT c.id, c.cid, c.did, c.email, c.first_name, c.last_name, c.created_at, c.updated_at, d.phone
-        FROM {$contacts_table} c
-        LEFT JOIN {$details_table} d ON d.contact_id = c.id
-        ORDER BY c.last_name ASC, c.first_name ASC, c.id ASC
-    " ) ?: [] );
-} else {
-    $rows = array_map( static function ( array $row ) {
-        return (object) $row;
-    }, $db->fetchAll( "
-        SELECT c.id, c.cid, c.did, c.email, c.first_name, c.last_name, c.created_at, c.updated_at, '' AS phone
-        FROM {$contacts_table} c
-        ORDER BY c.last_name ASC, c.first_name ASC, c.id ASC
-    " ) ?: [] );
-}
+$rows = \Metis\Modules\Contacts\ContactReadService::dashboardRows();
 
 $total_contacts = count( $rows );
 $with_did       = 0;
@@ -48,23 +24,7 @@ $without_did = $total_contacts - $with_did;
 $duplicate_groups = [];
 $duplicate_keys = [];
 $dup_buckets = [];
-$donation_totals = [];
-
-if ( metis_contacts_table_exists( $transactions_table ) ) {
-    $totals_rows = array_map( static function ( array $row ) {
-        return (object) $row;
-    }, $db->fetchAll( "
-        SELECT did, SUM(amount) AS total_amount
-        FROM {$transactions_table}
-        WHERE did IS NOT NULL AND did <> ''
-        GROUP BY did
-    " ) ?: [] );
-    foreach ( $totals_rows as $tr ) {
-        $did_key = (string) ( $tr->did ?? '' );
-        if ( $did_key === '' ) continue;
-        $donation_totals[ $did_key ] = (float) ( $tr->total_amount ?? 0 );
-    }
-}
+$donation_totals = \Metis\Modules\Contacts\ContactReadService::donationTotalsByDid();
 
 foreach ( $rows as $row ) {
     $email_key = strtolower( trim( (string) ( $row->email ?? '' ) ) );

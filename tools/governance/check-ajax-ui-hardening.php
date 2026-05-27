@@ -110,7 +110,10 @@ foreach ($ajaxFiles as $relative) {
     }
 
     if (preg_match($rawSqlPattern, $contents) === 1) {
-        $addIssue('Raw SQL In Frontend Handlers', $relative);
+        $section = str_starts_with($relative, 'system/modules/')
+            ? 'Raw SQL In Frontend Handlers'
+            : 'Raw SQL In Core Runtime';
+        $addIssue($section, $relative);
     }
 }
 

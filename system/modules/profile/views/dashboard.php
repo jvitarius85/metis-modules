@@ -16,8 +16,7 @@ $person = null;
 if (function_exists('metis_people_get_current_person_id')) {
     $person_id = (int) metis_people_get_current_person_id();
     if ($person_id > 0) {
-        $people_table = Metis_Tables::get('people');
-        $person = metis_db()->fetchOne("SELECT * FROM {$people_table} WHERE id = %d LIMIT 1", [ $person_id ]);
+        $person = \Metis\Modules\People\PersonProfileService::getById( $person_id );
     }
 }
 
@@ -28,14 +27,7 @@ if (!$person || empty($person['id'])) {
 
 $passkeys = [];
 if (Metis_Tables::has('people_passkeys')) {
-    $passkeys_table = Metis_Tables::get('people_passkeys');
-    $passkeys = metis_db()->fetchAll(
-        "SELECT id, label, created_at, last_used_at
-         FROM {$passkeys_table}
-         WHERE person_id = %d AND revoked_at IS NULL
-         ORDER BY created_at DESC",
-        [ (int) $person['id'] ]
-    );
+    $passkeys = \Metis\Modules\People\MfaService::activePasskeys( (int) $person['id'] );
 }
 
 $notification_events = [

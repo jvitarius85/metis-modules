@@ -121,13 +121,7 @@ if ( $table_exists( $contacts_table ) ) {
 }
 
 if ( $table_exists( $newsletter_lists_table ) && $table_exists( $newsletter_subs_table ) && $table_exists( $newsletter_campaigns_table ) && $table_exists( $newsletter_messages_table ) ) {
-    $newsletter_sent_30d = 0;
-    if ( function_exists( 'metis_newsletter_resolved_timezone' ) ) {
-        $newsletter_sent_30d = (int) $db->scalar(
-            "SELECT COUNT(*) FROM {$newsletter_messages_table} WHERE status='sent' AND sent_at >= %s",
-            [ ( new DateTimeImmutable( 'now', metis_newsletter_resolved_timezone() ) )->modify( '-30 days' )->format( 'Y-m-d H:i:s' ) ]
-        );
-    }
+    $newsletter_sent_30d = \Metis\Modules\Portal\PortalDashboardService::newsletterSent30d( $db, $newsletter_messages_table );
     $newsletter_stats = metis_portal_dashboard_newsletter_stats(
         $db,
         $newsletter_lists_table,
@@ -392,69 +386,6 @@ $board_action_filters = [
     'done' => 'Done',
 ];
 $board_action_filter = 'mine';
-$today_date = date( 'Y-m-d' );
-$due7_date = ( new DateTimeImmutable( 'today' ) )->modify( '+7 days' )->format( 'Y-m-d' );
-
-$build_board_action_where = static function ( string $filter ) use ( $current_person_id, $today_date, $due7_date ): array {
-    $where = [
-        'a.owner_person_id = %d',
-    ];
-    $params = [ $current_person_id ];
-
-    switch ( $filter ) {
-        case 'overdue':
-            $where[] = "a.status NOT IN ('done','completed','closed')";
-            $where[] = 'a.due_date IS NOT NULL';
-            $where[] = 'a.due_date < %s';
-            $params[] = $today_date;
-            break;
-        case 'today':
-            $where[] = "a.status NOT IN ('done','completed','closed')";
-            $where[] = 'a.due_date = %s';
-            $params[] = $today_date;
-            break;
-        case 'blocked':
-            $where[] = "LOWER(COALESCE(a.status, '')) IN ('blocked','on_hold','stalled')";
-            break;
-        case 'due7':
-            $where[] = "a.status NOT IN ('done','completed','closed')";
-            $where[] = 'a.due_date IS NOT NULL';
-            $where[] = 'a.due_date >= %s';
-            $where[] = 'a.due_date <= %s';
-            $params[] = $today_date;
-            $params[] = $due7_date;
-            break;
-        case 'done':
-            $where[] = "a.status IN ('done','completed','closed')";
-            break;
-        case 'mine':
-        default:
-            $where[] = "a.status NOT IN ('done','completed','closed')";
-            break;
-    }
-
-    return [ implode( ' AND ', $where ), $params ];
-};
-
-$load_board_actions = static function ( string $filter, int $limit = 8 ) use ( $db, $board_actions_table, $board_meetings_table, $build_board_action_where ): array {
-    [ $where_sql, $params ] = $build_board_action_where( $filter );
-    $params[] = $limit;
-
-    return $db->fetchAll(
-        "SELECT a.id, a.title, a.status, a.priority, a.due_date, a.meeting_id,
-                m.title AS meeting_title, m.meeting_date
-         FROM {$board_actions_table} a
-         LEFT JOIN {$board_meetings_table} m ON m.id = a.meeting_id
-         WHERE {$where_sql}
-         ORDER BY
-           CASE WHEN a.due_date IS NULL THEN 1 ELSE 0 END ASC,
-           a.due_date ASC,
-           a.id DESC
-         LIMIT %d",
-        $params
-    ) ?: [];
-};
-
 $board_action_counts = [
     'mine' => 0,
     'overdue' => 0,
@@ -465,14 +396,8 @@ $board_action_counts = [
 ];
 
 if ( $can_access_module( 'board' ) && $current_person_id > 0 && $table_exists( $board_actions_table ) && $table_exists( $board_meetings_table ) ) {
-    $my_board_actions = $load_board_actions( $board_action_filter );
-    $board_action_counts = metis_portal_dashboard_board_action_counts(
-        $db,
-        $board_actions_table,
-        $current_person_id,
-        $today_date,
-        $due7_date
-    );
+    $my_board_actions = \Metis\Modules\Portal\BoardActionService::fetchForPerson( $current_person_id, $board_action_filter )['actions'] ?? [];
+    $board_action_counts = \Metis\Modules\Portal\BoardActionService::dashboardCounts( $current_person_id );
 }
 
 $dashboard_view = metis_portal_build_dashboard_view_model(

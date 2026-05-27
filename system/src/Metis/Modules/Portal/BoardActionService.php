@@ -43,6 +43,45 @@ final class BoardActionService {
         ];
     }
 
+    public static function dashboardCounts( int $person_id ): array {
+        if ( $person_id < 1 ) {
+            return [
+                'mine' => 0,
+                'overdue' => 0,
+                'due7' => 0,
+                'done' => 0,
+                'today' => 0,
+                'blocked' => 0,
+            ];
+        }
+
+        $db = \metis_db();
+        $board_actions_table = \Metis_Tables::get( 'board_action_items' );
+        $today_date = date( 'Y-m-d' );
+        $due7_date = ( new \DateTimeImmutable( 'today' ) )->modify( '+7 days' )->format( 'Y-m-d' );
+        $counts = (array) ( $db->fetchOne(
+            "SELECT
+                SUM(CASE WHEN a.status NOT IN ('done','completed','closed') THEN 1 ELSE 0 END) AS mine,
+                SUM(CASE WHEN a.status NOT IN ('done','completed','closed') AND a.due_date IS NOT NULL AND a.due_date < %s THEN 1 ELSE 0 END) AS overdue,
+                SUM(CASE WHEN a.status NOT IN ('done','completed','closed') AND a.due_date IS NOT NULL AND a.due_date >= %s AND a.due_date <= %s THEN 1 ELSE 0 END) AS due7,
+                SUM(CASE WHEN a.status IN ('done','completed','closed') THEN 1 ELSE 0 END) AS done,
+                SUM(CASE WHEN a.status NOT IN ('done','completed','closed') AND a.due_date = %s THEN 1 ELSE 0 END) AS today,
+                SUM(CASE WHEN LOWER(COALESCE(a.status, '')) IN ('blocked','on_hold','stalled') THEN 1 ELSE 0 END) AS blocked
+             FROM {$board_actions_table} a
+             WHERE a.owner_person_id = %d",
+            [ $today_date, $today_date, $due7_date, $today_date, $person_id ]
+        ) ?? [] );
+
+        return [
+            'mine' => (int) ( $counts['mine'] ?? 0 ),
+            'overdue' => (int) ( $counts['overdue'] ?? 0 ),
+            'due7' => (int) ( $counts['due7'] ?? 0 ),
+            'done' => (int) ( $counts['done'] ?? 0 ),
+            'today' => (int) ( $counts['today'] ?? 0 ),
+            'blocked' => (int) ( $counts['blocked'] ?? 0 ),
+        ];
+    }
+
     public static function fetchForPerson( int $person_id, string $filter, int $limit = 8 ): array {
         $db = \metis_db();
         $board_actions_table = \Metis_Tables::get( 'board_action_items' );
