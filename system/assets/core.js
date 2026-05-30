@@ -1190,6 +1190,290 @@ Metis.ui.form = (function() {
     };
 }());
 
+Metis.ui.select = (function() {
+    var counter = 0;
+
+    function normalizeRoot(root) {
+        if (root instanceof HTMLSelectElement) return root;
+        return root && root.querySelectorAll ? root : document;
+    }
+
+    function listEnhanceable(root) {
+        var scope = normalizeRoot(root);
+        if (scope instanceof HTMLSelectElement) {
+            return isEnhanceable(scope) ? [scope] : [];
+        }
+
+        var selectList = Array.prototype.slice.call(scope.querySelectorAll('select.metis-select'));
+        if (scope instanceof HTMLElement && scope.matches('select.metis-select')) {
+            selectList.unshift(scope);
+        }
+
+        return selectList.filter(isEnhanceable);
+    }
+
+    function isEnhanceable(select) {
+        return select instanceof HTMLSelectElement
+            && !select.multiple
+            && Number(select.size || 0) <= 1
+            && select.dataset.metisNativeSelect !== '1'
+            && !select.closest('[data-metis-native-selects="1"]');
+    }
+
+    function ensureId(select) {
+        if (select.id) return select.id;
+        counter += 1;
+        select.id = 'metis-select-' + counter;
+        return select.id;
+    }
+
+    function ensureWrapper(select) {
+        var existing = select.parentElement;
+        if (existing && existing.classList.contains('metis-ui-select')) {
+            return existing;
+        }
+
+        var wrapper = document.createElement('div');
+        wrapper.className = 'metis-ui-select';
+
+        select.parentNode.insertBefore(wrapper, select);
+        wrapper.appendChild(select);
+        select.classList.add('metis-ui-select__native');
+
+        var trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'metis-select metis-ui-select__trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        var label = document.createElement('span');
+        label.className = 'metis-ui-select__label';
+        trigger.appendChild(label);
+
+        var panel = document.createElement('div');
+        panel.className = 'metis-ui-select__panel';
+        panel.hidden = true;
+
+        var list = document.createElement('div');
+        list.className = 'metis-ui-select__list';
+        list.setAttribute('role', 'listbox');
+        panel.appendChild(list);
+
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(panel);
+
+        trigger.addEventListener('click', function(event) {
+            event.preventDefault();
+            if (select.disabled) return;
+            toggle(wrapper);
+        });
+
+        trigger.addEventListener('keydown', function(event) {
+            var key = String(event.key || '');
+            if (key === 'ArrowDown' || key === 'ArrowUp') {
+                event.preventDefault();
+                open(wrapper);
+                focusAdjacent(wrapper, key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
+            if (key === 'Enter' || key === ' ') {
+                event.preventDefault();
+                toggle(wrapper);
+                return;
+            }
+            if (key === 'Escape') {
+                close(wrapper);
+            }
+        });
+
+        list.addEventListener('click', function(event) {
+            var option = event.target.closest('[data-metis-select-value]');
+            if (!option || option.disabled) return;
+            event.preventDefault();
+            setValue(select, String(option.getAttribute('data-metis-select-value') || ''), true);
+            close(wrapper);
+            trigger.focus();
+        });
+
+        list.addEventListener('keydown', function(event) {
+            var key = String(event.key || '');
+            if (key === 'Escape') {
+                event.preventDefault();
+                close(wrapper);
+                trigger.focus();
+                return;
+            }
+            if (key === 'ArrowDown' || key === 'ArrowUp') {
+                event.preventDefault();
+                focusAdjacent(wrapper, key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
+            if (key === 'Enter' || key === ' ') {
+                var active = document.activeElement;
+                if (active && active.matches('[data-metis-select-value]') && !active.disabled) {
+                    event.preventDefault();
+                    active.click();
+                }
+            }
+        });
+
+        select.addEventListener('change', function() {
+            syncSelect(select);
+        });
+
+        if (!select.__metisUiSelectObserver) {
+            select.__metisUiSelectObserver = new MutationObserver(function() {
+                syncSelect(select);
+            });
+            select.__metisUiSelectObserver.observe(select, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['disabled']
+            });
+        }
+
+        return wrapper;
+    }
+
+    function syncSelect(select) {
+        if (!isEnhanceable(select)) return;
+        var wrapper = ensureWrapper(select);
+        var trigger = wrapper.querySelector('.metis-ui-select__trigger');
+        var label = wrapper.querySelector('.metis-ui-select__label');
+        var panel = wrapper.querySelector('.metis-ui-select__panel');
+        var list = wrapper.querySelector('.metis-ui-select__list');
+        if (!trigger || !label || !panel || !list) return;
+
+        var selectId = ensureId(select);
+        var listId = selectId + '-listbox';
+        list.id = listId;
+        trigger.setAttribute('aria-controls', listId);
+        trigger.disabled = !!select.disabled;
+        wrapper.classList.toggle('is-disabled', !!select.disabled);
+        if (select.disabled) {
+            close(wrapper);
+        }
+
+        var selectedIndex = select.selectedIndex >= 0 ? select.selectedIndex : 0;
+        var selectedOption = select.options[selectedIndex] || select.options[0] || null;
+        var selectedText = selectedOption ? String(selectedOption.text || '').trim() : '';
+        var isPlaceholder = !select.value && selectedOption && String(selectedOption.value || '') === '';
+
+        label.textContent = selectedText || 'Select…';
+        trigger.classList.toggle('is-placeholder', !!isPlaceholder);
+
+        list.innerHTML = '';
+        Array.prototype.forEach.call(select.options, function(option, index) {
+            var optionButton = document.createElement('button');
+            optionButton.type = 'button';
+            optionButton.className = 'metis-ui-select__option';
+            optionButton.setAttribute('role', 'option');
+            optionButton.setAttribute('data-metis-select-value', String(option.value || ''));
+            optionButton.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+            optionButton.disabled = option.disabled;
+            optionButton.textContent = String(option.text || '').trim() || ' ';
+            optionButton.dataset.optionIndex = String(index);
+            optionButton.tabIndex = option.selected && !option.disabled ? 0 : -1;
+            optionButton.classList.toggle('is-selected', option.selected);
+            optionButton.classList.toggle('is-placeholder', String(option.value || '') === '');
+            list.appendChild(optionButton);
+        });
+    }
+
+    function setValue(select, value, emitChange) {
+        if (!(select instanceof HTMLSelectElement)) return;
+        if (select.value === value) {
+            syncSelect(select);
+            return;
+        }
+        select.value = value;
+        syncSelect(select);
+        if (emitChange) {
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+
+    function focusAdjacent(wrapper, direction) {
+        var options = Array.prototype.slice.call(wrapper.querySelectorAll('.metis-ui-select__option:not(:disabled)'));
+        var selectedIndex = -1;
+        if (options.length === 0) return;
+        var current = document.activeElement;
+        var currentIndex = options.indexOf(current);
+        if (currentIndex === -1) {
+            options.some(function(option, index) {
+                if (option.classList.contains('is-selected')) {
+                    selectedIndex = index;
+                    return true;
+                }
+                return false;
+            });
+            currentIndex = selectedIndex;
+        }
+        var nextIndex = currentIndex + direction;
+        if (nextIndex < 0) nextIndex = options.length - 1;
+        if (nextIndex >= options.length) nextIndex = 0;
+        options[nextIndex].focus();
+    }
+
+    function open(target) {
+        var wrapper = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!wrapper || wrapper.classList.contains('is-disabled')) return;
+        closeAll(wrapper);
+        wrapper.classList.add('is-open');
+        var trigger = wrapper.querySelector('.metis-ui-select__trigger');
+        var panel = wrapper.querySelector('.metis-ui-select__panel');
+        if (trigger) trigger.setAttribute('aria-expanded', 'true');
+        if (panel) panel.hidden = false;
+    }
+
+    function close(target) {
+        var wrapper = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!wrapper) return;
+        wrapper.classList.remove('is-open');
+        var trigger = wrapper.querySelector('.metis-ui-select__trigger');
+        var panel = wrapper.querySelector('.metis-ui-select__panel');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        if (panel) panel.hidden = true;
+    }
+
+    function toggle(target) {
+        var wrapper = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!wrapper) return;
+        if (wrapper.classList.contains('is-open')) {
+            close(wrapper);
+            return;
+        }
+        open(wrapper);
+    }
+
+    function closeAll(except) {
+        document.querySelectorAll('.metis-ui-select.is-open').forEach(function(wrapper) {
+            if (except && wrapper === except) return;
+            close(wrapper);
+        });
+    }
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.metis-ui-select')) {
+            closeAll();
+        }
+    });
+
+    return {
+        init: function(root) {
+            listEnhanceable(root).forEach(syncSelect);
+        },
+        refresh: function(root) {
+            listEnhanceable(root).forEach(syncSelect);
+        },
+        open: open,
+        close: close,
+        toggle: toggle,
+        closeAll: closeAll
+    };
+}());
+
 /* ============================================================
    CORE TOOLTIP SYSTEM
    data-metis-tooltip="Message"
@@ -3577,6 +3861,7 @@ Metis.page = (function() {
             Metis.a11y.enhance(scope);
         }
         Metis.tooltip.init(scope);
+        Metis.ui.select.init(scope);
         Metis.tabs.init(scope);
         Metis.modal.init(scope);
         Metis.inlineEdit.init(scope);

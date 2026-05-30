@@ -44,6 +44,7 @@ $assert( str_contains( $coreJs, 'Metis.ui.modal = Metis.modal;' ), 'Core UI runt
 $assert( str_contains( $coreJs, 'Metis.ui.confirm = Metis.confirm;' ), 'Core UI runtime must expose Metis.ui.confirm alias.' );
 $assert( str_contains( $coreJs, 'Metis.ui.loading = (function() {' ), 'Core UI runtime must expose Metis.ui.loading helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.form = (function() {' ), 'Core UI runtime must expose Metis.ui.form helper.' );
+$assert( str_contains( $coreJs, 'Metis.ui.select = (function() {' ), 'Core UI runtime must expose Metis.ui.select helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.dropdown = {' ), 'Core UI runtime must expose Metis.ui.dropdown helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.modal.confirm = function(options)' ), 'Core UI runtime must expose Metis.ui.modal.confirm helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.modal.form = function(target)' ), 'Core UI runtime must expose Metis.ui.modal.form helper.' );
@@ -52,6 +53,7 @@ $assert( str_contains( $formsRepository, 'CampaignService::getActiveCampaignOpti
 $assert( str_contains( $donationsCampaignService, 'getActiveCampaignOptions' ), 'Donations campaign service must expose active campaign options.' );
 $assert( str_contains( $formsJs, 'Metis.ui.ajax.post' ), 'Form Builder admin requests must delegate through Metis.ui.ajax.post.' );
 $assert( str_contains( $formsJs, 'Metis.ui.form.setSubmitting' ), 'Form Builder public submit state must delegate through Metis.ui.form.' );
+$assert( str_contains( $formsJs, 'Metis.ui.select.init(root);' ), 'Form Builder render cycle must reinitialize the canonical select helper.' );
 $assert( ! preg_match( '/(^|[^A-Za-z0-9_])alert\s*\(|(^|[^A-Za-z0-9_])confirm\s*\(/u', $formsJs ), 'Form Builder must not use browser-native alert/confirm fallbacks.' );
 
 $assert( str_contains( $donationsReadService, 'public static function dashboardSnapshot()' ), 'Donations read service must expose dashboardSnapshot().' );

@@ -783,6 +783,9 @@
     function render() {
       root.innerHTML = renderBuilderShell(state, boot, options);
       bindIconFallbacks(root);
+      if (window.Metis && Metis.ui && Metis.ui.select) {
+        Metis.ui.select.init(root);
+      }
     }
 
     function renderFieldList() {
@@ -795,22 +798,40 @@
       if (node) {
         node.innerHTML = renderEditorHtml(state, options);
         bindIconFallbacks(node);
+        if (window.Metis && Metis.ui && Metis.ui.select) {
+          Metis.ui.select.init(node);
+        }
       }
     }
 
     function renderPreview() {
       const node = root.querySelector('[data-ui="preview"]');
-      if (node) node.innerHTML = renderPreviewHtml(state.form);
+      if (node) {
+        node.innerHTML = renderPreviewHtml(state.form);
+        if (window.Metis && Metis.ui && Metis.ui.select) {
+          Metis.ui.select.init(node);
+        }
+      }
     }
 
     function renderSettings() {
       const node = root.querySelector('[data-ui="settings"]');
-      if (node) node.innerHTML = renderSettingsHtml(state.form, options);
+      if (node) {
+        node.innerHTML = renderSettingsHtml(state.form, options);
+        if (window.Metis && Metis.ui && Metis.ui.select) {
+          Metis.ui.select.init(node);
+        }
+      }
     }
 
     function renderPublish() {
       const node = root.querySelector('[data-ui="publish"]');
-      if (node) node.innerHTML = renderPublishHtml(state.form, boot);
+      if (node) {
+        node.innerHTML = renderPublishHtml(state.form, boot);
+        if (window.Metis && Metis.ui && Metis.ui.select) {
+          Metis.ui.select.init(node);
+        }
+      }
     }
 
     function refreshTitle() {
