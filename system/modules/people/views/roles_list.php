@@ -8,33 +8,9 @@ if (!metis_people_can_view()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-
-$roles_table = Metis_Tables::get('people_roles');
-$role_perms_table = Metis_Tables::get('people_role_perms');
-$user_roles_table = Metis_Tables::get('people_user_roles');
-
 $can_manage = metis_people_can_manage();
-$roles_rows = $db->fetchAll( "SELECT * FROM {$roles_table} ORDER BY role_domain ASC, role_name ASC" ) ?: [];
-$assign_rows = $db->fetchAll( "SELECT role_id FROM {$user_roles_table}" ) ?: [];
-
-$role_member_count = [];
-foreach ($assign_rows as $ar) {
-    $role_id = (int) ($ar['role_id'] ?? 0);
-    if ($role_id < 1) continue;
-    $role_member_count[$role_id] = (int) ($role_member_count[$role_id] ?? 0) + 1;
-}
-
-$roles_by_domain = [
-    'metis' => [],
-    'stripe' => [],
-    'workspace' => [],
-];
-foreach ($roles_rows as $role_row) {
-    $domain = (string) ($role_row['role_domain'] ?? 'metis');
-    if (!isset($roles_by_domain[$domain])) continue;
-    $roles_by_domain[$domain][] = $role_row;
-}
+$snapshot = \Metis\Modules\People\ReadService::rolesListSnapshot();
+$roles_by_domain = $snapshot['roles_by_domain'] ?? [];
 ?>
 
 <div class="metis-people"
@@ -67,7 +43,7 @@ foreach ($roles_rows as $role_row) {
             </div>
             <?php endif; ?>
         <?php },
-        'content' => static function () use ($roles_by_domain, $can_manage, $db, $role_perms_table, $role_member_count) { ?>
+        'content' => static function () use ($roles_by_domain, $can_manage) { ?>
     <section class="metis-roles-wrap">
         <div id="metis-role-rows">
             <?php
@@ -95,16 +71,13 @@ foreach ($roles_rows as $role_row) {
                     </thead>
                     <tbody>
                 <?php foreach ($domain_rows as $i => $r):
-                    $rid = (int) ($r['id'] ?? 0);
-                    $perm_count = (int) $db->scalar( "SELECT COUNT(*) FROM {$role_perms_table} WHERE role_id = %d AND allow_access = 1", [ $rid ] );
-                    $members_count = (int) ($role_member_count[$rid] ?? 0);
                     $is_last = ($i === count($domain_rows) - 1);
                 ?>
                     <tr class="metis-premium-row metis-role-row<?php echo $is_last ? ' is-last' : ''; ?>" data-href="<?php echo metis_escape_url( metis_people_role_url( (string) ( $r['role_key'] ?? '' ), (string) ( $r['role_domain'] ?? 'metis' ) ) ); ?>">
                         <td class="metis-premium-cell metis-role-col-key"><?php echo metis_escape_html((string) ($r['role_key'] ?? '')); ?></td>
                         <td class="metis-premium-cell metis-role-col-name"><?php echo metis_escape_html((string) ($r['role_name'] ?? '')); ?></td>
-                        <td class="metis-premium-cell metis-role-col-perms"><?php echo metis_escape_html((string) $perm_count); ?></td>
-                        <td class="metis-premium-cell metis-role-col-members"><?php echo metis_escape_html((string) $members_count); ?></td>
+                        <td class="metis-premium-cell metis-role-col-perms"><?php echo metis_escape_html((string) ((int) ($r['permission_count'] ?? 0))); ?></td>
+                        <td class="metis-premium-cell metis-role-col-members"><?php echo metis_escape_html((string) ((int) ($r['member_count'] ?? 0))); ?></td>
                         <td class="metis-premium-cell metis-role-col-system"><?php echo !empty($r['is_system']) ? 'Yes' : 'No'; ?></td>
                         <?php if ($can_manage) : ?><td class="metis-premium-cell metis-role-col-actions"><a href="<?php echo metis_escape_url( metis_people_role_url( (string) ( $r['role_key'] ?? '' ), (string) ( $r['role_domain'] ?? 'metis' ) ) ); ?>" class="metis-btn-xs">Edit</a></td><?php endif; ?>
                     </tr>

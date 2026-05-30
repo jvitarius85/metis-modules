@@ -764,8 +764,8 @@ function themeAjaxConfig(action) {
 }
 
 function themeToast(message, level) {
-    if (typeof window.metis_toast === 'function') {
-        window.metis_toast(message, level || 'info');
+    if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[level || 'info'] === 'function') {
+        Metis.ui.toast[level || 'info'](String(message || ''));
         return;
     }
     if (window.console && typeof window.console.log === 'function') {
@@ -774,12 +774,8 @@ function themeToast(message, level) {
 }
 
 function themeConfirm(message, onConfirm) {
-    if (typeof window.metis_confirm === 'function') {
-        window.metis_confirm(message, onConfirm);
-        return;
-    }
-    if (window.Metis && Metis.confirm && typeof Metis.confirm.open === 'function') {
-        Metis.confirm.open({ message: String(message || 'Confirm?') }).then(function(confirmed) {
+    if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
+        Metis.ui.confirm.open({ message: String(message || 'Confirm?') }).then(function(confirmed) {
             if (confirmed && typeof onConfirm === 'function') {
                 onConfirm();
             }

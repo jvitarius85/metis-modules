@@ -1135,6 +1135,60 @@ Metis.toast = (function() {
 Metis.ui = Metis.ui || {};
 Metis.ui.ajax = Metis.ajax;
 Metis.ui.toast = Metis.toast;
+Metis.ui.loading = (function() {
+    function set(target, busy, options) {
+        var node = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!node) return;
+        var className = options && options.className ? String(options.className) : 'is-loading';
+        node.classList.toggle(className, !!busy);
+        node.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+
+    function button(target, busy, options) {
+        var buttonEl = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!buttonEl) return;
+        if (!buttonEl.dataset.metisOriginalLabel) {
+            buttonEl.dataset.metisOriginalLabel = buttonEl.textContent || '';
+        }
+        buttonEl.disabled = !!busy;
+        buttonEl.setAttribute('aria-busy', busy ? 'true' : 'false');
+        buttonEl.classList.toggle('is-loading', !!busy);
+        if (options && typeof options.loadingLabel === 'string' && options.loadingLabel !== '') {
+            buttonEl.textContent = busy ? options.loadingLabel : (buttonEl.dataset.metisOriginalLabel || '');
+        }
+    }
+
+    return {
+        set: set,
+        button: button
+    };
+}());
+
+Metis.ui.form = (function() {
+    function setSubmitting(target, busy, options) {
+        if (!target) return;
+        if (target instanceof HTMLButtonElement) {
+            Metis.ui.loading.button(target, busy, options || {});
+            return;
+        }
+        var button = target.querySelector ? target.querySelector('button[type="submit"], .metis-btn[type="submit"]') : null;
+        if (button instanceof HTMLButtonElement) {
+            Metis.ui.loading.button(button, busy, options || {});
+        }
+    }
+
+    function clearErrors(formEl) {
+        if (!(formEl instanceof HTMLElement)) return;
+        formEl.querySelectorAll('.metis-forms-field-error').forEach(function(node) { node.remove(); });
+        formEl.querySelectorAll('[aria-invalid="true"]').forEach(function(node) { node.removeAttribute('aria-invalid'); });
+        formEl.querySelectorAll('.is-error').forEach(function(node) { node.classList.remove('is-error'); });
+    }
+
+    return {
+        setSubmitting: setSubmitting,
+        clearErrors: clearErrors
+    };
+}());
 
 /* ============================================================
    CORE TOOLTIP SYSTEM
@@ -1652,6 +1706,12 @@ Metis.confirm = (function() {
 }());
 
 Metis.ui.confirm = Metis.confirm;
+Metis.ui.modal.confirm = function(options) {
+    return Metis.confirm.open(options || {});
+};
+Metis.ui.modal.form = function(target) {
+    Metis.modal.open(target);
+};
 
 /* ============================================================
    INPUT PROMPT
@@ -3291,6 +3351,38 @@ function metisInitNavDropdowns() {
         }
     });
 }
+
+Metis.ui.dropdown = {
+    init: metisInitNavDropdowns,
+    open: function(target) {
+        var dropdown = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!dropdown) return;
+        dropdown.classList.add('is-open');
+        var trigger = dropdown.querySelector('.metis-pill-has-dropdown');
+        if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    },
+    close: function(target) {
+        var dropdown = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!dropdown) return;
+        dropdown.classList.remove('is-open');
+        var trigger = dropdown.querySelector('.metis-pill-has-dropdown');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    },
+    toggle: function(target) {
+        var dropdown = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!dropdown) return;
+        if (dropdown.classList.contains('is-open')) {
+            Metis.ui.dropdown.close(dropdown);
+            return;
+        }
+        Metis.ui.dropdown.open(dropdown);
+    },
+    closeAll: function() {
+        document.querySelectorAll('.metis-pill-dropdown.is-open').forEach(function(dropdown) {
+            Metis.ui.dropdown.close(dropdown);
+        });
+    }
+};
 
 
 /* ============================================================

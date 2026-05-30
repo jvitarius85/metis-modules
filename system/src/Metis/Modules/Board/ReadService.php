@@ -4,6 +4,158 @@ declare(strict_types=1);
 namespace Metis\Modules\Board;
 
 final class ReadService {
+    public static function meetingViewContext( string $meeting_code, bool $can_manage ): array {
+        $meeting_code = trim( $meeting_code );
+        if ( $meeting_code === '' ) {
+            return [];
+        }
+
+        $db = \metis_db();
+        $meetings_table = \Metis_Tables::get( 'board_meetings' );
+        $committees_table = \Metis_Tables::get( 'board_committees' );
+        $decisions_table = \Metis_Tables::get( 'board_decisions' );
+        $actions_table = \Metis_Tables::get( 'board_action_items' );
+        $attendance_table = \Metis_Tables::get( 'board_attendance' );
+        $documents_table = \Metis_Tables::get( 'board_documents' );
+        $agenda_templates_table = \Metis_Tables::get( 'board_agenda_templates' );
+        $decision_templates_table = \Metis_Tables::get( 'board_decision_templates' );
+        $people_table = \Metis_Tables::get( 'people' );
+
+        $meeting = $db->fetchOne(
+            "SELECT m.*, c.name AS committee_name, p.display_name AS created_by_name
+             FROM {$meetings_table} m
+             LEFT JOIN {$committees_table} c ON c.id = m.committee_id
+             LEFT JOIN {$people_table} p ON p.id = m.created_by_person_id
+             WHERE m.meeting_code = %s
+             LIMIT 1",
+            [ $meeting_code ]
+        );
+        if ( ! is_array( $meeting ) ) {
+            return [];
+        }
+
+        $meeting_id = (int) ( $meeting['id'] ?? 0 );
+        $agenda = json_decode( (string) ( $meeting['agenda_json'] ?? '' ), true );
+        if ( ! is_array( $agenda ) ) {
+            $agenda = [];
+        }
+
+        $decisions = $db->fetchAll(
+            "SELECT d.* FROM {$decisions_table} d WHERE d.meeting_id = %d ORDER BY d.id ASC",
+            [ $meeting_id ]
+        ) ?: [];
+        $decision_seen = [];
+        $decisions = array_values( array_filter( $decisions, static function ( array $decision ) use ( &$decision_seen ): bool {
+            $title = strtolower( trim( (string) ( $decision['title'] ?? '' ) ) );
+            $item = strtolower( trim( (string) ( $decision['agenda_item_title'] ?? '' ) ) );
+            if ( $title === '' ) {
+                return true;
+            }
+            $key = $title . '|' . $item;
+            if ( ! isset( $decision_seen[ $key ] ) ) {
+                $decision_seen[ $key ] = true;
+                return true;
+            }
+            $is_pending = strtolower( trim( (string) ( $decision['outcome'] ?? 'pending' ) ) ) === 'pending';
+            $has_votes = ( (int) ( $decision['votes_for'] ?? 0 ) + (int) ( $decision['votes_against'] ?? 0 ) + (int) ( $decision['votes_abstain'] ?? 0 ) ) > 0;
+            $has_text = trim( (string) ( $decision['decision_text'] ?? '' ) ) !== '';
+            return ( ! $is_pending || $has_votes || $has_text );
+        } ) );
+
+        $actions = $db->fetchAll(
+            "SELECT a.*, p.display_name AS owner_name
+             FROM {$actions_table} a
+             LEFT JOIN {$people_table} p ON p.id = a.owner_person_id
+             WHERE a.meeting_id = %d
+             ORDER BY (a.status='done') ASC, (a.due_date IS NULL), a.due_date ASC, a.id ASC",
+            [ $meeting_id ]
+        ) ?: [];
+
+        $attendance = $db->fetchAll(
+            "SELECT atn.*, p.display_name, p.email
+             FROM {$attendance_table} atn
+             INNER JOIN {$people_table} p ON p.id = atn.person_id
+             WHERE atn.meeting_id = %d
+             ORDER BY p.display_name ASC",
+            [ $meeting_id ]
+        ) ?: [];
+
+        $attendance_map = [];
+        foreach ( $attendance as $att_row ) {
+            $attendance_map[ (int) ( $att_row['person_id'] ?? 0 ) ] = $att_row;
+        }
+
+        $board_people = $db->fetchAll(
+            "SELECT id, pid, display_name, email, is_board
+             FROM {$people_table}
+             WHERE status = 'active' AND (is_board = 1 OR is_staff = 1)
+             ORDER BY display_name ASC"
+        ) ?: [];
+        $voting_members = array_values( array_filter( $board_people, static fn ( array $person ): bool => (int) ( $person['is_board'] ?? 0 ) === 1 ) );
+
+        $documents = $db->fetchAll(
+            "SELECT * FROM {$documents_table}
+             WHERE meeting_id = %d
+             ORDER BY updated_at DESC, id DESC",
+            [ $meeting_id ]
+        ) ?: [];
+
+        $agenda_templates = [];
+        $decision_templates = [];
+        $prior_meetings = [];
+        $packet_candidate_docs = [];
+        if ( $can_manage ) {
+            $agenda_templates = $db->fetchAll(
+                "SELECT id, template_code, name, description, default_items_json, sort_order, is_required
+                 FROM {$agenda_templates_table}
+                 WHERE is_active = 1
+                 ORDER BY sort_order ASC, id ASC"
+            ) ?: [];
+            $decision_templates = $db->fetchAll(
+                "SELECT id, template_code, title, description, default_outcome, sort_order
+                 FROM {$decision_templates_table}
+                 WHERE is_active = 1
+                 ORDER BY sort_order ASC, id ASC"
+            ) ?: [];
+
+            $meeting_committee_id = (int) ( $meeting['committee_id'] ?? 0 );
+            $meeting_date_value = (string) ( $meeting['meeting_date'] ?? '' );
+            $prior_meetings = $db->fetchAll(
+                "SELECT id, meeting_code, title, meeting_date, minutes_html,
+                        CASE WHEN committee_id = %d THEN 0 ELSE 1 END AS committee_rank
+                 FROM {$meetings_table}
+                 WHERE id <> %d
+                   AND (%s = '' OR meeting_date < %s)
+                 ORDER BY committee_rank ASC, meeting_date DESC
+                 LIMIT 80",
+                [ $meeting_committee_id, $meeting_id, $meeting_date_value, $meeting_date_value ]
+            ) ?: [];
+
+            $packet_candidate_docs = $db->fetchAll(
+                "SELECT id, meeting_id, title, doc_type, google_file_id, mime_type
+                 FROM {$documents_table}
+                 WHERE meeting_id = %d
+                 ORDER BY updated_at DESC, id DESC",
+                [ $meeting_id ]
+            ) ?: [];
+        }
+
+        return [
+            'meeting' => $meeting,
+            'agenda' => $agenda,
+            'decisions' => $decisions,
+            'actions' => $actions,
+            'attendance' => $attendance,
+            'attendance_map' => $attendance_map,
+            'board_people' => $board_people,
+            'voting_members' => $voting_members,
+            'documents' => $documents,
+            'agenda_templates' => $agenda_templates,
+            'decision_templates' => $decision_templates,
+            'prior_meetings' => $prior_meetings,
+            'packet_candidate_docs' => $packet_candidate_docs,
+        ];
+    }
     public static function meetingDocuments( int $meeting_id ): array {
         if ( $meeting_id < 1 ) {
             return [];

@@ -8,14 +8,7 @@ if (!metis_newsletter_can_view()) {
 
 metis_newsletter_ensure_schema();
 
-$db = metis_db();
-
 $can_manage = metis_newsletter_can_manage();
-
-$lists_table = Metis_Tables::get('newsletter_lists');
-$templates_table = Metis_Tables::get('newsletter_templates');
-$campaigns_table = Metis_Tables::get('newsletter_campaigns');
-$campaign_lists_table = Metis_Tables::get('newsletter_campaign_lists');
 
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
@@ -49,14 +42,9 @@ $legacy_compose = isset(metis_request_get()['compose']) && (string) metis_reques
 $legacy_view = metis_key_clean((string) (metis_request_get()['view'] ?? ''));
 
 if ($legacy_compose || $legacy_campaign_id > 0) {
-    $legacy_ref = '';
-    if ($legacy_campaign_id > 0) {
-        $legacy_code = (string) $db->scalar(
-            "SELECT campaign_code FROM {$campaigns_table} WHERE id = %d LIMIT 1",
-            [ $legacy_campaign_id ]
-        );
-        $legacy_ref = $legacy_code !== '' ? $legacy_code : (string) $legacy_campaign_id;
-    }
+    $legacy_ref = $legacy_campaign_id > 0
+        ? \Metis\Modules\Newsletter\ReadService::legacyCampaignRef($legacy_campaign_id)
+        : '';
     $legacy_target = $legacy_campaign_id > 0
         ? ($campaign_edit_base_url . $legacy_ref . '/edit/')
         : $campaign_compose_url;
@@ -137,72 +125,20 @@ $newsletter_theme_defaults = [
     'footer_padding' => (string) Core_Settings_Service::get('newsletter_theme_footer_padding', '16px 28px 28px 28px'),
 ];
 
-$lists = $db->fetchAll(
-    "SELECT id, name, description, is_active FROM {$lists_table} WHERE is_active = 1 ORDER BY name ASC",
-) ?: [];
-
-$templates = $db->fetchAll(
-    "SELECT id, template_code, name, subject, from_name, from_email, reply_to, doc_json, html_body FROM {$templates_table} WHERE is_active = 1 ORDER BY updated_at DESC, id DESC",
-) ?: [];
-
-$campaign_where = "WHERE 1=1";
-if ($campaign_view === 'active') {
-    $campaign_where .= " AND c.status <> 'archived'";
-} elseif ($campaign_view === 'archived') {
-    $campaign_where .= " AND c.status = 'archived'";
-}
-$campaigns = $db->fetchAll(
-    "SELECT c.*, t.name AS template_name
-     FROM {$campaigns_table} c
-     LEFT JOIN {$templates_table} t ON t.id = c.template_id
-     {$campaign_where}
-     ORDER BY c.created_at DESC, c.id DESC
-     LIMIT 200"
-) ?: [];
-
-$campaign_lists = $db->fetchAll(
-    "SELECT cl.campaign_id, cl.list_id, l.name
-     FROM {$campaign_lists_table} cl
-     INNER JOIN {$lists_table} l ON l.id = cl.list_id
-     ORDER BY cl.campaign_id ASC, l.name ASC"
-) ?: [];
-
-$campaign_lists_map = [];
-foreach ($campaign_lists as $cl) {
-    $cid = (int) ($cl['campaign_id'] ?? 0);
-    if ($cid < 1) continue;
-    if (!isset($campaign_lists_map[$cid])) $campaign_lists_map[$cid] = [];
-    $campaign_lists_map[$cid][] = [
-        'id' => (int) ($cl['list_id'] ?? 0),
-        'name' => (string) ($cl['name'] ?? ''),
-    ];
-}
-
-$selected_campaign = null;
-if ($compose_mode && ($edit_campaign_code !== '' || $edit_campaign_id > 0)) {
-    if ($edit_campaign_code !== '') {
-        $selected_campaign = $db->fetchOne(
-            "SELECT c.*, t.name AS template_name, t.template_code AS template_code
-             FROM {$campaigns_table} c
-             LEFT JOIN {$templates_table} t ON t.id = c.template_id
-             WHERE c.campaign_code = %s
-             LIMIT 1",
-            [ $edit_campaign_code ]
-        );
-    } else {
-        $selected_campaign = $db->fetchOne(
-            "SELECT c.*, t.name AS template_name, t.template_code AS template_code
-             FROM {$campaigns_table} c
-             LEFT JOIN {$templates_table} t ON t.id = c.template_id
-             WHERE c.id = %d
-             LIMIT 1",
-            [ $edit_campaign_id ]
-        );
-    }
-    if (!$selected_campaign) {
-        $edit_campaign_id = 0;
-        $edit_campaign_code = '';
-    }
+$campaign_snapshot = \Metis\Modules\Newsletter\ReadService::campaignsSnapshot(
+    $campaign_view,
+    $compose_mode,
+    $edit_campaign_id,
+    $edit_campaign_code
+);
+$lists = $campaign_snapshot['lists'] ?? [];
+$templates = $campaign_snapshot['templates'] ?? [];
+$campaigns = $campaign_snapshot['campaigns'] ?? [];
+$campaign_lists_map = $campaign_snapshot['campaign_lists_map'] ?? [];
+$selected_campaign = $campaign_snapshot['selected_campaign'] ?? null;
+if ($compose_mode && ($edit_campaign_code !== '' || $edit_campaign_id > 0) && !$selected_campaign) {
+    $edit_campaign_id = 0;
+    $edit_campaign_code = '';
 }
 
 $editor_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_newsletter' ) : '';

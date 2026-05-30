@@ -65,6 +65,8 @@ Filtering rule:
 - `portal.ajax.php` now performs explicit nonce and `portal.view` permission verification
 - donations campaign editor AJAX now performs explicit nonce and manage-permission verification
 - offline donations AJAX now reuses `CampaignService` for active campaign options and performs explicit nonce/permission verification
+- large legacy handler files in Board, Contacts, Donations, Newsletter, People, Portal, Profile, Settings, Website, and core AJAX runtime were reduced to thin controller/handler delegates over canonical services
+- view-layer SQL was moved into canonical read services for Board, Contacts, Donations, Newsletter, People, Portal, Profile, and Settings
 
 ## Files Changed
 
@@ -77,3 +79,39 @@ Filtering rule:
 - `system/modules/portal/assets/portal.ajax.php`
 - `system/modules/donations/assets/campaigns.ajax.php`
 - `system/modules/donations/assets/offline.ajax.php`
+
+Key service layer additions during the broader pass:
+
+- `system/src/Metis/Core/Services/AjaxCodeLookupService.php`
+- `system/src/Metis/Modules/Board/*Service.php`
+- `system/src/Metis/Modules/Contacts/*Service.php`
+- `system/src/Metis/Modules/Donations/ReadService.php`
+- `system/src/Metis/Modules/Donations/StripeDepositService.php`
+- `system/src/Metis/Modules/Donations/TransactionRecordService.php`
+- `system/src/Metis/Modules/Media/MediaLibraryService.php`
+- `system/src/Metis/Modules/Newsletter/ReadService.php`
+- `system/src/Metis/Modules/People/ReadService.php`
+- `system/src/Metis/Modules/Portal/PortalDashboardService.php`
+- `system/src/Metis/Modules/Settings/SettingsTelemetryService.php`
+- `system/src/Metis/Modules/Website/Services/EditorOptionsService.php`
+
+## Regression Verification
+
+Canonical local regression command:
+
+- `php tools/governance/run-ajax-ui-hardening-regression.php`
+
+Current regression runner includes:
+
+- `tools/governance/check-ajax-ui-hardening.php`
+- `system/tests/ajax_ui_hardening_contract_test.php`
+- `system/tests/view_service_delegation_contract_test.php`
+- `system/tests/donations_read_service_runtime_test.php`
+- `system/tests/newsletter_read_service_runtime_test.php`
+- `system/tests/people_read_service_runtime_test.php`
+- `system/tests/production_governance_test.php`
+- `system/tests/security_governance_test.php`
+
+CI integration:
+
+- `.github/workflows/ajax-ui-hardening.yml` runs the same regression command on `stable`, `main`, pull requests, and manual dispatch

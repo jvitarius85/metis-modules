@@ -1,12 +1,6 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-
 $base_url = metis_donations_base_url();
 $donor_id = metis_donations_request_identifier( 'id', 'donor' );
 
@@ -16,9 +10,8 @@ if ( $donor_id === '' ) : ?>
     <a href="<?php echo metis_escape_url( $base_url . '/donors/' ); ?>" class="metis-btn metis-btn-xs">← Back to Donors</a>
     <?php return;
 endif;
-
-$donor = $db->fetchOne( "SELECT first_name, last_name, email, did FROM {$contacts_table} WHERE did = %s", [ $donor_id ] );
-$donor = $donor ? (object) $donor : null;
+$snapshot = \Metis\Modules\Donations\ReadService::donorDetailSnapshot( $donor_id );
+$donor = $snapshot['donor'] ?? null;
 
 if ( ! $donor ) : ?>
     <h1 class="metis-page-title">Donor not found</h1>
@@ -26,24 +19,10 @@ if ( ! $donor ) : ?>
     <a href="<?php echo metis_escape_url( $base_url . '/donors/' ); ?>" class="metis-btn metis-btn-xs">← Back to Donors</a>
     <?php return;
 endif;
-
-$transactions = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "SELECT t.*, c.cname AS campaign_name
-     FROM {$transactions_table} t
-     LEFT JOIN {$campaigns_table} c ON c.cid = t.campaign_code
-     WHERE t.did = %s
-     ORDER BY t.tran_date DESC, t.id DESC",
-    [ $donor->did ]
-) ?: [] );
-
-$total_gross = 0;
-foreach ( $transactions as $t ) {
-    $total_gross += (float) $t->amount + (float) ( $t->fee ?? 0 );
-}
-$total_net    = array_sum( array_map( fn($t) => (float) $t->amount, $transactions ) );
-$gift_count   = count( $transactions );
+$transactions = $snapshot['transactions'] ?? [];
+$total_gross = (float) ( $snapshot['total_gross'] ?? 0 );
+$total_net = (float) ( $snapshot['total_net'] ?? 0 );
+$gift_count = (int) ( $snapshot['gift_count'] ?? 0 );
 $full_name    = trim( $donor->first_name . ' ' . $donor->last_name );
 metis_set_page_title( $full_name ?: $donor->email ?: $donor_id );
 ?>

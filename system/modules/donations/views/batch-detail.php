@@ -1,13 +1,6 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$batches_table      = Metis_Tables::get( 'batches' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-
 $base_url = metis_donations_base_url();
 $code     = metis_donations_request_identifier( 'batch', 'batch' );
 
@@ -15,51 +8,19 @@ if ( ! $code ) {
     echo '<h1 class="metis-page-title">Batch Not Found</h1><p class="metis-subtitle">Invalid batch code.</p>';
     return;
 }
-
-$batch = $db->fetchOne( "SELECT * FROM {$batches_table} WHERE batch_code = %s", [ $code ] );
-$batch = $batch ? (object) $batch : null;
+$snapshot = \Metis\Modules\Donations\ReadService::batchDetailSnapshot( $code );
+$batch = $snapshot['batch'] ?? null;
 
 if ( ! $batch ) {
     echo '<h1 class="metis-page-title">Batch Not Found</h1><p class="metis-subtitle">That batch does not exist.</p>';
     return;
 }
-
-$transactions = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "SELECT t.*, d.first_name, d.last_name, d.email, c.cname AS campaign_name
-     FROM {$transactions_table} t
-     LEFT JOIN {$contacts_table} d ON d.did = t.did
-     LEFT JOIN {$campaigns_table} c ON c.cid = t.campaign_code
-     WHERE t.deposit_batch_id = %s
-     ORDER BY t.tran_date ASC, t.id ASC",
-    [ $batch->batch_code ]
-) ?: [] );
+$transactions = $snapshot['transactions'] ?? [];
 
 $deposit_date = $batch->deposit_date ? date( 'M d, Y', strtotime( $batch->deposit_date ) ) : '—';
 metis_set_page_title( $batch->batch_code );
-
-// Build export data for CSV
-$export_rows = [];
-foreach ( $transactions as $t ) {
-    $donor = trim( ( $t->first_name ?: '' ) . ' ' . ( $t->last_name ?: '' ) ) ?: ( $t->email ?: 'Unknown' );
-    $export_rows[] = [
-        'batch_code'     => $batch->batch_code,
-        'tid'            => $t->tid,
-        'tran_date'      => $t->tran_date ? date( 'm/d/Y', strtotime( $t->tran_date ) ) : '',
-        'donor_name'     => $donor,
-        'email'          => $t->email ?? '',
-        'campaign'       => $t->campaign_name ?: $t->campaign_code ?: '',
-        'amount'         => (float) $t->amount,
-        'fee'            => isset( $t->fee ) ? (float) $t->fee : 0,
-        'net'            => (float) $t->amount - ( isset( $t->fee ) ? (float) $t->fee : 0 ),
-        'status'         => $t->status ?? '',
-        'payment_method' => $t->payment_method ?? '',
-    ];
-}
-
-// Batch notes
-$batch_notes = metis_get_batch_notes( $batch->batch_code );
+$export_rows = $snapshot['export_rows'] ?? [];
+$batch_notes = $snapshot['batch_notes'] ?? [];
 ?>
 
 <h1 class="metis-page-title">Deposit Batch <?php echo metis_escape_html( $batch->batch_code ); ?></h1>

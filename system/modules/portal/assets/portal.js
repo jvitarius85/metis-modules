@@ -34,7 +34,11 @@
     };
 
     const setBusy = (busy) => {
-        listWrap.classList.toggle('is-loading', busy);
+        if (window.Metis && Metis.ui && Metis.ui.loading && typeof Metis.ui.loading.set === 'function') {
+            Metis.ui.loading.set(listWrap, busy);
+        } else {
+            listWrap.classList.toggle('is-loading', busy);
+        }
         filters.forEach((button) => {
             button.disabled = busy;
         });
@@ -92,8 +96,8 @@
             }
             refreshFilterCounts(data.counts || {});
         } catch (error) {
-            if (window.Metis && typeof window.Metis.toast === 'function') {
-                window.Metis.toast(error.message || 'Failed to load board actions.', 'error');
+            if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast.error === 'function') {
+                Metis.ui.toast.error(error.message || 'Failed to load board actions.');
             } else {
                 console.error(error);
             }

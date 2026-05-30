@@ -7,13 +7,7 @@ if (!metis_newsletter_can_view()) {
 }
 
 metis_newsletter_ensure_schema();
-$db = metis_db();
-
 $can_manage = metis_newsletter_can_manage();
-
-$lists_table = Metis_Tables::get('newsletter_lists');
-$subs_table = Metis_Tables::get('newsletter_subs');
-$contacts_table = Metis_Tables::get('contacts');
 
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
@@ -22,27 +16,9 @@ $lists_url = metis_portal_url('newsletter', 'lists');
 $subscribers_url = metis_portal_url('newsletter', 'subscribers');
 $contact_url_base = metis_portal_url('contacts', 'contact');
 
-$list_rows = $db->fetchAll(
-    "SELECT id, name FROM {$lists_table} WHERE is_active = 1 ORDER BY name ASC"
-) ?: [];
-
-
-$rows = $db->fetchAll(
-    "SELECT
-        c.cid,
-        c.first_name,
-        c.last_name,
-        c.email,
-        GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR '||') AS list_names,
-        MAX(s.updated_at) AS updated_at
-     FROM {$subs_table} s
-     INNER JOIN {$contacts_table} c ON c.id = s.contact_id
-     INNER JOIN {$lists_table} l ON l.id = s.list_id
-     WHERE s.status = 'subscribed' AND l.is_active = 1
-     GROUP BY c.id, c.cid, c.first_name, c.last_name, c.email
-     ORDER BY updated_at DESC
-     LIMIT 1000"
-) ?: [];
+$snapshot = \Metis\Modules\Newsletter\ReadService::subscribersSnapshot();
+$list_rows = is_array($snapshot['list_rows'] ?? null) ? $snapshot['list_rows'] : [];
+$rows = is_array($snapshot['rows'] ?? null) ? $snapshot['rows'] : [];
 ?>
 
 <div class="metis-newsletter" data-can-manage="<?php echo metis_escape_attr($can_manage ? '1' : '0'); ?>">

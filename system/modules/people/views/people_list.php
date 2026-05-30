@@ -8,98 +8,17 @@ if (!metis_people_can_view()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-
-$people_table = Metis_Tables::get('people');
-$roles_table = Metis_Tables::get('people_roles');
-$user_roles_table = Metis_Tables::get('people_user_roles');
-
 $can_manage = metis_people_can_manage();
 
 $per_page = 100;
 $page = max(1, (int) (metis_request_get()['page'] ?? 1));
-$offset = max(0, ($page - 1) * $per_page);
-
-$total_row = $db->fetchOne("SELECT COUNT(*) AS total_count FROM {$people_table}") ?: [];
-$total_people = (int) ($total_row['total_count'] ?? 0);
-$total_pages = max(1, (int) ceil($total_people / $per_page));
-if ($page > $total_pages) {
-    $page = $total_pages;
-    $offset = max(0, ($page - 1) * $per_page);
-}
-
-$people_rows = $db->fetchAll(
-    "SELECT id, pid, auth_provider, email, first_name, last_name, display_name, linked_donor_id, is_workspace_user, workspace_email, stripe_role
-     FROM {$people_table}
-     ORDER BY display_name ASC, email ASC
-     LIMIT %d OFFSET %d",
-    [ $per_page, $offset ]
-) ?: [];
-$roles_rows = $db->fetchAll( "SELECT * FROM {$roles_table} WHERE role_domain = 'metis' ORDER BY role_name ASC" ) ?: [];
-
-$role_by_id = [];
-$role_by_key = [];
-foreach ($roles_rows as $r) {
-    $rid = (int) ($r['id'] ?? 0);
-    if ($rid < 1) continue;
-    $role_by_id[$rid] = $r;
-    $role_by_key[(string) $r['role_key']] = $r;
-}
-
-$person_ids = array_values(array_filter(array_map(static function ($row): int {
-    return (int) ($row['id'] ?? 0);
-}, $people_rows), static function (int $id): bool {
-    return $id > 0;
-}));
-
-$assign_rows = [];
-if (!empty($person_ids)) {
-    $id_list = implode(',', array_map('intval', $person_ids));
-    $assign_rows = $db->fetchAll(
-        "SELECT ur.person_id, ur.role_id FROM {$user_roles_table} ur WHERE ur.person_id IN ({$id_list})",
-    ) ?: [];
-}
-$role_ids_by_person = [];
-foreach ($assign_rows as $ar) {
-    $person_id = (int) ($ar['person_id'] ?? 0);
-    $role_id = (int) ($ar['role_id'] ?? 0);
-    if ($person_id < 1 || $role_id < 1) continue;
-    if (!isset($role_ids_by_person[$person_id])) {
-        $role_ids_by_person[$person_id] = [];
-    }
-    $role_ids_by_person[$person_id][] = $role_id;
-}
-
-$people = [];
-foreach ($people_rows as $p) {
-    $id = (int) ($p['id'] ?? 0);
-    if ($id < 1) continue;
-
-    $role_keys = [];
-    foreach ((array) ($role_ids_by_person[$id] ?? []) as $rid) {
-        if (!empty($role_by_id[$rid]['role_key'])) {
-            $role_keys[] = (string) $role_by_id[$rid]['role_key'];
-        }
-    }
-
-    $full_name = trim((string) ($p['first_name'] ?? '') . ' ' . (string) ($p['last_name'] ?? ''));
-    if ($full_name === '') {
-        $full_name = (string) ($p['display_name'] ?? '');
-    }
-
-    $people[] = [
-        'id' => $id,
-        'pid' => (string) ($p['pid'] ?? ''),
-        'auth_provider' => (string) ($p['auth_provider'] ?? 'metis'),
-        'email' => (string) ($p['email'] ?? ''),
-        'full_name' => $full_name,
-        'linked_donor_id' => (string) ($p['linked_donor_id'] ?? ''),
-        'is_workspace_user' => !empty($p['is_workspace_user']) ? 1 : 0,
-        'workspace_email' => (string) ($p['workspace_email'] ?? ''),
-        'stripe_role' => (string) ($p['stripe_role'] ?? ''),
-        'roles' => $role_keys,
-    ];
-}
+$snapshot = \Metis\Modules\People\ReadService::peopleListSnapshot($page, $per_page);
+$page = (int) ($snapshot['page'] ?? $page);
+$per_page = (int) ($snapshot['per_page'] ?? $per_page);
+$total_people = (int) ($snapshot['total_people'] ?? 0);
+$total_pages = (int) ($snapshot['total_pages'] ?? 1);
+$people = $snapshot['people'] ?? [];
+$role_by_key = $snapshot['role_by_key'] ?? [];
 ?>
 
 <div class="metis-people"

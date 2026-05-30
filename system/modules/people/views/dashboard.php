@@ -8,33 +8,22 @@ if (!metis_people_can_view()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-
-$people_table = Metis_Tables::get('people');
-$roles_table = Metis_Tables::get('people_roles');
-$perms_table = Metis_Tables::get('people_permissions');
-
-$total_people = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table}");
-$staff_count = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE is_staff = 1");
-$board_count = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE is_board = 1");
-$volunteer_count = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE is_volunteer = 1");
-$workspace_count = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE is_workspace_user = 1");
-$stripe_count = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE stripe_role IS NOT NULL AND stripe_role <> ''");
-
-$roles_count = (int) $db->scalar("SELECT COUNT(*) FROM {$roles_table}");
-$permissions_count = (int) $db->scalar("SELECT COUNT(*) FROM {$perms_table}");
-$active_people = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE status = 'active'");
-$requests_table = Metis_Tables::get('people_access_requests');
-$templates_table = Metis_Tables::get('people_role_templates');
-$activity_table = Metis_Tables::get('people_activity');
-$documents_table = Metis_Tables::get('people_documents');
-$pending_requests = (int) $db->scalar("SELECT COUNT(*) FROM {$requests_table} WHERE status = 'pending'");
-$templates_count = (int) $db->scalar("SELECT COUNT(*) FROM {$templates_table}");
-$activity_cutoff = metis_runtime_date( 'Y-m-d H:i:s', metis_current_time( 'timestamp' ) - DAY_IN_SECONDS );
-$activity_24h = (int) $db->scalar( "SELECT COUNT(*) FROM {$activity_table} WHERE created_at >= %s", [ $activity_cutoff ] );
-$mfa_gaps = (int) $db->scalar("SELECT COUNT(*) FROM {$people_table} WHERE status='active' AND requires_2fa = 1 AND (totp_enabled = 0 AND passkey_enabled = 0)");
-$expired_requests = (int) $db->scalar("SELECT COUNT(*) FROM {$requests_table} WHERE status = 'expired'");
-$expired_docs = (int) $db->scalar("SELECT COUNT(*) FROM {$documents_table} WHERE lifecycle_status = 'expired'");
+$dashboard = \Metis\Modules\People\ReadService::dashboardSnapshot();
+$total_people = (int) ($dashboard['total_people'] ?? 0);
+$staff_count = (int) ($dashboard['staff_count'] ?? 0);
+$board_count = (int) ($dashboard['board_count'] ?? 0);
+$volunteer_count = (int) ($dashboard['volunteer_count'] ?? 0);
+$workspace_count = (int) ($dashboard['workspace_count'] ?? 0);
+$stripe_count = (int) ($dashboard['stripe_count'] ?? 0);
+$roles_count = (int) ($dashboard['roles_count'] ?? 0);
+$permissions_count = (int) ($dashboard['permissions_count'] ?? 0);
+$active_people = (int) ($dashboard['active_people'] ?? 0);
+$pending_requests = (int) ($dashboard['pending_requests'] ?? 0);
+$templates_count = (int) ($dashboard['templates_count'] ?? 0);
+$activity_24h = (int) ($dashboard['activity_24h'] ?? 0);
+$mfa_gaps = (int) ($dashboard['mfa_gaps'] ?? 0);
+$expired_requests = (int) ($dashboard['expired_requests'] ?? 0);
+$expired_docs = (int) ($dashboard['expired_docs'] ?? 0);
 $can_workspace_manage = function_exists('metis_people_can_workspace_manage') ? metis_people_can_workspace_manage() : metis_people_can_manage();
 ?>
 

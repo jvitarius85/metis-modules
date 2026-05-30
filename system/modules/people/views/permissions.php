@@ -8,14 +8,10 @@ if (!metis_people_can_view()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-
-$perms_table = Metis_Tables::get('people_permissions');
-$roles_table = Metis_Tables::get('people_roles');
-$role_perms_table = Metis_Tables::get('people_role_perms');
-
-$permissions = $db->fetchAll("SELECT * FROM {$perms_table} ORDER BY module_slug ASC, action_key ASC") ?: [];
-$metis_role_count = (int) $db->scalar("SELECT COUNT(*) FROM {$roles_table} WHERE role_domain = 'metis'");
+$snapshot = \Metis\Modules\People\ReadService::permissionsSnapshot();
+$permissions = $snapshot['permissions'] ?? [];
+$metis_role_count = (int) ($snapshot['metis_role_count'] ?? 0);
+$coverage_by_permission = $snapshot['coverage_by_permission'] ?? [];
 ?>
 
 <div class="metis-people-permissions">
@@ -42,15 +38,7 @@ $metis_role_count = (int) $db->scalar("SELECT COUNT(*) FROM {$roles_table} WHERE
         <tbody>
         <?php foreach ($permissions as $perm):
             $perm_id = (int) ($perm['id'] ?? 0);
-            $coverage = (int) $db->scalar(
-                "SELECT COUNT(DISTINCT rp.role_id)
-                 FROM {$role_perms_table} rp
-                 INNER JOIN {$roles_table} r ON r.id = rp.role_id
-                 WHERE rp.permission_id = %d
-                   AND rp.allow_access = 1
-                   AND r.role_domain = 'metis'",
-                [ $perm_id ]
-            );
+            $coverage = (int) ($coverage_by_permission[$perm_id] ?? 0);
         ?>
             <tr class="metis-premium-row">
                 <td class="metis-premium-cell"><?php echo metis_escape_html((string) ($perm['module_slug'] ?? '')); ?></td>

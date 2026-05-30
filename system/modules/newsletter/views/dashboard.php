@@ -7,14 +7,6 @@ if (!metis_newsletter_can_view()) {
 }
 
 metis_newsletter_ensure_schema();
-$db = metis_db();
-
-$lists_table = Metis_Tables::get('newsletter_lists');
-$subs_table = Metis_Tables::get('newsletter_subs');
-$campaigns_table = Metis_Tables::get('newsletter_campaigns');
-$messages_table = Metis_Tables::get('newsletter_messages');
-$contacts_table = Metis_Tables::get('contacts');
-
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
 $templates_url = metis_portal_url('newsletter', 'theme');
@@ -23,39 +15,15 @@ $subscribers_url = metis_portal_url('newsletter', 'subscribers');
 $contact_url_base = metis_portal_url('contacts', 'contact');
 $portal_usage_url = metis_portal_url('settings', 'email');
 
-$kpi_lists = (int) $db->scalar( "SELECT COUNT(*) FROM {$lists_table} WHERE is_active = 1" );
-$kpi_campaigns = (int) $db->scalar( "SELECT COUNT(*) FROM {$campaigns_table}" );
-$kpi_subscribers = (int) $db->scalar( "SELECT COUNT(*) FROM {$subs_table} WHERE status = 'subscribed'" );
-$kpi_queued = (int) $db->scalar( "SELECT COUNT(*) FROM {$messages_table} WHERE status = 'queued'" );
-$kpi_sent_total = (int) $db->scalar( "SELECT COUNT(*) FROM {$messages_table} WHERE status = 'sent'" );
-$kpi_30d = (int) $db->scalar(
-    "SELECT COUNT(*) FROM {$messages_table} WHERE status='sent' AND sent_at >= %s",
-    [ ( new DateTimeImmutable( 'now', metis_newsletter_resolved_timezone() ) )->modify( '-30 days' )->format( 'Y-m-d H:i:s' ) ]
-);
-
-$recent_subscribers = $db->fetchAll(
-    "SELECT
-        c.cid,
-        c.first_name,
-        c.last_name,
-        c.email,
-        GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR '||') AS list_names,
-        MAX(s.updated_at) AS updated_at
-     FROM {$subs_table} s
-     INNER JOIN {$contacts_table} c ON c.id = s.contact_id
-     INNER JOIN {$lists_table} l ON l.id = s.list_id
-     WHERE s.status = 'subscribed' AND l.is_active = 1
-     GROUP BY c.id, c.cid, c.first_name, c.last_name, c.email
-     ORDER BY updated_at DESC
-     LIMIT 7",
-) ?: [];
-
-$recent_campaigns = $db->fetchAll(
-    "SELECT c.id, c.campaign_code, c.name, c.status, c.updated_at, c.sent_count, c.total_recipients, c.open_count, c.click_count
-     FROM {$campaigns_table} c
-     ORDER BY c.updated_at DESC, c.id DESC
-     LIMIT 7",
-) ?: [];
+$snapshot = \Metis\Modules\Newsletter\ReadService::dashboardSnapshot();
+$kpi_lists = (int) ($snapshot['kpi_lists'] ?? 0);
+$kpi_campaigns = (int) ($snapshot['kpi_campaigns'] ?? 0);
+$kpi_subscribers = (int) ($snapshot['kpi_subscribers'] ?? 0);
+$kpi_queued = (int) ($snapshot['kpi_queued'] ?? 0);
+$kpi_sent_total = (int) ($snapshot['kpi_sent_total'] ?? 0);
+$kpi_30d = (int) ($snapshot['kpi_30d'] ?? 0);
+$recent_subscribers = is_array($snapshot['recent_subscribers'] ?? null) ? $snapshot['recent_subscribers'] : [];
+$recent_campaigns = is_array($snapshot['recent_campaigns'] ?? null) ? $snapshot['recent_campaigns'] : [];
 ?>
 
 <div class="metis-newsletter" data-can-manage="<?php echo metis_escape_attr(metis_newsletter_can_manage() ? '1' : '0'); ?>">

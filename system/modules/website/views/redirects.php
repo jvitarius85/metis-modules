@@ -263,41 +263,59 @@ function saveRedirect() {
         notes: String($('#metis-redirect-notes').val() || '').trim()
     };
 
+    function toast(message, level) {
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[level || 'info'] === 'function') {
+            Metis.ui.toast[level || 'info'](String(message || ''));
+        }
+    }
+
+    function confirmAction(message, onConfirm, options) {
+        if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
+            Metis.ui.confirm.open(Object.assign({}, options || {}, {
+                message: String(message || 'Confirm?')
+            })).then(function(confirmed) {
+                if (confirmed && typeof onConfirm === 'function') {
+                    onConfirm();
+                }
+            });
+        }
+    }
+
     if (!payload.source_path || !payload.destination_path) {
-        window.metis_toast('Source path and destination path are required.', 'error');
+        toast('Source path and destination path are required.', 'error');
         return;
     }
 
     $.post(ajaxConfig().ajax_url, payload).done(function(resp) {
         if (resp && resp.success) {
-            window.metis_toast('Redirect saved.', 'success');
+            toast('Redirect saved.', 'success');
             renderRedirectTable((resp.data && resp.data.redirects) || []);
             closeModal();
             return;
         }
         var message = resp && resp.data && (resp.data.message || resp.data) ? String(resp.data.message || resp.data) : 'Failed to save redirect.';
-        window.metis_toast(message, 'error');
+        toast(message, 'error');
     }).fail(function() {
-        window.metis_toast('Failed to save redirect.', 'error');
+        toast('Failed to save redirect.', 'error');
     });
 }
 
 function deleteRedirect(id) {
-    window.metis_confirm('Delete this redirect?', function() {
+    confirmAction('Delete this redirect?', function() {
         $.post(ajaxConfig().ajax_url, {
             action: 'metis_website_redirect_delete',
             nonce: nonceFor('metis_website_redirect_delete'),
             id: String(id || '')
         }).done(function(resp) {
             if (resp && resp.success) {
-                window.metis_toast('Redirect deleted.', 'success');
+                toast('Redirect deleted.', 'success');
                 renderRedirectTable((resp.data && resp.data.redirects) || []);
                 return;
             }
             var message = resp && resp.data && (resp.data.message || resp.data) ? String(resp.data.message || resp.data) : 'Failed to delete redirect.';
-            window.metis_toast(message, 'error');
+            toast(message, 'error');
         }).fail(function() {
-            window.metis_toast('Failed to delete redirect.', 'error');
+            toast('Failed to delete redirect.', 'error');
         });
     }, {
         title: 'Delete Redirect',

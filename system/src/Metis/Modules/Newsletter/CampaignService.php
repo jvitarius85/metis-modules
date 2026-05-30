@@ -4,6 +4,17 @@ declare(strict_types=1);
 namespace Metis\Modules\Newsletter;
 
 final class CampaignService {
+    public static function codeById( int $campaign_id ): string {
+        if ( $campaign_id < 1 ) {
+            return '';
+        }
+
+        return (string) \metis_db()->scalar(
+            'SELECT campaign_code FROM ' . \Metis_Tables::get( 'newsletter_campaigns' ) . ' WHERE id = %d LIMIT 1',
+            [ $campaign_id ]
+        );
+    }
+
     public static function resolveId( string $campaign_code ): int {
         $campaign_code = trim( $campaign_code );
         if ( $campaign_code === '' ) {

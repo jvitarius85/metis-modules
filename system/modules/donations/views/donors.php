@@ -1,53 +1,9 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-
 $base_url = metis_donations_base_url();
-
-// Fetch all contacts that have a DID
-$contacts = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll( "
-    SELECT id, first_name, last_name, email, did
-    FROM {$contacts_table}
-    WHERE did IS NOT NULL
-      AND did <> ''
-    ORDER BY last_name, first_name
-" ) ?: [] );
-
-// Build totals map: DID => total_amount
-$totals_raw = [];
-foreach ( $db->fetchAll( "
-    SELECT did, SUM(amount) AS total_amount
-    FROM {$transactions_table}
-    GROUP BY did
-" ) ?: [] as $row ) {
-    $did = (string) ( $row['did'] ?? '' );
-    if ( $did !== '' ) {
-        $totals_raw[ $did ] = (object) $row;
-    }
-}
-
-// Build donors array
-$donors = [];
-
-foreach ( $contacts as $c ) {
-    $did   = $c->did;
-    $total = isset( $totals_raw[ $did ] ) ? (float) $totals_raw[ $did ]->total_amount : 0.0;
-
-    $donors[] = [
-        'id'         => (int) $c->id,
-        'first_name' => $c->first_name,
-        'last_name'  => $c->last_name,
-        'email'      => $c->email,
-        'did'        => $did,
-        'total'      => $total,
-    ];
-}
+$snapshot = \Metis\Modules\Donations\ReadService::donorsSnapshot();
+$donors = $snapshot['donors'] ?? [];
 ?>
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Donors' ) ); ?></h1>
 <p class="metis-subtitle">Contacts with a linked donor record.</p>

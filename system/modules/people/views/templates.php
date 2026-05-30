@@ -8,14 +8,10 @@ if (!metis_people_can_view()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-$templates_table = Metis_Tables::get('people_role_templates');
-$template_roles_table = Metis_Tables::get('people_template_roles');
-$roles_table = Metis_Tables::get('people_roles');
 $can_manage = metis_people_can_manage();
-
-$templates = $db->fetchAll( "SELECT * FROM {$templates_table} ORDER BY template_name ASC" ) ?: [];
-$metis_roles = $db->fetchAll( "SELECT id, role_key, role_name FROM {$roles_table} WHERE role_domain='metis' ORDER BY role_name ASC" ) ?: [];
+$snapshot = \Metis\Modules\People\ReadService::templatesSnapshot();
+$templates = $snapshot['templates'] ?? [];
+$metis_roles = $snapshot['metis_roles'] ?? [];
 ?>
 
 <div class="metis-people-ops">

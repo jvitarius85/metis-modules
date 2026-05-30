@@ -8,24 +8,10 @@ if (!metis_people_can_view()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-$requests_table = Metis_Tables::get('people_access_requests');
-$people_table = Metis_Tables::get('people');
-$roles_table = Metis_Tables::get('people_roles');
 $can_manage = metis_people_can_manage();
-
-$rows = $db->fetchAll(
-    "SELECT ar.id, ar.request_code, ar.status, ar.reason, ar.decision_note,
-            ar.required_approvals, ar.approval_count, ar.requested_start_at, ar.requested_end_at, ar.expires_at, ar.created_at,
-            t.pid AS target_pid, t.display_name AS target_name,
-            r.role_key, r.role_name
-     FROM {$requests_table} ar
-     INNER JOIN {$people_table} t ON t.id = ar.target_person_id
-     INNER JOIN {$roles_table} r ON r.id = ar.role_id
-     ORDER BY ar.status='pending' DESC, ar.created_at DESC
-     LIMIT 200"
-) ?: [];
-$metis_roles = $db->fetchAll("SELECT role_key, role_name FROM {$roles_table} WHERE role_domain='metis' ORDER BY role_name ASC") ?: [];
+$snapshot = \Metis\Modules\People\ReadService::accessRequestsSnapshot();
+$rows = $snapshot['rows'] ?? [];
+$metis_roles = $snapshot['metis_roles'] ?? [];
 ?>
 
 <div class="metis-people-ops">

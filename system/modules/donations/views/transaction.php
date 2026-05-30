@@ -1,14 +1,6 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-$refunds_table      = Metis_Tables::get( 'transaction_refunds' );
-$notes_table        = Metis_Tables::get( 'transaction_notes' );
-
 $base_url = metis_donations_base_url();
 $tid      = metis_donations_request_identifier( 'tid', 'transaction' );
 
@@ -18,18 +10,8 @@ if ( $tid === '' ) : ?>
     <a href="<?php echo metis_escape_url( $base_url . '/transactions/' ); ?>" class="metis-btn metis-btn-xs">← Back</a>
     <?php return;
 endif;
-
-$transaction = $db->fetchOne(
-    "SELECT t.*, c.cname AS campaign_name,
-            d.first_name, d.last_name, d.email, d.did AS donor_did
-     FROM {$transactions_table} t
-     LEFT JOIN {$campaigns_table} c ON c.cid = t.campaign_code
-     LEFT JOIN {$contacts_table}  d ON d.did = t.did
-     WHERE t.tid = %s
-     LIMIT 1",
-    [ $tid ]
-);
-$transaction = $transaction ? (object) $transaction : null;
+$snapshot = \Metis\Modules\Donations\ReadService::transactionDetailSnapshot( $tid );
+$transaction = $snapshot['transaction'] ?? null;
 
 if ( ! $transaction ) : ?>
     <h1 class="metis-page-title">Transaction Not Found</h1>
@@ -53,41 +35,10 @@ $stripe_refund_available = ! empty( $transaction->stripe_charge_id ) || ! empty(
 
 $batch_code = ! empty( $transaction->deposit_batch_id ) ? $transaction->deposit_batch_id : '';
 $batch_url  = $batch_code ? metis_donations_detail_url( 'batch', (string) $batch_code ) : '';
-
-// Refunds
-$auth_users_table = Metis_Tables::get( 'auth_users' );
-$refund_columns = $db->column( "SHOW COLUMNS FROM {$refunds_table}" );
-$refund_user_column = in_array( 'created_by', $refund_columns, true )
-    ? 'created_by'
-    : ( in_array( 'refunded_by', $refund_columns, true ) ? 'refunded_by' : '' );
-$refund_date_expr = in_array( 'refund_date', $refund_columns, true )
-    ? 'COALESCE(r.refund_date, r.created_at)'
-    : 'r.created_at';
-$refund_user_join = $refund_user_column !== ''
-    ? "LEFT JOIN {$auth_users_table} u ON u.id = r.{$refund_user_column}"
-    : "LEFT JOIN {$auth_users_table} u ON 1 = 0";
-$refunds = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "SELECT r.*, {$refund_date_expr} AS refund_display_date, u.display_name
-     FROM {$refunds_table} r
-     {$refund_user_join}
-     WHERE r.tid = %s ORDER BY r.created_at DESC",
-    [ $tid ]
-) ?: [] );
+$refunds = $snapshot['refunds'] ?? [];
 
 $total_refunded_raw = array_sum( array_map( fn($r) => (float) $r->amount, $refunds ) );
-
-// Notes
-$notes = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "SELECT n.*, u.display_name
-     FROM {$notes_table} n
-     LEFT JOIN {$auth_users_table} u ON u.id = n.user_id
-     WHERE n.tid = %s ORDER BY n.created_at DESC",
-    [ $tid ]
-) ?: [] );
+$notes = $snapshot['notes'] ?? [];
 ?>
 
 <h1 class="metis-page-title">Transaction <?php echo metis_escape_html( $transaction->tid ); ?></h1>
@@ -264,8 +215,8 @@ $notes = array_map( static function ( array $row ) {
     }
 
     function toast(message, type) {
-        if (typeof window.metis_toast === 'function') {
-            window.metis_toast(message, type || 'info');
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[type || 'info'] === 'function') {
+            Metis.ui.toast[type || 'info'](String(message || ''));
         }
     }
 

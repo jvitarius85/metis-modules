@@ -8,289 +8,35 @@ if (!metis_people_can_workspace_manage()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
 $can_manage = metis_people_can_workspace_manage();
-
-$workspace_users_table = Metis_Tables::get('people_workspace_users');
-$workspace_user_roles_table = Metis_Tables::get('people_workspace_user_roles');
-$workspace_groups_table = Metis_Tables::get('people_workspace_groups');
-$workspace_group_members_table = Metis_Tables::get('people_workspace_group_members');
-$workspace_security_actions_table = Metis_Tables::get('people_workspace_security_actions');
-$workspace_sync_jobs_table = Metis_Tables::get('people_workspace_sync_jobs');
-$people_table = Metis_Tables::get('people');
-$roles_table = Metis_Tables::get('people_roles');
-
-$workspace_users = $db->fetchAll(
-    "SELECT wu.*, p.pid AS linked_pid, p.display_name AS linked_name
-     FROM {$workspace_users_table} wu
-     LEFT JOIN {$people_table} p ON p.id = wu.person_id
-     ORDER BY wu.display_name ASC, wu.primary_email ASC
-     LIMIT 500",
-) ?: [];
-
-$role_rows = $db->fetchAll( "SELECT role_key, role_name FROM {$roles_table} WHERE role_domain = 'workspace' ORDER BY role_name ASC" ) ?: [];
-$workspace_roles = ['' => 'No Admin Role'];
-foreach ($role_rows as $r) {
-    $rk = (string) ($r['role_key'] ?? '');
-    if ($rk === '') continue;
-    $label = trim((string) ($r['role_name'] ?? $rk));
-    if ($label === '') $label = $rk;
-    $workspace_roles[$rk] = $label;
-}
-
-$roles_by_user = [];
-$role_assign_rows = $db->fetchAll(
-    "SELECT workspace_user_id, role_key FROM {$workspace_user_roles_table}",
-) ?: [];
-foreach ($role_assign_rows as $row) {
-    $uid = (int) ($row['workspace_user_id'] ?? 0);
-    $role_key = (string) ($row['role_key'] ?? '');
-    if ($uid < 1 || $role_key === '') continue;
-    if (!isset($roles_by_user[$uid])) $roles_by_user[$uid] = [];
-    $roles_by_user[$uid][] = $role_key;
-}
-
-$workspace_groups = $db->fetchAll(
-    "SELECT wg.*,
-            (SELECT COUNT(*) FROM {$workspace_group_members_table} gm WHERE gm.group_id = wg.id) AS member_count
-     FROM {$workspace_groups_table} wg
-     ORDER BY wg.group_name ASC
-     LIMIT 500",
-) ?: [];
-
 $sync_page_size = 12;
 $security_page_size = 12;
 $sync_page = isset(metis_request_get()['sync_page']) ? (int) metis_runtime_unslash(metis_request_get()['sync_page']) : 1;
 $security_page = isset(metis_request_get()['security_page']) ? (int) metis_runtime_unslash(metis_request_get()['security_page']) : 1;
 if ($sync_page < 1) $sync_page = 1;
 if ($security_page < 1) $security_page = 1;
-
-$sync_total = (int) $db->scalar("SELECT COUNT(*) FROM {$workspace_sync_jobs_table}");
-$security_total = (int) $db->scalar("SELECT COUNT(*) FROM {$workspace_security_actions_table}");
-$sync_total_pages = max(1, (int) ceil($sync_total / $sync_page_size));
-$security_total_pages = max(1, (int) ceil($security_total / $security_page_size));
-if ($sync_page > $sync_total_pages) $sync_page = $sync_total_pages;
-if ($security_page > $security_total_pages) $security_page = $security_total_pages;
-$sync_offset = ($sync_page - 1) * $sync_page_size;
-$security_offset = ($security_page - 1) * $security_page_size;
-
-$group_members = $db->fetchAll(
-    "SELECT gm.group_id, gm.workspace_user_id, gm.member_role, wu.primary_email, wu.display_name
-     FROM {$workspace_group_members_table} gm
-     INNER JOIN {$workspace_users_table} wu ON wu.id = gm.workspace_user_id
-     ORDER BY gm.group_id ASC, wu.display_name ASC",
-) ?: [];
-$members_by_group = [];
-$groups_by_user = [];
-foreach ($group_members as $gm) {
-    $gid = (int) ($gm['group_id'] ?? 0);
-    $uid = (int) ($gm['workspace_user_id'] ?? 0);
-    if ($gid < 1) continue;
-    if (!isset($members_by_group[$gid])) $members_by_group[$gid] = [];
-    $members_by_group[$gid][] = $gm;
-    if ($uid > 0) {
-        if (!isset($groups_by_user[$uid])) $groups_by_user[$uid] = [];
-        $groups_by_user[$uid][] = $gid;
-    }
-}
-
-$security_actions = $db->fetchAll(
-    "SELECT sa.*, wu.primary_email, wu.display_name, wu.person_id,
-            p.pid AS person_pid, p.display_name AS person_display_name
-     FROM {$workspace_security_actions_table} sa
-     INNER JOIN {$workspace_users_table} wu ON wu.id = sa.workspace_user_id
-     LEFT JOIN {$people_table} p ON p.id = wu.person_id
-     ORDER BY sa.created_at DESC
-     LIMIT {$security_page_size} OFFSET {$security_offset}",
-) ?: [];
-
-$sync_jobs = $db->fetchAll(
-    "SELECT *
-     FROM {$workspace_sync_jobs_table}
-     ORDER BY created_at DESC
-     LIMIT {$sync_page_size} OFFSET {$sync_offset}",
-) ?: [];
-
-$sync_workspace_user_names = [];
-$sync_workspace_group_names = [];
-$sync_person_names = [];
-$sync_workspace_user_urls = [];
-$sync_person_urls = [];
-$sync_workspace_user_ids = [];
-$sync_workspace_group_ids = [];
-$sync_person_ids = [];
-$normalize_person_name = static function (string $name): string {
-    $trimmed = trim($name);
-    if ($trimmed === '') return '';
-    return trim((string) preg_replace('/\s*\([A-Z]{2,6}-\d+\)\s*$/', '', $trimmed));
-};
-foreach ($sync_jobs as $sync_job_row) {
-    $entity_type = strtolower(trim((string) ($sync_job_row['entity_type'] ?? '')));
-    $entity_id = (int) ($sync_job_row['entity_id'] ?? 0);
-    if ($entity_id < 1) continue;
-    if ($entity_type === 'workspace_user') $sync_workspace_user_ids[$entity_id] = true;
-    if ($entity_type === 'workspace_group') $sync_workspace_group_ids[$entity_id] = true;
-    if ($entity_type === 'person') $sync_person_ids[$entity_id] = true;
-}
-if (!empty($sync_workspace_user_ids)) {
-    $ids = implode(',', array_map('intval', array_keys($sync_workspace_user_ids)));
-    $rows = $db->fetchAll(
-        "SELECT wu.id, wu.primary_email, wu.display_name, wu.first_name, wu.last_name,
-                p.pid AS person_pid, p.display_name AS person_display_name,
-                p.first_name AS person_first_name, p.last_name AS person_last_name
-         FROM {$workspace_users_table} wu
-         LEFT JOIN {$people_table} p ON p.id = wu.person_id
-         WHERE wu.id IN ({$ids})"
-    ) ?: [];
-    foreach ($rows as $row) {
-        $id = (int) ($row['id'] ?? 0);
-        if ($id < 1) continue;
-        $person_pid = trim((string) ($row['person_pid'] ?? ''));
-        $person_display = $normalize_person_name(trim((string) ($row['person_display_name'] ?? '')));
-        $person_name = trim((string) ($row['person_first_name'] ?? '') . ' ' . (string) ($row['person_last_name'] ?? ''));
-        if ($person_name === '') $person_name = $person_display;
-        if ($person_display !== '') {
-            $sync_workspace_user_names[$id] = $person_name;
-            if ($person_pid !== '') {
-                $sync_workspace_user_urls[$id] = metis_people_person_url($person_pid);
-            }
-            continue;
-        }
-        $name = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
-        if ($name === '') $name = trim((string) ($row['display_name'] ?? ''));
-        if ($name === '') $name = 'Workspace user';
-        $sync_workspace_user_names[$id] = $name;
-    }
-}
-if (!empty($sync_workspace_group_ids)) {
-    $ids = implode(',', array_map('intval', array_keys($sync_workspace_group_ids)));
-    $rows = $db->fetchAll(
-        "SELECT id, group_name, group_email
-         FROM {$workspace_groups_table}
-         WHERE id IN ({$ids})"
-    ) ?: [];
-    foreach ($rows as $row) {
-        $id = (int) ($row['id'] ?? 0);
-        if ($id < 1) continue;
-        $group_name = trim((string) ($row['group_name'] ?? ''));
-        $group_email = trim((string) ($row['group_email'] ?? ''));
-        if ($group_name === '') $group_name = $group_email;
-        $sync_workspace_group_names[$id] = $group_name !== '' ? $group_name : 'Workspace group';
-    }
-}
-if (!empty($sync_person_ids)) {
-    $ids = implode(',', array_map('intval', array_keys($sync_person_ids)));
-    $rows = $db->fetchAll(
-        "SELECT id, pid, display_name, first_name, last_name
-         FROM {$people_table}
-         WHERE id IN ({$ids})"
-    ) ?: [];
-    foreach ($rows as $row) {
-        $id = (int) ($row['id'] ?? 0);
-        if ($id < 1) continue;
-        $display_name = $normalize_person_name(trim((string) ($row['display_name'] ?? '')));
-        $person_name = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
-        if ($person_name === '') $person_name = $display_name;
-        $pid = trim((string) ($row['pid'] ?? ''));
-        if ($person_name === '') $person_name = 'Person';
-        $sync_person_names[$id] = $person_name;
-        if ($pid !== '') {
-            $sync_person_urls[$id] = metis_people_person_url($pid);
-        }
-    }
-}
-
-$kpi_total_users = 0;
-foreach ($workspace_users as $workspace_user_row) {
-    $workspace_meta = json_decode((string) ($workspace_user_row['metadata_json'] ?? ''), true);
-    if (is_array($workspace_meta) && !empty($workspace_meta['ui_hidden'])) {
-        continue;
-    }
-    $kpi_total_users++;
-}
-$kpi_suspended = (int) $db->scalar( "SELECT COUNT(*) FROM {$workspace_users_table} WHERE is_suspended = 1" );
-$kpi_groups = (int) count($workspace_groups);
-$kpi_pending_jobs = (int) $db->scalar( "SELECT COUNT(*) FROM {$workspace_sync_jobs_table} WHERE status IN ('queued', 'processing')" );
-$job_type_labels = [
-    'workspace_user_create' => 'Create Workspace user',
-    'workspace_user_upsert' => 'Update Workspace user',
-    'workspace_security_action' => 'Run security action',
-    'workspace_group_create' => 'Create Workspace group',
-    'workspace_group_upsert' => 'Update Workspace group',
-    'workspace_group_member_upsert' => 'Update group member',
-    'workspace_group_members_sync' => 'Sync group members',
-    'workspace_group_members_bulk_sync' => 'Sync group members',
-    'workspace_group_permissions_sync' => 'Sync group permissions',
-    'workspace_directory_import' => 'Import directory users',
-    'stripe_user_upsert' => 'Apply Stripe access',
-    'stripe_user_disable' => 'Remove Stripe access',
-];
-$security_action_labels = [
-    'reset_password' => 'Force password reset',
-    'revoke_sessions' => 'Revoke sessions',
-    'force_2fa_reenroll' => 'Reset 2FA enrollment',
-    'suspend_account' => 'Suspend account',
-    'unsuspend_account' => 'Unsuspend account',
-];
-$status_labels = [
-    'queued' => 'Queued',
-    'processing' => 'In Progress',
-    'pending' => 'Pending',
-    'completed' => 'Completed',
-    'synced' => 'Completed',
-    'failed' => 'Failed',
-];
-$format_timestamp = static function (?string $value): string {
-    $raw = trim((string) $value);
-    if ($raw === '') return 'Unknown time';
-    $ts = strtotime($raw);
-    if (!$ts) return $raw;
-    return date('M j, Y g:i a', $ts);
-};
-$format_status = static function (?string $status) use ($status_labels): string {
-    $key = strtolower(trim((string) $status));
-    if ($key === '') return 'Unknown';
-    return $status_labels[$key] ?? ucwords(str_replace(['_', '-'], ' ', $key));
-};
+$snapshot = \Metis\Modules\People\ReadService::workspaceSnapshot($sync_page, $security_page);
+$workspace_users = $snapshot['workspace_users'] ?? [];
+$workspace_roles = $snapshot['workspace_roles'] ?? ['' => 'No Admin Role'];
+$roles_by_user = $snapshot['roles_by_user'] ?? [];
+$workspace_groups = $snapshot['workspace_groups'] ?? [];
+$members_by_group = $snapshot['members_by_group'] ?? [];
+$groups_by_user = $snapshot['groups_by_user'] ?? [];
+$activity = $snapshot['activity'] ?? ['sync' => [], 'security' => []];
+$sync_activity = $activity['sync'] ?? [];
+$security_activity = $activity['security'] ?? [];
+$sync_page = (int) ($sync_activity['page'] ?? $sync_page);
+$security_page = (int) ($security_activity['page'] ?? $security_page);
+$sync_total_pages = (int) ($sync_activity['total_pages'] ?? 1);
+$security_total_pages = (int) ($security_activity['total_pages'] ?? 1);
+$kpi_total_users = (int) ($snapshot['kpi_total_users'] ?? 0);
+$kpi_suspended = (int) ($snapshot['kpi_suspended'] ?? 0);
+$kpi_groups = (int) ($snapshot['kpi_groups'] ?? 0);
+$kpi_pending_jobs = (int) ($snapshot['kpi_pending_jobs'] ?? 0);
 $workspace_action_icon = static function (string $icon, string $label): string {
     $src = metis_home_url('assets/Images/icons/' . rawurlencode($icon) . '.svg');
 
     return '<img src="' . metis_escape_url($src) . '" alt="" aria-hidden="true"><span class="metis-sr-only">' . metis_escape_html($label) . '</span>';
-};
-$format_entity = static function (?string $entity_type, $entity_id) use ($sync_workspace_user_names, $sync_workspace_group_names, $sync_person_names): string {
-    $type = strtolower(trim((string) $entity_type));
-    $id = (int) $entity_id;
-    if ($type === 'workspace_user') return $id > 0 ? ($sync_workspace_user_names[$id] ?? 'Workspace user') : 'Workspace user';
-    if ($type === 'workspace_group') return $id > 0 ? ($sync_workspace_group_names[$id] ?? 'Workspace group') : 'Workspace group';
-    if ($type === 'person') return $id > 0 ? ($sync_person_names[$id] ?? 'Person') : 'Person';
-    return $type !== '' ? ucwords(str_replace('_', ' ', $type)) : 'Entity';
-};
-$format_entity_url = static function (?string $entity_type, $entity_id) use ($sync_workspace_user_urls, $sync_person_urls): string {
-    $type = strtolower(trim((string) $entity_type));
-    $id = (int) $entity_id;
-    if ($id < 1) return '';
-    if ($type === 'person') return (string) ($sync_person_urls[$id] ?? '');
-    if ($type === 'workspace_user') return (string) ($sync_workspace_user_urls[$id] ?? '');
-    return '';
-};
-$build_workspace_page_url = static function (int $next_sync_page, int $next_security_page): string {
-    $request_uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-    if ($request_uri === '') {
-        $request_uri = (string) metis_people_module_url('/workspace/');
-    }
-    $parts = parse_url($request_uri);
-    $path = (string) ($parts['path'] ?? '/metis/admin/people/workspace/');
-    $query_params = [];
-    if (!empty($parts['query'])) {
-        parse_str((string) $parts['query'], $query_params);
-        if (!is_array($query_params)) $query_params = [];
-    }
-    $sync_value = max(1, $next_sync_page);
-    $security_value = max(1, $next_security_page);
-    $query_params['sync_page'] = $sync_value;
-    $query_params['security_page'] = $security_value;
-    $query_string = http_build_query($query_params);
-    return $query_string !== '' ? ($path . '?' . $query_string) : $path;
 };
 ?>
 
@@ -538,43 +284,26 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                         </tr>
                     </thead>
                     <tbody id="metis-workspace-sync-log-rows">
-                    <?php foreach ($sync_jobs as $j) : ?>
-                        <?php
-                        $job_type = strtolower(trim((string) ($j['job_type'] ?? '')));
-                        $job_status = strtolower(trim((string) ($j['status'] ?? 'queued')));
-                        $job_title = $job_type_labels[$job_type] ?? ucwords(str_replace('_', ' ', $job_type));
-                        $job_time = $format_timestamp((string) ($j['created_at'] ?? ''));
-                        $job_error = trim((string) ($j['last_error'] ?? ''));
-                        $is_stripe_skip = stripos($job_error, 'stripe sync skipped: workspace email not set') !== false
-                            || stripos($job_error, 'stripe sync skipped: role is empty') !== false;
-                        if ($is_stripe_skip) {
-                            $job_error = '';
-                        }
-                        $effective_job_status = $is_stripe_skip && $job_status === 'failed' ? 'completed' : $job_status;
-                        $job_status_label = $format_status($effective_job_status);
-                        $job_status_class = in_array($effective_job_status, ['completed', 'synced'], true) ? ' metis-chip-success' : ($effective_job_status === 'failed' ? ' metis-chip-danger' : '');
-                        $entity_label = $format_entity((string) ($j['entity_type'] ?? ''), (int) ($j['entity_id'] ?? 0));
-                        $entity_url = $format_entity_url((string) ($j['entity_type'] ?? ''), (int) ($j['entity_id'] ?? 0));
-                        ?>
+                    <?php foreach (($sync_activity['rows'] ?? []) as $sync_row) : ?>
                         <tr class="metis-premium-row">
                             <td class="metis-premium-cell">
-                                <strong><?php echo metis_escape_html($job_title); ?></strong>
-                                <?php if ($job_error !== '') : ?>
-                                    <div class="metis-workspace-mini-error"><?php echo metis_escape_html('Failed: ' . substr($job_error, 0, 160)); ?></div>
+                                <strong><?php echo metis_escape_html((string) ($sync_row['title'] ?? 'Sync job')); ?></strong>
+                                <?php if (!empty($sync_row['error'])) : ?>
+                                    <div class="metis-workspace-mini-error"><?php echo metis_escape_html((string) $sync_row['error']); ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="metis-premium-cell">
-                                <?php if ($entity_url !== '') : ?>
-                                    <a class="metis-workspace-entity-link" href="<?php echo metis_escape_url($entity_url); ?>"><?php echo metis_escape_html($entity_label); ?></a>
+                                <?php if (!empty($sync_row['entity_url'])) : ?>
+                                    <a class="metis-workspace-entity-link" href="<?php echo metis_escape_url((string) $sync_row['entity_url']); ?>"><?php echo metis_escape_html((string) ($sync_row['entity_label'] ?? 'Entity')); ?></a>
                                 <?php else : ?>
-                                    <?php echo metis_escape_html($entity_label); ?>
+                                    <?php echo metis_escape_html((string) ($sync_row['entity_label'] ?? 'Entity')); ?>
                                 <?php endif; ?>
                             </td>
-                            <td class="metis-premium-cell"><span class="metis-chip<?php echo metis_escape_attr($job_status_class); ?>"><?php echo metis_escape_html($job_status_label); ?></span></td>
-                            <td class="metis-premium-cell"><?php echo metis_escape_html($job_time); ?></td>
+                            <td class="metis-premium-cell"><span class="metis-chip<?php $sync_status_class = trim((string) ($sync_row['status_class'] ?? '')); echo $sync_status_class !== '' ? ' ' . metis_escape_attr($sync_status_class) : ''; ?>"><?php echo metis_escape_html((string) ($sync_row['status_label'] ?? 'Unknown')); ?></span></td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html((string) ($sync_row['time'] ?? 'Unknown time')); ?></td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (empty($sync_jobs)) : ?>
+                    <?php if (empty($sync_activity['rows'])) : ?>
                         <tr class="metis-premium-row metis-workspace-empty-row">
                             <td class="metis-premium-cell" colspan="4">No sync jobs.</td>
                         </tr>
@@ -584,11 +313,11 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                     <div class="metis-workspace-log-pagination">
                         <span class="metis-muted" id="metis-workspace-sync-page-label">Page <?php echo metis_escape_html((string) $sync_page); ?> of <?php echo metis_escape_html((string) $sync_total_pages); ?></span>
                         <div class="metis-workspace-log-pagination-actions">
-                            <?php if ($sync_page > 1) : ?>
-                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) ($sync_page - 1)); ?>" data-security-page="<?php echo metis_escape_attr((string) $security_page); ?>">&larr; Previous</button>
+                            <?php if (!empty($sync_activity['has_prev'])) : ?>
+                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) ($sync_activity['prev_page'] ?? max(1, $sync_page - 1))); ?>" data-security-page="<?php echo metis_escape_attr((string) $security_page); ?>">&larr; Previous</button>
                             <?php endif; ?>
-                            <?php if ($sync_page < $sync_total_pages) : ?>
-                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) ($sync_page + 1)); ?>" data-security-page="<?php echo metis_escape_attr((string) $security_page); ?>">Next &rarr;</button>
+                            <?php if (!empty($sync_activity['has_next'])) : ?>
+                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) ($sync_activity['next_page'] ?? min($sync_total_pages, $sync_page + 1))); ?>" data-security-page="<?php echo metis_escape_attr((string) $security_page); ?>">Next &rarr;</button>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -603,48 +332,26 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                         </tr>
                     </thead>
                     <tbody id="metis-workspace-security-log-rows">
-                    <?php foreach ($security_actions as $s) : ?>
-                        <?php
-                        $action_type = strtolower(trim((string) ($s['action_type'] ?? '')));
-                        $action_status = strtolower(trim((string) ($s['status'] ?? 'pending')));
-                        $action_title = $security_action_labels[$action_type] ?? ucwords(str_replace('_', ' ', $action_type));
-                        $action_time = $format_timestamp((string) ($s['created_at'] ?? ''));
-                        $action_status_label = $format_status($action_status);
-                        $action_status_class = $action_status === 'completed' ? ' metis-chip-success' : ($action_status === 'failed' ? ' metis-chip-danger' : '');
-                        ?>
+                    <?php foreach (($security_activity['rows'] ?? []) as $security_row) : ?>
                         <tr class="metis-premium-row">
                             <td class="metis-premium-cell">
-                                <strong><?php echo metis_escape_html($action_title); ?></strong>
-                                <?php
-                                $security_reason = trim((string) ($s['reason'] ?? ''));
-                                if ($security_reason === 'bulk_workspace_action') $security_reason = 'Bulk update';
-                                if ($security_reason === 'person_offboarded') $security_reason = 'Offboarding';
-                                if ($security_reason === 'workspace_or_status_ineligible') $security_reason = '';
-                                ?>
-                                <?php if ($security_reason !== '') : ?>
-                                    <div class="metis-muted"><?php echo metis_escape_html('Reason: ' . $security_reason); ?></div>
+                                <strong><?php echo metis_escape_html((string) ($security_row['title'] ?? 'Security action')); ?></strong>
+                                <?php if (!empty($security_row['reason'])) : ?>
+                                    <div class="metis-muted"><?php echo metis_escape_html('Reason: ' . (string) $security_row['reason']); ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="metis-premium-cell">
-                                <?php
-                                $security_name = trim((string) ($s['person_display_name'] ?? ''));
-                                if ($security_name === '') $security_name = trim((string) ($s['display_name'] ?? ''));
-                                $security_name = $normalize_person_name($security_name);
-                                if ($security_name === '') $security_name = 'Workspace user';
-                                $security_pid = trim((string) ($s['person_pid'] ?? ''));
-                                $security_url = $security_pid !== '' ? metis_people_person_url($security_pid) : '';
-                                if ($security_url !== '') {
-                                    echo '<a class="metis-workspace-entity-link" href="' . metis_escape_url($security_url) . '">' . metis_escape_html($security_name) . '</a>';
-                                } else {
-                                    echo metis_escape_html($security_name);
-                                }
-                                ?>
+                                <?php if (!empty($security_row['user_url'])) : ?>
+                                    <a class="metis-workspace-entity-link" href="<?php echo metis_escape_url((string) $security_row['user_url']); ?>"><?php echo metis_escape_html((string) ($security_row['user_name'] ?? 'Workspace user')); ?></a>
+                                <?php else : ?>
+                                    <?php echo metis_escape_html((string) ($security_row['user_name'] ?? 'Workspace user')); ?>
+                                <?php endif; ?>
                             </td>
-                            <td class="metis-premium-cell"><span class="metis-chip<?php echo metis_escape_attr($action_status_class); ?>"><?php echo metis_escape_html($action_status_label); ?></span></td>
-                            <td class="metis-premium-cell"><?php echo metis_escape_html($action_time); ?></td>
+                            <td class="metis-premium-cell"><span class="metis-chip<?php $security_status_class = trim((string) ($security_row['status_class'] ?? '')); echo $security_status_class !== '' ? ' ' . metis_escape_attr($security_status_class) : ''; ?>"><?php echo metis_escape_html((string) ($security_row['status_label'] ?? 'Unknown')); ?></span></td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html((string) ($security_row['time'] ?? 'Unknown time')); ?></td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (empty($security_actions)) : ?>
+                    <?php if (empty($security_activity['rows'])) : ?>
                         <tr class="metis-premium-row metis-workspace-empty-row">
                             <td class="metis-premium-cell" colspan="4">No security actions.</td>
                         </tr>
@@ -654,11 +361,11 @@ $build_workspace_page_url = static function (int $next_sync_page, int $next_secu
                     <div class="metis-workspace-log-pagination">
                         <span class="metis-muted" id="metis-workspace-security-page-label">Page <?php echo metis_escape_html((string) $security_page); ?> of <?php echo metis_escape_html((string) $security_total_pages); ?></span>
                         <div class="metis-workspace-log-pagination-actions">
-                            <?php if ($security_page > 1) : ?>
-                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) $sync_page); ?>" data-security-page="<?php echo metis_escape_attr((string) ($security_page - 1)); ?>">&larr; Previous</button>
+                            <?php if (!empty($security_activity['has_prev'])) : ?>
+                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) $sync_page); ?>" data-security-page="<?php echo metis_escape_attr((string) ($security_activity['prev_page'] ?? max(1, $security_page - 1))); ?>">&larr; Previous</button>
                             <?php endif; ?>
-                            <?php if ($security_page < $security_total_pages) : ?>
-                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) $sync_page); ?>" data-security-page="<?php echo metis_escape_attr((string) ($security_page + 1)); ?>">Next &rarr;</button>
+                            <?php if (!empty($security_activity['has_next'])) : ?>
+                                <button type="button" class="metis-workspace-page-link" data-sync-page="<?php echo metis_escape_attr((string) $sync_page); ?>" data-security-page="<?php echo metis_escape_attr((string) ($security_activity['next_page'] ?? min($security_total_pages, $security_page + 1))); ?>">Next &rarr;</button>
                             <?php endif; ?>
                         </div>
                     </div>

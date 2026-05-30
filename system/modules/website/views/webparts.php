@@ -170,8 +170,8 @@ if ( ! metis_website_require_view_permission( 'webparts' ) ) {
     }
 
     function toast(message, type) {
-        if (typeof window.metis_toast === 'function') {
-            window.metis_toast(message, type || 'info');
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[type || 'info'] === 'function') {
+            Metis.ui.toast[type || 'info'](String(message || ''));
         }
     }
 

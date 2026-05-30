@@ -1,28 +1,9 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-$transactions_table = Metis_Tables::get( 'transactions' );
 $base_url           = metis_donations_base_url();
-
-// -------------------------------------------------------------------------
-// Fetch all campaigns with transaction aggregates
-// -------------------------------------------------------------------------
-$campaigns = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll( "
-    SELECT
-        c.*,
-        COUNT( t.id )        AS gift_count,
-        SUM( t.amount )      AS total_raised,
-        MAX( t.tran_date )   AS last_gift_date
-    FROM {$campaigns_table} c
-    LEFT JOIN {$transactions_table} t ON t.campaign_code = c.cid
-    GROUP BY c.id
-    ORDER BY c.active DESC, c.cname ASC
-" ) ?: [] );
+$snapshot = \Metis\Modules\Donations\ReadService::campaignsSnapshot();
+$campaigns = $snapshot['campaigns'] ?? [];
 
 // -------------------------------------------------------------------------
 // Parse goals field → current year goal amount
@@ -30,7 +11,8 @@ $campaigns = array_map( static function ( array $row ) {
 // -------------------------------------------------------------------------
 // metis_parse_goals() is defined in donations bootstrap
 
-$current_year = (int) date( 'Y' );
+$current_year = (int) ( $snapshot['current_year'] ?? (int) date( 'Y' ) );
+$year_raised_by_campaign = $snapshot['year_raised_by_campaign'] ?? [];
 ?>
 
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Campaigns' ) ); ?></h1>
@@ -84,15 +66,7 @@ $current_year = (int) date( 'Y' );
             $goals         = metis_parse_goals( $c->goals );
             $year_goal     = $goals[ $current_year ] ?? null;
             $total_raised  = (float) ( $c->total_raised ?? 0 );
-            $year_raised   = 0.0;
-
-            // Calculate current-year raised from transactions
-            $year_raised_raw = $db->scalar(
-                "SELECT SUM(amount) FROM {$transactions_table}
-                 WHERE campaign_code = %s AND YEAR(tran_date) = %d",
-                [ $c->cid, $current_year ]
-            );
-            $year_raised = (float) ( $year_raised_raw ?? 0 );
+            $year_raised   = (float) ( $year_raised_by_campaign[ (string) ( $c->cid ?? '' ) ] ?? 0 );
 
             $pct         = ( $year_goal && $year_goal > 0 ) ? min( 100, round( ( $year_raised / $year_goal ) * 100, 1 ) ) : null;
             $campaign_url = metis_donations_detail_url( 'campaign', (string) $c->cid );

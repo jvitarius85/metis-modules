@@ -9,18 +9,13 @@ $can_workspace_manage = function_exists('metis_people_can_workspace_manage') ? m
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-$people_table = Metis_Tables::get('people');
-$roles_table = Metis_Tables::get('people_roles');
-$workspace_groups_table = Metis_Tables::get('people_workspace_groups');
-$workspace_users_table = Metis_Tables::get('people_workspace_users');
-$positions_table = Metis_Tables::get('people_positions');
-$people = $db->fetchAll("SELECT pid, display_name, email FROM {$people_table} ORDER BY display_name ASC, email ASC LIMIT 400") ?: [];
-$roles = $db->fetchAll("SELECT role_key, role_name FROM {$roles_table} WHERE role_domain='metis' ORDER BY role_name ASC") ?: [];
-$stripe_roles = $db->fetchAll("SELECT role_key, role_name FROM {$roles_table} WHERE role_domain='stripe' ORDER BY role_name ASC") ?: [];
-$workspace_groups = $db->fetchAll("SELECT group_email, group_name FROM {$workspace_groups_table} ORDER BY group_name ASC, group_email ASC") ?: [];
-$workspace_org_units = $db->fetchAll("SELECT org_unit_path FROM {$workspace_users_table} WHERE org_unit_path IS NOT NULL AND org_unit_path <> '' GROUP BY org_unit_path ORDER BY org_unit_path ASC") ?: [];
-$positions = $db->fetchAll("SELECT group_key, position_label FROM {$positions_table} ORDER BY group_key ASC, sort_order ASC, position_label ASC") ?: [];
+$snapshot = \Metis\Modules\People\ReadService::bulkActionsSnapshot();
+$people = $snapshot['people'] ?? [];
+$roles = $snapshot['roles'] ?? [];
+$stripe_roles = $snapshot['stripe_roles'] ?? [];
+$workspace_groups = $snapshot['workspace_groups'] ?? [];
+$workspace_org_units = $snapshot['workspace_org_units'] ?? [];
+$positions = $snapshot['positions'] ?? [];
 ?>
 
 <div class="metis-people-ops">

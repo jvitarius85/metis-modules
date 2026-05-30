@@ -7,13 +7,7 @@ if (!metis_newsletter_can_view()) {
 }
 
 metis_newsletter_ensure_schema();
-$db = metis_db();
-
 $can_manage = metis_newsletter_can_manage();
-
-$lists_table = Metis_Tables::get('newsletter_lists');
-$subs_table = Metis_Tables::get('newsletter_subs');
-$contacts_table = Metis_Tables::get('contacts');
 
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
@@ -24,37 +18,10 @@ $contact_url_base = metis_portal_url('contacts', 'contact');
 
 $selected_list_id = isset(metis_request_get()['list_id']) ? max(0, (int) metis_request_get()['list_id']) : 0;
 
-$lists = $db->fetchAll(
-    "SELECT l.id, l.list_key, l.name, l.description, l.is_active, l.updated_at,
-            COALESCE(SUM(CASE WHEN s.status='subscribed' THEN 1 ELSE 0 END), 0) AS subscribed_count,
-            COALESCE(SUM(CASE WHEN s.status IN ('bounced','rejected') THEN 1 ELSE 0 END), 0) AS blocked_count
-     FROM {$lists_table} l
-     LEFT JOIN {$subs_table} s ON s.list_id = l.id
-     GROUP BY l.id
-     ORDER BY l.name ASC",
-) ?: [];
-
-$selected_list = null;
-foreach ($lists as $list_row) {
-    if ((int) ($list_row['id'] ?? 0) === $selected_list_id) {
-        $selected_list = $list_row;
-        break;
-    }
-}
-
-$list_subscribers = [];
-if ($selected_list_id > 0) {
-    $list_subscribers = $db->fetchAll(
-        "SELECT s.id, s.status, s.updated_at, c.cid, c.first_name, c.last_name, c.email
-         FROM {$subs_table} s
-         INNER JOIN {$contacts_table} c ON c.id = s.contact_id
-         WHERE s.list_id = %d
-           AND s.status = 'subscribed'
-         ORDER BY c.first_name ASC, c.last_name ASC, c.email ASC
-         LIMIT 500",
-        [ $selected_list_id ]
-    ) ?: [];
-}
+$snapshot = \Metis\Modules\Newsletter\ReadService::listsSnapshot( $selected_list_id );
+$lists = is_array($snapshot['lists'] ?? null) ? $snapshot['lists'] : [];
+$selected_list = is_array($snapshot['selected_list'] ?? null) ? $snapshot['selected_list'] : null;
+$list_subscribers = is_array($snapshot['list_subscribers'] ?? null) ? $snapshot['list_subscribers'] : [];
 ?>
 
 <div class="metis-newsletter" data-can-manage="<?php echo metis_escape_attr($can_manage ? '1' : '0'); ?>">

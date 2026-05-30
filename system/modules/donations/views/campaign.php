@@ -1,11 +1,6 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$contacts_table     = Metis_Tables::get( 'contacts' );
 $base_url           = metis_donations_base_url();
 
 $cid = metis_donations_request_identifier( 'cid', 'campaign' );
@@ -16,9 +11,8 @@ if ( $cid === '' ) : ?>
     <a href="<?php echo metis_escape_url( $base_url . '/campaigns/' ); ?>" class="metis-btn metis-btn-xs">← Back to Campaigns</a>
     <?php return;
 endif;
-
-$campaign = $db->fetchOne( "SELECT * FROM {$campaigns_table} WHERE cid = %s LIMIT 1", [ $cid ] );
-$campaign = $campaign ? (object) $campaign : null;
+$snapshot = \Metis\Modules\Donations\ReadService::campaignDetailSnapshot( $cid );
+$campaign = $snapshot['campaign'] ?? null;
 
 // Decode base64 cdesc if it doesn't look like HTML
 if ( $campaign && ! empty( $campaign->cdesc ) ) {
@@ -27,9 +21,8 @@ if ( $campaign && ! empty( $campaign->cdesc ) ) {
     if ( strpos( $raw, '<' ) === false ) {
         $decoded = base64_decode( $raw, true );
         if ( $decoded !== false && $decoded !== $raw ) {
-            // Persist decoded HTML back to DB
-            $db->update(
-                $campaigns_table,
+            metis_db()->update(
+                Metis_Tables::get( 'campaigns' ),
                 [ 'cdesc' => $decoded ],
                 [ 'cid'   => $cid ]
             );
@@ -44,48 +37,9 @@ if ( ! $campaign ) : ?>
     <a href="<?php echo metis_escape_url( $base_url . '/campaigns/' ); ?>" class="metis-btn metis-btn-xs">← Back to Campaigns</a>
     <?php return;
 endif;
-
-// -------------------------------------------------------------------------
-// Transaction aggregates
-// -------------------------------------------------------------------------
-$agg = (object) ( $db->fetchOne( "
-    SELECT
-        COUNT(*)         AS gift_count,
-        SUM(amount)      AS total_raised,
-        SUM(amount + IFNULL(fee, 0)) AS total_gross,
-        MIN(tran_date)   AS first_gift,
-        MAX(tran_date)   AS last_gift,
-        COUNT(DISTINCT did) AS donor_count
-    FROM {$transactions_table}
-    WHERE campaign_code = %s
-", [ $cid ] ) ?: [] );
-
-// Annual breakdown
-$yearly = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll( "
-    SELECT
-        YEAR(tran_date)  AS year,
-        COUNT(*)         AS gift_count,
-        SUM(amount)      AS raised,
-        COUNT(DISTINCT did) AS donors
-    FROM {$transactions_table}
-    WHERE campaign_code = %s
-    GROUP BY YEAR(tran_date)
-    ORDER BY year DESC
-", [ $cid ] ) ?: [] );
-
-// Recent transactions
-$transactions = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll( "
-    SELECT t.*, c.first_name, c.last_name, c.email
-    FROM {$transactions_table} t
-    LEFT JOIN {$contacts_table} c ON c.did = t.did
-    WHERE t.campaign_code = %s
-    ORDER BY t.tran_date DESC, t.id DESC
-    LIMIT 100
-", [ $cid ] ) ?: [] );
+$agg = $snapshot['agg'] ?? (object) [];
+$yearly = $snapshot['yearly'] ?? [];
+$transactions = $snapshot['transactions'] ?? [];
 
 // -------------------------------------------------------------------------
 // Parse goals
@@ -97,13 +51,7 @@ krsort( $goals_raw );
 $goals        = $goals_raw;
 $current_year = (int) date( 'Y' );
 $year_goal    = $goals[ $current_year ] ?? null;
-
-// Current-year raised
-$year_raised_raw = $db->scalar(
-    "SELECT SUM(amount) FROM {$transactions_table} WHERE campaign_code = %s AND YEAR(tran_date) = %d",
-    [ $cid, $current_year ]
-);
-$year_raised = (float) ( $year_raised_raw ?? 0 );
+$year_raised = (float) ( $snapshot['year_raised'] ?? 0 );
 $year_pct    = ( $year_goal && $year_goal > 0 ) ? min( 100, round( ( $year_raised / $year_goal ) * 100, 1 ) ) : null;
 
 $nonce = metis_runtime_create_nonce( 'metis_campaign_edit' );

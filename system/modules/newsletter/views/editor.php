@@ -33,20 +33,7 @@ $editor_id = 0;
 $editor_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_newsletter' ) : '';
 
 if ( $editor_key !== '' ) {
-    $db = metis_db();
-    if ( $context === 'newsletter_template' ) {
-        $templates_table = \Metis_Tables::get( 'newsletter_templates' );
-        $editor_id = (int) $db->scalar(
-            "SELECT id FROM {$templates_table} WHERE template_code = %s LIMIT 1",
-            [ $editor_key ]
-        );
-    } else {
-        $campaigns_table = \Metis_Tables::get( 'newsletter_campaigns' );
-        $editor_id = (int) $db->scalar(
-            "SELECT id FROM {$campaigns_table} WHERE campaign_code = %s LIMIT 1",
-            [ $editor_key ]
-        );
-    }
+    $editor_id = \Metis\Modules\Newsletter\ReadService::editorId( $editor_key, $context );
 }
 ?>
 <div id="metis-editor-inline-root"></div>

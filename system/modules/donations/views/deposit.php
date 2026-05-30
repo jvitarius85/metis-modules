@@ -1,13 +1,6 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$deposits_table     = Metis_Tables::get( 'deposits' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-
 $base_url     = metis_donations_base_url();
 $deposit_code = metis_donations_request_identifier( 'id', 'deposit' );
 
@@ -15,33 +8,14 @@ if ( ! $deposit_code ) {
     echo '<p class="metis-muted">Invalid deposit.</p>';
     return;
 }
-
-$deposit = $db->fetchOne(
-    "SELECT * FROM {$deposits_table} WHERE provider_ref = %s OR id = %s LIMIT 1",
-    [ $deposit_code, $deposit_code ]
-);
-$deposit = $deposit ? (object) $deposit : null;
+$snapshot = \Metis\Modules\Donations\ReadService::depositSnapshot( $deposit_code );
+$deposit = $snapshot['deposit'] ?? null;
 
 if ( ! $deposit ) {
     echo '<p class="metis-muted">Deposit not found.</p>';
     return;
 }
-
-// ── Transactions ──────────────────────────────────────────────────────────
-$transactions = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "SELECT t.*,
-            TRIM( CONCAT( IFNULL(c.first_name,''), ' ', IFNULL(c.last_name,'') ) ) AS donor_name,
-            c.email AS donor_email,
-            camp.cname AS campaign_name
-     FROM {$transactions_table} t
-     LEFT JOIN {$contacts_table}  c    ON c.did  = t.did
-     LEFT JOIN {$campaigns_table} camp ON camp.cid = t.campaign_code
-     WHERE t.deposit_batch_id = %s
-     ORDER BY t.tran_date ASC",
-    [ $deposit->provider_ref ]
-) ?: [] );
+$transactions = $snapshot['transactions'] ?? [];
 
 // ── Adjustments from deposit meta ─────────────────────────────────────────
 $meta            = is_string( $deposit->meta ) ? ( json_decode( $deposit->meta, true ) ?: [] ) : [];

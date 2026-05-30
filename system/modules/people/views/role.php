@@ -8,13 +8,6 @@ if ( ! metis_people_can_view() ) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-
-$roles_table = Metis_Tables::get( 'people_roles' );
-$perms_table = Metis_Tables::get( 'people_permissions' );
-$role_perms_table = Metis_Tables::get( 'people_role_perms' );
-$user_roles_table = Metis_Tables::get( 'people_user_roles' );
-
 $can_manage = metis_people_can_manage();
 $is_new = isset( metis_request_get()['new'] ) && (string) metis_runtime_unslash( metis_request_get()['new'] ) === '1';
 $role_key_param = isset( metis_request_get()['role'] ) ? metis_key_clean( metis_runtime_unslash( metis_request_get()['role'] ) ) : '';
@@ -23,9 +16,9 @@ if ( ! in_array( $role_domain_param, [ 'metis', 'stripe', 'workspace' ], true ) 
     $role_domain_param = 'metis';
 }
 
-$role = null;
+$snapshot = \Metis\Modules\People\ReadService::roleDetailSnapshot( $role_key_param, $role_domain_param, $is_new );
+$role = $snapshot['role'] ?? null;
 if ( ! $is_new && $role_key_param !== '' ) {
-    $role = $db->fetchOne( "SELECT * FROM {$roles_table} WHERE role_key = %s AND role_domain = %s LIMIT 1", [ $role_key_param, $role_domain_param ] );
     if ( ! $role ) {
         echo '<div class="metis-alert metis-alert-error">Role not found.</div>';
         return;
@@ -35,43 +28,10 @@ if ( ! $is_new && $role_key_param !== '' ) {
     metis_set_page_title( 'New Role' );
 }
 
-$permissions_rows = $db->fetchAll( "SELECT * FROM {$perms_table} ORDER BY module_slug ASC, action_key ASC" ) ?: [];
-$permissions_by_module = [];
-foreach ( $permissions_rows as $perm ) {
-    $module_slug = (string) ( $perm['module_slug'] ?? '' );
-    if ( ! isset( $permissions_by_module[ $module_slug ] ) ) {
-        $permissions_by_module[ $module_slug ] = [];
-    }
-    $permissions_by_module[ $module_slug ][] = $perm;
-}
-
-$selected_permission_keys = [];
-$assigned_people = 0;
-$assigned_people_rows = [];
-if ( $role ) {
-    $selected_permission_keys = $db->column(
-        "SELECT p.permission_key
-         FROM {$role_perms_table} rp
-         INNER JOIN {$perms_table} p ON p.id = rp.permission_id
-         WHERE rp.role_id = %d AND rp.allow_access = 1",
-        [ (int) $role['id'] ]
-    ) ?: [];
-
-    $assigned_people = (int) $db->scalar(
-        "SELECT COUNT(*) FROM {$user_roles_table} WHERE role_id = %d",
-        [ (int) $role['id'] ]
-    );
-
-    $people_table = Metis_Tables::get( 'people' );
-    $assigned_people_rows = $db->fetchAll(
-        "SELECT p.pid, p.first_name, p.last_name, p.display_name, p.email
-         FROM {$user_roles_table} ur
-         INNER JOIN {$people_table} p ON p.id = ur.person_id
-         WHERE ur.role_id = %d
-         ORDER BY p.display_name ASC, p.email ASC",
-        [ (int) $role['id'] ]
-    ) ?: [];
-}
+$permissions_by_module = $snapshot['permissions_by_module'] ?? [];
+$selected_permission_keys = $snapshot['selected_permission_keys'] ?? [];
+$assigned_people = (int) ( $snapshot['assigned_people'] ?? 0 );
+$assigned_people_rows = $snapshot['assigned_people_rows'] ?? [];
 ?>
 
 <div class="metis-people-role-detail" data-can-manage="<?php echo metis_escape_attr( $can_manage ? '1' : '0' ); ?>">

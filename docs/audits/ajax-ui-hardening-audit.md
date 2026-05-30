@@ -244,7 +244,9 @@ Governance checker delta after the continuation pass:
 
 ## Current State
 
-The repository has moved materially beyond the baseline captured above.
+Last updated: 2026-05-30
+
+The repository moved materially beyond the baseline captured above.
 
 AJAX handler hardening completed in this refactor pass:
 
@@ -275,6 +277,44 @@ AJAX handler hardening completed in this refactor pass:
 - `system/modules/settings/assets/settings.ajax.php`
 - `system/modules/website/ajax/website.ajax.php`
 
+Additional canonical services introduced or materially strengthened during the pass:
+
+- `system/src/Metis/Core/Services/AjaxCodeLookupService.php`
+- `system/src/Metis/Modules/Contacts/AssociationService.php`
+- `system/src/Metis/Modules/Contacts/ContactMutationService.php`
+- `system/src/Metis/Modules/Contacts/ContactReadService.php`
+- `system/src/Metis/Modules/Contacts/MergeService.php`
+- `system/src/Metis/Modules/Donations/DonationsReportService.php`
+- `system/src/Metis/Modules/Donations/DonorIntelligenceService.php`
+- `system/src/Metis/Modules/Donations/ReadService.php`
+- `system/src/Metis/Modules/Donations/StripeDepositService.php`
+- `system/src/Metis/Modules/Donations/TransactionRecordService.php`
+- `system/src/Metis/Modules/Media/MediaLibraryService.php`
+- `system/src/Metis/Modules/Newsletter/CampaignService.php`
+- `system/src/Metis/Modules/Newsletter/ContactService.php`
+- `system/src/Metis/Modules/Newsletter/ReadService.php`
+- `system/src/Metis/Modules/Newsletter/SubscriptionService.php`
+- `system/src/Metis/Modules/Newsletter/TemplateService.php`
+- `system/src/Metis/Modules/People/AccessRequestService.php`
+- `system/src/Metis/Modules/People/LifecycleTaskService.php`
+- `system/src/Metis/Modules/People/MfaService.php`
+- `system/src/Metis/Modules/People/PermissionSimulationService.php`
+- `system/src/Metis/Modules/People/PersonIdentityService.php`
+- `system/src/Metis/Modules/People/PersonProfileService.php`
+- `system/src/Metis/Modules/People/ReadService.php`
+- `system/src/Metis/Modules/People/RoleManagementService.php`
+- `system/src/Metis/Modules/People/RoleTemplateService.php`
+- `system/src/Metis/Modules/People/WorkspaceActivityService.php`
+- `system/src/Metis/Modules/People/WorkspaceDirectoryService.php`
+- `system/src/Metis/Modules/People/WorkspaceGroupService.php`
+- `system/src/Metis/Modules/People/WorkspaceSyncJobService.php`
+- `system/src/Metis/Modules/People/WorkspaceUserService.php`
+- `system/src/Metis/Modules/Portal/BoardActionService.php`
+- `system/src/Metis/Modules/Portal/PortalDashboardService.php`
+- `system/src/Metis/Modules/Settings/SecurityOffenseService.php`
+- `system/src/Metis/Modules/Settings/SettingsTelemetryService.php`
+- `system/src/Metis/Modules/Website/Services/EditorOptionsService.php`
+
 Board-specific service consolidation completed:
 
 - `system/src/Metis/Modules/Board/ReadService.php`
@@ -288,15 +328,16 @@ Board-specific service consolidation completed:
 - `system/src/Metis/Modules/Board/PacketEmailService.php`
 - `system/src/Metis/Modules/Board/MeetingWorkflowService.php`
 
-Current governance checker status:
+Current governance status:
 
 - no current `Missing Permission Validation` findings
 - no current `Missing Nonce Validation` findings for the hardened handler set
 - `system/modules/board/assets/board.ajax.php` no longer appears on the raw-SQL handler list
 - `system/src/Metis/Core/Ajax/AjaxRuntime.php` is now off the raw-SQL governance list after moving code-resolution lookups into `system/src/Metis/Core/Services/AjaxCodeLookupService.php`
-- remaining governance debt is now concentrated in raw SQL still embedded in frontend view files
+- all previously identified raw-SQL frontend handler files have been moved behind canonical service or read-layer boundaries
+- all previously identified raw-SQL frontend view files have been moved behind canonical service or read-layer boundaries
 
-Current remaining raw-SQL view/runtime findings from the checker:
+View-layer consolidation completed in this refactor pass:
 
 - `system/modules/board/views/meeting.php`
 - `system/modules/contacts/views/contact.php`
@@ -332,7 +373,13 @@ Current remaining raw-SQL view/runtime findings from the checker:
 - `system/modules/profile/views/dashboard.php`
 - `system/modules/settings/views/_settings_bootstrap.php`
 
-Recommended next phase after handler hardening:
+Known remaining governance notes:
 
-- reduce raw SQL in views by moving data loading into the canonical services/repositories already introduced
-- refresh architecture docs after the handler/service consolidation so the canonical execution path and service map are current
+- broad raw-SQL grep output can still produce false positives for non-SQL literals such as Google API `DELETE` methods or schema DDL strings containing `ON UPDATE CURRENT_TIMESTAMP`
+- the governance checker is still heuristic and expensive because it lints the full PHP tree
+- future UI work should continue using the canonical `Metis.ui.*` helpers so drift does not reappear
+
+Recommended next phase after this pass:
+
+- tighten the governance checker so non-request-path DDL and transport literals are ignored without weakening real drift detection
+- add targeted regression tests around the newly centralized read and mutation services where harness coverage is available

@@ -11,8 +11,8 @@ var selectedPostIds = [];
 var openingFileDialog = false;
 
 function notify(message, level) {
-    if (typeof window.metis_toast === 'function') {
-        window.metis_toast(message, level || 'info');
+    if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[level || 'info'] === 'function') {
+        Metis.ui.toast[level || 'info'](String(message || ''));
         return;
     }
     if (window.console && typeof window.console.log === 'function') {

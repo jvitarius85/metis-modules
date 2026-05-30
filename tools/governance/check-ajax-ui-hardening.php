@@ -41,7 +41,9 @@ $fileList = static function () use ($root, $exclude): array {
     return $files;
 };
 
-foreach ($fileList() as $relative) {
+$allFiles = $fileList();
+
+foreach ($allFiles as $relative) {
     if (str_ends_with($relative, '.php')) {
         $phpFiles[] = $relative;
     }
@@ -125,10 +127,17 @@ foreach ($phpFiles as $relative) {
     if ($contents !== '' && preg_match($rawSqlPattern, $contents) === 1) {
         $addIssue('Raw SQL In Frontend Handlers', $relative);
     }
+
+    if (
+        $relative !== 'system/tests/ajax_ui_hardening_contract_test.php'
+        && preg_match('/window\.metis_(?:toast|confirm)\s*\(/u', $contents) === 1
+    ) {
+        $addIssue('Legacy UI Alias Usage', $relative);
+    }
 }
 
 $jsFiles = array_values(array_filter(
-    $fileList(),
+    $allFiles,
     static fn (string $relative): bool => str_ends_with($relative, '.js')
 ));
 
@@ -149,11 +158,18 @@ foreach ($jsFiles as $relative) {
         if (preg_match('/Metis\.modal\s*=(?!=)|Metis\.confirm\s*=(?!=)|window\.metis_confirm\s*=(?!=)/u', $contents) === 1) {
             $addIssue('Duplicate Modal Systems', $relative);
         }
+        if (
+            !str_starts_with($relative, 'system/tests/')
+            && preg_match('/window\.metis_(?:toast|confirm)\s*\(/u', $contents) === 1
+        ) {
+            $addIssue('Legacy UI Alias Usage', $relative);
+        }
     }
 }
 
 foreach ($phpFiles as $relative) {
     $path = $root . DIRECTORY_SEPARATOR . $relative;
+    $output = [];
     exec('php -l ' . escapeshellarg($path) . ' 2>&1', $output, $code);
     if ($code !== 0) {
         $addIssue('PHP Syntax', $relative . ' :: ' . implode(' ', $output));

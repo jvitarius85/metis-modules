@@ -7,8 +7,8 @@
 
 if (!$) {
     var fallbackNotify = function(message, level) {
-        if (typeof window.metis_toast === 'function') {
-            window.metis_toast(String(message || ''), level || 'error');
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[level || 'error'] === 'function') {
+            Metis.ui.toast[level || 'error'](String(message || ''));
             return;
         }
         if (window.console && typeof window.console.warn === 'function') {
@@ -57,11 +57,8 @@ if (!$) {
         return typeof cfg.nonce === 'string' ? cfg.nonce : '';
     };
     var fallbackConfirm = function(message, onConfirm, options) {
-        if (typeof window.metis_confirm === 'function') {
-            return window.metis_confirm(message, onConfirm, options || {});
-        }
-        if (window.Metis && Metis.confirm && typeof Metis.confirm.open === 'function') {
-            return Metis.confirm.open(Object.assign({}, options || {}, {
+        if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
+            return Metis.ui.confirm.open(Object.assign({}, options || {}, {
                 message: String(message || 'Are you sure?')
             })).then(function(confirmed) {
                 if (confirmed && typeof onConfirm === 'function') {
@@ -511,12 +508,8 @@ var MetisWebsite = {
     },
 
     _confirm: function(message, onConfirm, options) {
-        if (typeof window.metis_confirm === 'function') {
-            window.metis_confirm(String(message || ''), onConfirm, options || {});
-            return;
-        }
-        if (window.Metis && Metis.confirm && typeof Metis.confirm.open === 'function') {
-            Metis.confirm.open(Object.assign({}, options || {}, {
+        if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
+            Metis.ui.confirm.open(Object.assign({}, options || {}, {
                 message: String(message || 'Are you sure?')
             })).then(function(confirmed) {
                 if (confirmed && typeof onConfirm === 'function') {
@@ -1370,8 +1363,8 @@ if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
 
 var MetisPopupBuilder = {
     open: function() {
-        if (typeof window.metis_toast === "function") {
-            window.metis_toast("Popup legacy editor has been removed. Use simple editor workflows.", "warning");
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast.warning === 'function') {
+            Metis.ui.toast.warning("Popup legacy editor has been removed. Use simple editor workflows.");
         }
     }
 };

@@ -3,10 +3,6 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 $db = metis_db();
 
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-
 $base_url = metis_donations_base_url();
 $can_manage = function_exists( 'metis_donations_can_manage' ) && metis_donations_can_manage();
 $can_export = function_exists( 'metis_donations_can_export' ) && metis_donations_can_export();
@@ -111,35 +107,9 @@ if (
     }
 }
 
-// -------------------------------------------------------------------------
-// Fetch campaigns for offline entry
-// -------------------------------------------------------------------------
-$campaign_options = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "SELECT cid, cname, active
-     FROM {$campaigns_table}
-     ORDER BY active DESC, cname ASC, cid ASC"
-) ?: [] );
-
-// -------------------------------------------------------------------------
-// Fetch transactions
-// -------------------------------------------------------------------------
-$transactions = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll( "
-    SELECT
-        t.*,
-        c.cname      AS campaign_name,
-        d.first_name,
-        d.last_name,
-        d.email
-    FROM {$transactions_table} t
-    LEFT JOIN {$campaigns_table} c ON c.cid = t.campaign_code
-    LEFT JOIN {$contacts_table}  d ON d.did = t.did
-    ORDER BY t.tran_date DESC, t.id DESC
-    LIMIT 500
-" ) ?: [] );
+$snapshot = \Metis\Modules\Donations\ReadService::transactionsSnapshot();
+$campaign_options = $snapshot['campaign_options'] ?? [];
+$transactions = $snapshot['transactions'] ?? [];
 ?>
 
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Transactions' ) ); ?></h1>

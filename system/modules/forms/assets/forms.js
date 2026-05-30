@@ -2614,10 +2614,6 @@
       Metis.ui.toast[level](String(message || ''));
       return;
     }
-    if (typeof window.metis_toast === 'function') {
-      window.metis_toast(String(message || ''), level);
-      return;
-    }
     if (window.console && typeof window.console.warn === 'function') {
       window.console.warn(String(message || ''));
     }
@@ -2664,6 +2660,10 @@
 
   function setPublicSubmitting(button, submitting, pendingLabel = 'Submitting...') {
     if (!(button instanceof HTMLButtonElement)) return;
+    if (window.Metis && Metis.ui && Metis.ui.form && typeof Metis.ui.form.setSubmitting === 'function') {
+      Metis.ui.form.setSubmitting(button, submitting, {loadingLabel: pendingLabel});
+      return;
+    }
     if (!button.dataset.originalLabel) {
       button.dataset.originalLabel = button.textContent || 'Submit';
     }
@@ -2746,9 +2746,6 @@
   function confirmAction(message) {
     if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
       return Metis.ui.confirm.open({message});
-    }
-    if (typeof window.metis_confirm === 'function') {
-      return Promise.resolve(window.metis_confirm(String(message || ''), function() {}));
     }
     return Promise.resolve(false);
   }

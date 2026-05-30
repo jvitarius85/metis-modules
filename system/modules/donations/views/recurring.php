@@ -3,25 +3,12 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 use Metis\Modules\Donations\RecurringDonationsService;
 
-RecurringDonationsService::ensureSchema();
-$plans = RecurringDonationsService::listPlans();
-$campaign_options = metis_db()->fetchAll(
-    'SELECT cid, campaign_uid, cname FROM ' . Metis_Tables::get( 'campaigns' ) . ' ORDER BY active DESC, cname ASC LIMIT 500'
-);
-$active = count( array_filter( $plans, static fn ( array $row ): bool => (string) ( $row['status'] ?? '' ) === 'active' ) );
-$paused = count( array_filter( $plans, static fn ( array $row ): bool => (string) ( $row['status'] ?? '' ) === 'paused' ) );
-$monthly_total = array_sum( array_map( static function ( array $row ): float {
-    if ( (string) ( $row['status'] ?? '' ) !== 'active' ) {
-        return 0.0;
-    }
-    $amount = (float) ( $row['amount'] ?? 0 );
-    return match ( (string) ( $row['frequency'] ?? 'monthly' ) ) {
-        'quarterly' => $amount / 3,
-        'semiannual' => $amount / 6,
-        'annual' => $amount / 12,
-        default => $amount,
-    };
-}, $plans ) );
+$snapshot = \Metis\Modules\Donations\ReadService::recurringSnapshot();
+$plans = $snapshot['plans'] ?? [];
+$campaign_options = $snapshot['campaign_options'] ?? [];
+$active = (int) ( $snapshot['active'] ?? 0 );
+$paused = (int) ( $snapshot['paused'] ?? 0 );
+$monthly_total = (float) ( $snapshot['monthly_total'] ?? 0 );
 ?>
 
 <div class="metis-page-header">
@@ -115,7 +102,9 @@ $monthly_total = array_sum( array_map( static function ( array $row ): float {
         return fetch(metisAjax.ajax_url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body(action, fields) }).then(function(r) { return r.json(); });
     }
     function toast(message, type) {
-        if (typeof window.metis_toast === 'function') window.metis_toast(message, type || 'info');
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[type || 'info'] === 'function') {
+            Metis.ui.toast[type || 'info'](String(message || ''));
+        }
     }
     function esc(value) {
         return String(value || '').replace(/[&<>"']/g, function(ch) {

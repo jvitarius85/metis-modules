@@ -8,28 +8,12 @@ if (!metis_people_can_manage()) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-$positions_table = Metis_Tables::get('people_positions');
-$rows = $db->fetchAll(
-    "SELECT id, group_key, position_label, sort_order
-     FROM {$positions_table}
-     WHERE is_active = 1
-     ORDER BY group_key ASC, sort_order ASC, position_label ASC"
-) ?: [];
-
-$grouped = [
+$snapshot = \Metis\Modules\People\ReadService::positionsSnapshot();
+$grouped = $snapshot['grouped'] ?? [
     'board' => [],
     'staff' => [],
     'volunteer' => [],
 ];
-foreach ($rows as $row) {
-    $group_key = metis_key_clean((string) ($row['group_key'] ?? ''));
-    if (!isset($grouped[$group_key])) continue;
-    $grouped[$group_key][] = [
-        'id' => (int) ($row['id'] ?? 0),
-        'label' => (string) ($row['position_label'] ?? ''),
-    ];
-}
 ?>
 
 <div class="metis-people metis-people-positions-page" data-can-manage="1">

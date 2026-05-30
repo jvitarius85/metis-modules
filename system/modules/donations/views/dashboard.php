@@ -1,12 +1,6 @@
 <?php
 if ( ! defined( 'METIS_ROOT' ) ) exit;
 
-$db = metis_db();
-
-$contacts_table     = Metis_Tables::get( 'contacts' );
-$transactions_table = Metis_Tables::get( 'transactions' );
-$campaigns_table    = Metis_Tables::get( 'campaigns' );
-
 $base_url         = metis_donations_base_url();
 $dashboard_url    = $base_url . '/dashboard/';
 $donors_url       = $base_url . '/donors/';
@@ -15,277 +9,31 @@ $deposits_url     = $base_url . '/deposits/';
 $reports_url      = $base_url . '/reports/';
 $campaigns_url    = $base_url . '/campaigns/';
 
-$now_dt           = metis_current_datetime();
-$today_sql        = $now_dt->format( 'Y-m-d H:i:s' );
-$last_30_start    = $now_dt->modify( '-29 days' )->setTime( 0, 0, 0 )->format( 'Y-m-d H:i:s' );
-$prev_30_start    = $now_dt->modify( '-59 days' )->setTime( 0, 0, 0 )->format( 'Y-m-d H:i:s' );
-$prev_30_end      = $now_dt->modify( '-30 days' )->setTime( 23, 59, 59 )->format( 'Y-m-d H:i:s' );
-$month_start      = $now_dt->modify( 'first day of this month' )->setTime( 0, 0, 0 )->format( 'Y-m-d H:i:s' );
-$year_start       = $now_dt->setDate( (int) $now_dt->format( 'Y' ), 1, 1 )->setTime( 0, 0, 0 )->format( 'Y-m-d H:i:s' );
-$current_year     = (int) $now_dt->format( 'Y' );
-
-$kpis = (object) ( $db->fetchOne(
-    "
-    SELECT
-        COUNT(*) AS total_gifts,
-        COALESCE(SUM(amount), 0) AS lifetime_raised,
-        COALESCE(SUM(CASE WHEN tran_date >= %s THEN amount ELSE 0 END), 0) AS raised_30d,
-        COUNT(CASE WHEN tran_date >= %s THEN 1 END) AS gifts_30d,
-        COALESCE(SUM(CASE WHEN tran_date >= %s THEN amount ELSE 0 END), 0) AS raised_month,
-        COALESCE(SUM(CASE WHEN tran_date >= %s THEN amount ELSE 0 END), 0) AS raised_ytd,
-        COUNT(DISTINCT CASE WHEN tran_date >= %s AND did IS NOT NULL AND did <> '' THEN did END) AS donors_ytd,
-        COALESCE(SUM(
-            CASE
-                WHEN (deposit_batch_id IS NULL OR deposit_batch_id = '')
-                  AND LOWER(COALESCE(status, '')) = 'completed'
-                THEN amount
-                ELSE 0
-            END
-        ), 0) AS open_deposit_total,
-        COUNT(
-            CASE
-                WHEN (deposit_batch_id IS NULL OR deposit_batch_id = '')
-                  AND LOWER(COALESCE(status, '')) = 'completed'
-                THEN 1
-                ELSE NULL
-            END
-        ) AS open_deposit_count
-    FROM {$transactions_table}
-    ",
-    [ $last_30_start, $last_30_start, $month_start, $year_start, $year_start ]
-) ?: [] );
-
-$comparison = (object) ( $db->fetchOne(
-    "
-    SELECT
-        COALESCE(SUM(CASE WHEN tran_date BETWEEN %s AND %s THEN amount ELSE 0 END), 0) AS current_30d,
-        COALESCE(SUM(CASE WHEN tran_date BETWEEN %s AND %s THEN amount ELSE 0 END), 0) AS previous_30d,
-        COUNT(CASE WHEN tran_date BETWEEN %s AND %s THEN 1 ELSE NULL END) AS current_gifts,
-        COUNT(CASE WHEN tran_date BETWEEN %s AND %s THEN 1 ELSE NULL END) AS previous_gifts
-    FROM {$transactions_table}
-    ",
-    [ $last_30_start, $today_sql, $prev_30_start, $prev_30_end, $last_30_start, $today_sql, $prev_30_start, $prev_30_end ]
-) ?: [] );
-
-$campaign_counts = (object) ( $db->fetchOne(
-    "
-    SELECT
-        COUNT(*) AS total_campaigns,
-        SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active_campaigns
-    FROM {$campaigns_table}
-    "
-) ?: [] );
-
-$recent_transactions = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "
-    SELECT
-        t.tid,
-        t.did,
-        t.amount,
-        t.status,
-        t.payment_method,
-        t.tran_date,
-        t.deposit_batch_id,
-        t.platform,
-        c.cname AS campaign_name,
-        ct.first_name,
-        ct.last_name,
-        ct.email
-    FROM {$transactions_table} t
-    LEFT JOIN {$campaigns_table} c ON c.cid = t.campaign_code
-    LEFT JOIN {$contacts_table} ct ON ct.did = t.did
-    ORDER BY t.tran_date DESC, t.id DESC
-    LIMIT 8
-    "
-) ?: [] );
-
-$top_donors = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "
-    SELECT
-        t.did,
-        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(c.first_name, ''), ' ', COALESCE(c.last_name, ''))), ''), c.email, t.did) AS donor_name,
-        c.email,
-        COUNT(*) AS gift_count,
-        COALESCE(SUM(t.amount), 0) AS total_raised,
-        MAX(t.tran_date) AS last_gift_date
-    FROM {$transactions_table} t
-    LEFT JOIN {$contacts_table} c ON c.did = t.did
-    WHERE t.did IS NOT NULL
-      AND t.did <> ''
-    GROUP BY t.did
-    ORDER BY total_raised DESC, last_gift_date DESC
-    LIMIT 6
-    "
-) ?: [] );
-
-$top_campaigns = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "
-    SELECT
-        c.cid,
-        c.cname,
-        c.active,
-        c.type,
-        c.goals,
-        COALESCE(SUM(CASE WHEN YEAR(t.tran_date) = %d THEN t.amount ELSE 0 END), 0) AS year_raised,
-        COALESCE(SUM(t.amount), 0) AS lifetime_raised,
-        COUNT(t.id) AS gift_count
-    FROM {$campaigns_table} c
-    LEFT JOIN {$transactions_table} t ON t.campaign_code = c.cid
-    GROUP BY c.id
-    ORDER BY year_raised DESC, lifetime_raised DESC, c.cname ASC
-    LIMIT 5
-    ",
-    [ $current_year ]
-) ?: [] );
-
-$method_breakdown = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "
-    SELECT
-        COALESCE(NULLIF(payment_method, ''), 'unknown') AS payment_method,
-        COUNT(*) AS gift_count,
-        COALESCE(SUM(amount), 0) AS total_amount
-    FROM {$transactions_table}
-    GROUP BY COALESCE(NULLIF(payment_method, ''), 'unknown')
-    ORDER BY total_amount DESC, gift_count DESC
-    LIMIT 6
-    "
-) ?: [] );
-
-$platform_breakdown = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "
-    SELECT
-        COALESCE(NULLIF(platform, ''), 'unknown') AS platform_code,
-        COUNT(*) AS gift_count,
-        COALESCE(SUM(amount), 0) AS total_amount
-    FROM {$transactions_table}
-    GROUP BY COALESCE(NULLIF(platform, ''), 'unknown')
-    ORDER BY total_amount DESC, gift_count DESC
-    LIMIT 4
-    "
-) ?: [] );
-
-$open_deposit_rows = array_map( static function ( array $row ) {
-    return (object) $row;
-}, $db->fetchAll(
-    "
-    SELECT
-        COALESCE(NULLIF(platform, ''), 'unknown') AS platform_code,
-        COUNT(*) AS gift_count,
-        COALESCE(SUM(amount), 0) AS total_amount,
-        MIN(tran_date) AS oldest_tran_date
-    FROM {$transactions_table}
-    WHERE (deposit_batch_id IS NULL OR deposit_batch_id = '')
-      AND LOWER(COALESCE(status, '')) = 'completed'
-    GROUP BY COALESCE(NULLIF(platform, ''), 'unknown')
-    ORDER BY total_amount DESC, oldest_tran_date ASC
-    LIMIT 5
-    "
-) ?: [] );
-
-$daily_trend_raw = $db->fetchAll(
-    "
-    SELECT
-        DATE(tran_date) AS trend_day,
-        COALESCE(SUM(amount), 0) AS total_amount,
-        COUNT(*) AS gift_count
-    FROM {$transactions_table}
-    WHERE tran_date >= %s
-    GROUP BY DATE(tran_date)
-    ORDER BY trend_day ASC
-    ",
-    [ $last_30_start ]
-) ?: [];
-
-$monthly_trend_raw = $db->fetchAll(
-    "
-    SELECT
-        DATE_FORMAT(tran_date, '%%Y-%%m') AS trend_month,
-        COALESCE(SUM(amount), 0) AS total_amount
-    FROM {$transactions_table}
-    WHERE tran_date >= %s
-    GROUP BY DATE_FORMAT(tran_date, '%%Y-%%m')
-    ORDER BY trend_month ASC
-    ",
-    [ $now_dt->modify( '-11 months' )->modify( 'first day of this month' )->setTime( 0, 0, 0 )->format( 'Y-m-d H:i:s' ) ]
-) ?: [];
-
-$recent_deposits = array_slice( metis_get_deposits(), 0, 5 );
-
-$raised_30d      = (float) ( $kpis->raised_30d ?? 0 );
-$previous_30d    = (float) ( $comparison->previous_30d ?? 0 );
-$current_gifts   = (int) ( $comparison->current_gifts ?? 0 );
-$previous_gifts  = (int) ( $comparison->previous_gifts ?? 0 );
-$avg_gift_30d    = $current_gifts > 0 ? $raised_30d / $current_gifts : 0.0;
-$queue_total     = (float) ( $kpis->open_deposit_total ?? 0 );
-$queue_gifts     = (int) ( $kpis->open_deposit_count ?? 0 );
-$active_campaigns = (int) ( $campaign_counts->active_campaigns ?? 0 );
-$total_campaigns  = (int) ( $campaign_counts->total_campaigns ?? 0 );
-
-$raised_delta = $previous_30d > 0 ? ( ( $raised_30d - $previous_30d ) / $previous_30d ) * 100 : null;
-$gift_delta   = $previous_gifts > 0 ? ( ( $current_gifts - $previous_gifts ) / $previous_gifts ) * 100 : null;
-
-$format_delta = static function ( ?float $value, string $suffix = '%' ): array {
-    if ( $value === null ) {
-        return [ 'No prior period', 'neutral' ];
-    }
-
-    if ( abs( $value ) < 0.05 ) {
-        return [ 'Flat vs previous period', 'neutral' ];
-    }
-
-    $direction = $value > 0 ? 'up' : 'down';
-    $class     = $value > 0 ? 'positive' : 'negative';
-    return [ sprintf( '%s %s%s vs previous period', $direction, number_format( abs( $value ), 1 ), $suffix ), $class ];
-};
-
-[ $raised_delta_label, $raised_delta_class ] = $format_delta( $raised_delta );
-[ $gift_delta_label, $gift_delta_class ]     = $format_delta( $gift_delta );
-
-$daily_trend_map = [];
-foreach ( $daily_trend_raw as $row ) {
-    $daily_trend_map[ (string) $row['trend_day'] ] = [
-        'amount' => (float) $row['total_amount'],
-        'count'  => (int) $row['gift_count'],
-    ];
-}
-
-$daily_trend = [];
-for ( $i = 29; $i >= 0; $i-- ) {
-    $day = $now_dt->modify( '-' . $i . ' days' );
-    $key = $day->format( 'Y-m-d' );
-    $daily_trend[] = [
-        'key'    => $key,
-        'label'  => $day->format( 'M j' ),
-        'amount' => (float) ( $daily_trend_map[ $key ]['amount'] ?? 0 ),
-        'count'  => (int) ( $daily_trend_map[ $key ]['count'] ?? 0 ),
-    ];
-}
-
-$monthly_trend_map = [];
-foreach ( $monthly_trend_raw as $row ) {
-    $monthly_trend_map[ (string) $row['trend_month'] ] = (float) $row['total_amount'];
-}
-
-$monthly_trend = [];
-for ( $i = 11; $i >= 0; $i-- ) {
-    $month = $now_dt->modify( '-' . $i . ' months' );
-    $key   = $month->format( 'Y-m' );
-    $monthly_trend[] = [
-        'key'    => $key,
-        'label'  => $month->format( 'M' ),
-        'amount' => (float) ( $monthly_trend_map[ $key ] ?? 0 ),
-    ];
-}
+$snapshot = \Metis\Modules\Donations\ReadService::dashboardSnapshot();
+$current_year = (int) ( $snapshot['current_year'] ?? 0 );
+$current_month_label = (string) ( $snapshot['current_month_label'] ?? '' );
+$kpis = $snapshot['kpis'] ?? (object) [];
+$recent_transactions = $snapshot['recent_transactions'] ?? [];
+$top_donors = $snapshot['top_donors'] ?? [];
+$top_campaigns = $snapshot['top_campaigns'] ?? [];
+$method_breakdown = $snapshot['method_breakdown'] ?? [];
+$platform_breakdown = $snapshot['platform_breakdown'] ?? [];
+$open_deposit_rows = $snapshot['open_deposit_rows'] ?? [];
+$recent_deposits = $snapshot['recent_deposits'] ?? [];
+$raised_30d = (float) ( $snapshot['raised_30d'] ?? 0 );
+$current_gifts = (int) ( $snapshot['current_gifts'] ?? 0 );
+$avg_gift_30d = (float) ( $snapshot['avg_gift_30d'] ?? 0 );
+$queue_total = (float) ( $snapshot['queue_total'] ?? 0 );
+$queue_gifts = (int) ( $snapshot['queue_gifts'] ?? 0 );
+$covered_gifts = (int) ( $snapshot['covered_gifts'] ?? 0 );
+$active_campaigns = (int) ( $snapshot['active_campaigns'] ?? 0 );
+$total_campaigns = (int) ( $snapshot['total_campaigns'] ?? 0 );
+$raised_delta_label = (string) ( $snapshot['raised_delta_label'] ?? 'No prior period' );
+$raised_delta_class = (string) ( $snapshot['raised_delta_class'] ?? 'neutral' );
+$gift_delta_label = (string) ( $snapshot['gift_delta_label'] ?? 'No prior period' );
+$gift_delta_class = (string) ( $snapshot['gift_delta_class'] ?? 'neutral' );
+$daily_trend = $snapshot['daily_trend'] ?? [];
+$monthly_trend = $snapshot['monthly_trend'] ?? [];
 
 $build_line_chart = static function ( array $series, string $value_key, int $width = 640, int $height = 220 ): array {
     if ( empty( $series ) ) {
@@ -374,7 +122,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
         <article class="metis-donations-kpi">
             <div class="metis-donations-kpi-label">This month</div>
             <div class="metis-donations-kpi-value">$<?php echo number_format( (float) ( $kpis->raised_month ?? 0 ), 2 ); ?></div>
-            <div class="metis-donations-kpi-note"><?php echo metis_escape_html( $now_dt->format( 'F Y' ) ); ?></div>
+            <div class="metis-donations-kpi-note"><?php echo metis_escape_html( $current_month_label ); ?></div>
         </article>
         <article class="metis-donations-kpi">
             <div class="metis-donations-kpi-label">Year to date</div>
@@ -406,7 +154,7 @@ $monthly_chart = $build_line_chart( $monthly_trend, 'amount' );
         </div>
         <div class="metis-donations-pulse-card">
             <div class="metis-donations-pulse-label">Deposit coverage</div>
-            <div class="metis-donations-pulse-value"><?php echo $queue_gifts > 0 ? number_format( max( 0, (int) ( $kpis->total_gifts ?? 0 ) - $queue_gifts ) ) : number_format( (int) ( $kpis->total_gifts ?? 0 ) ); ?></div>
+            <div class="metis-donations-pulse-value"><?php echo number_format( $covered_gifts ); ?></div>
             <div class="metis-donations-pulse-note">Gifts already attached to a batch</div>
         </div>
     </section>

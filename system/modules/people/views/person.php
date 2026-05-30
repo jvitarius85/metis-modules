@@ -8,19 +8,13 @@ if ( ! metis_people_can_view() ) {
 metis_people_ensure_schema();
 metis_people_seed_permissions_and_roles();
 
-$db = metis_db();
-
-$people_table = Metis_Tables::get( 'people' );
-$roles_table = Metis_Tables::get( 'people_roles' );
-$user_roles_table = Metis_Tables::get( 'people_user_roles' );
-
 $can_manage = metis_people_can_manage();
 $is_new = isset( metis_request_get()['new'] ) && (string) metis_runtime_unslash( metis_request_get()['new'] ) === '1';
 $pid = isset( metis_request_get()['pid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_get()['pid'] ) ) : '';
 
-$person = null;
+$snapshot = \Metis\Modules\People\ReadService::personSnapshot( $pid, $is_new );
+$person = $snapshot['person'] ?? null;
 if ( ! $is_new && $pid !== '' ) {
-    $person = $db->fetchOne( "SELECT * FROM {$people_table} WHERE pid = %s LIMIT 1", [ $pid ] );
     if ( ! $person ) {
         echo '<div class="metis-alert metis-alert-error">Person not found.</div>';
         return;
@@ -30,99 +24,22 @@ if ( ! $is_new && $pid !== '' ) {
 } elseif ( $is_new ) {
     metis_set_page_title( 'New Person' );
 }
-
-$roles_rows = $db->fetchAll( "SELECT * FROM {$roles_table} ORDER BY role_domain ASC, role_name ASC" ) ?: [];
-$metis_roles = [];
-$stripe_roles = [ '' => 'No Stripe Access' ];
-$stripe_role_descriptions = [ '' => 'No Stripe dashboard access from this profile.' ];
-$workspace_roles = [ '' => 'No Workspace Role' ];
-foreach ( $roles_rows as $role_row ) {
-    $role_domain = (string) ( $role_row['role_domain'] ?? 'metis' );
-    $role_key = (string) ( $role_row['role_key'] ?? '' );
-    $role_name = (string) ( $role_row['role_name'] ?? $role_key );
-    $role_description = (string) ( $role_row['description'] ?? '' );
-    if ( $role_key === '' ) {
-        continue;
-    }
-    if ( $role_domain === 'stripe' ) {
-        $stripe_roles[ $role_key ] = $role_name;
-        $stripe_role_descriptions[ $role_key ] = $role_description;
-    } elseif ( $role_domain === 'workspace' ) {
-        $workspace_roles[ $role_key ] = $role_name;
-    } elseif ( $role_domain === 'metis' ) {
-        $metis_roles[] = $role_row;
-    }
-}
-if ( count( $stripe_roles ) > 1 ) {
-    $no_access = $stripe_roles[''];
-    $no_access_desc = $stripe_role_descriptions[''];
-    unset( $stripe_roles[''], $stripe_role_descriptions[''] );
-    asort( $stripe_roles, SORT_NATURAL | SORT_FLAG_CASE );
-    $stripe_roles = [ '' => $no_access ] + $stripe_roles;
-    $stripe_role_descriptions = [ '' => $no_access_desc ] + $stripe_role_descriptions;
-}
-if ( count( $workspace_roles ) > 1 ) {
-    $none = $workspace_roles[''];
-    unset( $workspace_roles[''] );
-    asort( $workspace_roles, SORT_NATURAL | SORT_FLAG_CASE );
-    $workspace_roles = [ '' => $none ] + $workspace_roles;
-}
-$selected_role_keys = [];
-$role_windows_by_key = [];
-
-if ( $person ) {
-    $role_rows = $db->fetchAll(
-        "SELECT r.role_key, ur.start_at, ur.end_at
-         FROM {$user_roles_table} ur
-         INNER JOIN {$roles_table} r ON r.id = ur.role_id
-         WHERE ur.person_id = %d",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    foreach ( $role_rows as $role_row ) {
-        $role_key = (string) ( $role_row['role_key'] ?? '' );
-        if ( $role_key === '' ) continue;
-        $selected_role_keys[] = $role_key;
-        $role_windows_by_key[ $role_key ] = [
-            'start_at' => (string) ( $role_row['start_at'] ?? '' ),
-            'end_at' => (string) ( $role_row['end_at'] ?? '' ),
-        ];
-    }
-}
-
-$person_email = (string) ( $person['email'] ?? '' );
-$first_name = (string) ( $person['first_name'] ?? '' );
-$last_name = (string) ( $person['last_name'] ?? '' );
-$full_name = trim( $first_name . ' ' . $last_name );
-$display_name = (string) ( $person['display_name'] ?? '' );
-$avatar_name = trim( (string) ( $person['display_name'] ?? '' ) );
-if ( $avatar_name === '' ) {
-    $avatar_name = trim( (string) ( $person['first_name'] ?? '' ) . ' ' . (string) ( $person['last_name'] ?? '' ) );
-}
-$avatar_src = metis_avatar_url( $avatar_name !== '' ? $avatar_name : $person_email, (string) ( $person['avatar_url'] ?? '' ), 160, (string) ( $person['pid'] ?? '' ) );
-$linked_donor_id = (string) ( $person['linked_donor_id'] ?? '' );
-$donor_profile_url = $linked_donor_id !== '' ? metis_portal_url( 'donations', 'donor' ) . '?id=' . rawurlencode( $linked_donor_id ) : '';
-$linked_donor_name = '';
-if ( $linked_donor_id !== '' ) {
-    $contacts_table = Metis_Tables::get( 'contacts' );
-    $linked_row = $db->fetchOne( "SELECT first_name, last_name, email FROM {$contacts_table} WHERE did = %s LIMIT 1", [ $linked_donor_id ] );
-    if ( $linked_row ) {
-        $linked_donor_name = trim( (string) ( $linked_row['first_name'] ?? '' ) . ' ' . (string) ( $linked_row['last_name'] ?? '' ) );
-        if ( $linked_donor_name === '' ) {
-            $linked_donor_name = (string) ( $linked_row['email'] ?? '' );
-        }
-    }
-}
-$current_stripe_role = (string) ( $person['stripe_role'] ?? '' );
-$known_stripe_roles = array_keys( $stripe_roles );
-if ( $current_stripe_role !== '' && ! in_array( $current_stripe_role, $known_stripe_roles, true ) ) {
-    $stripe_roles[ $current_stripe_role ] = $current_stripe_role;
-    $stripe_role_descriptions[ $current_stripe_role ] = 'Legacy Stripe role value stored on this profile.';
-}
-$current_workspace_role = (string) ( $person['workspace_role'] ?? '' );
-$known_workspace_roles = array_keys( $workspace_roles );
-if ( $current_workspace_role !== '' && ! in_array( $current_workspace_role, $known_workspace_roles, true ) ) {
-    $workspace_roles[ $current_workspace_role ] = $current_workspace_role;
-}
+$roles_rows = $snapshot['roles_rows'] ?? [];
+$metis_roles = $snapshot['metis_roles'] ?? [];
+$stripe_roles = $snapshot['stripe_roles'] ?? [ '' => 'No Stripe Access' ];
+$stripe_role_descriptions = $snapshot['stripe_role_descriptions'] ?? [ '' => 'No Stripe dashboard access from this profile.' ];
+$workspace_roles = $snapshot['workspace_roles'] ?? [ '' => 'No Workspace Role' ];
+$selected_role_keys = $snapshot['selected_role_keys'] ?? [];
+$role_windows_by_key = $snapshot['role_windows_by_key'] ?? [];
+$person_email = (string) ( $snapshot['person_email'] ?? '' );
+$first_name = (string) ( $snapshot['first_name'] ?? '' );
+$last_name = (string) ( $snapshot['last_name'] ?? '' );
+$full_name = (string) ( $snapshot['full_name'] ?? '' );
+$display_name = (string) ( $snapshot['display_name'] ?? '' );
+$avatar_src = (string) ( $snapshot['avatar_src'] ?? '' );
+$linked_donor_id = (string) ( $snapshot['linked_donor_id'] ?? '' );
+$donor_profile_url = (string) ( $snapshot['donor_profile_url'] ?? '' );
+$linked_donor_name = (string) ( $snapshot['linked_donor_name'] ?? '' );
 $lifecycle_status = (string) ( $person['lifecycle_status'] ?? 'active' );
 $manager_pid = (string) ( $person['manager_pid'] ?? '' );
 $department = (string) ( $person['department'] ?? '' );
@@ -132,287 +49,39 @@ $volunteer_position = (string) ( $person['volunteer_position'] ?? '' );
 $board_term_start = (string) ( $person['board_term_start'] ?? '' );
 $board_term_end = (string) ( $person['board_term_end'] ?? '' );
 $volunteer_area = (string) ( $person['volunteer_area'] ?? '' );
-$positions_table = Metis_Tables::get( 'people_positions' );
-$position_rows = [];
-if ( metis_people_table_exists( $positions_table ) ) {
-    $position_rows = $db->fetchAll(
-        "SELECT id, group_key, position_key, position_label, sort_order
-         FROM {$positions_table}
-         WHERE is_active = 1
-         ORDER BY group_key ASC, sort_order ASC, position_label ASC"
-    ) ?: [];
-}
-$position_options = [
-    'board' => [],
-    'staff' => [],
-    'volunteer' => [],
-];
-foreach ( $position_rows as $position_row ) {
-    $group_key = metis_key_clean( (string) ( $position_row['group_key'] ?? '' ) );
-    if ( ! isset( $position_options[ $group_key ] ) ) {
-        continue;
-    }
-    $position_label = trim( (string) ( $position_row['position_label'] ?? '' ) );
-    if ( $position_label === '' ) {
-        continue;
-    }
-    $position_options[ $group_key ][] = [
-        'id' => (int) ( $position_row['id'] ?? 0 ),
-        'label' => $position_label,
-    ];
-}
-$append_legacy_position = static function ( array &$options, string $value ): void {
-    $needle = trim( $value );
-    if ( $needle === '' ) {
-        return;
-    }
-    foreach ( $options as $option ) {
-        if ( strtolower( (string) ( $option['label'] ?? '' ) ) === strtolower( $needle ) ) {
-            return;
-        }
-    }
-    $options[] = [ 'id' => 0, 'label' => $needle ];
-};
-$append_legacy_position( $position_options['board'], $board_position );
-$append_legacy_position( $position_options['staff'], $staff_position );
-$append_legacy_position( $position_options['volunteer'], $volunteer_position );
-$email_notifications = ! isset( $person['email_notifications'] ) || (int) $person['email_notifications'] === 1;
-$requires_2fa = ! empty( $person['requires_2fa'] );
-$mfa_method = (string) ( $person['mfa_method'] ?? 'none' );
-$totp_enabled = ! empty( $person['totp_enabled'] );
-$passkey_enabled = ! empty( $person['passkey_enabled'] );
-$has_metis_password = false;
-if ( $person && ! empty( $person['id'] ) && function_exists( 'metis_auth_find_user' ) && function_exists( 'metis_auth_password_hash_for_authentication' ) ) {
-    $auth_user = metis_auth_find_user( 'person_id', (int) $person['id'] );
-    if ( is_array( $auth_user ) ) {
-        $has_metis_password = metis_auth_password_hash_for_authentication( $auth_user, $person ) !== '';
-    }
-}
-$notification_prefs = [];
-if ( ! empty( $person['notification_prefs_json'] ) ) {
-    $decoded_notification_prefs = json_decode( (string) $person['notification_prefs_json'], true );
-    if ( is_array( $decoded_notification_prefs ) ) {
-        $notification_prefs = $decoded_notification_prefs;
-    }
-}
-$notification_events = [
-    'contacts' => 'Contacts updates',
-    'donations' => 'Donations activity',
-    'people_access' => 'People access and role changes',
-    'security' => 'Security alerts',
-    'system' => 'System announcements',
-];
-$effective_permissions = [];
-$person_activity_rows = [];
-$person_request_rows = [];
-$person_document_rows = [];
-$person_emergency_rows = [];
-$person_passkey_rows = [];
-$person_lifecycle_tasks = [];
-$permissions_catalog = [];
-$workspace_linked_user_id = 0;
-$workspace_linked_email = '';
-$workspace_linked_suspended = false;
-$workspace_linked_protected = false;
-$workspace_linked_roles = [];
-$workspace_linked_groups = [];
-$workspace_role_name_by_key = [];
-$workspace_role_description_by_key = [];
-$workspace_group_options = [];
-$drive_folder_id = '';
-$drive_folder_name = '';
-$drive_folder_url = '';
-$can_attach_drive_folder = false;
-$drive_shared_id = '';
-$drive_users_root_id = '';
-$drive_users_root_name = 'Users';
-$workspace_groups_table = Metis_Tables::get( 'people_workspace_groups' );
-if ( $workspace_groups_table ) {
-    $workspace_group_options = $db->fetchAll(
-        "SELECT group_email, group_name
-         FROM {$workspace_groups_table}
-         WHERE group_email IS NOT NULL AND group_email <> ''
-         ORDER BY group_name ASC, group_email ASC"
-    ) ?: [];
-}
-if ( $person && ! empty( $person['id'] ) && function_exists( 'metis_drive_workspace_settings' ) ) {
-    $drive_cfg = metis_drive_workspace_settings();
-    if ( ! empty( $drive_cfg['ok'] ) ) {
-        $drive_shared_id = (string) ( $drive_cfg['shared_drive_id'] ?? '' );
-        if ( function_exists( 'metis_drive_get_users_root_folder' ) ) {
-            $users_root = metis_drive_get_users_root_folder( $drive_cfg, false );
-            if ( ! empty( $users_root['ok'] ) ) {
-                $drive_users_root_id = (string) ( $users_root['folder_id'] ?? '' );
-                $drive_users_root_name = (string) ( $users_root['folder_name'] ?? $drive_users_root_name );
-            }
-        }
-        $drive_user_folders_table = Metis_Tables::get( 'drive_user_folders' );
-        if ( $drive_user_folders_table && $drive_shared_id !== '' ) {
-            $folder_row = $db->fetchOne(
-                "SELECT folder_id, folder_name
-                 FROM {$drive_user_folders_table}
-                 WHERE drive_id = %s AND person_id = %d
-                 LIMIT 1",
-                [ $drive_shared_id, (int) $person['id'] ]
-            );
-            if ( $folder_row ) {
-                $drive_folder_id = (string) ( $folder_row['folder_id'] ?? '' );
-                $drive_folder_name = (string) ( $folder_row['folder_name'] ?? '' );
-            }
-            if ( $drive_folder_id === '' && function_exists( 'metis_drive_find_or_create_user_folder' ) && function_exists( 'metis_drive_ensure_schema' ) ) {
-                metis_drive_ensure_schema();
-                $auto_folder = metis_drive_find_or_create_user_folder( $drive_cfg, (int) $person['id'], true );
-                if ( ! empty( $auto_folder['ok'] ) && ! empty( $auto_folder['folder_id'] ) ) {
-                    $drive_folder_id = (string) ( $auto_folder['folder_id'] ?? '' );
-                    $drive_folder_name = (string) ( $auto_folder['folder_name'] ?? '' );
-                    if ( ! empty( $auto_folder['created'] ) && function_exists( 'metis_drive_log_action' ) ) {
-                        metis_drive_log_action( $drive_cfg, 'create_user_folder', [
-                            'folder_id' => $drive_folder_id,
-                            'item_name' => $drive_folder_name,
-                            'item_type' => 'folder',
-                            'details' => [
-                                'person_id' => (int) $person['id'],
-                                'pid' => (string) ( $person['pid'] ?? '' ),
-                                'source' => 'people_view_autocreate',
-                            ],
-                        ] );
-                    }
-                }
-            }
-            if ( $drive_folder_id !== '' && function_exists( 'metis_portal_url' ) ) {
-                $drive_folder_url = metis_add_query_arg(
-                    [ 'folder_id' => $drive_folder_id ],
-                    metis_portal_url( 'drive', 'dashboard' )
-                );
-            }
-            $can_attach_drive_folder = $can_manage;
-        }
-    }
-}
-if ( $person && ! empty( $person['id'] ) ) {
-    $perms_table = Metis_Tables::get( 'people_permissions' );
-    $role_perms_table = Metis_Tables::get( 'people_role_perms' );
-    $now = metis_current_time( 'mysql' );
-    $effective_permissions = $db->fetchAll(
-        "SELECT DISTINCT p.permission_key
-         FROM {$user_roles_table} ur
-         INNER JOIN {$role_perms_table} rp ON rp.role_id = ur.role_id AND rp.allow_access = 1
-         INNER JOIN {$perms_table} p ON p.id = rp.permission_id
-         WHERE ur.person_id = %d
-           AND (ur.start_at IS NULL OR ur.start_at <= %s)
-           AND (ur.end_at IS NULL OR ur.end_at >= %s)
-         ORDER BY p.permission_key ASC",
-        [ (int) $person['id'], $now, $now ]
-    ) ?: [];
-
-    $activity_table = Metis_Tables::get( 'people_activity' );
-    $requests_table = Metis_Tables::get( 'people_access_requests' );
-    $documents_table = Metis_Tables::get( 'people_documents' );
-    $emergency_table = Metis_Tables::get( 'people_emergency_access' );
-    $passkeys_table = Metis_Tables::get( 'people_passkeys' );
-    $tasks_table = Metis_Tables::get( 'people_lifecycle_tasks' );
-    $person_activity_rows = $db->fetchAll(
-        "SELECT activity_type, summary, created_at
-         FROM {$activity_table}
-         WHERE person_id = %d
-         ORDER BY created_at DESC
-         LIMIT 15",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    $person_request_rows = $db->fetchAll(
-        "SELECT ar.id, ar.request_code, ar.status, ar.reason, ar.created_at, r.role_name
-         FROM {$requests_table} ar
-         INNER JOIN {$roles_table} r ON r.id = ar.role_id
-         WHERE ar.target_person_id = %d
-         ORDER BY ar.created_at DESC
-         LIMIT 15",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    $person_document_rows = $db->fetchAll(
-        "SELECT id, doc_type, doc_label, storage_ref, remind_at, expires_at, lifecycle_status, created_at
-         FROM {$documents_table}
-         WHERE person_id = %d
-         ORDER BY created_at DESC
-         LIMIT 15",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    $person_emergency_rows = $db->fetchAll(
-        "SELECT id, reason, starts_at, ends_at, revoked_at, created_at
-         FROM {$emergency_table}
-         WHERE person_id = %d
-         ORDER BY created_at DESC
-         LIMIT 15",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    $person_passkey_rows = $db->fetchAll(
-        "SELECT id, label, created_at, last_used_at, revoked_at
-         FROM {$passkeys_table}
-         WHERE person_id = %d
-         ORDER BY created_at DESC
-        LIMIT 20",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    $person_lifecycle_tasks = $db->fetchAll(
-        "SELECT id, phase, task_label, status, due_at, completed_at
-         FROM {$tasks_table}
-         WHERE person_id = %d
-         ORDER BY phase ASC, status='pending' DESC, due_at ASC, created_at DESC
-         LIMIT 60",
-        [ (int) $person['id'] ]
-    ) ?: [];
-    $perms_table = Metis_Tables::get( 'people_permissions' );
-    $permissions_catalog = $db->fetchAll(
-        "SELECT module_slug, action_key, permission_key
-         FROM {$perms_table}
-         ORDER BY module_slug ASC, action_key ASC"
-    ) ?: [];
-
-    $workspace_users_table = Metis_Tables::get( 'people_workspace_users' );
-    $workspace_user_roles_table = Metis_Tables::get( 'people_workspace_user_roles' );
-    $workspace_group_members_table = Metis_Tables::get( 'people_workspace_group_members' );
-    $workspace_row = $db->fetchOne(
-        "SELECT id, primary_email, is_suspended, is_protected
-         FROM {$workspace_users_table}
-         WHERE person_id = %d
-            OR (primary_email = %s AND %s <> '')
-         ORDER BY person_id = %d DESC
-         LIMIT 1",
-        [
-            (int) $person['id'],
-            (string) ( $person['workspace_email'] ?? '' ),
-            (string) ( $person['workspace_email'] ?? '' ),
-            (int) $person['id'],
-        ]
-    );
-    if ( $workspace_row ) {
-        $workspace_linked_user_id = (int) ( $workspace_row['id'] ?? 0 );
-        $workspace_linked_email = (string) ( $workspace_row['primary_email'] ?? '' );
-        $workspace_linked_suspended = ! empty( $workspace_row['is_suspended'] );
-        $workspace_linked_protected = ! empty( $workspace_row['is_protected'] );
-        if ( $workspace_linked_user_id > 0 ) {
-            $workspace_linked_roles = $db->column(
-                "SELECT role_key FROM {$workspace_user_roles_table} WHERE workspace_user_id = %d ORDER BY role_key ASC",
-                [ $workspace_linked_user_id ]
-            ) ?: [];
-            $workspace_linked_groups = $db->column(
-                "SELECT wg.group_email
-                 FROM {$workspace_group_members_table} gm
-                 INNER JOIN {$workspace_groups_table} wg ON wg.id = gm.group_id
-                 WHERE gm.workspace_user_id = %d
-                 ORDER BY wg.group_email ASC",
-                [ $workspace_linked_user_id ]
-            ) ?: [];
-        }
-    }
-}
-foreach ( $roles_rows as $role_row ) {
-    $role_domain = (string) ( $role_row['role_domain'] ?? '' );
-    if ( $role_domain !== 'workspace' ) continue;
-    $role_key = (string) ( $role_row['role_key'] ?? '' );
-    if ( $role_key === '' ) continue;
-    $workspace_role_name_by_key[ $role_key ] = (string) ( $role_row['role_name'] ?? $role_key );
-    $workspace_role_description_by_key[ $role_key ] = (string) ( $role_row['description'] ?? '' );
-}
+$position_options = $snapshot['position_options'] ?? [ 'board' => [], 'staff' => [], 'volunteer' => [] ];
+$email_notifications = ! empty( $snapshot['email_notifications'] );
+$requires_2fa = ! empty( $snapshot['requires_2fa'] );
+$mfa_method = (string) ( $snapshot['mfa_method'] ?? 'none' );
+$totp_enabled = ! empty( $snapshot['totp_enabled'] );
+$passkey_enabled = ! empty( $snapshot['passkey_enabled'] );
+$has_metis_password = ! empty( $snapshot['has_metis_password'] );
+$notification_prefs = $snapshot['notification_prefs'] ?? [];
+$notification_events = $snapshot['notification_events'] ?? [];
+$effective_permissions = $snapshot['effective_permissions'] ?? [];
+$person_activity_rows = $snapshot['person_activity_rows'] ?? [];
+$person_request_rows = $snapshot['person_request_rows'] ?? [];
+$person_document_rows = $snapshot['person_document_rows'] ?? [];
+$person_emergency_rows = $snapshot['person_emergency_rows'] ?? [];
+$person_passkey_rows = $snapshot['person_passkey_rows'] ?? [];
+$person_lifecycle_tasks = $snapshot['person_lifecycle_tasks'] ?? [];
+$permissions_catalog = $snapshot['permissions_catalog'] ?? [];
+$workspace_linked_user_id = (int) ( $snapshot['workspace_linked_user_id'] ?? 0 );
+$workspace_linked_email = (string) ( $snapshot['workspace_linked_email'] ?? '' );
+$workspace_linked_suspended = ! empty( $snapshot['workspace_linked_suspended'] );
+$workspace_linked_protected = ! empty( $snapshot['workspace_linked_protected'] );
+$workspace_linked_roles = $snapshot['workspace_linked_roles'] ?? [];
+$workspace_linked_groups = $snapshot['workspace_linked_groups'] ?? [];
+$workspace_role_name_by_key = $snapshot['workspace_role_name_by_key'] ?? [];
+$workspace_role_description_by_key = $snapshot['workspace_role_description_by_key'] ?? [];
+$workspace_group_options = $snapshot['workspace_group_options'] ?? [];
+$drive_folder_id = (string) ( $snapshot['drive_folder_id'] ?? '' );
+$drive_folder_name = (string) ( $snapshot['drive_folder_name'] ?? '' );
+$drive_folder_url = (string) ( $snapshot['drive_folder_url'] ?? '' );
+$can_attach_drive_folder = ! empty( $snapshot['can_attach_drive_folder'] ) && $can_manage;
+$drive_shared_id = (string) ( $snapshot['drive_shared_id'] ?? '' );
+$drive_users_root_id = (string) ( $snapshot['drive_users_root_id'] ?? '' );
+$drive_users_root_name = (string) ( $snapshot['drive_users_root_name'] ?? 'Users' );
 if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
     function metis_people_workspace_label_from_key( string $role_key, string $description = '' ): string {
         $label = trim( $role_key );
