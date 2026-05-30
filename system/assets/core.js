@@ -1204,8 +1204,8 @@ Metis.ui.select = (function() {
             return isEnhanceable(scope) ? [scope] : [];
         }
 
-        var selectList = Array.prototype.slice.call(scope.querySelectorAll('select.metis-select'));
-        if (scope instanceof HTMLElement && scope.matches('select.metis-select')) {
+        var selectList = Array.prototype.slice.call(scope.querySelectorAll('select.metis-select, select[data-metis-ui-select="1"]'));
+        if (scope instanceof HTMLElement && scope.matches('select.metis-select, select[data-metis-ui-select="1"]')) {
             selectList.unshift(scope);
         }
 
@@ -1242,13 +1242,9 @@ Metis.ui.select = (function() {
 
         var trigger = document.createElement('button');
         trigger.type = 'button';
-        trigger.className = 'metis-select metis-ui-select__trigger';
+        trigger.className = buildTriggerClass(select);
         trigger.setAttribute('aria-haspopup', 'listbox');
         trigger.setAttribute('aria-expanded', 'false');
-
-        var label = document.createElement('span');
-        label.className = 'metis-ui-select__label';
-        trigger.appendChild(label);
 
         var panel = document.createElement('div');
         panel.className = 'metis-ui-select__panel';
@@ -1340,10 +1336,12 @@ Metis.ui.select = (function() {
         if (!isEnhanceable(select)) return;
         var wrapper = ensureWrapper(select);
         var trigger = wrapper.querySelector('.metis-ui-select__trigger');
-        var label = wrapper.querySelector('.metis-ui-select__label');
         var panel = wrapper.querySelector('.metis-ui-select__panel');
         var list = wrapper.querySelector('.metis-ui-select__list');
-        if (!trigger || !label || !panel || !list) return;
+        if (!trigger || !panel || !list) return;
+
+        trigger.className = buildTriggerClass(select);
+        applyVariant(wrapper, select);
 
         var selectId = ensureId(select);
         var listId = selectId + '-listbox';
@@ -1357,10 +1355,15 @@ Metis.ui.select = (function() {
 
         var selectedIndex = select.selectedIndex >= 0 ? select.selectedIndex : 0;
         var selectedOption = select.options[selectedIndex] || select.options[0] || null;
-        var selectedText = selectedOption ? String(selectedOption.text || '').trim() : '';
         var isPlaceholder = !select.value && selectedOption && String(selectedOption.value || '') === '';
 
-        label.textContent = selectedText || 'Select…';
+        trigger.innerHTML = '';
+        renderOptionContent(trigger, select, selectedOption);
+        var caret = document.createElement('span');
+        caret.className = 'metis-ui-select__caret';
+        caret.setAttribute('aria-hidden', 'true');
+        caret.textContent = '▾';
+        trigger.appendChild(caret);
         trigger.classList.toggle('is-placeholder', !!isPlaceholder);
 
         list.innerHTML = '';
@@ -1372,13 +1375,90 @@ Metis.ui.select = (function() {
             optionButton.setAttribute('data-metis-select-value', String(option.value || ''));
             optionButton.setAttribute('aria-selected', option.selected ? 'true' : 'false');
             optionButton.disabled = option.disabled;
-            optionButton.textContent = String(option.text || '').trim() || ' ';
             optionButton.dataset.optionIndex = String(index);
             optionButton.tabIndex = option.selected && !option.disabled ? 0 : -1;
             optionButton.classList.toggle('is-selected', option.selected);
             optionButton.classList.toggle('is-placeholder', String(option.value || '') === '');
+            renderOptionContent(optionButton, select, option);
             list.appendChild(optionButton);
         });
+    }
+
+    function buildTriggerClass(select) {
+        var baseClass = String(select.dataset.metisSelectTriggerClass || 'metis-select').trim() || 'metis-select';
+        return baseClass + ' metis-ui-select__trigger';
+    }
+
+    function applyVariant(wrapper, select) {
+        Array.prototype.slice.call(wrapper.classList).forEach(function(className) {
+            if (className.indexOf('metis-ui-select--') === 0) {
+                wrapper.classList.remove(className);
+            }
+        });
+        var variant = String(select.dataset.metisSelectVariant || '').trim();
+        if (variant !== '') {
+            wrapper.classList.add('metis-ui-select--' + variant);
+        }
+    }
+
+    function optionMeta(select, option) {
+        var meta = {
+            color: '',
+            fontFamily: '',
+            iconClass: '',
+            label: option ? String(option.dataset.metisSelectLabel || option.text || '').trim() : '',
+            iconText: '',
+            placeholder: false
+        };
+
+        if (!(option instanceof HTMLOptionElement)) {
+            meta.label = meta.label || 'Select…';
+            return meta;
+        }
+
+        meta.color = String(option.dataset.metisSelectColor || '').trim();
+        meta.fontFamily = String(option.dataset.metisSelectFontFamily || '').trim();
+        meta.iconClass = String(option.dataset.metisSelectIconClass || '').trim();
+        meta.iconText = String(option.dataset.metisSelectIconText || '').trim();
+        meta.placeholder = String(option.value || '') === '';
+        return meta;
+    }
+
+    function renderOptionContent(container, select, option) {
+        var meta = optionMeta(select, option);
+        var content = document.createElement('span');
+        content.className = 'metis-ui-select__content';
+
+        if (meta.color !== '') {
+            var swatch = document.createElement('span');
+            swatch.className = 'metis-ui-select__swatch';
+            swatch.style.background = meta.color;
+            content.appendChild(swatch);
+        }
+
+        if (meta.iconClass !== '' || meta.iconText !== '') {
+            var icon = document.createElement('span');
+            icon.className = 'metis-ui-select__icon';
+            if (meta.iconClass !== '') {
+                meta.iconClass.split(/\s+/).filter(Boolean).forEach(function(className) {
+                    icon.classList.add(className);
+                });
+            }
+            if (meta.iconText !== '') {
+                icon.textContent = meta.iconText;
+            }
+            content.appendChild(icon);
+        }
+
+        var label = document.createElement('span');
+        label.className = 'metis-ui-select__label';
+        label.textContent = meta.label || 'Select…';
+        if (meta.fontFamily !== '' && !meta.placeholder) {
+            label.style.fontFamily = meta.fontFamily;
+        }
+        content.appendChild(label);
+
+        container.appendChild(content);
     }
 
     function setValue(select, value, emitChange) {

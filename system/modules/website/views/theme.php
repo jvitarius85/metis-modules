@@ -1931,7 +1931,7 @@ function syncFormFromState() {
 
     renderCustomFontList();
     syncElementRulesFromState();
-    rebuildStyledSelects();
+    refreshThemeSelects();
     applyPreview();
 }
 
@@ -1944,15 +1944,11 @@ function bindingLabelFor(key, binding) {
 }
 
 function updateBindingDropdownUi(key) {
-    var binding = String($('.metis-theme-color-binding[data-key="' + key + '"]').val() || '');
     var color = String($('.metis-theme-color[data-key="' + key + '"]').val() || defaults.colors[key] || '#000000');
-    var dotColor = (binding && Object.prototype.hasOwnProperty.call(brandingPalette, binding))
-        ? String(brandingPalette[binding])
-        : color;
-    var label = bindingLabelFor(key, binding);
-    var $trigger = $('.metis-theme-binding-trigger[data-key="' + key + '"]');
-    $trigger.find('.metis-theme-binding-dot').css('background', dotColor);
-    $trigger.find('.metis-theme-binding-text').text(label);
+    var $select = $('.metis-theme-color-binding[data-key="' + key + '"]');
+    if (!$select.length) return;
+    $select.find('option[value=""]').attr('data-metis-select-color', color);
+    refreshThemeSelects($select);
 }
 
 function updateMenuStyleDropdownUi() {
@@ -1960,8 +1956,9 @@ function updateMenuStyleDropdownUi() {
 }
 
 function closeAllBindingMenus() {
-    $('.metis-theme-binding-dropdown').removeClass('is-open');
-    $('.metis-theme-selectx').removeClass('is-open');
+    if (window.Metis && Metis.ui && Metis.ui.select && typeof Metis.ui.select.closeAll === 'function') {
+        Metis.ui.select.closeAll();
+    }
 }
 
 function isColorSelect($select) {
@@ -1990,24 +1987,6 @@ function colorFromTokenValue(value) {
         return String((state.colors && state.colors[key]) ? state.colors[key] : '#ffffff');
     }
     return '#ffffff';
-}
-
-function selectLabelHtml($option, $select) {
-    var text = String($option.text() || '');
-    var safe = $('<div>').text(text).html();
-    var style = '';
-    if ($select.attr('id') === 'metis-theme-body-font' || $select.attr('id') === 'metis-theme-heading-font') {
-        var family = fontPreviewFamily($option.val());
-        if (family && family !== 'inherit') {
-            style = ' style="font-family:' + $('<div>').text(family).html() + ';"';
-        }
-    }
-    var dot = '';
-    if (isColorSelect($select)) {
-        var dotColor = colorFromTokenValue($option.val());
-        dot = '<span class="metis-theme-selectx-dot" style="background:' + $('<div>').text(dotColor).html() + ';"></span>';
-    }
-    return dot + '<span class="metis-theme-selectx-label"' + style + '>' + safe + '</span>';
 }
 
 function isFontSelect($select) {
@@ -2063,84 +2042,85 @@ function loadFontPreview(key) {
 }
 
 function preloadFontPreviewMenu($dd) {
-    if (!$dd || !$dd.length || !$dd.hasClass('metis-theme-selectx--font')) return;
+    if (!$dd || !$dd.length) return;
     var keys = [];
-    $dd.find('.metis-theme-selectx-option[data-font-key]').each(function() {
-        var key = String($(this).attr('data-font-key') || '').trim();
+    var $select = $dd.is('select') ? $dd : $dd.find('select').first();
+    if (!$select.length) return;
+    $select.find('option[data-metis-select-font-family]').each(function() {
+        var key = fontPreviewKey($(this).val());
         if (key && keys.indexOf(key) === -1) keys.push(key);
     });
-    Promise.all(keys.map(loadFontPreview)).then(function() {
-        $dd.find('.metis-theme-selectx-option[data-font-key], .metis-theme-selectx-trigger[data-font-key]').each(function() {
-            var $node = $(this);
-            var key = String($node.attr('data-font-key') || '').trim();
-            var meta = fontPreviewUrls[key] || {};
-            var face = meta.face || key;
-            $node.find('.metis-theme-selectx-label').css('font-family', cssFontStack(face));
-        });
-    }).catch(function() {});
+    Promise.all(keys.map(loadFontPreview)).catch(function() {});
 }
 
-function rebuildStyledSelects() {
-    $('.metis-theme-selectx').remove();
-    var seq = 0;
-    $('select.metis-input').each(function() {
-        var $select = $(this);
-        if ($select.closest('.metis-theme-binding-dropdown').length) return;
-        if ($select.hasClass('metis-theme-color-binding')) return;
+function refreshThemeSelects(scope) {
+    if (!(window.Metis && Metis.ui && Metis.ui.select && typeof Metis.ui.select.refresh === 'function')) {
+        return;
+    }
+    var $scope = scope ? $(scope) : $(document);
+    var seen = [];
+    var fontSelects = [];
+    $scope.find('select.metis-input, select.metis-theme-color-binding').addBack('select.metis-input, select.metis-theme-color-binding').each(function() {
+        var select = this;
+        if (!(select instanceof HTMLSelectElement)) return;
+        if (seen.indexOf(select) !== -1) return;
+        seen.push(select);
+
+        var $select = $(select);
         if ($select.hasClass('metis-is-hidden')) return;
-        var key = String($select.attr('id') || $select.attr('data-selectx-id') || '');
-        if (!key) {
-            seq += 1;
-            key = 'selectx-' + seq;
-            $select.attr('data-selectx-id', key);
+
+        var triggerClass = $select.hasClass('metis-input-sm') ? 'metis-input metis-input-sm' : 'metis-input';
+        select.dataset.metisUiSelect = '1';
+        select.dataset.metisSelectTriggerClass = triggerClass;
+
+        if (isFontSelect($select)) {
+            select.dataset.metisSelectVariant = 'theme-font';
+            fontSelects.push(select);
+            $select.find('option').each(function() {
+                var family = fontPreviewFamily($(this).val());
+                if (family) {
+                    this.dataset.metisSelectFontFamily = family;
+                } else {
+                    delete this.dataset.metisSelectFontFamily;
+                }
+                delete this.dataset.metisSelectColor;
+            });
+        } else if ($select.hasClass('metis-theme-color-binding')) {
+            select.dataset.metisSelectVariant = 'theme-binding';
+            var key = String($select.data('key') || '');
+            var currentColor = String($('.metis-theme-color[data-key="' + key + '"]').val() || defaults.colors[key] || '#ffffff');
+            $select.find('option').each(function() {
+                var value = String(this.value || '');
+                this.dataset.metisSelectColor = value && Object.prototype.hasOwnProperty.call(brandingPalette, value)
+                    ? String(brandingPalette[value])
+                    : currentColor;
+                delete this.dataset.metisSelectFontFamily;
+            });
+        } else if (isColorSelect($select)) {
+            select.dataset.metisSelectVariant = 'theme-token';
+            $select.find('option').each(function() {
+                this.dataset.metisSelectColor = colorFromTokenValue(this.value);
+                delete this.dataset.metisSelectFontFamily;
+            });
+        } else {
+            delete select.dataset.metisSelectVariant;
+            $select.find('option').each(function() {
+                delete this.dataset.metisSelectColor;
+                delete this.dataset.metisSelectFontFamily;
+            });
         }
 
-        $select.addClass('metis-theme-native-hidden');
-        var value = String($select.val() || '');
-        var $selected = $select.find('option[value="' + value.replace(/"/g, '\\"') + '"]').first();
-        if (!$selected.length) $selected = $select.find('option:first');
-
-        var html = [];
-        html.push('<div class="metis-theme-selectx' + (isFontSelect($select) ? ' metis-theme-selectx--font' : '') + '" data-for="' + $('<div>').text(key).html() + '">');
-        var fontKey = isFontSelect($select) ? fontPreviewKey(value) : '';
-        html.push('<button type="button" class="metis-input metis-theme-selectx-trigger"' + (fontKey ? ' data-font-key="' + $('<div>').text(fontKey).html() + '"' : '') + '>');
-        html.push(selectLabelHtml($selected, $select));
-        html.push('<span class="metis-theme-binding-caret">▾</span>');
-        html.push('</button>');
-        html.push('<div class="metis-theme-selectx-menu">');
-        $select.find('option').each(function() {
-            var $opt = $(this);
-            var optVal = String($opt.val() || '');
-            var selectedClass = (optVal === value) ? ' is-selected' : '';
-            var optFontKey = isFontSelect($select) ? fontPreviewKey(optVal) : '';
-            html.push('<button type="button" class="metis-theme-selectx-option' + selectedClass + '" data-value="' + $('<div>').text(optVal).html() + '"' + (optFontKey ? ' data-font-key="' + $('<div>').text(optFontKey).html() + '"' : '') + '>' + selectLabelHtml($opt, $select) + '</button>');
-        });
-        html.push('</div>');
-        html.push('</div>');
-        $(html.join('')).insertAfter($select);
+        Metis.ui.select.refresh(select);
     });
-    $('.metis-theme-selectx--font').each(function() {
-        preloadFontPreviewMenu($(this));
+
+    fontSelects.forEach(function(select) {
+        preloadFontPreviewMenu($(select));
     });
 }
 
 function buildColorGrid() {
     var keys = Object.keys(defaults.colors).concat(['footer_background']);
     var html = '';
-    var bindingOptions = ['<button type="button" class="metis-theme-binding-option" data-value="">'
-        + '<span class="metis-theme-binding-option-dot"></span>'
-        + '<span class="metis-theme-binding-option-text">Custom / fixed</span>'
-        + '</button>'];
-    Object.keys(brandingPalette).forEach(function(brandingKey) {
-        var label = String((brandingLabels && brandingLabels[brandingKey]) ? brandingLabels[brandingKey] : brandingKey);
-        var value = String(brandingPalette[brandingKey] || '#ffffff');
-        bindingOptions.push(
-            '<button type="button" class="metis-theme-binding-option" data-value="' + $('<div>').text(brandingKey).html() + '">'
-            + '<span class="metis-theme-binding-option-dot" style="background:' + value + '"></span>'
-            + '<span class="metis-theme-binding-option-text">' + $('<div>').text(label).html() + '</span>'
-            + '</button>'
-        );
-    });
     keys.forEach(function(key) {
         var label = key.replace(/_/g, ' ').replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
         var value = (key === 'footer_background')
@@ -2152,7 +2132,6 @@ function buildColorGrid() {
         var locked = binding && Object.prototype.hasOwnProperty.call(brandingPalette, binding);
         var disabled = locked ? ' disabled' : '';
         var title = locked ? ' title="Managed by branding token"' : '';
-        var triggerLabel = bindingLabelFor(key, binding);
         var triggerDot = (binding && Object.prototype.hasOwnProperty.call(brandingPalette, binding)) ? brandingPalette[binding] : value;
         html += '' +
             '<div class="metis-theme-field">' +
@@ -2160,15 +2139,15 @@ function buildColorGrid() {
                 '<div class="metis-theme-color-wrap">' +
                     '<input type="color" class="metis-theme-color metis-is-hidden" data-key="' + key + '" value="' + value + '"' + disabled + title + '>' +
                     '<button type="button" class="metis-theme-color-dot' + (locked ? ' is-locked' : '') + '" data-key="' + key + '"' + title + ' style="background:' + value + '"></button>' +
-                    '<input type="hidden" class="metis-theme-color-binding" data-key="' + key + '" value="' + $('<div>').text(binding).html() + '">' +
-                    '<div class="metis-theme-binding-dropdown" data-key="' + key + '">' +
-                        '<button type="button" class="metis-input metis-input-sm metis-theme-binding-trigger" data-key="' + key + '">' +
-                            '<span class="metis-theme-binding-dot" style="background:' + triggerDot + '"></span>' +
-                            '<span class="metis-theme-binding-text">' + $('<div>').text(triggerLabel).html() + '</span>' +
-                            '<span class="metis-theme-binding-caret">▾</span>' +
-                        '</button>' +
-                        '<div class="metis-theme-binding-menu">' + bindingOptions.join('') + '</div>' +
-                    '</div>' +
+                    '<select class="metis-input metis-input-sm metis-theme-color-binding" data-key="' + key + '" data-metis-ui-select="1" data-metis-select-trigger-class="metis-input metis-input-sm" data-metis-select-variant="theme-binding">' +
+                        '<option value="" data-metis-select-color="' + $('<div>').text(triggerDot).html() + '"' + (binding ? '' : ' selected') + '>Custom / fixed</option>' +
+                        Object.keys(brandingPalette).map(function(brandingKey) {
+                            var optionLabel = String((brandingLabels && brandingLabels[brandingKey]) ? brandingLabels[brandingKey] : brandingKey);
+                            var optionColor = String(brandingPalette[brandingKey] || '#ffffff');
+                            var selected = brandingKey === binding ? ' selected' : '';
+                            return '<option value="' + $('<div>').text(brandingKey).html() + '" data-metis-select-color="' + $('<div>').text(optionColor).html() + '"' + selected + '>' + $('<div>').text(optionLabel).html() + '</option>';
+                        }).join('') +
+                    '</select>' +
                 '</div>' +
             '</div>';
     });
@@ -2308,73 +2287,6 @@ $(document).on('click', '.metis-theme-color-dot', function() {
     $input.trigger('click');
 });
 
-$(document).on('click', '.metis-theme-binding-trigger', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var key = String($(this).data('key') || '');
-    var $dd;
-    if (key) {
-        $dd = $('.metis-theme-binding-dropdown[data-key="' + key + '"]');
-    } else {
-        $dd = $(this).closest('.metis-theme-binding-dropdown');
-    }
-    if (!$dd || !$dd.length) return;
-    var willOpen = !$dd.hasClass('is-open');
-    closeAllBindingMenus();
-    if (willOpen) $dd.addClass('is-open');
-});
-
-$(document).on('click', '.metis-theme-selectx-trigger', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var $dd = $(this).closest('.metis-theme-selectx');
-    var willOpen = !$dd.hasClass('is-open');
-    closeAllBindingMenus();
-    if (willOpen) {
-        $dd.addClass('is-open');
-        preloadFontPreviewMenu($dd);
-    }
-});
-
-$(document).on('click', '.metis-theme-selectx-option', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var $opt = $(this);
-    var rawValue = $opt.attr('data-value');
-    var value = (typeof rawValue === 'undefined') ? '' : String(rawValue);
-    var $dd = $opt.closest('.metis-theme-selectx');
-    var key = String($dd.attr('data-for') || '');
-    var $select = $('#' + key);
-    if (!$select.length) {
-        $select = $('select[data-selectx-id="' + key.replace(/"/g, '\\"') + '"]');
-    }
-    if (!$select.length) return;
-    $select.val(value).trigger('change');
-    rebuildStyledSelects();
-    closeAllBindingMenus();
-});
-
-$(document).on('click', '.metis-theme-binding-option', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var $dropdown = $(this).closest('.metis-theme-binding-dropdown');
-    var key = String($dropdown.data('key') || '');
-    var value = String($(this).data('value') || '');
-    if (!key) return;
-    $('.metis-theme-color-binding[data-key="' + key + '"]').val(value).trigger('change');
-    closeAllBindingMenus();
-});
-
-$(document).on('click', function() {
-    closeAllBindingMenus();
-});
-
-$(document).on('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeAllBindingMenus();
-    }
-});
-
 $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-item.has-children > .metis-shell-menu-link, #metis-theme-menu-live .metis-shell-menu-item.has-children > .metis-shell-menu-btn', function(e) {
     e.preventDefault();
     var $item = $(this).closest('.metis-shell-menu-item.has-children');
@@ -2421,7 +2333,7 @@ $('#metis-theme-custom-font-file').on('change', function() {
 
         $('#metis-theme-body-font').val(name);
         $('#metis-theme-heading-font').val(name);
-        rebuildStyledSelects();
+        refreshThemeSelects();
         renderCustomFontList();
         applyPreview();
         themeToast('Custom font added to theme.', 'success');
@@ -2581,7 +2493,7 @@ $('#metis-theme-version-apply-btn').on('click', function() {
 initNav();
 buildColorGrid();
 buildElementGrid();
-rebuildStyledSelects();
+refreshThemeSelects();
 renderCustomFontList();
 renderVersionOptions();
 syncFormFromState();

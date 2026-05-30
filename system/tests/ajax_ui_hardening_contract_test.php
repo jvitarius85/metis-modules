@@ -25,6 +25,7 @@ $read = static function ( string $relative ) use ( $system ): string {
 $responseRuntime = $read( 'src/Metis/Core/Runtime/ResponseRuntime.php' );
 $coreJs = $read( 'assets/core.js' );
 $formsJs = $read( 'modules/forms/assets/forms.js' );
+$websiteThemeView = $read( 'modules/website/views/theme.php' );
 $formsRepository = $read( 'src/Metis/Modules/Forms/Concerns/SharedRepositoryLogic.php' );
 $donationsCampaignService = $read( 'src/Metis/Modules/Donations/CampaignService.php' );
 $donationsReadService = $read( 'src/Metis/Modules/Donations/ReadService.php' );
@@ -55,6 +56,9 @@ $assert( str_contains( $formsJs, 'Metis.ui.ajax.post' ), 'Form Builder admin req
 $assert( str_contains( $formsJs, 'Metis.ui.form.setSubmitting' ), 'Form Builder public submit state must delegate through Metis.ui.form.' );
 $assert( str_contains( $formsJs, 'Metis.ui.select.init(root);' ), 'Form Builder render cycle must reinitialize the canonical select helper.' );
 $assert( ! preg_match( '/(^|[^A-Za-z0-9_])alert\s*\(|(^|[^A-Za-z0-9_])confirm\s*\(/u', $formsJs ), 'Form Builder must not use browser-native alert/confirm fallbacks.' );
+$assert( ! str_contains( $websiteThemeView, 'metis-theme-selectx' ), 'Website theme UI must not keep the legacy private selectx system.' );
+$assert( ! str_contains( $websiteThemeView, 'rebuildStyledSelects' ), 'Website theme UI must not rebuild private styled selects.' );
+$assert( str_contains( $websiteThemeView, 'data-metis-ui-select="1"' ) && str_contains( $websiteThemeView, 'refreshThemeSelects' ), 'Website theme UI must use the shared select helper for preview-capable selects.' );
 
 $assert( str_contains( $donationsReadService, 'public static function dashboardSnapshot()' ), 'Donations read service must expose dashboardSnapshot().' );
 $assert( str_contains( $peopleReadService, 'public static function workspaceSnapshot' ) && str_contains( $peopleReadService, 'public static function personSnapshot' ), 'People read service must expose workspace and person snapshots.' );
