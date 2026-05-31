@@ -487,7 +487,7 @@ $us_states = [
 </div>
 
 <?php if ( metis_contacts_can_manage() ) : ?>
-    <div id="metis-contact-detail-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-contact-detail-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal">
             <h3 class="metis-modal-title">Edit Contact</h3>
             <form id="metis-contact-detail-form" data-contact-cid="<?php echo metis_escape_attr( (string) $contact->cid ); ?>" class="metis-form-grid">
@@ -637,7 +637,7 @@ $us_states = [
         </div>
     </div>
 
-    <div id="metis-relationship-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-relationship-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal">
             <h3 class="metis-modal-title">Manage Relationships</h3>
             <div id="metis-relationship-rows" class="metis-editor-list"></div>
@@ -649,7 +649,7 @@ $us_states = [
         </div>
     </div>
 
-    <div id="metis-note-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-note-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal">
             <h3 class="metis-modal-title">Add Note</h3>
             <div class="metis-field metis-field-full">
@@ -663,7 +663,7 @@ $us_states = [
         </div>
     </div>
 
-    <div id="metis-email-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-email-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal" style="max-width:520px;">
             <h3 class="metis-modal-title">Use New Primary Email</h3>
             <div class="metis-field metis-field-full">
@@ -678,7 +678,7 @@ $us_states = [
         </div>
     </div>
 
-    <div id="metis-additional-email-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-additional-email-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal" style="max-width:520px;">
             <h3 class="metis-modal-title">Add Additional Email</h3>
             <div class="metis-field metis-field-full">
@@ -692,7 +692,7 @@ $us_states = [
         </div>
     </div>
 
-    <div id="metis-newsletter-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-newsletter-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal" style="max-width:520px;">
             <h3 class="metis-modal-title">Add Newsletter Subscription</h3>
             <div class="metis-field metis-field-full">

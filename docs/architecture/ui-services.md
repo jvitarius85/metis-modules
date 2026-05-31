@@ -84,3 +84,13 @@ Use:
 - Form Builder campaign population now uses centralized request handling, centralized response handling, and the canonical donations campaign service
 - the shared core layer now exposes canonical AJAX, toast, modal, confirm, dropdown, form, and loading helpers
 - hardened module paths now route toasts, confirms, submit state, and loading state through `Metis.ui.*`
+
+## Accessibility Enforcement Update (May 31, 2026)
+
+- Modal backdrops across hardened modules now default to `aria-hidden="true" hidden` and are opened/closed through shared modal lifecycle logic.
+- Shared dropdown/select UX now supports richer preview content (colors, fonts, icons) while retaining centralized keyboard and ARIA behavior.
+- Public navigation and template flows now enforce keyboard-first semantics:
+  - skip link to main content
+  - focus handoff into opened mobile nav
+  - focus return to nav trigger on close
+  - escape-close behavior for open nav/menu state

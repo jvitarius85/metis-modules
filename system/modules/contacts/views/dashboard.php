@@ -216,7 +216,7 @@ $duplicate_count = count( $duplicate_groups );
 <?php if ( $can_manage ) : ?>
 <script id="metis-duplicates-json" type="application/json"><?php echo metis_json_encode( $duplicate_groups ); ?></script>
 
-<div id="metis-modal-backdrop" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-modal-backdrop" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 id="metis-modal-title" class="metis-modal-title">Add Contact</h2>
 
@@ -249,7 +249,7 @@ $duplicate_count = count( $duplicate_groups );
     </div>
 </div>
 
-<div id="metis-duplicates-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-duplicates-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:960px;">
         <h2 class="metis-modal-title">Review Duplicates</h2>
         <p class="metis-duplicates-help">Drag rows into <strong>Keep Profile</strong> or <strong>Merge Profiles</strong>. Click <strong>x</strong> on a merge chip to remove it.</p>
@@ -261,7 +261,7 @@ $duplicate_count = count( $duplicate_groups );
     </div>
 </div>
 
-<div id="metis-duplicates-confirm-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-duplicates-confirm-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:720px;">
         <h2 class="metis-modal-title">Confirm Merge</h2>
         <div id="metis-duplicates-confirm-content" class="metis-duplicates-confirm-content"></div>

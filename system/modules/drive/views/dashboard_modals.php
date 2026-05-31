@@ -1,5 +1,5 @@
 <?php if (!empty($cfg['ok']) && $can_manage) : ?>
-<div class="metis-modal-backdrop" id="metis-drive-folder-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-drive-folder-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:480px;">
         <h3 class="metis-modal-title">New Folder</h3>
         <form id="metis-drive-folder-form" class="metis-form-grid">
@@ -15,7 +15,7 @@
     </div>
 </div>
 
-<div class="metis-modal-backdrop" id="metis-drive-google-file-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-drive-google-file-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:520px;">
         <h3 class="metis-modal-title">New Google File</h3>
         <form id="metis-drive-google-file-form" class="metis-form-grid">
@@ -40,7 +40,7 @@
     </div>
 </div>
 
-<div class="metis-modal-backdrop" id="metis-drive-rename-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-drive-rename-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:480px;">
         <h3 class="metis-modal-title">Rename</h3>
         <form id="metis-drive-rename-form" class="metis-form-grid">

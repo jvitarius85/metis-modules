@@ -312,11 +312,11 @@ metis_set_page_title( $campaign->cname );
 </div>
 
 <!-- GOAL MODAL -->
-<div id="metis-goal-modal" class="metis-modal-overlay metis-campaign-modal-hidden">
+<div id="metis-goal-modal" class="metis-modal-backdrop metis-campaign-modal-hidden" aria-hidden="true">
     <div class="metis-modal">
         <div class="metis-modal-header">
             <h3 id="metis-goal-modal-title">Set Annual Goal</h3>
-            <button type="button" class="metis-modal-close" id="metis-goal-modal-close">×</button>
+            <button type="button" class="metis-modal-close" id="metis-goal-modal-close" data-modal-close="metis-goal-modal">×</button>
         </div>
         <div class="metis-modal-body">
             <div class="metis-report-field metis-campaign-goal-field-first">
@@ -330,7 +330,7 @@ metis_set_page_title( $campaign->cname );
         </div>
         <div class="metis-modal-footer">
             <button type="button" class="metis-btn metis-btn-xs" id="metis-goal-save-btn">Save Goal</button>
-            <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-goal-modal-cancel">Cancel</button>
+            <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-goal-modal-cancel" data-modal-close="metis-goal-modal">Cancel</button>
             <button type="button" class="metis-btn metis-btn-xs metis-btn-danger metis-campaign-goal-delete" id="metis-goal-delete-btn">Remove Goal</button>
         </div>
         <div id="metis-goal-status" class="metis-report-status metis-campaign-status"></div>
@@ -338,11 +338,11 @@ metis_set_page_title( $campaign->cname );
 </div>
 
 <!-- EDIT CAMPAIGN MODAL -->
-<div id="metis-edit-campaign-modal" class="metis-modal-overlay metis-campaign-modal-hidden">
+<div id="metis-edit-campaign-modal" class="metis-modal-backdrop metis-campaign-modal-hidden" aria-hidden="true">
     <div class="metis-modal metis-modal--wide">
         <div class="metis-modal-header">
             <h3>Edit Campaign</h3>
-            <button type="button" class="metis-modal-close" id="metis-edit-modal-close">×</button>
+            <button type="button" class="metis-modal-close" id="metis-edit-modal-close" data-modal-close="metis-edit-campaign-modal">×</button>
         </div>
         <div class="metis-modal-body">
             <div class="metis-edit-form-grid">
@@ -379,7 +379,7 @@ metis_set_page_title( $campaign->cname );
         </div>
         <div class="metis-modal-footer">
             <button type="button" class="metis-btn metis-btn-xs" id="metis-edit-save-btn">Save Changes</button>
-            <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-edit-modal-cancel">Cancel</button>
+            <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-edit-modal-cancel" data-modal-close="metis-edit-campaign-modal">Cancel</button>
         </div>
         <div id="metis-edit-status" class="metis-report-status metis-campaign-status"></div>
     </div>
@@ -514,20 +514,23 @@ metis_set_page_title( $campaign->cname );
     const goalDeleteBtn  = document.getElementById('metis-goal-delete-btn');
     const goalModalTitle = document.getElementById('metis-goal-modal-title');
 
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.init(document);
+    }
+
     function openGoalModal(year, amount) {
         goalYearInput.value  = year || new Date().getFullYear();
         goalAmtInput.value   = amount || '';
         goalModalTitle.textContent = amount ? 'Edit Annual Goal' : 'Set Annual Goal';
         goalDeleteBtn.style.display = amount ? 'inline-flex' : 'none';
         goalStatus.style.display = 'none';
-        goalModal.style.display  = 'flex';
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.form('metis-goal-modal');
+        }
         goalAmtInput.focus();
     }
 
     document.getElementById('metis-add-goal-btn')?.addEventListener('click', () => openGoalModal(new Date().getFullYear(), null));
-    document.getElementById('metis-goal-modal-close')?.addEventListener('click', () => goalModal.style.display = 'none');
-    document.getElementById('metis-goal-modal-cancel')?.addEventListener('click', () => goalModal.style.display = 'none');
-    goalModal?.addEventListener('click', e => { if (e.target === goalModal) goalModal.style.display = 'none'; });
 
     document.querySelectorAll('.metis-goal-edit-btn, .metis-goal-set-link').forEach(btn => {
         btn.addEventListener('click', () => openGoalModal(btn.dataset.year, btn.dataset.amount || null));
@@ -541,7 +544,11 @@ metis_set_page_title( $campaign->cname );
         if (data.success) {
             goalStatus.dataset.type = 'ok';
             goalStatus.textContent  = 'Goal saved.';
-            setTimeout(() => { goalModal.style.display = 'none'; }, 500);
+            setTimeout(() => {
+                if (window.Metis && Metis.ui && Metis.ui.modal) {
+                    Metis.ui.modal.close('metis-goal-modal');
+                }
+            }, 500);
         } else {
             goalStatus.dataset.type = 'error';
             goalStatus.textContent  = data.data || 'Save failed.';
@@ -577,11 +584,10 @@ metis_set_page_title( $campaign->cname );
 
     document.getElementById('metis-edit-campaign-btn')?.addEventListener('click', () => {
         editStatus.style.display = 'none';
-        editModal.style.display  = 'flex';
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.form('metis-edit-campaign-modal');
+        }
     });
-    document.getElementById('metis-edit-modal-close')?.addEventListener('click',  () => editModal.style.display = 'none');
-    document.getElementById('metis-edit-modal-cancel')?.addEventListener('click', () => editModal.style.display = 'none');
-    editModal?.addEventListener('click', e => { if (e.target === editModal) editModal.style.display = 'none'; });
 
     document.getElementById('metis-edit-save-btn')?.addEventListener('click', async function () {
         const btn = this;
@@ -609,7 +615,11 @@ metis_set_page_title( $campaign->cname );
             if (titleEl && nextName) {
                 titleEl.textContent = nextName;
             }
-            setTimeout(() => { editModal.style.display = 'none'; }, 500);
+            setTimeout(() => {
+                if (window.Metis && Metis.ui && Metis.ui.modal) {
+                    Metis.ui.modal.close('metis-edit-campaign-modal');
+                }
+            }, 500);
         } else {
             editStatus.dataset.type = 'error';
             editStatus.textContent  = data.data || 'Save failed.';

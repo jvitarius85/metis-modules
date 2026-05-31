@@ -29,6 +29,10 @@ $checks = [
         'command' => [ PHP_BINARY, $root . '/system/tests/people_read_service_runtime_test.php' ],
     ],
     [
+        'label' => 'Accessibility governance',
+        'command' => [ PHP_BINARY, $root . '/system/tests/accessibility_governance_test.php' ],
+    ],
+    [
         'label' => 'Production governance',
         'command' => [ PHP_BINARY, $root . '/system/tests/production_governance_test.php' ],
     ],

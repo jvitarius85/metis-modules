@@ -24,8 +24,13 @@ $read = static function ( string $relative ) use ( $system ): string {
 
 $responseRuntime = $read( 'src/Metis/Core/Runtime/ResponseRuntime.php' );
 $coreJs = $read( 'assets/core.js' );
+$coreCss = $read( 'assets/core.css' );
 $formsJs = $read( 'modules/forms/assets/forms.js' );
 $websiteThemeView = $read( 'modules/website/views/theme.php' );
+$newsletterJs = $read( 'modules/newsletter/assets/newsletter.js' );
+$simpleEditorJs = $read( 'assets/js/editor/simple-editor.js' );
+$depositsView = $read( 'modules/donations/views/deposits.php' );
+$campaignView = $read( 'modules/donations/views/campaign.php' );
 $formsRepository = $read( 'src/Metis/Modules/Forms/Concerns/SharedRepositoryLogic.php' );
 $donationsCampaignService = $read( 'src/Metis/Modules/Donations/CampaignService.php' );
 $donationsReadService = $read( 'src/Metis/Modules/Donations/ReadService.php' );
@@ -49,6 +54,7 @@ $assert( str_contains( $coreJs, 'Metis.ui.select = (function() {' ), 'Core UI ru
 $assert( str_contains( $coreJs, 'Metis.ui.dropdown = {' ), 'Core UI runtime must expose Metis.ui.dropdown helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.modal.confirm = function(options)' ), 'Core UI runtime must expose Metis.ui.modal.confirm helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.modal.form = function(target)' ), 'Core UI runtime must expose Metis.ui.modal.form helper.' );
+$assert( ! str_contains( $coreCss, '.metis-theme-selectx' ) && ! str_contains( $coreCss, '.metis-ui-selectx' ), 'Shared core styles must not retain legacy selectx systems.' );
 
 $assert( str_contains( $formsRepository, 'CampaignService::getActiveCampaignOptions()' ), 'Form Builder campaign options must route through the canonical campaign service.' );
 $assert( str_contains( $donationsCampaignService, 'getActiveCampaignOptions' ), 'Donations campaign service must expose active campaign options.' );
@@ -59,6 +65,13 @@ $assert( ! preg_match( '/(^|[^A-Za-z0-9_])alert\s*\(|(^|[^A-Za-z0-9_])confirm\s*
 $assert( ! str_contains( $websiteThemeView, 'metis-theme-selectx' ), 'Website theme UI must not keep the legacy private selectx system.' );
 $assert( ! str_contains( $websiteThemeView, 'rebuildStyledSelects' ), 'Website theme UI must not rebuild private styled selects.' );
 $assert( str_contains( $websiteThemeView, 'data-metis-ui-select="1"' ) && str_contains( $websiteThemeView, 'refreshThemeSelects' ), 'Website theme UI must use the shared select helper for preview-capable selects.' );
+$assert( ! str_contains( $newsletterJs, 'metis-theme-selectx' ), 'Newsletter theme UI must not keep the legacy private selectx system.' );
+$assert( str_contains( $newsletterJs, 'Metis.ui.select.refresh(select);' ), 'Newsletter theme UI must use the shared select helper.' );
+$assert( ! str_contains( $simpleEditorJs, 'metis-modal-overlay' ), 'Simple editor must not retain legacy modal overlay markup.' );
+$assert( ! str_contains( $depositsView, 'metis-modal-overlay' ), 'Deposits view must not retain legacy modal overlay markup.' );
+$assert( ! str_contains( $campaignView, 'metis-modal-overlay' ), 'Campaign view must not retain legacy modal overlay markup.' );
+$assert( str_contains( $simpleEditorJs, "Metis.ui.modal.form('metis-v2-confirm-modal');" ), 'Simple editor confirm flow must use the shared modal runtime.' );
+$assert( str_contains( $campaignView, "Metis.ui.modal.form('metis-goal-modal');" ), 'Campaign goal editor must use the shared modal runtime.' );
 
 $assert( str_contains( $donationsReadService, 'public static function dashboardSnapshot()' ), 'Donations read service must expose dashboardSnapshot().' );
 $assert( str_contains( $peopleReadService, 'public static function workspaceSnapshot' ) && str_contains( $peopleReadService, 'public static function personSnapshot' ), 'People read service must expose workspace and person snapshots.' );

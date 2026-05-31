@@ -52,11 +52,11 @@ if ( ! metis_website_require_view_permission( 'webparts' ) ) {
         </div>
     </div>
 
-    <div id="metis-webpart-modal" class="metis-modal-overlay" hidden role="dialog" aria-modal="true" aria-label="Web Part Editor">
+    <div id="metis-webpart-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-config-modal">
             <div class="metis-modal-header">
                 <h2 class="metis-modal-title" id="metis-webpart-modal-title">New Web Part</h2>
-                <button class="metis-modal-close" id="metis-webpart-modal-close" aria-label="Close">&times;</button>
+                <button class="metis-modal-close" data-modal-close="metis-webpart-modal" aria-label="Close">&times;</button>
             </div>
             <div class="metis-modal-body metis-config-modal-body">
                 <div class="metis-form-grid metis-form-grid-3">
@@ -150,7 +150,7 @@ if ( ! metis_website_require_view_permission( 'webparts' ) ) {
                 <input id="metis-webpart-id" type="hidden" value="">
             </div>
             <div class="metis-modal-footer">
-                <button class="metis-btn metis-btn-ghost" id="metis-webpart-cancel-btn">Cancel</button>
+                <button class="metis-btn metis-btn-ghost" id="metis-webpart-cancel-btn" type="button" data-modal-close="metis-webpart-modal">Cancel</button>
                 <button class="metis-btn metis-btn-primary" id="metis-webpart-save-btn">Save Web Part</button>
             </div>
         </div>
@@ -334,12 +334,16 @@ if ( ! metis_website_require_view_permission( 'webparts' ) ) {
         } else {
             $('#metis-webpart-modal-title').text('New Web Part');
         }
-        $('#metis-webpart-modal').prop('hidden', false);
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.form('metis-webpart-modal');
+        }
         $('#metis-webpart-name').trigger('focus');
     }
 
     function closeModal() {
-        $('#metis-webpart-modal').prop('hidden', true);
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.close('metis-webpart-modal');
+        }
     }
 
     function saveWebPart() {
@@ -369,10 +373,6 @@ if ( ! metis_website_require_view_permission( 'webparts' ) ) {
     $(document).on('click.metisWebsiteWebParts', '#metis-webpart-create-btn, #metis-webpart-create-btn-empty', function(e) {
         e.preventDefault();
         openModal(null);
-    });
-    $(document).on('click.metisWebsiteWebPartClose', '#metis-webpart-modal-close, #metis-webpart-cancel-btn', function(e) {
-        e.preventDefault();
-        closeModal();
     });
     $(document).on('change.metisWebsiteWebParts', '#metis-webpart-status-filter', renderRows);
     $(document).on('click.metisWebsiteWebPartEdit', '.metis-webpart-edit', function(e) {

@@ -886,7 +886,7 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
     </div><!-- /metis-people-person-grid -->
 </div><!-- /metis-people-detail -->
 <?php if ( $can_attach_drive_folder && ! $is_new ) : ?>
-<div id="metis-people-drive-picker-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-people-drive-picker-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-people-modal-inner metis-people-drive-picker-inner">
         <h3 class="metis-modal-title">Select User Drive Folder</h3>
         <div class="metis-form-grid">
@@ -911,7 +911,7 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
 </div>
 <?php endif; ?>
 <?php if ( $can_manage && ! $is_new && ! empty( $person['pid'] ) ) : ?>
-<div id="metis-people-offboard-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-people-offboard-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-people-modal-inner">
         <h3 class="metis-modal-title">Confirm Offboarding</h3>
         <p>This will set status to inactive, set lifecycle to alumni, clear workspace/stripe access, and remove role assignments.</p>
@@ -923,7 +923,7 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
 </div>
 <?php endif; ?>
 <?php if ( $can_manage && ! $is_new && ! empty( $person['pid'] ) ) : ?>
-<div id="metis-people-avatar-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-people-avatar-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-people-modal-inner">
         <h3 class="metis-modal-title">Update Profile Photo</h3>
         <div class="metis-form-grid">
@@ -958,7 +958,7 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
     </div>
 </div>
 
-<div id="metis-people-totp-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-people-totp-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-people-modal-inner">
         <h3 class="metis-modal-title">Set Up Authenticator App</h3>
         <div class="metis-form-grid">

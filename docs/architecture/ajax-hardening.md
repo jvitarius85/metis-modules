@@ -115,3 +115,9 @@ Current regression runner includes:
 CI integration:
 
 - `.github/workflows/ajax-ui-hardening.yml` runs the same regression command on `stable`, `main`, pull requests, and manual dispatch
+
+## Closeout Update (May 31, 2026)
+
+- Governance now enforces modal backdrop lifecycle defaults in module views: any `class="metis-modal-backdrop"` with `aria-hidden="true"` must also include `hidden` at rest.
+- Public website templates now include skip-link + focusable main-content targets to guarantee keyboard bypass of repetitive navigation.
+- Public navigation runtime now preserves focus on open/close and supports escape-close as an enforced governance behavior.

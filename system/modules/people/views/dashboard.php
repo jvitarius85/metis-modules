@@ -47,8 +47,8 @@ $can_workspace_manage = function_exists('metis_people_can_workspace_manage') ? m
                 <div class="metis-tile-desc">
                     <label for="metis-people-dashboard-search" class="metis-muted">Search name, email, or PID</label>
                     <div class="metis-people-search-input-wrap">
-                        <input id="metis-people-dashboard-search" class="metis-input" type="text" placeholder="Start typing..." name="metis_people_find_person_search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true">
-                        <div id="metis-people-dashboard-results" class="metis-people-search-results" style="display:none;"></div>
+                        <input id="metis-people-dashboard-search" class="metis-input" type="text" placeholder="Start typing..." name="metis_people_find_person_search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="metis-people-dashboard-results" aria-activedescendant="">
+                        <div id="metis-people-dashboard-results" class="metis-people-search-results" style="display:none;" role="listbox"></div>
                     </div>
                 </div>
                 <div class="metis-tile-cta">Open profile →</div>

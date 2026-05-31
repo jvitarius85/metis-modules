@@ -802,7 +802,7 @@ if (!is_string($agenda_snapshot_json)) {
 </div>
 
 <?php if ($can_manage) : ?>
-<div id="metis-board-decision-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-decision-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Board Decision</h2>
         <form id="metis-board-decision-form" class="metis-form-grid">
@@ -825,7 +825,7 @@ if (!is_string($agenda_snapshot_json)) {
     </div>
 </div>
 
-<div id="metis-board-action-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-action-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Action Item</h2>
         <form id="metis-board-action-form" class="metis-form-grid">

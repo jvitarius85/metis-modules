@@ -1153,6 +1153,7 @@ function buildElementGrid() {
     });
     $grid.html(html.join(''));
     $('#metis-theme-element-jump').html(jumpHtml.join(''));
+    applyBox4Accessibility($grid);
 }
 
 function parseBoxValue(raw) {
@@ -1175,6 +1176,25 @@ function boxToString(top, right, bottom, left) {
     if (top === bottom && right === left) return (top + ' ' + right).trim();
     if (right === left) return (top + ' ' + right + ' ' + bottom).trim();
     return (top + ' ' + right + ' ' + bottom + ' ' + left).trim();
+}
+
+function applyBox4Accessibility(scope) {
+    var $scope = scope ? $(scope) : $(document);
+    $scope.find('.metis-theme-box4').each(function() {
+        var $box = $(this);
+        var fieldLabel = String($box.closest('.metis-theme-field').find('.metis-theme-label').first().text() || '').trim();
+        if (!fieldLabel) fieldLabel = 'Spacing';
+
+        var linked = String($box.find('.metis-theme-box4-link').attr('data-linked') || '1') === '1';
+        $box.find('.metis-theme-box4-link')
+            .attr('aria-pressed', linked ? 'true' : 'false')
+            .attr('aria-label', 'Toggle linked sides for ' + fieldLabel);
+
+        $box.find('.metis-theme-box4-input[data-side="top"]').attr('aria-label', fieldLabel + ' top');
+        $box.find('.metis-theme-box4-input[data-side="right"]').attr('aria-label', fieldLabel + ' right');
+        $box.find('.metis-theme-box4-input[data-side="bottom"]').attr('aria-label', fieldLabel + ' bottom');
+        $box.find('.metis-theme-box4-input[data-side="left"]').attr('aria-label', fieldLabel + ' left');
+    });
 }
 
 function syncBoxControlToHidden($box) {
@@ -1206,10 +1226,12 @@ function syncBoxControlsFromState() {
         $box.find('.metis-theme-box4-input[data-side="left"]').val(parsed.left);
         $box.find('.metis-theme-box4-link')
             .attr('data-linked', parsed.linked ? '1' : '0')
+            .attr('aria-pressed', parsed.linked ? 'true' : 'false')
             .toggleClass('is-linked', parsed.linked)
             .find('.metis-theme-box4-link-text')
             .text(parsed.linked ? 'Linked' : 'Unlinked');
     });
+    applyBox4Accessibility();
 }
 
 function parseBorderValue(raw) {
@@ -2188,6 +2210,7 @@ $(document).on('click', '.metis-theme-box4-link', function() {
     var $btn = $(this);
     var linked = String($btn.attr('data-linked') || '1') === '1';
     $btn.attr('data-linked', linked ? '0' : '1')
+        .attr('aria-pressed', linked ? 'false' : 'true')
         .toggleClass('is-linked', !linked)
         .find('.metis-theme-box4-link-text')
         .text(linked ? 'Unlinked' : 'Linked');

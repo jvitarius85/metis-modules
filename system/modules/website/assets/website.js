@@ -519,6 +519,13 @@ var MetisWebsite = {
         }
     },
 
+    _toast: function(message, level) {
+        var type = String(level || 'info');
+        if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[type] === 'function') {
+            Metis.ui.toast[type](String(message || ''));
+        }
+    },
+
     _bindDashboardActions: function() {
         $(document).off('click.metisWebsiteDashboardPage').on('click.metisWebsiteDashboardPage', '#metis-dashboard-new-page-btn, #metis-dashboard-quick-new-page-btn', function() {
             MetisWebsite.openPageEditor(null);
@@ -573,10 +580,10 @@ var MetisWebsite = {
                     if (r.data.status) {
                         MetisWebsite._renderLaunchStatus(r.data.status);
                     }
-                    metis_toast(r.data.message || fallbackMessage || 'Website launch status updated.', 'success');
+                    MetisWebsite._toast(r.data.message || fallbackMessage || 'Website launch status updated.', 'success');
                     return;
                 }
-                metis_toast((r && r.data && r.data.message) ? r.data.message : 'Launch request failed.', 'error');
+                MetisWebsite._toast((r && r.data && r.data.message) ? r.data.message : 'Launch request failed.', 'error');
                 if (r && r.data && r.data.status) {
                     MetisWebsite._renderLaunchStatus(r.data.status);
                 }
@@ -593,7 +600,7 @@ var MetisWebsite = {
                         MetisWebsite._renderLaunchStatus(xhr.responseJSON.data.status);
                     }
                 }
-                metis_toast(message, 'error');
+                MetisWebsite._toast(message, 'error');
             }
         });
     },
@@ -693,7 +700,7 @@ var MetisWebsite = {
         $(document).off('click.metisWebsiteHomepage').on('click.metisWebsiteHomepage', '#metis-set-homepage-btn', function() {
             var id = parseInt(String($('#metis-homepage-selector').val() || ''), 10);
             if (Number.isNaN(id) || id < 1) {
-                metis_toast('Select a published page first.', 'warning');
+                MetisWebsite._toast('Select a published page first.', 'warning');
                 return;
             }
             MetisWebsite._setHomepage(id);
@@ -716,13 +723,13 @@ var MetisWebsite = {
             data: { action: 'metis_website_page_delete', nonce: self._nonceFor('metis_website_page_delete'), id: id },
             success: function(r) {
                 if (r && r.success) {
-                    metis_toast('Page deleted.', 'success');
+                    MetisWebsite._toast('Page deleted.', 'success');
                     MetisWebsite._removePageRow((r.data && r.data.id) ? r.data.id : id);
                     MetisWebsite._applyHomepagePageId((r.data && r.data.homepage_page_id) ? r.data.homepage_page_id : $('#metis-homepage-selector').val());
                 }
-                else { metis_toast(r.data && r.data.message ? r.data.message : 'Delete failed.', 'error'); }
+                else { MetisWebsite._toast(r.data && r.data.message ? r.data.message : 'Delete failed.', 'error'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { MetisWebsite._toast('Request failed.', 'error'); }
         });
     },
 
@@ -734,12 +741,12 @@ var MetisWebsite = {
             data: { action: 'metis_website_page_publish', nonce: self._nonceFor('metis_website_page_publish'), id: id },
             success: function(r) {
                 if (r && r.success && r.data && r.data.page) {
-                    metis_toast('Page published.', 'success');
+                    MetisWebsite._toast('Page published.', 'success');
                     MetisWebsite._updatePageRow(r.data.page);
                 }
-                else { metis_toast(r.data && r.data.message ? r.data.message : 'Publish failed.', 'error'); }
+                else { MetisWebsite._toast(r.data && r.data.message ? r.data.message : 'Publish failed.', 'error'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { MetisWebsite._toast('Request failed.', 'error'); }
         });
     },
 
@@ -751,12 +758,12 @@ var MetisWebsite = {
             data: { action: 'metis_website_page_unpublish', nonce: self._nonceFor('metis_website_page_unpublish'), id: id },
             success: function(r) {
                 if (r && r.success && r.data && r.data.page) {
-                    metis_toast('Page unpublished.', 'success');
+                    MetisWebsite._toast('Page unpublished.', 'success');
                     MetisWebsite._updatePageRow(r.data.page);
                 }
-                else { metis_toast(r.data && r.data.message ? r.data.message : 'Unpublish failed.', 'error'); }
+                else { MetisWebsite._toast(r.data && r.data.message ? r.data.message : 'Unpublish failed.', 'error'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { MetisWebsite._toast('Request failed.', 'error'); }
         });
     },
 
@@ -768,16 +775,16 @@ var MetisWebsite = {
             data: { action: 'metis_website_homepage_set', nonce: self._nonceFor('metis_website_homepage_set'), id: id },
             success: function(r) {
                 if (r && r.success && r.data) {
-                    metis_toast('Homepage updated.', 'success');
+                    MetisWebsite._toast('Homepage updated.', 'success');
                     if (r.data.page) {
                         MetisWebsite._updatePageRow(r.data.page);
                     }
                     MetisWebsite._applyHomepagePageId(r.data.homepage_page_id || id);
                     return;
                 }
-                metis_toast((r && r.data && r.data.message) ? r.data.message : 'Failed to set homepage.', 'error');
+                MetisWebsite._toast((r && r.data && r.data.message) ? r.data.message : 'Failed to set homepage.', 'error');
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { MetisWebsite._toast('Request failed.', 'error'); }
         });
     },
 
@@ -990,11 +997,15 @@ var MetisWebsite = {
 
     _openPostCategoryModal: function(title) {
         $('#metis-post-category-modal-title').text(String(title || 'Category'));
-        this._postCategoryModal().css('display', 'flex');
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.form('metis-post-category-modal');
+        }
     },
 
     _closePostCategoryModal: function() {
-        this._postCategoryModal().css('display', 'none');
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.close('metis-post-category-modal');
+        }
     },
 
     _openPostCategoryCreate: function() {
@@ -1006,7 +1017,7 @@ var MetisWebsite = {
         var $button = $(button);
         var currentId = parseInt(String($button.attr('data-id') || '0'), 10);
         if (Number.isNaN(currentId) || currentId < 1) {
-            metis_toast('Category record is missing an id.', 'error');
+            MetisWebsite._toast('Category record is missing an id.', 'error');
             return;
         }
 
@@ -1036,7 +1047,7 @@ var MetisWebsite = {
         payload.metis_csrf_action = payload.metis_action_nonce !== '' ? ('metis_ajax:' + payload.action) : security.metis_csrf_action;
 
         if (payload.name === '') {
-            metis_toast('Category name is required.', 'warning');
+            MetisWebsite._toast('Category name is required.', 'warning');
             return;
         }
 
@@ -1048,10 +1059,10 @@ var MetisWebsite = {
                 if (r && r.success) {
                     MetisWebsite._renderPostCategoriesTable((r.data && r.data.categories) || []);
                     MetisWebsite._closePostCategoryModal();
-                    metis_toast((r.data && r.data.message) ? r.data.message : 'Category saved.', 'success');
+                    MetisWebsite._toast((r.data && r.data.message) ? r.data.message : 'Category saved.', 'success');
                     return;
                 }
-                metis_toast((r && r.data && r.data.message) ? r.data.message : 'Failed to save category.', 'error');
+                MetisWebsite._toast((r && r.data && r.data.message) ? r.data.message : 'Failed to save category.', 'error');
             },
             error: function(xhr) {
                 var message = 'Request failed.';
@@ -1062,7 +1073,7 @@ var MetisWebsite = {
                         message = xhr.responseJSON.data;
                     }
                 }
-                metis_toast(message, 'error');
+                MetisWebsite._toast(message, 'error');
             }
         });
     },
@@ -1072,11 +1083,11 @@ var MetisWebsite = {
         var id = parseInt(String($button.attr('data-id') || '0'), 10);
         var postCount = parseInt(String($button.attr('data-post-count') || '0'), 10);
         if (Number.isNaN(id) || id < 1) {
-            metis_toast('Category record is missing an id.', 'error');
+            MetisWebsite._toast('Category record is missing an id.', 'error');
             return;
         }
         if (!Number.isNaN(postCount) && postCount > 0) {
-            metis_toast('Remove this category from existing posts before deleting it.', 'warning');
+            MetisWebsite._toast('Remove this category from existing posts before deleting it.', 'warning');
             return;
         }
 
@@ -1096,10 +1107,10 @@ var MetisWebsite = {
                 success: function(r) {
                     if (r && r.success) {
                         MetisWebsite._renderPostCategoriesTable((r.data && r.data.categories) || []);
-                        metis_toast((r.data && r.data.message) ? r.data.message : 'Category deleted.', 'success');
+                        MetisWebsite._toast((r.data && r.data.message) ? r.data.message : 'Category deleted.', 'success');
                         return;
                     }
-                    metis_toast((r && r.data && r.data.message) ? r.data.message : 'Failed to delete category.', 'error');
+                    MetisWebsite._toast((r && r.data && r.data.message) ? r.data.message : 'Failed to delete category.', 'error');
                 },
                 error: function(xhr) {
                     var message = 'Request failed.';
@@ -1110,7 +1121,7 @@ var MetisWebsite = {
                             message = xhr.responseJSON.data;
                         }
                     }
-                    metis_toast(message, 'error');
+                    MetisWebsite._toast(message, 'error');
                 }
             });
         });
@@ -1160,7 +1171,7 @@ var MetisWebsite = {
             },
             success: function(r) {
                 if (!r || !r.success) {
-                    metis_toast((r && r.data && r.data.message) || 'Failed to save template.', 'error');
+                    MetisWebsite._toast((r && r.data && r.data.message) || 'Failed to save template.', 'error');
                     return;
                 }
                 $('.metis-layout-gallery-item').removeClass('is-active');
@@ -1168,10 +1179,10 @@ var MetisWebsite = {
                 $('#metis-layout-gallery-status').text('Active template: ' + (name || key));
                 $('#metis-layout-preview-select').val(key);
                 self._renderLayoutPreviewCanvas(key);
-                metis_toast('Site template updated.', 'success');
+                MetisWebsite._toast('Site template updated.', 'success');
             },
             error: function() {
-                metis_toast('Request failed.', 'error');
+                MetisWebsite._toast('Request failed.', 'error');
             }
         });
     },
@@ -1253,16 +1264,16 @@ var MetisWebsite = {
             },
             success: function(r) {
                 if (!r || !r.success) {
-                    metis_toast((r && r.data && r.data.message) || 'Failed to delete template.', 'error');
+                    MetisWebsite._toast((r && r.data && r.data.message) || 'Failed to delete template.', 'error');
                     return;
                 }
-                metis_toast('Template deleted.', 'success');
+                MetisWebsite._toast('Template deleted.', 'success');
                 if (typeof self._loadTemplates === 'function') {
                     self._loadTemplates();
                 }
             },
             error: function() {
-                metis_toast('Request failed.', 'error');
+                MetisWebsite._toast('Request failed.', 'error');
             }
         });
     },
@@ -1298,10 +1309,10 @@ var MetisWebsite = {
             type: 'POST',
             data: { action: 'metis_website_post_delete', nonce: self._nonceFor('metis_website_post_delete'), id: id },
             success: function(r) {
-                if (r && r.success) { metis_toast('Post deleted.', 'success'); MetisWebsite._removePostRow((r.data && r.data.id) ? r.data.id : id); }
-                else { metis_toast(r.data && r.data.message ? r.data.message : 'Delete failed.', 'error'); }
+                if (r && r.success) { MetisWebsite._toast('Post deleted.', 'success'); MetisWebsite._removePostRow((r.data && r.data.id) ? r.data.id : id); }
+                else { MetisWebsite._toast(r.data && r.data.message ? r.data.message : 'Delete failed.', 'error'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { MetisWebsite._toast('Request failed.', 'error'); }
         });
     },
 
@@ -1312,10 +1323,10 @@ var MetisWebsite = {
             type: 'POST',
             data: { action: 'metis_website_post_publish', nonce: self._nonceFor('metis_website_post_publish'), id: id },
             success: function(r) {
-                if (r && r.success && r.data && r.data.post) { metis_toast('Post published.', 'success'); MetisWebsite._updatePostRow(r.data.post); }
-                else { metis_toast(r.data && r.data.message ? r.data.message : 'Publish failed.', 'error'); }
+                if (r && r.success && r.data && r.data.post) { MetisWebsite._toast('Post published.', 'success'); MetisWebsite._updatePostRow(r.data.post); }
+                else { MetisWebsite._toast(r.data && r.data.message ? r.data.message : 'Publish failed.', 'error'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { MetisWebsite._toast('Request failed.', 'error'); }
         });
     },
 

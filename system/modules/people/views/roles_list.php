@@ -93,7 +93,7 @@ $roles_by_domain = $snapshot['roles_by_domain'] ?? [];
 </div>
 
 <?php if ($can_manage) : ?>
-<div id="metis-role-add-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-role-add-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-people-modal-inner">
         <h3 class="metis-modal-title">Add Role</h3>
         <form id="metis-role-add-form" class="metis-form-grid">

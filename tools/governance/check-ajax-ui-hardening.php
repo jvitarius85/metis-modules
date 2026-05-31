@@ -134,6 +134,22 @@ foreach ($phpFiles as $relative) {
     ) {
         $addIssue('Legacy UI Alias Usage', $relative);
     }
+
+    if ($contents !== '' && str_contains($contents, 'metis-modal-overlay')) {
+        $addIssue('Legacy Modal Markup', $relative);
+    }
+
+    if (
+        str_contains($relative, '/views/')
+        && preg_match_all('/class="metis-modal-backdrop"[^>]*aria-hidden="true"[^>]*>/u', $contents, $matches) > 0
+    ) {
+        foreach ($matches[0] as $modalMarkup) {
+            if (!str_contains($modalMarkup, ' hidden')) {
+                $addIssue('Modal Lifecycle Drift', $relative . ' contains modal backdrop markup without hidden default state.');
+                break;
+            }
+        }
+    }
 }
 
 $jsFiles = array_values(array_filter(
@@ -164,6 +180,10 @@ foreach ($jsFiles as $relative) {
         ) {
             $addIssue('Legacy UI Alias Usage', $relative);
         }
+    }
+
+    if (!str_starts_with($relative, 'system/tests/') && str_contains($contents, 'metis-modal-overlay')) {
+        $addIssue('Legacy Modal Markup', $relative);
     }
 }
 

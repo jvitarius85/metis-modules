@@ -332,7 +332,7 @@ if ( $simple_editor_js_version !== '' ) {
     </div><!-- /metis-list-layout -->
     <?php endif; ?>
 
-    <div id="metis-newsletter-campaign-detail-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-newsletter-campaign-detail-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-newsletter-modal-inner">
             <h3 class="metis-modal-title" id="metis-newsletter-campaign-detail-title">Campaign Details</h3>
             <div class="metis-newsletter-progress-wrap">
@@ -361,7 +361,7 @@ if ( $simple_editor_js_version !== '' ) {
         </div>
     </div>
 
-    <div id="metis-newsletter-test-send-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-newsletter-test-send-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-newsletter-modal-inner">
             <h3 class="metis-modal-title">Send Test Campaign</h3>
             <div class="metis-form-grid">
@@ -390,7 +390,7 @@ if ( $simple_editor_js_version !== '' ) {
         </div>
     </div>
 
-    <div id="metis-newsletter-html-editor-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-newsletter-html-editor-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-newsletter-modal-inner metis-newsletter-modal-compact">
             <h3 class="metis-modal-title">Edit HTML Block</h3>
             <div class="metis-form-grid">
@@ -406,7 +406,7 @@ if ( $simple_editor_js_version !== '' ) {
         </div>
     </div>
 
-    <div id="metis-newsletter-video-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-newsletter-video-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-newsletter-modal-inner metis-newsletter-modal-compact">
             <h3 class="metis-modal-title">Video Block</h3>
             <div class="metis-form-grid">

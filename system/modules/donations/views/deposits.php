@@ -207,7 +207,8 @@ function metisShowBackfillResults(data) {
 
     const modal = document.createElement('div');
     modal.id = 'metis-backfill-modal';
-    modal.className = 'metis-modal-overlay';
+    modal.className = 'metis-modal-backdrop';
+    modal.setAttribute('aria-hidden', 'true');
 
     modal.innerHTML =
         '<div class="metis-result-modal metis-result-modal-md">'
@@ -215,7 +216,7 @@ function metisShowBackfillResults(data) {
         // Header
         + '<div class="metis-modal-header">'
         + '<h3>Backfill Results</h3>'
-        + '<button id="metis-backfill-close" class="metis-modal-close" type="button">&times;</button>'
+        + '<button id="metis-backfill-close" class="metis-modal-close" type="button" data-modal-close="metis-backfill-modal">&times;</button>'
         + '</div>'
 
         // Summary bar
@@ -238,15 +239,16 @@ function metisShowBackfillResults(data) {
 
         // Footer
         + '<div class="metis-modal-footer">'
-        + '<button id="metis-backfill-dismiss" class="metis-btn metis-btn-secondary">Dismiss</button>'
+        + '<button id="metis-backfill-dismiss" class="metis-btn metis-btn-secondary" data-modal-close="metis-backfill-modal">Dismiss</button>'
         + '</div>'
 
         + '</div>';
 
     document.body.appendChild(modal);
-    document.getElementById('metis-backfill-close').onclick   = function() { modal.remove(); };
-    document.getElementById('metis-backfill-dismiss').onclick = function() { modal.remove(); };
-    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.init(modal);
+        Metis.ui.modal.form('metis-backfill-modal');
+    }
 }
 
 // ── Link Payouts ────────────────────────────────────────────────────────────
@@ -323,7 +325,8 @@ function metisShowLinkPayoutsResults(data) {
 
     const modal = document.createElement('div');
     modal.id = 'metis-link-payouts-modal';
-    modal.className = 'metis-modal-overlay';
+    modal.className = 'metis-modal-backdrop';
+    modal.setAttribute('aria-hidden', 'true');
 
     modal.innerHTML =
         '<div class="metis-result-modal metis-result-modal-lg">' +
@@ -331,7 +334,7 @@ function metisShowLinkPayoutsResults(data) {
         // Header
         '<div class="metis-modal-header">' +
         '<h3>Link Payouts — Results</h3>' +
-        '<button id="metis-lp-close" class="metis-modal-close" type="button">&times;</button>' +
+        '<button id="metis-lp-close" class="metis-modal-close" type="button" data-modal-close="metis-link-payouts-modal">&times;</button>' +
         '</div>' +
 
         // Summary
@@ -354,14 +357,15 @@ function metisShowLinkPayoutsResults(data) {
 
         // Footer
         '<div class="metis-modal-footer">' +
-        '<button id="metis-lp-dismiss" class="metis-btn metis-btn-secondary">Dismiss</button>' +
+        '<button id="metis-lp-dismiss" class="metis-btn metis-btn-secondary" data-modal-close="metis-link-payouts-modal">Dismiss</button>' +
         '</div>' +
         '</div>';
 
     document.body.appendChild(modal);
-    document.getElementById('metis-lp-close').onclick   = function() { modal.remove(); };
-    document.getElementById('metis-lp-dismiss').onclick = function() { modal.remove(); };
-    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.init(modal);
+        Metis.ui.modal.form('metis-link-payouts-modal');
+    }
 }
 
 // ── Import Stripe Transactions ──────────────────────────────────────────
@@ -463,14 +467,15 @@ function metisShowImportResults(data) {
 
     const modal = document.createElement('div');
     modal.id = 'metis-import-modal';
-    modal.className = 'metis-modal-overlay';
+    modal.className = 'metis-modal-backdrop';
+    modal.setAttribute('aria-hidden', 'true');
 
     modal.innerHTML =
         '<div class="metis-result-modal metis-result-modal-xl">' +
 
         '<div class="metis-modal-header">' +
         '<h3>Import Stripe Transactions — Results</h3>' +
-        '<button id="metis-imp-close" class="metis-modal-close" type="button">&times;</button>' +
+        '<button id="metis-imp-close" class="metis-modal-close" type="button" data-modal-close="metis-import-modal">&times;</button>' +
         '</div>' +
 
         '<div class="metis-result-summary metis-result-summary-badges">' +
@@ -492,14 +497,15 @@ function metisShowImportResults(data) {
         '</table></div>' +
 
         '<div class="metis-modal-footer">' +
-        '<button id="metis-imp-dismiss" class="metis-btn metis-btn-secondary">Dismiss</button>' +
+        '<button id="metis-imp-dismiss" class="metis-btn metis-btn-secondary" data-modal-close="metis-import-modal">Dismiss</button>' +
         '</div>' +
         '</div>';
 
     document.body.appendChild(modal);
-    document.getElementById('metis-imp-close').onclick   = function() { modal.remove(); };
-    document.getElementById('metis-imp-dismiss').onclick = function() { modal.remove(); };
-    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.init(modal);
+        Metis.ui.modal.form('metis-import-modal');
+    }
 }
 
 // ── Verify Links ──────────────────────────────────────────────────────────
@@ -581,14 +587,15 @@ function metisShowVerifyLinksResults(data) {
 
     const modal = document.createElement('div');
     modal.id = 'metis-verify-links-modal';
-    modal.className = 'metis-modal-overlay';
+    modal.className = 'metis-modal-backdrop';
+    modal.setAttribute('aria-hidden', 'true');
 
     modal.innerHTML =
         '<div class="metis-result-modal metis-result-modal-lg">' +
 
         '<div class="metis-modal-header">' +
         '<h3>Verify Links — Results</h3>' +
-        '<button id="metis-vl-close" class="metis-modal-close" type="button">&times;</button>' +
+        '<button id="metis-vl-close" class="metis-modal-close" type="button" data-modal-close="metis-verify-links-modal">&times;</button>' +
         '</div>' +
 
         '<div class="metis-result-summary metis-result-summary-badges">' +
@@ -610,14 +617,15 @@ function metisShowVerifyLinksResults(data) {
         '</table></div>' +
 
         '<div class="metis-modal-footer">' +
-        '<button id="metis-vl-dismiss" class="metis-btn metis-btn-secondary">Dismiss</button>' +
+        '<button id="metis-vl-dismiss" class="metis-btn metis-btn-secondary" data-modal-close="metis-verify-links-modal">Dismiss</button>' +
         '</div>' +
         '</div>';
 
     document.body.appendChild(modal);
-    document.getElementById('metis-vl-close').onclick   = function() { modal.remove(); };
-    document.getElementById('metis-vl-dismiss').onclick = function() { modal.remove(); };
-    modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.init(modal);
+        Metis.ui.modal.form('metis-verify-links-modal');
+    }
 }
 
 </script>

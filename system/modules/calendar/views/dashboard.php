@@ -98,7 +98,7 @@ if (!empty($workspace['ok'])) {
 </div>
 
 <?php if (!empty($workspace['ok'])) : ?>
-<div class="metis-modal-backdrop" id="metis-calendar-detail-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-calendar-detail-modal" aria-hidden="true" hidden>
     <div class="metis-modal metis-calendar-detail-modal-inner" role="dialog" aria-modal="true" aria-labelledby="metis-calendar-detail-title">
         <div class="metis-calendar-detail-head">
             <div>
@@ -134,7 +134,7 @@ if (!empty($workspace['ok'])) {
 <?php endif; ?>
 
 <?php if (!empty($workspace['ok']) && $can_manage) : ?>
-<div class="metis-modal-backdrop" id="metis-calendar-event-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-calendar-event-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:760px;" role="dialog" aria-modal="true" aria-labelledby="metis-calendar-event-title">
         <h3 class="metis-modal-title" id="metis-calendar-event-title">New Event</h3>
         <form id="metis-calendar-event-form" class="metis-form-grid">

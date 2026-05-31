@@ -90,52 +90,60 @@ $banners = BannerService::getAll();
         </table>
     <?php endif; ?>
 
-    <div id="metis-banner-form-wrap" class="metis-form-card metis-is-hidden">
-        <h2 class="metis-form-card-title">Banner Editor</h2>
-        <input type="hidden" id="metis-banner-id" value="">
-        <div class="metis-form-grid metis-form-grid-3">
-            <label>Name<input id="metis-banner-name" type="text" class="metis-editor-input" /></label>
-            <label>Type
-                <select id="metis-banner-type" class="metis-editor-input">
-                    <option value="top_banner">Top Banner</option>
-                    <option value="announcement_bar">Announcement Bar</option>
-                    <option value="inline">Inline</option>
-                </select>
-            </label>
-            <label>Status
-                <select id="metis-banner-status" class="metis-editor-input">
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                </select>
-            </label>
-            <label>Dismiss
-                <select id="metis-banner-dismiss" class="metis-editor-input">
-                    <option value="session">Once per session</option>
-                    <option value="persisted">Persisted</option>
-                    <option value="none">Always visible</option>
-                </select>
-            </label>
-            <label>Start At<input id="metis-banner-start" type="datetime-local" class="metis-editor-input" /></label>
-            <label>End At<input id="metis-banner-end" type="datetime-local" class="metis-editor-input" /></label>
-            <label>Timezone<input id="metis-banner-timezone" type="text" class="metis-editor-input" placeholder="America/Chicago" value="UTC" /></label>
+</div>
+
+<div id="metis-banner-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
+    <div class="metis-modal">
+        <div class="metis-modal-header">
+            <h2 class="metis-modal-title" id="metis-banner-modal-title">New Banner</h2>
+            <button type="button" class="metis-modal-close" data-modal-close="metis-banner-modal" aria-label="Close">&times;</button>
         </div>
-        <div class="metis-form-grid metis-form-grid-2 metis-form-grid-top">
-            <label>Banner Text<textarea id="metis-banner-text" class="metis-editor-input" rows="3"></textarea></label>
-            <label>CTA Label<textarea id="metis-banner-cta-label" class="metis-editor-input" rows="1"></textarea></label>
-            <label>CTA URL<input id="metis-banner-cta-url" type="url" class="metis-editor-input" placeholder="https://example.org" /></label>
-            <label>Target Paths (comma separated)<input id="metis-banner-target-paths" type="text" class="metis-editor-input" placeholder="/,/about,/news" /></label>
-            <label>Target Slugs (comma separated)<input id="metis-banner-target-slugs" type="text" class="metis-editor-input" placeholder="home,about-us" /></label>
-            <label>Target Content Types (comma separated)<input id="metis-banner-target-types" type="text" class="metis-editor-input" placeholder="page,post" /></label>
+        <div class="metis-modal-body">
+            <input type="hidden" id="metis-banner-id" value="">
+            <div class="metis-form-grid metis-form-grid-3">
+                <label>Name<input id="metis-banner-name" type="text" class="metis-editor-input" /></label>
+                <label>Type
+                    <select id="metis-banner-type" class="metis-editor-input">
+                        <option value="top_banner">Top Banner</option>
+                        <option value="announcement_bar">Announcement Bar</option>
+                        <option value="inline">Inline</option>
+                    </select>
+                </label>
+                <label>Status
+                    <select id="metis-banner-status" class="metis-editor-input">
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                    </select>
+                </label>
+                <label>Dismiss
+                    <select id="metis-banner-dismiss" class="metis-editor-input">
+                        <option value="session">Once per session</option>
+                        <option value="persisted">Persisted</option>
+                        <option value="none">Always visible</option>
+                    </select>
+                </label>
+                <label>Start At<input id="metis-banner-start" type="datetime-local" class="metis-editor-input" /></label>
+                <label>End At<input id="metis-banner-end" type="datetime-local" class="metis-editor-input" /></label>
+                <label>Timezone<input id="metis-banner-timezone" type="text" class="metis-editor-input" placeholder="America/Chicago" value="UTC" /></label>
+            </div>
+            <div class="metis-form-grid metis-form-grid-2 metis-form-grid-top">
+                <label>Banner Text<textarea id="metis-banner-text" class="metis-editor-input" rows="3"></textarea></label>
+                <label>CTA Label<textarea id="metis-banner-cta-label" class="metis-editor-input" rows="1"></textarea></label>
+                <label>CTA URL<input id="metis-banner-cta-url" type="url" class="metis-editor-input" placeholder="https://example.org" /></label>
+                <label>Target Paths (comma separated)<input id="metis-banner-target-paths" type="text" class="metis-editor-input" placeholder="/,/about,/news" /></label>
+                <label>Target Slugs (comma separated)<input id="metis-banner-target-slugs" type="text" class="metis-editor-input" placeholder="home,about-us" /></label>
+                <label>Target Content Types (comma separated)<input id="metis-banner-target-types" type="text" class="metis-editor-input" placeholder="page,post" /></label>
+            </div>
+            <label class="metis-inline-toggle">
+                <input id="metis-banner-site-wide" type="checkbox" /> Site-wide
+            </label>
+            <label class="metis-inline-toggle">
+                <input id="metis-banner-allow-dismiss" type="checkbox" checked /> Show dismiss button
+            </label>
         </div>
-        <label class="metis-inline-toggle">
-            <input id="metis-banner-site-wide" type="checkbox" /> Site-wide
-        </label>
-        <label class="metis-inline-toggle">
-            <input id="metis-banner-allow-dismiss" type="checkbox" checked /> Show dismiss button
-        </label>
-        <div class="metis-form-actions">
+        <div class="metis-modal-footer">
             <button id="metis-banner-save-btn" class="metis-btn metis-btn-primary">Save Banner</button>
-            <button id="metis-banner-cancel-btn" class="metis-btn metis-btn-ghost">Cancel</button>
+            <button id="metis-banner-cancel-btn" class="metis-btn metis-btn-ghost" type="button" data-modal-close="metis-banner-modal">Cancel</button>
         </div>
     </div>
 </div>
@@ -227,6 +235,7 @@ $banners = BannerService::getAll();
     }
 
     function openEditor(data) {
+        $('#metis-banner-modal-title').text(data && data.id ? 'Edit Banner' : 'New Banner');
         $('#metis-banner-id').val(data.id || '');
         $('#metis-banner-name').val(data.name || '');
         $('#metis-banner-type').val(data.type || 'top_banner');
@@ -243,7 +252,9 @@ $banners = BannerService::getAll();
         $('#metis-banner-target-paths').val((data.paths || []).join(', '));
         $('#metis-banner-target-slugs').val((data.slugs || []).join(', '));
         $('#metis-banner-target-types').val((data.content_types || []).join(', '));
-        $('#metis-banner-form-wrap').slideDown(120);
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.form('metis-banner-modal');
+        }
     }
 
     $(document).on('click', '#metis-banner-create-btn, #metis-banner-create-empty-btn', function(){
@@ -276,10 +287,6 @@ $banners = BannerService::getAll();
         });
     });
 
-    $(document).on('click', '#metis-banner-cancel-btn', function(){
-        $('#metis-banner-form-wrap').slideUp(100);
-    });
-
     $(document).on('click', '#metis-banner-save-btn', function(){
         var id = Number($('#metis-banner-id').val() || 0);
         var payload = {
@@ -309,34 +316,37 @@ $banners = BannerService::getAll();
 
         $.post(metisWebsiteAjax.ajax_url, payload).done(function(r){
             if (r && r.success) {
-                metis_toast('Banner saved.', 'success');
+                Metis.ui.toast.success('Banner saved.');
                 renderBannerTable((r.data && r.data.banners) || []);
-                $('#metis-banner-form-wrap').slideUp(100);
+                if (window.Metis && Metis.ui && Metis.ui.modal) {
+                    Metis.ui.modal.close('metis-banner-modal');
+                }
                 return;
             }
-            metis_toast((r && r.data && r.data.message) || 'Save failed.', 'error');
+            Metis.ui.toast.error((r && r.data && r.data.message) || 'Save failed.');
         }).fail(function(){
-            metis_toast('Request failed.', 'error');
+            Metis.ui.toast.error('Request failed.');
         });
     });
 
     $(document).on('click', '.metis-banner-delete-btn', function(){
         var id = Number($(this).data('id') || 0);
         if (id < 1) return;
-        metis_confirm('Delete this banner?', function(){
+        Metis.ui.confirm.open({ message: 'Delete this banner?', confirmLabel: 'Delete', tone: 'danger' }).then(function(confirmed){
+            if (!confirmed) return;
             $.post(metisWebsiteAjax.ajax_url, {
                 action: 'metis_website_banner_delete',
                 nonce: metisWebsiteAjax.nonce,
                 id: id
             }).done(function(r){
                 if (r && r.success) {
-                    metis_toast('Banner deleted.', 'success');
+                    Metis.ui.toast.success('Banner deleted.');
                     renderBannerTable((r.data && r.data.banners) || []);
                     return;
                 }
-                metis_toast((r && r.data && r.data.message) || 'Delete failed.', 'error');
+                Metis.ui.toast.error((r && r.data && r.data.message) || 'Delete failed.');
             }).fail(function(){
-                metis_toast('Request failed.', 'error');
+                Metis.ui.toast.error('Request failed.');
             });
         });
     });

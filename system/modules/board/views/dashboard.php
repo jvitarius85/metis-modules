@@ -356,7 +356,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </section>
 </div>
 
-<div id="metis-board-bylaws-view-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-bylaws-view-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-board-bylaws-view-modal" role="dialog" aria-modal="true" aria-labelledby="metis-board-bylaws-view-title">
         <div class="metis-board-bylaws-view-head">
             <div>
@@ -389,7 +389,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
 </div>
 
 <?php if ($can_manage) : ?>
-<div id="metis-board-meeting-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-meeting-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Meeting</h2>
         <form id="metis-board-meeting-form" class="metis-form-grid">
@@ -409,7 +409,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </div>
 </div>
 
-<div id="metis-board-committee-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-committee-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Committee</h2>
         <form id="metis-board-committee-form" class="metis-form-grid">
@@ -424,7 +424,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </div>
 </div>
 
-<div id="metis-board-decision-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-decision-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Board Decision</h2>
         <form id="metis-board-decision-form" class="metis-form-grid">
@@ -440,7 +440,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </div>
 </div>
 
-<div id="metis-board-action-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-action-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Action Item</h2>
         <form id="metis-board-action-form" class="metis-form-grid">
@@ -456,7 +456,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </div>
 </div>
 
-<div id="metis-board-announcement-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-announcement-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Announcement</h2>
         <form id="metis-board-announcement-form" class="metis-form-grid">
@@ -469,7 +469,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </div>
 </div>
 
-<div id="metis-board-bylaws-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-bylaws-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-board-bylaws-modal">
         <h2 class="metis-modal-title">Board Bylaws</h2>
         <form id="metis-board-bylaws-form" class="metis-form-grid">
@@ -511,7 +511,7 @@ $bylaws_change_summary = (string) ( $bylaws['change_summary'] ?? '' );
     </div>
 </div>
 
-<div id="metis-board-bylaws-pdf-browser-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-bylaws-pdf-browser-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Select Signed PDF</h2>
         <p class="metis-muted">When Google Drive is enabled, this lists synced Drive PDFs. Otherwise it lists uploaded board PDFs.</p>

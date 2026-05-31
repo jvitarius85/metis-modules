@@ -27,103 +27,16 @@ function initMetisPeopleProfileShell(context) {
         return Promise.resolve(false);
     }
 
-    function ensurePeoplePromptModal() {
-        let modal = document.getElementById('metis-people-prompt-modal');
-        if (modal) return modal;
-        modal = document.createElement('div');
-        modal.id = 'metis-people-prompt-modal';
-        modal.className = 'metis-modal-backdrop';
-        modal.setAttribute('aria-hidden', 'true');
-        modal.innerHTML =
-            '<div class="metis-modal metis-people-modal-inner">' +
-                '<h3 id="metis-people-prompt-title" class="metis-modal-title">Confirm</h3>' +
-                '<div class="metis-form-grid">' +
-                    '<div class="metis-field metis-field-full">' +
-                        '<label id="metis-people-prompt-label" for="metis-people-prompt-input">Note</label>' +
-                        '<textarea id="metis-people-prompt-input" class="metis-input" rows="3"></textarea>' +
-                    '</div>' +
-                    '<div class="metis-form-actions">' +
-                        '<button type="button" id="metis-people-prompt-cancel" class="metis-btn metis-btn-ghost">Cancel</button>' +
-                        '<button type="button" id="metis-people-prompt-submit" class="metis-btn">Save</button>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-        document.body.appendChild(modal);
-        modal.addEventListener('click', function (event) {
-            if (event.target === modal) closeModal(modal);
-        });
-        return modal;
-    }
-
     function openPromptModal(opts) {
-        const options = opts || {};
-        const modal = ensurePeoplePromptModal();
-        const title = document.getElementById('metis-people-prompt-title');
-        const label = document.getElementById('metis-people-prompt-label');
-        const input = document.getElementById('metis-people-prompt-input');
-        const cancel = document.getElementById('metis-people-prompt-cancel');
-        const submit = document.getElementById('metis-people-prompt-submit');
-        if (!modal || !input || !cancel || !submit || !title || !label) {
-            return Promise.reject(new Error('Prompt modal unavailable.'));
-        }
-        title.textContent = String(options.title || 'Provide Details');
-        label.textContent = String(options.label || 'Value');
-        input.value = String(options.defaultValue || '');
-        input.placeholder = String(options.placeholder || '');
-        submit.textContent = String(options.submitText || 'Save');
-        const multiline = options.multiline !== false;
-        if (multiline) {
-            input.setAttribute('rows', String(options.rows || 3));
-        } else {
-            input.setAttribute('rows', '1');
-        }
-        return new Promise(function (resolve, reject) {
-            let settled = false;
-            function cleanup() {
-                cancel.removeEventListener('click', onCancel);
-                submit.removeEventListener('click', onSubmit);
-                input.removeEventListener('keydown', onKeyDown);
-                modal.removeEventListener('click', onBackdrop);
+        return Metis.prompt.open(Object.assign({
+            title: 'Provide Details',
+            label: 'Value',
+            confirmLabel: 'Save'
+        }, opts || {})).then(function (value) {
+            if (value === null) {
+                throw new Error('cancelled');
             }
-            function onCancel() {
-                if (settled) return;
-                settled = true;
-                cleanup();
-                closeModal(modal);
-                reject(new Error('cancelled'));
-            }
-            function onSubmit() {
-                const value = String(input.value || '').trim();
-                if (options.required && !value) {
-                    input.focus();
-                    return;
-                }
-                if (settled) return;
-                settled = true;
-                cleanup();
-                closeModal(modal);
-                resolve(value);
-            }
-            function onKeyDown(event) {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    onCancel();
-                    return;
-                }
-                if (!multiline && event.key === 'Enter') {
-                    event.preventDefault();
-                    onSubmit();
-                }
-            }
-            function onBackdrop(event) {
-                if (event.target === modal) onCancel();
-            }
-            cancel.addEventListener('click', onCancel);
-            submit.addEventListener('click', onSubmit);
-            input.addEventListener('keydown', onKeyDown);
-            modal.addEventListener('click', onBackdrop);
-            openModal(modal);
-            window.setTimeout(function () { input.focus(); input.select(); }, 20);
+            return String(value || '').trim();
         });
     }
 

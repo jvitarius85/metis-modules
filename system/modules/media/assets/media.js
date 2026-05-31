@@ -237,19 +237,15 @@
     }
 
     function openModal(id) {
-        if (window.Metis && Metis.modal && typeof Metis.modal.open === 'function') {
-            Metis.modal.open(id);
-            return;
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.form === 'function') {
+            Metis.ui.modal.form(id);
         }
-        $('#' + id).attr('aria-hidden', 'false').addClass('is-open');
     }
 
     function closeModal(id) {
-        if (window.Metis && Metis.modal && typeof Metis.modal.close === 'function') {
-            Metis.modal.close(id);
-            return;
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.close === 'function') {
+            Metis.ui.modal.close(id);
         }
-        $('#' + id).attr('aria-hidden', 'true').removeClass('is-open');
     }
 
     function loadFacets() {
@@ -551,9 +547,8 @@
             openModal('metis-media-preview-modal');
         });
 
-        $('#metis-media-preview-close, #metis-media-preview-modal').on('click', function (e) {
-            var id = e.target && e.target.id ? String(e.target.id) : '';
-            if (id === 'metis-media-preview-modal' || id === 'metis-media-preview-close') {
+        $('#metis-media-preview-modal').on('click', function (e) {
+            if (e.target === this) {
                 closeModal('metis-media-preview-modal');
                 $('#metis-media-preview-body').empty();
             }
@@ -585,16 +580,14 @@
             toast('Category ready: ' + normalized, 'success');
         });
 
-        $('#metis-media-organize-close, #metis-media-organize-modal').on('click', function (e) {
-            var id = e.target && e.target.id ? String(e.target.id) : '';
-            if (id === 'metis-media-organize-modal' || id === 'metis-media-organize-close') {
+        $('#metis-media-organize-modal').on('click', function (e) {
+            if (e.target === this) {
                 closeModal('metis-media-organize-modal');
             }
         });
 
-        $('#metis-media-confirm-close, #metis-media-delete-cancel, #metis-media-confirm-modal').on('click', function (e) {
-            var id = e.target && e.target.id ? String(e.target.id) : '';
-            if (id === 'metis-media-confirm-modal' || id === 'metis-media-confirm-close' || id === 'metis-media-delete-cancel') {
+        $('#metis-media-delete-cancel, #metis-media-confirm-modal').on('click', function (e) {
+            if (e.target === this || e.target.id === 'metis-media-delete-cancel') {
                 closeModal('metis-media-confirm-modal');
             }
         });

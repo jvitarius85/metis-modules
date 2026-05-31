@@ -101,21 +101,21 @@ $menu_button_colors = [
 </div>
 
 <!-- Menu Editor Modal -->
-<div id="metis-menu-modal" class="metis-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-label="Menu Editor">
+<div id="metis-menu-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:640px;width:95%;">
         <div class="metis-modal-header">
             <h2 class="metis-modal-title" id="metis-menu-modal-title">New Menu</h2>
-            <button type="button" class="metis-modal-close" id="metis-menu-modal-close" aria-label="Close">&times;</button>
+            <button type="button" class="metis-modal-close" data-modal-close="metis-menu-modal" aria-label="Close">&times;</button>
         </div>
         <div class="metis-modal-body" style="padding:20px;">
 
             <div class="metis-field" style="margin-bottom:14px;">
-                <label class="metis-label">Menu Name <span style="color:#dc3545;">*</span></label>
+                <label class="metis-label" for="metis-menu-name">Menu Name <span style="color:#dc3545;">*</span></label>
                 <input type="text" id="metis-menu-name" class="metis-input" placeholder="e.g. Main Navigation">
             </div>
 
             <div class="metis-field" style="margin-bottom:20px;">
-                <label class="metis-label">Location</label>
+                <label class="metis-label" for="metis-menu-location">Location</label>
                 <select id="metis-menu-location" class="metis-input">
                     <?php foreach ( $locations as $val => $label ) : ?>
                         <option value="<?php echo metis_escape_attr( $val ); ?>"><?php echo metis_escape_html( $label ); ?></option>
@@ -131,26 +131,26 @@ $menu_button_colors = [
 
             <div style="display:flex;gap:8px;align-items:flex-end;padding:12px;border:1px solid var(--metis-border,#e2e6ea);border-radius:6px;background:var(--metis-surface,#fff);flex-wrap:wrap;">
                 <div class="metis-field" style="flex:1;min-width:160px;margin:0;">
-                    <label class="metis-label" style="font-size:11px;">Label</label>
+                    <label class="metis-label" for="metis-menu-item-label" style="font-size:11px;">Label</label>
                     <input type="text" id="metis-menu-item-label" class="metis-input metis-input-sm" placeholder="Link label">
                 </div>
                 <div class="metis-field" style="flex:2;min-width:200px;margin:0;">
-                    <label class="metis-label" style="font-size:11px;">URL</label>
+                    <label class="metis-label" for="metis-menu-item-url" style="font-size:11px;">URL</label>
                     <input type="text" id="metis-menu-item-url" class="metis-input metis-input-sm" placeholder="https:// or /page-slug">
                 </div>
                 <div class="metis-field" style="margin:0;">
-                    <label class="metis-label" style="font-size:11px;">Opens in</label>
+                    <label class="metis-label" for="metis-menu-item-target" style="font-size:11px;">Opens in</label>
                     <select id="metis-menu-item-target" class="metis-input metis-input-sm" style="width:110px;">
                         <option value="">Same tab</option>
                         <option value="_blank">New tab</option>
                     </select>
                 </div>
                 <div class="metis-field" style="margin:0;display:flex;align-items:center;gap:6px;">
-                    <label class="metis-label" style="font-size:11px;margin:0;">Button</label>
+                    <label class="metis-label" for="metis-menu-item-as-button" style="font-size:11px;margin:0;">Button</label>
                     <input type="checkbox" id="metis-menu-item-as-button" value="1">
                 </div>
                 <div class="metis-field" style="margin:0;">
-                    <label class="metis-label" style="font-size:11px;">Button Color</label>
+                    <label class="metis-label" for="metis-menu-item-button-color" style="font-size:11px;">Button Color</label>
                     <select id="metis-menu-item-button-color" class="metis-input metis-input-sm" style="width:150px;">
                         <?php foreach ( $menu_button_colors as $color_key => $color_hex ) : ?>
                             <option value="<?php echo metis_escape_attr( $color_key ); ?>"><?php echo metis_escape_html( strtoupper( str_replace( 'metis_', '', $color_key ) ) . ' (' . $color_hex . ')' ); ?></option>
@@ -164,7 +164,7 @@ $menu_button_colors = [
 
         </div>
         <div class="metis-modal-footer">
-            <button type="button" class="metis-btn metis-btn-ghost" id="metis-menu-cancel-btn">Cancel</button>
+            <button type="button" class="metis-btn metis-btn-ghost" id="metis-menu-cancel-btn" data-modal-close="metis-menu-modal">Cancel</button>
             <button type="button" class="metis-btn metis-btn-primary" id="metis-menu-save-btn">Save Menu</button>
         </div>
     </div>
@@ -368,13 +368,16 @@ function openMenuModal(id, name, location, items) {
     $('#metis-menu-item-label, #metis-menu-item-url').val('');
     $('#metis-menu-item-target').val('');
     renderItems();
-    var $modal = $('#metis-menu-modal');
-    $modal.css('display', 'flex').hide().fadeIn(150);
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.form('metis-menu-modal');
+    }
     setTimeout(function() { $('#metis-menu-name').focus(); }, 100);
 }
 
 function closeMenuModal() {
-    $('#metis-menu-modal').fadeOut(150);
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.close('metis-menu-modal');
+    }
 }
 
 function resetItemForm() {
@@ -434,7 +437,7 @@ function renderItems() {
             var toId = rowItemId;
             if (!fromId || !toId || fromId === toId) return;
             if (isDescendant(toId, fromId)) {
-                metis_toast('Cannot nest an item under its own child.', 'warning');
+                Metis.ui.toast.warning('Cannot nest an item under its own child.');
                 return;
             }
             var movedIndex = -1;
@@ -459,14 +462,11 @@ function renderItems() {
 }
 
 $(document).on('click', '#metis-create-menu-btn, #metis-create-menu-btn-empty', function() { openMenuModal(); });
-$(document).on('click', '#metis-menu-modal-close, #metis-menu-cancel-btn', closeMenuModal);
-$(document).on('click', '#metis-menu-modal', function(e) { if (e.target === this) closeMenuModal(); });
-
 $(document).on('click', '#metis-menu-add-item-btn', function() {
     var label = $('#metis-menu-item-label').val().trim();
     var url   = $('#metis-menu-item-url').val().trim();
-    if (!label) { metis_toast('Item label is required.', 'warning'); $('#metis-menu-item-label').focus(); return; }
-    if (!url)   { metis_toast('Item URL is required.', 'warning'); $('#metis-menu-item-url').focus(); return; }
+    if (!label) { Metis.ui.toast.warning('Item label is required.'); $('#metis-menu-item-label').focus(); return; }
+    if (!url)   { Metis.ui.toast.warning('Item URL is required.'); $('#metis-menu-item-url').focus(); return; }
     var target = $('#metis-menu-item-target').val() || '';
     var asButton = $('#metis-menu-item-as-button').is(':checked');
     var colorKey = String($('#metis-menu-item-button-color').val() || 'metis_primary');
@@ -545,7 +545,7 @@ $(document).on('click', '.metis-edit-menu', function() {
 
 $(document).on('click', '#metis-menu-save-btn', function() {
     var name = $('#metis-menu-name').val().trim();
-    if (!name) { metis_toast('Menu name is required.', 'warning'); $('#metis-menu-name').focus(); return; }
+    if (!name) { Metis.ui.toast.warning('Menu name is required.'); $('#metis-menu-name').focus(); return; }
     var id   = $('#metis-menu-id').val();
     var data = {
         action:     'metis_website_menu_save',
@@ -561,17 +561,18 @@ $(document).on('click', '#metis-menu-save-btn', function() {
         url: metisWebsiteAjax.ajax_url, type: 'POST', data: data,
         success: function(r) {
             $('#metis-menu-save-btn').prop('disabled', false).text('Save Menu');
-            if (r && r.success) { metis_toast('Menu saved.', 'success'); closeMenuModal(); renderMenusTable((r.data && r.data.menus) || []); }
-            else { metis_toast((r.data && r.data.message) || 'Save failed.', 'error'); }
+            if (r && r.success) { Metis.ui.toast.success('Menu saved.'); closeMenuModal(); renderMenusTable((r.data && r.data.menus) || []); }
+            else { Metis.ui.toast.error((r.data && r.data.message) || 'Save failed.'); }
         },
-        error: function() { $('#metis-menu-save-btn').prop('disabled', false).text('Save Menu'); metis_toast('Request failed.', 'error'); }
+        error: function() { $('#metis-menu-save-btn').prop('disabled', false).text('Save Menu'); Metis.ui.toast.error('Request failed.'); }
     });
 });
 
 $(document).on('click', '.metis-delete-menu', function() {
     var id = $(this).data('id');
     var name = $(this).closest('.metis-premium-row').find('.metis-premium-cell:first strong').text();
-    metis_confirm('Delete menu "' + name + '"?', function() {
+    Metis.ui.confirm.open({ message: 'Delete menu "' + name + '"?', confirmLabel: 'Delete', tone: 'danger' }).then(function(confirmed) {
+        if (!confirmed) return;
         $.ajax({
             url: metisWebsiteAjax.ajax_url, type: 'POST',
             data: {
@@ -581,10 +582,10 @@ $(document).on('click', '.metis-delete-menu', function() {
                 id: id
             },
             success: function(r) {
-                if (r && r.success) { metis_toast('Menu deleted.', 'success'); renderMenusTable((r.data && r.data.menus) || []); }
-                else { metis_toast((r.data && r.data.message) || 'Delete failed.', 'error'); }
+                if (r && r.success) { Metis.ui.toast.success('Menu deleted.'); renderMenusTable((r.data && r.data.menus) || []); }
+                else { Metis.ui.toast.error((r.data && r.data.message) || 'Delete failed.'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { Metis.ui.toast.error('Request failed.'); }
         });
     });
 });

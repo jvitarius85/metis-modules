@@ -102,24 +102,24 @@ $can_delete = function_exists( 'metis_security_user_can' ) && metis_security_use
     </div>
 </div>
 
-<div id="metis-media-preview-modal" class="metis-media-preview-modal" aria-hidden="true">
-    <div class="metis-media-preview-modal-inner" role="dialog" aria-modal="true" aria-labelledby="metis-media-preview-title">
-        <div class="metis-media-preview-modal-head">
-            <strong id="metis-media-preview-title">Preview</strong>
-            <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-preview-close">Close</button>
+<div id="metis-media-preview-modal" class="metis-modal-backdrop metis-media-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-media-modal" aria-labelledby="metis-media-preview-title">
+        <div class="metis-modal-header metis-media-modal-head">
+            <strong id="metis-media-preview-title" class="metis-modal-title">Preview</strong>
+            <button type="button" class="metis-modal-close" id="metis-media-preview-close" data-modal-close="metis-media-preview-modal" aria-label="Close">&times;</button>
         </div>
-        <div id="metis-media-preview-body" class="metis-media-preview-modal-body"></div>
+        <div id="metis-media-preview-body" class="metis-modal-body metis-media-modal-body"></div>
     </div>
 </div>
 
 <?php if ( $can_edit ) : ?>
-<div id="metis-media-organize-modal" class="metis-media-preview-modal" aria-hidden="true">
-    <div class="metis-media-preview-modal-inner" role="dialog" aria-modal="true" aria-labelledby="metis-media-organize-title">
-        <div class="metis-media-preview-modal-head">
-            <strong id="metis-media-organize-title">Organize Media</strong>
-            <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-organize-close">Close</button>
+<div id="metis-media-organize-modal" class="metis-modal-backdrop metis-media-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-media-modal" aria-labelledby="metis-media-organize-title">
+        <div class="metis-modal-header metis-media-modal-head">
+            <strong id="metis-media-organize-title" class="metis-modal-title">Organize Media</strong>
+            <button type="button" class="metis-modal-close" id="metis-media-organize-close" data-modal-close="metis-media-organize-modal" aria-label="Close">&times;</button>
         </div>
-        <div class="metis-media-preview-modal-body">
+        <div class="metis-modal-body metis-media-modal-body">
             <input type="hidden" id="metis-media-organize-token" value="">
             <div class="metis-media-modal-field">
                 <label for="metis-media-organize-folder">Folder</label>
@@ -138,13 +138,13 @@ $can_delete = function_exists( 'metis_security_user_can' ) && metis_security_use
 <?php endif; ?>
 
 <?php if ( $can_delete ) : ?>
-<div id="metis-media-confirm-modal" class="metis-media-preview-modal" aria-hidden="true">
-    <div class="metis-media-preview-modal-inner" role="dialog" aria-modal="true" aria-labelledby="metis-media-confirm-title">
-        <div class="metis-media-preview-modal-head">
-            <strong id="metis-media-confirm-title">Delete Media</strong>
-            <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-confirm-close">Close</button>
+<div id="metis-media-confirm-modal" class="metis-modal-backdrop metis-media-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-media-modal metis-media-modal-sm" aria-labelledby="metis-media-confirm-title">
+        <div class="metis-modal-header metis-media-modal-head">
+            <strong id="metis-media-confirm-title" class="metis-modal-title">Delete Media</strong>
+            <button type="button" class="metis-modal-close" id="metis-media-confirm-close" data-modal-close="metis-media-confirm-modal" aria-label="Close">&times;</button>
         </div>
-        <div class="metis-media-preview-modal-body">
+        <div class="metis-modal-body metis-media-modal-body">
             <p>This will permanently delete the selected media file.</p>
             <input type="hidden" id="metis-media-delete-token" value="">
             <div class="metis-media-modal-actions">

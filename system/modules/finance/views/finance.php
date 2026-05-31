@@ -824,7 +824,7 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
         </div>
     </div>
 
-    <div id="metis-finance-gl-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-finance-gl-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-finance-v2-modal-inner">
             <h3 class="metis-modal-title">Quick GL Entry</h3>
             <form data-finance-gl-form="1" class="metis-finance-v2-form">
@@ -857,7 +857,7 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
         </div>
     </div>
 
-    <div id="metis-finance-invoice-modal" class="metis-modal-backdrop" aria-hidden="true">
+    <div id="metis-finance-invoice-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-finance-v2-modal-inner">
             <h3 class="metis-modal-title">Create Invoice</h3>
             <form data-finance-invoice-form="1" class="metis-finance-v2-form">

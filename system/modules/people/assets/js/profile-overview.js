@@ -219,26 +219,61 @@ window.MetisPeopleProfileModules.initOverview = function (context) {
         const searchInput = document.getElementById('metis-people-dashboard-search');
         const resultsWrap = document.getElementById('metis-people-dashboard-results');
         let searchTimer = null;
+        let activeIndex = -1;
+
+        function setSearchExpanded(expanded) {
+            if (!searchInput) return;
+            searchInput.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+
+        function setActiveDashboardResult(index) {
+            if (!resultsWrap || !searchInput) return;
+            const options = Array.from(resultsWrap.querySelectorAll('.metis-people-search-result'));
+            activeIndex = index >= 0 && index < options.length ? index : -1;
+            options.forEach(function (option, optionIndex) {
+                const isActive = optionIndex === activeIndex;
+                option.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+            const activeOption = activeIndex >= 0 ? options[activeIndex] : null;
+            searchInput.setAttribute('aria-activedescendant', activeOption ? activeOption.id : '');
+        }
+
+        function hideDashboardResults() {
+            if (!resultsWrap) return;
+            resultsWrap.style.display = 'none';
+            setActiveDashboardResult(-1);
+            setSearchExpanded(false);
+        }
 
         function renderDashboardPeopleResults(people) {
             if (!resultsWrap) return;
             resultsWrap.innerHTML = '';
+            activeIndex = -1;
             const list = Array.isArray(people) ? people : [];
             if (!list.length) {
-                resultsWrap.style.display = 'none';
+                hideDashboardResults();
                 return;
             }
-            list.forEach(function (person) {
+            list.forEach(function (person, index) {
                 const pid = String(person.pid || '').trim();
                 if (!pid) return;
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'metis-people-search-result';
+                btn.id = 'metis-people-dashboard-result-' + index;
                 btn.dataset.pid = pid;
+                btn.setAttribute('role', 'option');
+                btn.setAttribute('aria-selected', 'false');
                 btn.textContent = String(person.label || pid);
                 resultsWrap.appendChild(btn);
             });
-            resultsWrap.style.display = resultsWrap.children.length ? 'block' : 'none';
+            if (resultsWrap.children.length) {
+                resultsWrap.style.display = 'block';
+                setSearchExpanded(true);
+                setActiveDashboardResult(0);
+            } else {
+                hideDashboardResults();
+            }
         }
 
         function searchPeople(q) {
@@ -264,6 +299,41 @@ window.MetisPeopleProfileModules.initOverview = function (context) {
                 }, 180);
             });
 
+            searchInput.addEventListener('keydown', function (event) {
+                const options = Array.from(resultsWrap.querySelectorAll('.metis-people-search-result'));
+                const hasResults = options.length > 0 && resultsWrap.style.display !== 'none';
+                if (!hasResults) {
+                    if (event.key === 'Escape') {
+                        hideDashboardResults();
+                    }
+                    return;
+                }
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setActiveDashboardResult(Math.min(activeIndex + 1, options.length - 1));
+                    return;
+                }
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setActiveDashboardResult(Math.max(activeIndex - 1, 0));
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    if (activeIndex < 0 || activeIndex >= options.length) return;
+                    event.preventDefault();
+                    options[activeIndex].click();
+                    return;
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    hideDashboardResults();
+                    return;
+                }
+                if (event.key === 'Tab') {
+                    hideDashboardResults();
+                }
+            });
+
             resultsWrap.addEventListener('click', function (event) {
                 const btn = event.target.closest('.metis-people-search-result');
                 if (!btn) return;
@@ -274,7 +344,7 @@ window.MetisPeopleProfileModules.initOverview = function (context) {
 
             document.addEventListener('click', function (event) {
                 if (event.target === searchInput || resultsWrap.contains(event.target)) return;
-                resultsWrap.style.display = 'none';
+                hideDashboardResults();
             });
         }
     }

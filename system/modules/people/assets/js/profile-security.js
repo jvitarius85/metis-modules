@@ -20,69 +20,13 @@ window.MetisPeopleProfileModules.initSecurity = function (context) {
     const resetMetisPasswordButton = document.getElementById('metis-people-reset-metis-password');
     let pendingTotpSecret = '';
 
-    function ensureSecurityConfirmModal() {
-        let modal = document.getElementById('metis-people-security-confirm-modal');
-        if (modal) return modal;
-        modal = document.createElement('div');
-        modal.id = 'metis-people-security-confirm-modal';
-        modal.className = 'metis-modal-backdrop';
-        modal.setAttribute('aria-hidden', 'true');
-        modal.innerHTML =
-            '<div class="metis-modal metis-people-modal-inner">' +
-                '<h3 class="metis-modal-title" id="metis-people-security-confirm-title">Confirm Action</h3>' +
-                '<div class="metis-form-grid">' +
-                    '<div class="metis-field metis-field-full">' +
-                        '<div class="metis-muted" id="metis-people-security-confirm-message"></div>' +
-                    '</div>' +
-                    '<div class="metis-form-actions">' +
-                        '<button type="button" id="metis-people-security-confirm-cancel" class="metis-btn metis-btn-ghost">Cancel</button>' +
-                        '<button type="button" id="metis-people-security-confirm-ok" class="metis-btn metis-btn-danger">Confirm</button>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-        document.body.appendChild(modal);
-        modal.addEventListener('click', function (event) {
-            if (event.target === modal) closeModal(modal);
-        });
-        return modal;
-    }
-
     function openSecurityConfirmModal(title, message, confirmLabel) {
-        const modal = ensureSecurityConfirmModal();
-        const titleNode = document.getElementById('metis-people-security-confirm-title');
-        const messageNode = document.getElementById('metis-people-security-confirm-message');
-        const cancelBtn = document.getElementById('metis-people-security-confirm-cancel');
-        const okBtn = document.getElementById('metis-people-security-confirm-ok');
-        if (!modal || !titleNode || !messageNode || !cancelBtn || !okBtn) {
-            return Promise.resolve(false);
-        }
-        titleNode.textContent = String(title || 'Confirm Action');
-        messageNode.textContent = String(message || '');
-        okBtn.textContent = String(confirmLabel || 'Confirm');
-
-        return new Promise(function (resolve) {
-            let done = false;
-            function cleanup() {
-                cancelBtn.removeEventListener('click', onCancel);
-                okBtn.removeEventListener('click', onOk);
-                modal.removeEventListener('click', onBackdrop);
-            }
-            function finish(value) {
-                if (done) return;
-                done = true;
-                cleanup();
-                closeModal(modal);
-                resolve(value);
-            }
-            function onCancel() { finish(false); }
-            function onOk() { finish(true); }
-            function onBackdrop(event) {
-                if (event.target === modal) finish(false);
-            }
-            cancelBtn.addEventListener('click', onCancel);
-            okBtn.addEventListener('click', onOk);
-            modal.addEventListener('click', onBackdrop);
-            openModal(modal);
+        return Metis.confirm.open({
+            title: String(title || 'Confirm Action'),
+            message: String(message || ''),
+            confirmLabel: String(confirmLabel || 'Confirm'),
+            cancelLabel: 'Cancel',
+            tone: 'danger'
         });
     }
 

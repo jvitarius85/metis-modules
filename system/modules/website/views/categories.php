@@ -154,29 +154,27 @@ foreach ( $categories as $category ) {
 
 <div
     id="metis-post-category-modal"
-    class="metis-modal-overlay"
-    style="display:none;"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Post Category Editor"
+    class="metis-modal-backdrop"
+    aria-hidden="true"
+    hidden
     data-category-options="<?php echo metis_escape_attr( $parent_options_json ?: '[]' ); ?>"
 >
     <div class="metis-modal metis-website-modal-narrow">
         <div class="metis-modal-header">
             <h2 class="metis-modal-title" id="metis-post-category-modal-title">New Category</h2>
-            <button type="button" class="metis-modal-close" id="metis-post-category-modal-close" aria-label="Close">&times;</button>
+            <button type="button" class="metis-modal-close" data-modal-close="metis-post-category-modal" aria-label="Close">&times;</button>
         </div>
         <div class="metis-modal-body metis-website-modal-body">
             <div class="metis-field metis-website-field-stack">
-                <label class="metis-label">Name <span class="metis-required-marker">*</span></label>
+                <label class="metis-label" for="metis-post-category-name">Name <span class="metis-required-marker">*</span></label>
                 <input type="text" id="metis-post-category-name" class="metis-input" placeholder="e.g. News">
             </div>
             <div class="metis-field metis-website-field-stack">
-                <label class="metis-label">Slug</label>
+                <label class="metis-label" for="metis-post-category-slug">Slug</label>
                 <input type="text" id="metis-post-category-slug" class="metis-input" placeholder="news">
             </div>
             <div class="metis-field metis-website-field-stack">
-                <label class="metis-label">Parent Category</label>
+                <label class="metis-label" for="metis-post-category-parent-id">Parent Category</label>
                 <select id="metis-post-category-parent-id" class="metis-input">
                     <option value="0">None</option>
                     <?php foreach ( $parent_options as $option ) : ?>
@@ -186,21 +184,21 @@ foreach ( $categories as $category ) {
             </div>
             <div class="metis-website-form-grid">
                 <div class="metis-field metis-website-field-flush">
-                    <label class="metis-label">Status</label>
+                    <label class="metis-label" for="metis-post-category-status">Status</label>
                     <select id="metis-post-category-status" class="metis-input">
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
                 </div>
                 <div class="metis-field metis-website-field-flush">
-                    <label class="metis-label">Sort Order</label>
+                    <label class="metis-label" for="metis-post-category-sort-order">Sort Order</label>
                     <input type="number" id="metis-post-category-sort-order" class="metis-input" min="0" step="1" value="0">
                 </div>
             </div>
             <input type="hidden" id="metis-post-category-id" value="">
         </div>
         <div class="metis-modal-footer">
-            <button type="button" class="metis-btn metis-btn-ghost" id="metis-post-category-cancel-btn">Cancel</button>
+            <button type="button" class="metis-btn metis-btn-ghost" id="metis-post-category-cancel-btn" data-modal-close="metis-post-category-modal">Cancel</button>
             <button type="button" class="metis-btn metis-btn-primary" id="metis-post-category-save-btn">Save Category</button>
         </div>
     </div>

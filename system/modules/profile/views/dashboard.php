@@ -311,7 +311,7 @@ $carddav_tokens = function_exists('metis_contacts_carddav_list_tokens')
         </div>
     </div>
 
-    <div class="metis-modal-backdrop" id="metis-profile-avatar-modal" aria-hidden="true">
+    <div class="metis-modal-backdrop" id="metis-profile-avatar-modal" aria-hidden="true" hidden>
         <div class="metis-modal metis-profile-modal-inner">
             <h3>Update Photo</h3>
             <div class="metis-form-grid">
@@ -345,7 +345,7 @@ $carddav_tokens = function_exists('metis_contacts_carddav_list_tokens')
         </div>
     </div>
 
-    <div class="metis-modal-backdrop" id="metis-profile-totp-modal" aria-hidden="true">
+    <div class="metis-modal-backdrop" id="metis-profile-totp-modal" aria-hidden="true" hidden>
         <div class="metis-modal metis-profile-modal-inner">
             <h3>Set Up Authenticator App</h3>
             <div class="metis-form-grid">
@@ -375,7 +375,7 @@ $carddav_tokens = function_exists('metis_contacts_carddav_list_tokens')
         </div>
     </div>
 
-    <div class="metis-modal-backdrop" id="metis-profile-passkey-label-modal" aria-hidden="true">
+    <div class="metis-modal-backdrop" id="metis-profile-passkey-label-modal" aria-hidden="true" hidden>
         <div class="metis-modal metis-profile-modal-inner">
             <h3>Name This Passkey</h3>
             <div class="metis-form-grid">

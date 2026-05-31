@@ -170,8 +170,8 @@
                 '</div>' +
             '</div>';
         document.body.appendChild(modal);
-        if (window.Metis && Metis.modal && typeof Metis.modal.init === 'function') {
-            Metis.modal.init(document);
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.init === 'function') {
+            Metis.ui.modal.init(document);
         }
         newsletterPromptModal = modal;
         return modal;
@@ -239,8 +239,9 @@
                 if (settled) return;
                 settled = true;
                 cleanup();
-                modal.classList.remove('is-open');
-                modal.setAttribute('aria-hidden', 'true');
+                if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.close === 'function') {
+                    Metis.ui.modal.close('metis-newsletter-prompt-modal');
+                }
                 resolve(value);
             }
 
@@ -271,8 +272,9 @@
             optionsHost.addEventListener('click', onOptionClick);
             modal.addEventListener('click', onBackdrop);
             document.addEventListener('keydown', onKeyDown);
-            modal.classList.add('is-open');
-            modal.setAttribute('aria-hidden', 'false');
+            if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.form === 'function') {
+                Metis.ui.modal.form('metis-newsletter-prompt-modal');
+            }
             window.setTimeout(function () {
                 if (mode === 'select') {
                     var selectedButton = optionsHost.querySelector('.metis-newsletter-prompt-option.is-selected') || optionsHost.querySelector('.metis-newsletter-prompt-option');
@@ -310,6 +312,9 @@
                 '</div>' +
             '</div>';
         document.body.appendChild(modal);
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.init === 'function') {
+            Metis.ui.modal.init(document);
+        }
         themeImageSettingsModal = modal;
         return modal;
     }
@@ -354,8 +359,9 @@
                 if (settled) return;
                 settled = true;
                 cleanup();
-                modal.classList.remove('is-open');
-                modal.setAttribute('aria-hidden', 'true');
+                if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.close === 'function') {
+                    Metis.ui.modal.close('metis-newsletter-image-settings-modal');
+                }
                 resolve(value);
             }
             function onBackdrop(event) { if (event.target === modal) finish(null); }
@@ -387,8 +393,9 @@
             sizeHost.addEventListener('click', onSizeClick);
             alignHost.addEventListener('click', onAlignClick);
             document.addEventListener('keydown', onKeyDown);
-            modal.classList.add('is-open');
-            modal.setAttribute('aria-hidden', 'false');
+            if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.form === 'function') {
+                Metis.ui.modal.form('metis-newsletter-image-settings-modal');
+            }
         });
     }
 
@@ -456,64 +463,25 @@
         hidden.value = surface.innerHTML.trim();
     }
 
-    function setSelectxTriggerContent(dd, option) {
-        if (!dd) return;
-        var trigger = dd.querySelector('.metis-theme-selectx-trigger');
-        if (!trigger) return;
-        var labelNode = dd.querySelector('.metis-theme-selectx-label');
-        if (labelNode) labelNode.textContent = option ? String(option.textContent || '').trim() : '';
-        var color = option ? String(option.getAttribute('data-color') || '').trim() : '';
-        var dot = dd.querySelector('.metis-theme-selectx-dot');
-        if (color) {
-            if (!dot) {
-                dot = document.createElement('span');
-                dot.className = 'metis-theme-selectx-dot';
-                trigger.insertBefore(dot, trigger.firstChild);
-            }
-            dot.style.background = color === 'transparent' ? 'transparent' : color;
-        } else if (dot) {
-            dot.remove();
+    function refreshThemeSelects(scope) {
+        if (!(window.Metis && Metis.ui && Metis.ui.select && typeof Metis.ui.select.refresh === 'function')) {
+            return;
         }
-    }
-
-    function buildThemeSelectx() {
-        document.querySelectorAll('#metis-newsletter-theme-card select').forEach(function (select) {
-            if (select.dataset.newsletterSelectxBuilt === '1') return;
-            select.dataset.newsletterSelectxBuilt = '1';
-            select.style.display = 'none';
-            var wrap = document.createElement('div');
-            wrap.className = 'metis-theme-selectx metis-newsletter-theme-selectx';
-            wrap.dataset.for = select.id || '';
-            var trigger = document.createElement('button');
-            trigger.type = 'button';
-            trigger.className = 'metis-input metis-theme-selectx-trigger';
-            var label = document.createElement('span');
-            label.className = 'metis-theme-selectx-label';
-            trigger.appendChild(label);
-            var menu = document.createElement('div');
-            menu.className = 'metis-theme-selectx-menu';
+        var root = scope && scope.querySelectorAll ? scope : document.getElementById('metis-newsletter-theme-card');
+        if (!root) return;
+        root.querySelectorAll('select').forEach(function (select) {
+            select.dataset.metisUiSelect = '1';
+            select.dataset.metisSelectTriggerClass = 'metis-input';
+            select.dataset.metisSelectVariant = 'theme-token';
             Array.prototype.forEach.call(select.options, function (opt) {
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'metis-theme-selectx-option' + (opt.selected ? ' is-selected' : '');
-                btn.dataset.value = opt.value;
                 var color = String(opt.getAttribute('data-color') || '').trim();
                 if (color) {
-                    btn.setAttribute('data-color', color);
-                    var dot = document.createElement('span');
-                    dot.className = 'metis-theme-selectx-dot';
-                    dot.style.background = color === 'transparent' ? 'transparent' : color;
-                    btn.appendChild(dot);
+                    opt.dataset.metisSelectColor = color;
+                } else {
+                    delete opt.dataset.metisSelectColor;
                 }
-                var text = document.createElement('span');
-                text.textContent = opt.textContent;
-                btn.appendChild(text);
-                menu.appendChild(btn);
             });
-            wrap.appendChild(trigger);
-            wrap.appendChild(menu);
-            select.parentNode.insertBefore(wrap, select.nextSibling);
-            setSelectxTriggerContent(wrap, select.options[select.selectedIndex] || null);
+            Metis.ui.select.refresh(select);
         });
     }
 
@@ -940,18 +908,12 @@
         }
         if (searchEl) searchEl.value = themeInlineImageState.search || '';
         renderThemeInlineImagePickerList();
-        modal.classList.add('is-open');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('metis-modal-open');
+        Metis.ui.modal.form('metis-newsletter-theme-inline-image-modal');
         if (searchEl) searchEl.focus();
     }
 
     function closeThemeInlineImageModal() {
-        var modal = document.getElementById('metis-newsletter-theme-inline-image-modal');
-        if (!modal) return;
-        modal.classList.remove('is-open');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('metis-modal-open');
+        Metis.ui.modal.close('metis-newsletter-theme-inline-image-modal');
     }
 
     function renderThemeInlineImagePickerList() {
@@ -1131,7 +1093,7 @@
         if (modal && modal.parentNode !== document.body) {
             document.body.appendChild(modal);
         }
-        buildThemeSelectx();
+        refreshThemeSelects($card[0]);
         mountThemeToolbars();
         hydratePaddingBoxes();
         function syncRanges() {
@@ -1163,28 +1125,6 @@
         });
         $card.on('keyup mouseup focus', '[data-theme-editor-surface]', function () {
             saveThemeSelection(this);
-        });
-        $card.on('click', '.metis-theme-selectx-trigger', function (e) {
-            e.preventDefault();
-            var dd = this.closest('.metis-theme-selectx');
-            document.querySelectorAll('.metis-theme-selectx.is-open').forEach(function (node) { if (node !== dd) node.classList.remove('is-open'); });
-            if (dd) dd.classList.toggle('is-open');
-        });
-        $card.on('click', '.metis-theme-selectx-option', function (e) {
-            e.preventDefault();
-            var option = this;
-            var dd = option.closest('.metis-theme-selectx');
-            var key = dd && dd.dataset ? dd.dataset.for : '';
-            var select = key ? document.getElementById(key) : null;
-            if (!select) return;
-            select.value = option.dataset.value || '';
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            dd.querySelectorAll('.metis-theme-selectx-option').forEach(function (node) { node.classList.remove('is-selected'); });
-            option.classList.add('is-selected');
-            setSelectxTriggerContent(dd, option);
-            dd.classList.remove('is-open');
-            clearTimeout(timer);
-            timer = setTimeout(renderThemePreview, 120);
         });
         $card.on('click', '[data-theme-width-mode]', function (e) {
             e.preventDefault();
@@ -1313,7 +1253,6 @@
             });
         });
         $(document).off('click.metisNewsletterThemeMenus').on('click.metisNewsletterThemeMenus', function (e) {
-            if (!e.target.closest('.metis-theme-selectx')) document.querySelectorAll('.metis-theme-selectx.is-open').forEach(function (node) { node.classList.remove('is-open'); });
             if (!e.target.closest('.metis-se-rich-dropdown')) document.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) { node.classList.remove('is-open'); });
         });
         $('#metis-newsletter-theme-inline-image-close, #metis-newsletter-theme-inline-image-cancel').on('click', function () {
@@ -1471,7 +1410,7 @@
         $('#metis-newsletter-progress-current').text('');
         $('#metis-newsletter-progress-bar').css('width', '0%');
         $('#metis-newsletter-campaign-detail-title').text($(this).find('.metis-premium-cell strong').first().text() || 'Campaign Details');
-        $detailModal.attr('aria-hidden', 'false').show();
+        Metis.ui.modal.form('metis-newsletter-campaign-detail-modal');
 
         metisAjax('metis_newsletter_get_campaign_detail', { campaign_id: id }, function (data) {
             const rows = data.recipients || [];
@@ -1516,7 +1455,7 @@
         $('#metis-newsletter-test-contact-search').val('');
         $('#metis-newsletter-test-contact-results').html('');
         $('#metis-newsletter-test-email').val('');
-        $testModal.attr('aria-hidden', 'false').show();
+        Metis.ui.modal.form('metis-newsletter-test-send-modal');
     });
 
     $testModal.on('change', 'input[name="metis-test-target-mode"]', function () {
@@ -1556,7 +1495,7 @@
         else payload.email = $('#metis-newsletter-test-email').val();
         metisAjax('metis_newsletter_send_test', payload, () => {
             toast('Test sent.', 'success');
-            $testModal.attr('aria-hidden', 'true').hide();
+            Metis.ui.modal.close('metis-newsletter-test-send-modal');
         }, msg => toast(msg, 'error'));
     });
 
@@ -1574,7 +1513,11 @@
     /*  Modal close                                                         */
     /* ------------------------------------------------------------------ */
     $root.on('click', '.metis-newsletter-cancel', function () {
-        $(this).closest('.metis-modal-backdrop').attr('aria-hidden', 'true').hide();
+        const modal = $(this).closest('.metis-modal-backdrop');
+        const modalId = String(modal.attr('id') || '');
+        if (modalId) {
+            Metis.ui.modal.close(modalId);
+        }
     });
 
     }

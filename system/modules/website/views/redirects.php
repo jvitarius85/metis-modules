@@ -91,44 +91,44 @@ $redirects = RedirectService::all();
     <?php endif; ?>
 </div>
 
-<div id="metis-redirect-modal" class="metis-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-label="Redirect Editor">
+<div id="metis-redirect-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:640px;width:95%;">
         <div class="metis-modal-header">
             <h2 class="metis-modal-title" id="metis-redirect-modal-title">New Redirect</h2>
-            <button type="button" class="metis-modal-close" id="metis-redirect-modal-close" aria-label="Close">&times;</button>
+            <button type="button" class="metis-modal-close" data-modal-close="metis-redirect-modal" aria-label="Close">&times;</button>
         </div>
         <div class="metis-modal-body" style="padding:20px;">
             <div class="metis-field" style="margin-bottom:14px;">
-                <label class="metis-label">Source Path <span style="color:#dc3545;">*</span></label>
+                <label class="metis-label" for="metis-redirect-source">Source Path <span style="color:#dc3545;">*</span></label>
                 <input type="text" id="metis-redirect-source" class="metis-input" placeholder="/old-path">
             </div>
             <div class="metis-field" style="margin-bottom:14px;">
-                <label class="metis-label">Destination Path <span style="color:#dc3545;">*</span></label>
+                <label class="metis-label" for="metis-redirect-destination">Destination Path <span style="color:#dc3545;">*</span></label>
                 <input type="text" id="metis-redirect-destination" class="metis-input" placeholder="/new-path">
             </div>
             <div class="metis-website-form-grid">
                 <div class="metis-field" style="margin:0;">
-                    <label class="metis-label">Redirect Type</label>
+                    <label class="metis-label" for="metis-redirect-type">Redirect Type</label>
                     <select id="metis-redirect-type" class="metis-input">
                         <option value="301">301</option>
                         <option value="302">302</option>
                     </select>
                 </div>
                 <div class="metis-field" style="margin:0;display:flex;align-items:flex-end;">
-                    <label class="metis-label" style="display:flex;align-items:center;gap:8px;margin:0;">
+                    <label class="metis-label" for="metis-redirect-active" style="display:flex;align-items:center;gap:8px;margin:0;">
                         <input type="checkbox" id="metis-redirect-active" value="1" checked>
                         Active
                     </label>
                 </div>
             </div>
             <div class="metis-field" style="margin-top:14px;">
-                <label class="metis-label">Notes</label>
+                <label class="metis-label" for="metis-redirect-notes">Notes</label>
                 <textarea id="metis-redirect-notes" class="metis-input" rows="4" placeholder="Internal note for why this redirect exists"></textarea>
             </div>
             <input type="hidden" id="metis-redirect-id" value="">
         </div>
         <div class="metis-modal-footer">
-            <button type="button" class="metis-btn metis-btn-ghost" id="metis-redirect-cancel-btn">Cancel</button>
+            <button type="button" class="metis-btn metis-btn-ghost" id="metis-redirect-cancel-btn" data-modal-close="metis-redirect-modal">Cancel</button>
             <button type="button" class="metis-btn metis-btn-primary" id="metis-redirect-save-btn">Save Redirect</button>
         </div>
     </div>
@@ -169,12 +169,16 @@ function escapeHtml(value) {
 }
 
 function closeModal() {
-    $('#metis-redirect-modal').hide();
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.close('metis-redirect-modal');
+    }
 }
 
 function openModal(title) {
     $('#metis-redirect-modal-title').text(title);
-    $('#metis-redirect-modal').show();
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.form('metis-redirect-modal');
+    }
 }
 
 function resetForm() {
@@ -327,12 +331,6 @@ function deleteRedirect(id) {
 $(document).on('click', '#metis-create-redirect-btn, #metis-create-redirect-btn-empty', openCreate);
 $(document).on('click', '.metis-edit-redirect', function() { openEdit(this); });
 $(document).on('click', '.metis-delete-redirect', function() { deleteRedirect($(this).data('id')); });
-$(document).on('click', '#metis-redirect-modal-close, #metis-redirect-cancel-btn', closeModal);
 $(document).on('click', '#metis-redirect-save-btn', saveRedirect);
-$(document).on('click', '#metis-redirect-modal', function(event) {
-    if (event.target === this) {
-        closeModal();
-    }
-});
 })( );
 </script>

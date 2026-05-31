@@ -126,7 +126,7 @@ $role_by_key = $snapshot['role_by_key'] ?? [];
 </div>
 
 <?php if ($can_manage) : ?>
-<div id="metis-people-add-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-people-add-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal metis-people-modal-inner">
         <h3 class="metis-modal-title">Add Person</h3>
         <form id="metis-people-add-form" class="metis-form-grid">

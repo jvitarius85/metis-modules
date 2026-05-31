@@ -1489,16 +1489,18 @@
             var input = document.getElementById('metis-nl-test-email');
             if (!modal) return;
             if (input && !s(input.value).trim()) input.value = state.newsletterTestEmail || '';
-            modal.style.display = 'flex';
-            modal.setAttribute('aria-hidden', 'false');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.form('metis-nl-test-modal');
+            }
             if (input) input.focus();
         }
 
         function closeNewsletterTestModal() {
             var modal = document.getElementById('metis-nl-test-modal');
             if (!modal) return;
-            modal.style.display = 'none';
-            modal.setAttribute('aria-hidden', 'true');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.close('metis-nl-test-modal');
+            }
         }
 
         function ensureNewsletterPersisted() {
@@ -1630,13 +1632,13 @@
                 newsletterPreviewCardHtml() +
                 '</div>' +
                 '</div>' +
-                '<div id="metis-nl-test-modal" class="metis-modal-overlay metis-nl-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Send Test Email">' +
+                '<div id="metis-nl-test-modal" class="metis-modal-backdrop metis-nl-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Send Test Email">' +
                 '<div class="metis-modal metis-nl-modal__dialog">' +
-                '<div class="metis-modal-header"><h2 class="metis-modal-title">Send Test Email</h2><button type="button" class="metis-modal-close" id="metis-nl-test-close" aria-label="Close">&times;</button></div>' +
+                '<div class="metis-modal-header"><h2 class="metis-modal-title">Send Test Email</h2><button type="button" class="metis-modal-close" id="metis-nl-test-close" data-modal-close="metis-nl-test-modal" aria-label="Close">&times;</button></div>' +
                 '<div class="metis-modal-body">' +
                 '<div class="metis-se-field-row metis-nl-details-row"><label for="metis-nl-test-email">Recipient Email</label><input id="metis-nl-test-email" class="metis-se-input" type="email" value="' + esc(state.newsletterTestEmail || '') + '"></div>' +
                 '</div>' +
-                '<div class="metis-modal-footer"><button type="button" class="metis-btn metis-btn-ghost" id="metis-nl-test-cancel">Cancel</button><button type="button" class="metis-btn" id="metis-nl-test-send">Send Test</button></div>' +
+                '<div class="metis-modal-footer"><button type="button" class="metis-btn metis-btn-ghost" id="metis-nl-test-cancel" data-modal-close="metis-nl-test-modal">Cancel</button><button type="button" class="metis-btn" id="metis-nl-test-send">Send Test</button></div>' +
                 '</div>' +
                 '</div>' +
                 '</div>';
@@ -1687,10 +1689,10 @@
 
         function newsletterToolbarDropdown(label, icon, menuHtml, extraClass) {
             return '<div class="metis-se-rich-dropdown ' + esc(extraClass || '') + '">' +
-                '<button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger metis-se-rich-icon-btn" data-rich-toggle="menu" title="' + esc(label) + '" aria-label="' + esc(label) + '">' +
+                '<button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger metis-se-rich-icon-btn" data-rich-toggle="menu" title="' + esc(label) + '" aria-label="' + esc(label) + '" aria-haspopup="menu" aria-expanded="false">' +
                     '<img src="' + esc(iconUrl(icon)) + '" data-icon-fallback="' + esc(iconFallbackUrl(icon)) + '" alt="" aria-hidden="true">' +
                 '</button>' +
-                '<div class="metis-se-rich-menu">' + menuHtml + '</div>' +
+                '<div class="metis-se-rich-menu" role="menu">' + menuHtml + '</div>' +
             '</div>';
         }
 
@@ -1723,7 +1725,7 @@
                 ['H4', 'Heading 4'],
                 ['PRE', 'Code']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="block" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="block" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
             var sizeMenu = [
                 ['default', 'Default'],
@@ -1731,10 +1733,10 @@
                 ['lg', 'Large'],
                 ['xl', 'Large+']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="size" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="size" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
             var colorMenu = newsletterThemeColorOptions.map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item metis-se-rich-menu-item--color" data-rich-action="color" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' +
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item metis-se-rich-menu-item--color" data-rich-action="color" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' +
                     '<span class="metis-se-color-swatch metis-se-color-swatch--' + esc(row[0]) + '"></span><span>' + esc(row[1]) + '</span></button>';
             }).join('');
             var weightMenu = [
@@ -1742,7 +1744,7 @@
                 ['700', 'Bold'],
                 ['800', 'Extra Bold']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="weight" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="weight" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
             var mergeMenu = [
                 ['First Name', '{{first_name}}'],
@@ -1757,7 +1759,7 @@
                 ['Manage Subscription Link', '{{manage_subscription_url}}'],
                 ['View Online Link', '{{view_online_url}}']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="merge" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[1]) + '">' + esc(row[0]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="merge" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[1]) + '">' + esc(row[0]) + '</button>';
             }).join('');
             return '<div class="metis-se-rich-tools">' +
                 '<div class="metis-se-rich-toolbar">' +
@@ -1855,18 +1857,52 @@
         }
 
         function wire() {
+            function richDropdownTrigger(dropdown) {
+                return dropdown ? dropdown.querySelector('[data-rich-toggle="menu"]') : null;
+            }
+            function richDropdownItems(dropdown) {
+                return Array.from((dropdown || document).querySelectorAll('.metis-se-rich-menu [role="menuitem"]')).filter(function (node) {
+                    return !node.hidden && !node.disabled;
+                });
+            }
+            function closeRichDropdown(dropdown, restoreFocus) {
+                if (!dropdown) return;
+                dropdown.classList.remove('is-open');
+                var trigger = richDropdownTrigger(dropdown);
+                if (trigger) {
+                    trigger.setAttribute('aria-expanded', 'false');
+                    if (restoreFocus && typeof trigger.focus === 'function') trigger.focus();
+                }
+            }
+            function closeAllRichDropdowns(except) {
+                root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
+                    if (node !== except) closeRichDropdown(node, false);
+                });
+            }
+            function openRichDropdown(dropdown, focusPosition) {
+                if (!dropdown) return;
+                closeAllRichDropdowns(dropdown);
+                dropdown.classList.add('is-open');
+                var trigger = richDropdownTrigger(dropdown);
+                if (trigger) trigger.setAttribute('aria-expanded', 'true');
+                if (focusPosition) {
+                    var items = richDropdownItems(dropdown);
+                    var target = focusPosition === 'last' ? items[items.length - 1] : items[0];
+                    if (target && typeof target.focus === 'function') target.focus();
+                }
+            }
             root.addEventListener('click', function (e) {
                 var richBtn = e.target.closest('button[data-rich-cmd]');
                 var richToggle = e.target.closest('button[data-rich-toggle="menu"]');
                 var richAction = e.target.closest('[data-rich-action]');
                 if (!richToggle && !richAction && !e.target.closest('.metis-se-rich-dropdown')) {
-                    root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) { node.classList.remove('is-open'); });
+                    closeAllRichDropdowns();
                 }
                 if (richToggle) {
                     e.preventDefault();
                     var dropdown = richToggle.closest('.metis-se-rich-dropdown');
-                    root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) { if (node !== dropdown) node.classList.remove('is-open'); });
-                    if (dropdown) dropdown.classList.toggle('is-open');
+                    if (dropdown && dropdown.classList.contains('is-open')) closeRichDropdown(dropdown, false);
+                    else openRichDropdown(dropdown);
                     return;
                 }
                 var toggleDetails = e.target.closest('#metis-nl-toggle-details');
@@ -1954,7 +1990,7 @@
                         hydrateNewsletterFromInputs();
                         queueNewsletterPreview();
                     }
-                    root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) { node.classList.remove('is-open'); });
+                    closeAllRichDropdowns();
                     return;
                 }
                 if (richBtn) {
@@ -2037,6 +2073,69 @@
                     state.step = 2;
                     syncStepUi();
                     return;
+                }
+            });
+
+            root.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var blockOverlay = document.getElementById('metis-builder-block-overlay');
+                    if (blockOverlay && !blockOverlay.hidden) {
+                        e.preventDefault();
+                        closeBlockInserter();
+                        return;
+                    }
+                    var previewDrawer = document.getElementById('metis-v2-preview-drawer');
+                    if (previewDrawer && !previewDrawer.hidden) {
+                        e.preventDefault();
+                        closeBuilderDrawer(previewDrawer);
+                        return;
+                    }
+                    var revisionDrawer = document.getElementById('metis-v2-revision-drawer');
+                    if (revisionDrawer && !revisionDrawer.hidden) {
+                        e.preventDefault();
+                        closeBuilderDrawer(revisionDrawer);
+                        return;
+                    }
+                }
+                var richToggle = e.target.closest('button[data-rich-toggle="menu"]');
+                if (richToggle) {
+                    var toggleDropdown = richToggle.closest('.metis-se-rich-dropdown');
+                    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openRichDropdown(toggleDropdown, 'first');
+                        return;
+                    }
+                    if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        openRichDropdown(toggleDropdown, 'last');
+                        return;
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        closeRichDropdown(toggleDropdown, true);
+                    }
+                    return;
+                }
+                var menuItem = e.target.closest('.metis-se-rich-menu [role="menuitem"]');
+                if (!menuItem) return;
+                var itemDropdown = menuItem.closest('.metis-se-rich-dropdown');
+                var items = richDropdownItems(itemDropdown);
+                var index = items.indexOf(menuItem);
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeRichDropdown(itemDropdown, true);
+                    return;
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    var next = items[(index + 1) % items.length];
+                    if (next && typeof next.focus === 'function') next.focus();
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var prev = items[(index - 1 + items.length) % items.length];
+                    if (prev && typeof prev.focus === 'function') prev.focus();
                 }
             });
 
@@ -2464,10 +2563,10 @@
 
         function richToolbarDropdown(label, icon, menuHtml, extraClass) {
             return '<div class="metis-se-rich-dropdown ' + esc(extraClass || '') + '">' +
-                '<button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger metis-se-rich-icon-btn" data-rich-toggle="menu" title="' + esc(label) + '" aria-label="' + esc(label) + '">' +
+                '<button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger metis-se-rich-icon-btn" data-rich-toggle="menu" title="' + esc(label) + '" aria-label="' + esc(label) + '" aria-haspopup="menu" aria-expanded="false">' +
                     '<img src="' + esc(iconUrl(icon)) + '" data-icon-fallback="' + esc(iconFallbackUrl(icon)) + '" alt="" aria-hidden="true">' +
                 '</button>' +
-                '<div class="metis-se-rich-menu">' + menuHtml + '</div>' +
+                '<div class="metis-se-rich-menu" role="menu">' + menuHtml + '</div>' +
             '</div>';
         }
 
@@ -2500,7 +2599,7 @@
                 ['H4', 'Heading 4'],
                 ['PRE', 'Code']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="block" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="block" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
             var sizeMenu = [
                 ['default', 'Default'],
@@ -2508,14 +2607,14 @@
                 ['lg', 'Large'],
                 ['xl', 'Large+']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="size" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="size" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
             var weightMenu = [
                 ['600', 'Semi Bold'],
                 ['700', 'Bold'],
                 ['800', 'Extra Bold']
             ].map(function (row) {
-                return '<button type="button" class="metis-se-rich-menu-item" data-rich-action="weight" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
+                return '<button type="button" role="menuitem" class="metis-se-rich-menu-item" data-rich-action="weight" data-rich-target="' + esc(targetId) + '" data-rich-value="' + esc(row[0]) + '">' + esc(row[1]) + '</button>';
             }).join('');
             return '<div class="metis-se-rich-tools">' +
                 '<div class="metis-se-rich-toolbar">' +
@@ -3555,7 +3654,7 @@
             return 'Adding between blocks ' + String(insertAt) + ' and ' + String(insertAt + 1);
         }
 
-        function openBlockInserter(index) {
+        function openBlockInserter(index, trigger) {
             if (!state.canEdit && !(state.id < 1 && state.canCreate)) return;
             state.blockPickerIndex = Math.max(0, Math.min(state.sections.length, parseInt(s(index || '0'), 10) || 0));
             renderBuilderCanvas();
@@ -3568,9 +3667,13 @@
             if (overlay) {
                 overlay.hidden = false;
                 overlay.setAttribute('aria-hidden', 'false');
+                overlay.setAttribute('tabindex', '-1');
+                overlay._metisLastFocus = trigger || document.activeElement;
             }
             if (search) {
                 window.setTimeout(function () { search.focus(); }, 0);
+            } else if (overlay) {
+                window.setTimeout(function () { overlay.focus(); }, 0);
             }
         }
 
@@ -3580,6 +3683,11 @@
             if (overlay) {
                 overlay.hidden = true;
                 overlay.setAttribute('aria-hidden', 'true');
+                var lastFocus = overlay._metisLastFocus;
+                overlay._metisLastFocus = null;
+                if (lastFocus && document.contains(lastFocus) && typeof lastFocus.focus === 'function') {
+                    window.setTimeout(function () { lastFocus.focus(); }, 0);
+                }
             }
             renderBuilderCanvas();
         }
@@ -3974,12 +4082,14 @@
             if (message) message.textContent = s(options && options.message || 'Continue?');
             if (accept) accept.textContent = s(options && options.confirmLabel || 'Continue');
             if (cancel) cancel.textContent = s(options && options.cancelLabel || 'Cancel');
-            modal.style.display = 'flex';
-            modal.setAttribute('aria-hidden', 'false');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.form('metis-v2-confirm-modal');
+            }
             return new Promise(function (resolve) {
                 var complete = function (ok) {
-                    modal.style.display = 'none';
-                    modal.setAttribute('aria-hidden', 'true');
+                    if (window.Metis && Metis.ui && Metis.ui.modal) {
+                        Metis.ui.modal.close('metis-v2-confirm-modal');
+                    }
                     modal.onclick = null;
                     document.removeEventListener('keydown', onKey, true);
                     resolve(!!ok);
@@ -4113,8 +4223,9 @@
         function closeFeaturedImageModal() {
             var modal = document.getElementById('metis-v2-featured-image-modal');
             if (!modal) return;
-            modal.style.display = 'none';
-            modal.setAttribute('aria-hidden', 'true');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.close('metis-v2-featured-image-modal');
+            }
         }
 
         function renderFeaturedImagePickerList() {
@@ -4179,16 +4290,18 @@
                 searchEl.value = state.featuredImageFilter.search || '';
             }
             renderFeaturedImagePickerList();
-            modal.style.display = 'flex';
-            modal.setAttribute('aria-hidden', 'false');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.form('metis-v2-featured-image-modal');
+            }
             if (searchEl) searchEl.focus();
         }
 
         function closeInlineImageModal() {
             var modal = document.getElementById('metis-v2-inline-image-modal');
             if (!modal) return;
-            modal.style.display = 'none';
-            modal.setAttribute('aria-hidden', 'true');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.close('metis-v2-inline-image-modal');
+            }
             state.inlineImageTargetId = '';
         }
 
@@ -4248,8 +4361,9 @@
             }
             if (searchEl) searchEl.value = state.inlineImageFilter.search || '';
             renderInlineImagePickerList();
-            modal.style.display = 'flex';
-            modal.setAttribute('aria-hidden', 'false');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.form('metis-v2-inline-image-modal');
+            }
             if (searchEl) searchEl.focus();
         }
 
@@ -4607,7 +4721,7 @@
                     '<div class="metis-se-topbar metis-builder-topbar">' +
                         '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(isPostContext() ? (appBasePath() + '/admin/' + contentModuleSlug() + '/posts/') : (appBasePath() + '/admin/' + contentModuleSlug() + '/pages/')) + '">&larr; ' + esc(isPostContext() ? 'Back to Posts' : 'Back to Pages') + '</a></div>' +
                         '<div class="metis-se-top-center"><div id="metis-se-top-title" class="metis-se-top-title">' + esc(title) + '</div><span id="metis-builder-top-status" class="metis-builder-status-pill">Draft</span></div>' +
-                        '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button type="button" class="metis-se-nav-btn" data-preview-toggle="1">Preview</button><button type="button" class="metis-se-nav-btn" data-revisions-toggle="1">Revisions</button>' + ((state.canEdit || state.canCreate) ? '<button id="metis-v2-publish" type="button" class="metis-se-nav-btn metis-builder-primary-btn">Publish</button>' : '') + '</div>' +
+                        '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button type="button" class="metis-se-nav-btn" data-preview-toggle="1" aria-controls="metis-v2-preview-drawer" aria-expanded="false" aria-haspopup="dialog">Preview</button><button type="button" class="metis-se-nav-btn" data-revisions-toggle="1" aria-controls="metis-v2-revision-drawer" aria-expanded="false" aria-haspopup="dialog">Revisions</button>' + ((state.canEdit || state.canCreate) ? '<button id="metis-v2-publish" type="button" class="metis-se-nav-btn metis-builder-primary-btn">Publish</button>' : '') + '</div>' +
                     '</div>' +
 	                    '<div class="metis-se-stage-wrap metis-builder-stage-wrap">' +
 	                        '<section class="metis-se-stage metis-builder-stage" data-v2-step="1">' +
@@ -4647,12 +4761,12 @@
 	                            '</aside>' +
 	                        '</section>' +
 	                    '</div>' +
-	                    '<aside id="metis-builder-block-overlay" class="metis-builder-left-panel" hidden aria-hidden="true" aria-label="Add blocks"><div class="metis-builder-drawer-head"><div><strong>Add Block</strong><span id="metis-builder-block-insert-target">Choose where to insert.</span></div><button type="button" class="metis-modal-close" data-block-inserter-close="1" aria-label="Close">&times;</button></div><div class="metis-builder-block-overlay-scroll"><div class="metis-content-panel-title">Blocks</div><div id="metis-v2-block-library" class="metis-content-library-list"></div><div class="metis-content-panel-title">Reusable</div><div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div></div></aside>' +
-	                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-label="Revisions"><div class="metis-builder-drawer-head"><div><strong>Revisions</strong><span>Compare or restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revision-compare" class="metis-content-revision-compare" hidden></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
-                    '<aside id="metis-v2-preview-drawer" class="metis-builder-drawer metis-builder-preview-drawer" hidden aria-label="Preview"><div class="metis-builder-drawer-head"><div><strong>Preview</strong><span>Rendered from current blocks.</span></div><button type="button" class="metis-modal-close" data-drawer-close="preview" aria-label="Close">&times;</button></div><div id="metis-v2-preview" class="metis-se-preview"></div></aside>' +
-                    '<div id="metis-v2-confirm-modal" class="metis-modal-overlay metis-v2-confirm-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="metis-v2-confirm-title" aria-describedby="metis-v2-confirm-message"><div class="metis-modal metis-v2-confirm-modal__dialog"><div class="metis-modal-header"><h2 id="metis-v2-confirm-title" class="metis-modal-title">Confirm action</h2><button type="button" class="metis-modal-close" data-confirm-cancel="1" aria-label="Close">&times;</button></div><div class="metis-modal-body"><p id="metis-v2-confirm-message" class="metis-v2-confirm-modal__message">Continue?</p></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-confirm-cancel" data-confirm-cancel="1">Cancel</button><button type="button" class="metis-btn metis-btn-primary" id="metis-v2-confirm-accept" data-confirm-accept="1">Continue</button></div></div></div>' +
-                    (isPostContext() ? '<div id="metis-v2-featured-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Featured Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Choose Featured Image</h2><div id="metis-v2-featured-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-featured-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-featured-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-featured-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div>' + editorMediaUploadPanelHtml('featured') + '<div id="metis-v2-featured-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-featured-image-cancel">Close</button></div></div></div>' : '') +
-                    '<div id="metis-v2-inline-image-modal" class="metis-modal-overlay metis-featured-image-modal" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Inline Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Insert Image</h2><div id="metis-v2-inline-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-inline-image-close" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-inline-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-inline-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div>' + editorMediaUploadPanelHtml('inline') + '<div id="metis-v2-inline-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-inline-image-cancel">Close</button></div></div></div>' +
+		                    '<aside id="metis-builder-block-overlay" class="metis-builder-left-panel" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="metis-builder-block-overlay-title" tabindex="-1"><div class="metis-builder-drawer-head"><div><strong id="metis-builder-block-overlay-title">Add Block</strong><span id="metis-builder-block-insert-target">Choose where to insert.</span></div><button type="button" class="metis-modal-close" data-block-inserter-close="1" aria-label="Close">&times;</button></div><div class="metis-builder-block-overlay-scroll"><div class="metis-content-panel-title">Blocks</div><div id="metis-v2-block-library" class="metis-content-library-list"></div><div class="metis-content-panel-title">Reusable</div><div id="metis-v2-reusable-blocks" class="metis-content-library-list"></div></div></aside>' +
+		                    '<aside id="metis-v2-revision-drawer" class="metis-builder-drawer" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="metis-v2-revision-drawer-title" tabindex="-1"><div class="metis-builder-drawer-head"><div><strong id="metis-v2-revision-drawer-title">Revisions</strong><span>Compare or restore a saved version.</span></div><button type="button" class="metis-modal-close" data-drawer-close="revisions" aria-label="Close">&times;</button></div><div id="metis-v2-revision-compare" class="metis-content-revision-compare" hidden></div><div id="metis-v2-revisions" class="metis-content-revisions"></div></aside>' +
+	                    '<aside id="metis-v2-preview-drawer" class="metis-builder-drawer metis-builder-preview-drawer" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="metis-v2-preview-drawer-title" tabindex="-1"><div class="metis-builder-drawer-head"><div><strong id="metis-v2-preview-drawer-title">Preview</strong><span>Rendered from current blocks.</span></div><button type="button" class="metis-modal-close" data-drawer-close="preview" aria-label="Close">&times;</button></div><div id="metis-v2-preview" class="metis-se-preview"></div></aside>' +
+                    '<div id="metis-v2-confirm-modal" class="metis-modal-backdrop metis-v2-confirm-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="metis-v2-confirm-title" aria-describedby="metis-v2-confirm-message"><div class="metis-modal metis-v2-confirm-modal__dialog"><div class="metis-modal-header"><h2 id="metis-v2-confirm-title" class="metis-modal-title">Confirm action</h2><button type="button" class="metis-modal-close" data-confirm-cancel="1" data-modal-close="metis-v2-confirm-modal" aria-label="Close">&times;</button></div><div class="metis-modal-body"><p id="metis-v2-confirm-message" class="metis-v2-confirm-modal__message">Continue?</p></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-confirm-cancel" data-confirm-cancel="1" data-modal-close="metis-v2-confirm-modal">Cancel</button><button type="button" class="metis-btn metis-btn-primary" id="metis-v2-confirm-accept" data-confirm-accept="1">Continue</button></div></div></div>' +
+                    (isPostContext() ? '<div id="metis-v2-featured-image-modal" class="metis-modal-backdrop metis-featured-image-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Featured Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Choose Featured Image</h2><div id="metis-v2-featured-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-featured-image-close" data-modal-close="metis-v2-featured-image-modal" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-featured-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-featured-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div>' + editorMediaUploadPanelHtml('featured') + '<div id="metis-v2-featured-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-featured-image-cancel" data-modal-close="metis-v2-featured-image-modal">Close</button></div></div></div>' : '') +
+                    '<div id="metis-v2-inline-image-modal" class="metis-modal-backdrop metis-featured-image-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Inline Image Picker"><div class="metis-modal metis-featured-image-modal__dialog"><div class="metis-modal-header"><div><h2 class="metis-modal-title">Insert Image</h2><div id="metis-v2-inline-image-count" class="metis-featured-image-modal__count">Loading images...</div></div><button type="button" class="metis-modal-close" id="metis-v2-inline-image-close" data-modal-close="metis-v2-inline-image-modal" aria-label="Close">&times;</button></div><div class="metis-modal-body"><div class="metis-featured-image-modal__toolbar"><input id="metis-v2-inline-image-search" class="metis-se-input" type="search" placeholder="Search images by name or type"><select id="metis-v2-inline-image-mime" class="metis-se-select"><option value=\"\">All image types</option></select></div>' + editorMediaUploadPanelHtml('inline') + '<div id="metis-v2-inline-image-list" class="metis-media-grid metis-featured-image-modal__grid"></div></div><div class="metis-modal-footer"><button type="button" class="metis-btn" id="metis-v2-inline-image-cancel" data-modal-close="metis-v2-inline-image-modal">Close</button></div></div></div>' +
                 '</div>';
         }
 
@@ -4812,6 +4926,69 @@
         function wire() {
             var prev = document.getElementById('metis-v2-prev');
             var next = document.getElementById('metis-v2-next');
+            function drawerTrigger(drawerId) {
+                if (drawerId === 'metis-v2-preview-drawer') return root.querySelector('[data-preview-toggle]');
+                if (drawerId === 'metis-v2-revision-drawer') return root.querySelector('[data-revisions-toggle]');
+                return null;
+            }
+            function openBuilderDrawer(drawer, trigger) {
+                if (!drawer) return;
+                drawer.hidden = false;
+                drawer.setAttribute('aria-hidden', 'false');
+                drawer._metisLastFocus = trigger || document.activeElement;
+                if (trigger) trigger.setAttribute('aria-expanded', 'true');
+                var focusTarget = drawer.querySelector('input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+                window.setTimeout(function () {
+                    if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
+                    else if (typeof drawer.focus === 'function') drawer.focus();
+                }, 0);
+            }
+            function closeBuilderDrawer(drawer) {
+                if (!drawer) return;
+                drawer.hidden = true;
+                drawer.setAttribute('aria-hidden', 'true');
+                var trigger = drawerTrigger(drawer.id);
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+                var lastFocus = drawer._metisLastFocus;
+                drawer._metisLastFocus = null;
+                if (lastFocus && document.contains(lastFocus) && typeof lastFocus.focus === 'function') {
+                    window.setTimeout(function () { lastFocus.focus(); }, 0);
+                }
+            }
+            function richDropdownTrigger(dropdown) {
+                return dropdown ? dropdown.querySelector('[data-rich-toggle="menu"]') : null;
+            }
+            function richDropdownItems(dropdown) {
+                return Array.from((dropdown || document).querySelectorAll('.metis-se-rich-menu [role="menuitem"]')).filter(function (node) {
+                    return !node.hidden && !node.disabled;
+                });
+            }
+            function closeRichDropdown(dropdown, restoreFocus) {
+                if (!dropdown) return;
+                dropdown.classList.remove('is-open');
+                var trigger = richDropdownTrigger(dropdown);
+                if (trigger) {
+                    trigger.setAttribute('aria-expanded', 'false');
+                    if (restoreFocus && typeof trigger.focus === 'function') trigger.focus();
+                }
+            }
+            function closeAllRichDropdowns(except) {
+                root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
+                    if (node !== except) closeRichDropdown(node, false);
+                });
+            }
+            function openRichDropdown(dropdown, focusPosition) {
+                if (!dropdown) return;
+                closeAllRichDropdowns(dropdown);
+                dropdown.classList.add('is-open');
+                var trigger = richDropdownTrigger(dropdown);
+                if (trigger) trigger.setAttribute('aria-expanded', 'true');
+                if (focusPosition) {
+                    var items = richDropdownItems(dropdown);
+                    var target = focusPosition === 'last' ? items[items.length - 1] : items[0];
+                    if (target && typeof target.focus === 'function') target.focus();
+                }
+            }
             if (prev) prev.addEventListener('click', function () { state.step -= 1; syncStepUi(); });
             if (next) next.addEventListener('click', function () {
                 if (state.step === maxSteps()) { saveEntity(false); return; }
@@ -4843,7 +5020,7 @@
                 if (previewToggle) {
                     var previewDrawer = document.getElementById('metis-v2-preview-drawer');
                     if (previewDrawer) {
-                        previewDrawer.hidden = false;
+                        openBuilderDrawer(previewDrawer, previewToggle);
                         updatePreview();
                     }
                     return;
@@ -4852,7 +5029,7 @@
                 if (revisionsToggle) {
                     var revisionDrawer = document.getElementById('metis-v2-revision-drawer');
                     if (revisionDrawer) {
-                        revisionDrawer.hidden = false;
+                        openBuilderDrawer(revisionDrawer, revisionsToggle);
                         loadRevisionList();
                     }
                     return;
@@ -4861,7 +5038,7 @@
                 if (drawerClose) {
                     var drawerKind = s(drawerClose.getAttribute('data-drawer-close') || '');
                     var drawer = drawerKind === 'preview' ? document.getElementById('metis-v2-preview-drawer') : document.getElementById('metis-v2-revision-drawer');
-                    if (drawer) drawer.hidden = true;
+                    if (drawer) closeBuilderDrawer(drawer);
                     return;
                 }
                 var builderLink = e.target.closest('[data-builder-link]');
@@ -4884,7 +5061,7 @@
                 var insertToggle = e.target.closest('[data-builder-insert-toggle]');
                 if (insertToggle) {
                     var pickerIndex = parseInt(s(insertToggle.getAttribute('data-builder-insert-toggle') || '0'), 10) || 0;
-                    openBlockInserter(pickerIndex);
+                    openBlockInserter(pickerIndex, insertToggle);
                     return;
                 }
                 var blockInserterClose = e.target.closest('[data-block-inserter-close]');
@@ -5192,17 +5369,13 @@
                 var richToggle = e.target.closest('button[data-rich-toggle="menu"]');
                 var richAction = e.target.closest('[data-rich-action]');
                 if (!richToggle && !richAction && !e.target.closest('.metis-se-rich-dropdown')) {
-                    root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
-                        node.classList.remove('is-open');
-                    });
+                    closeAllRichDropdowns();
                 }
                 if (richToggle) {
                     e.preventDefault();
                     var dropdown = richToggle.closest('.metis-se-rich-dropdown');
-                    root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
-                        if (node !== dropdown) node.classList.remove('is-open');
-                    });
-                    if (dropdown) dropdown.classList.toggle('is-open');
+                    if (dropdown && dropdown.classList.contains('is-open')) closeRichDropdown(dropdown, false);
+                    else openRichDropdown(dropdown);
                     return;
                 }
                 if (richAction) {
@@ -5226,9 +5399,7 @@
                         syncRichEditorToSection(actionTarget);
                         setDirtyAutosave();
                     }
-                    root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
-                        node.classList.remove('is-open');
-                    });
+                    closeAllRichDropdowns();
                     return;
                 }
                 if (richBtn) {
@@ -5286,6 +5457,48 @@
                     }
                     setDirtyAutosave();
                     return;
+                }
+            });
+            root.addEventListener('keydown', function (e) {
+                var richToggle = e.target.closest('button[data-rich-toggle="menu"]');
+                if (richToggle) {
+                    var toggleDropdown = richToggle.closest('.metis-se-rich-dropdown');
+                    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openRichDropdown(toggleDropdown, 'first');
+                        return;
+                    }
+                    if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        openRichDropdown(toggleDropdown, 'last');
+                        return;
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        closeRichDropdown(toggleDropdown, true);
+                    }
+                    return;
+                }
+                var menuItem = e.target.closest('.metis-se-rich-menu [role="menuitem"]');
+                if (!menuItem) return;
+                var itemDropdown = menuItem.closest('.metis-se-rich-dropdown');
+                var items = richDropdownItems(itemDropdown);
+                var index = items.indexOf(menuItem);
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeRichDropdown(itemDropdown, true);
+                    return;
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    var next = items[(index + 1) % items.length];
+                    if (next && typeof next.focus === 'function') next.focus();
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var prevItem = items[(index - 1 + items.length) % items.length];
+                    if (prevItem && typeof prevItem.focus === 'function') prevItem.focus();
                 }
             });
             root.addEventListener('input', function (e) {

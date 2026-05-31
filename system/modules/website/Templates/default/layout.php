@@ -13,7 +13,8 @@ $sidebarPosition = isset($sidebar_position) ? (string) $sidebar_position : 'righ
 if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosition = 'right'; }
 ?>
 <div class="metis-template metis-template-<?php echo metis_escape_attr((string) ($template_slug ?? 'default')); ?>">
-    <header class="metis-template-header metis-template-sticky-capable">
+    <a class="metis-skip-link" href="#metis-template-main-content">Skip to main content</a>
+    <header class="metis-template-header metis-template-sticky-capable" role="banner">
         <div class="metis-template-header-brand"><?php echo $brandHtml; ?></div>
         <button type="button" class="metis-shell-nav-toggle" data-metis-nav-toggle aria-expanded="false" aria-controls="metis-template-primary-menu" aria-label="Open primary menu">
             <span class="metis-shell-nav-toggle-lines" aria-hidden="true"><span></span><span></span><span></span></span>
@@ -29,11 +30,11 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
             <?php if ($withSidebar && $sidebarPosition === 'left'): ?>
                 <aside class="metis-template-sidebar metis-template-sidebar-left"><?php echo $sidebarHtml; ?></aside>
             <?php endif; ?>
-            <section class="metis-template-region metis-template-region-content"><?php echo $contentHtml; ?></section>
+            <section id="metis-template-main-content" class="metis-template-region metis-template-region-content" tabindex="-1"><?php echo $contentHtml; ?></section>
             <?php if ($withSidebar && $sidebarPosition === 'right'): ?>
                 <aside class="metis-template-sidebar metis-template-sidebar-right"><?php echo $sidebarHtml; ?></aside>
             <?php endif; ?>
         </div>
     </main>
-    <footer class="metis-template-footer"><?php echo $footerHtml; ?></footer>
+    <footer class="metis-template-footer" role="contentinfo"><?php echo $footerHtml; ?></footer>
 </div>

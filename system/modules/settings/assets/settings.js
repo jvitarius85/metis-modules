@@ -20,13 +20,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!pickerButtons.length) return;
 
         var modal = document.createElement('div');
-        modal.className = 'metis-settings-media-modal';
+        modal.id = 'metis-settings-media-modal';
+        modal.className = 'metis-modal-backdrop metis-settings-media-modal';
         modal.setAttribute('aria-hidden', 'true');
         modal.innerHTML = [
             '<div class="metis-settings-media-modal__inner" role="dialog" aria-modal="true" aria-label="Select media">',
             '  <div class="metis-settings-media-modal__head">',
             '    <strong>Select Media</strong>',
-            '    <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" data-settings-media-close>Close</button>',
+            '    <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" data-settings-media-close data-modal-close="metis-settings-media-modal">Close</button>',
             '  </div>',
             '  <div class="metis-settings-media-modal__toolbar">',
             '    <input type="text" class="metis-input" placeholder="Search by filename" data-settings-media-search>',
@@ -38,6 +39,9 @@ document.addEventListener('DOMContentLoaded', function () {
             '</div>'
         ].join('');
         document.body.appendChild(modal);
+        if (window.Metis && Metis.ui && Metis.ui.modal) {
+            Metis.ui.modal.init(modal);
+        }
 
         var activeKey = '';
         var searchEl = modal.querySelector('[data-settings-media-search]');
@@ -101,18 +105,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         function openFor(key) {
             activeKey = key;
-            modal.setAttribute('aria-hidden', 'false');
-            modal.classList.add('is-open');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.form('metis-settings-media-modal');
+            }
             if (searchEl) {
                 searchEl.value = '';
-                searchEl.focus();
+                window.setTimeout(function () {
+                    searchEl.focus();
+                }, 0);
             }
             loadItems();
         }
 
         function closeModal() {
-            modal.setAttribute('aria-hidden', 'true');
-            modal.classList.remove('is-open');
+            if (window.Metis && Metis.ui && Metis.ui.modal) {
+                Metis.ui.modal.close('metis-settings-media-modal');
+            }
             activeKey = '';
         }
 

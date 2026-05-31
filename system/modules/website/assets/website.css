@@ -917,18 +917,6 @@
 
 .metis-table-wrap { padding: 20px; }
 
-/* Menus modal */
-.metis-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 10040;
-    background: rgba(15, 23, 42, 0.46);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-}
-
 .metis-modal {
     width: min(96vw, 760px);
     max-height: calc(100vh - 36px);

@@ -258,6 +258,25 @@ AJAX handler hardening completed in this refactor pass:
 - `system/modules/donations/assets/campaigns.ajax.php`
 - `system/modules/donations/assets/deposits.ajax.php`
 - `system/modules/donations/assets/donor_intelligence.ajax.php`
+
+## Final Governance Closeout (May 31, 2026)
+
+Completed during closeout:
+
+- enforced modal lifecycle invariant across module views:
+  - modal backdrops with `aria-hidden="true"` must also be `hidden` by default
+  - normalized legacy view markup in People, Contacts, Board, Finance, Newsletter, and Website modules
+- expanded accessibility governance assertions for:
+  - public nav focus preservation and escape close
+  - builder drawer focus return
+  - people workspace action menu escape/focus return
+- public default templates hardened with skip-link + `tabindex="-1"` main content targets
+
+Verification after closeout:
+
+- `php tools/governance/check-ajax-ui-hardening.php` PASS
+- `php system/tests/accessibility_governance_test.php` PASS
+- `php tools/governance/run-ajax-ui-hardening-regression.php` PASS
 - `system/modules/donations/assets/notes.ajax.php`
 - `system/modules/donations/assets/offline.ajax.php`
 - `system/modules/donations/assets/reports.ajax.php`

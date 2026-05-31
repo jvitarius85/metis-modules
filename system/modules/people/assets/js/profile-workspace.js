@@ -675,12 +675,46 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                 });
             });
             if (userRowsWrap) {
-                function closeWorkspaceActionMenus() {
+                function workspaceActionTrigger(row) {
+                    return row ? row.querySelector('.metis-workspace-actions-open') : null;
+                }
+                function workspaceActionMenu(row) {
+                    return row ? row.querySelector('.metis-workspace-actions-menu') : null;
+                }
+                function workspaceActionItems(menu) {
+                    return Array.from((menu || document).querySelectorAll('[role="menuitem"]')).filter(function (node) {
+                        return !node.hidden && !node.disabled;
+                    });
+                }
+                function closeWorkspaceActionMenus(options) {
+                    const config = options || {};
                     Array.from(userRowsWrap.querySelectorAll('.metis-workspace-user-row.is-menu-open')).forEach(function (r) {
                         r.classList.remove('is-menu-open');
-                        const menu = r.querySelector('.metis-workspace-actions-menu');
+                        const menu = workspaceActionMenu(r);
+                        const trigger = workspaceActionTrigger(r);
                         if (menu) menu.setAttribute('aria-hidden', 'true');
+                        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+                        if (config.restoreFocus && config.restoreFocus === r && trigger && typeof trigger.focus === 'function') {
+                            trigger.focus();
+                        }
                     });
+                }
+                function openWorkspaceActionMenu(row, focusPosition) {
+                    if (!row) return;
+                    const menu = workspaceActionMenu(row);
+                    const trigger = workspaceActionTrigger(row);
+                    if (!menu || !trigger) return;
+                    closeWorkspaceActionMenus();
+                    row.classList.add('is-menu-open');
+                    menu.setAttribute('aria-hidden', 'false');
+                    trigger.setAttribute('aria-expanded', 'true');
+                    if (focusPosition) {
+                        const items = workspaceActionItems(menu);
+                        const target = focusPosition === 'last' ? items[items.length - 1] : items[0];
+                        if (target && typeof target.focus === 'function') {
+                            target.focus();
+                        }
+                    }
                 }
                 userRowsWrap.addEventListener('click', function (event) {
                     const inMenuAction = event.target.closest('.metis-workspace-actions-menu .metis-btn-xs');
@@ -695,13 +729,12 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         event.stopPropagation();
                         const row = actionOpen.closest('.metis-workspace-user-row');
                         if (!row) return;
-                        const menu = row.querySelector('.metis-workspace-actions-menu');
+                        const menu = workspaceActionMenu(row);
                         if (!menu) return;
                         const wasOpen = row.classList.contains('is-menu-open');
                         closeWorkspaceActionMenus();
                         if (!wasOpen) {
-                            row.classList.add('is-menu-open');
-                            menu.setAttribute('aria-hidden', 'false');
+                            openWorkspaceActionMenu(row);
                         }
                         return;
                     }
@@ -758,9 +791,59 @@ window.MetisPeopleProfileModules.initWorkspace = function (context) {
                         flagBtn.disabled = false;
                     });
                 });
+                userRowsWrap.addEventListener('keydown', function (event) {
+                    const trigger = event.target.closest('.metis-workspace-actions-open');
+                    if (trigger) {
+                        const row = trigger.closest('.metis-workspace-user-row');
+                        if (!row) return;
+                        if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openWorkspaceActionMenu(row, 'first');
+                            return;
+                        }
+                        if (event.key === 'ArrowUp') {
+                            event.preventDefault();
+                            openWorkspaceActionMenu(row, 'last');
+                            return;
+                        }
+                        if (event.key === 'Escape') {
+                            event.preventDefault();
+                            closeWorkspaceActionMenus({ restoreFocus: row });
+                        }
+                        return;
+                    }
+                    const item = event.target.closest('.metis-workspace-actions-menu [role="menuitem"]');
+                    if (!item) return;
+                    const menu = item.closest('.metis-workspace-actions-menu');
+                    const row = item.closest('.metis-workspace-user-row');
+                    const items = workspaceActionItems(menu);
+                    const index = items.indexOf(item);
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        closeWorkspaceActionMenus({ restoreFocus: row });
+                        return;
+                    }
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        const next = items[(index + 1) % items.length];
+                        if (next && typeof next.focus === 'function') next.focus();
+                        return;
+                    }
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        const prev = items[(index - 1 + items.length) % items.length];
+                        if (prev && typeof prev.focus === 'function') prev.focus();
+                    }
+                });
                 document.addEventListener('click', function (event) {
                     if (event.target.closest('.metis-workspace-user-row.is-menu-open')) return;
                     closeWorkspaceActionMenus();
+                });
+                document.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Escape') return;
+                    const openRow = userRowsWrap.querySelector('.metis-workspace-user-row.is-menu-open');
+                    if (!openRow) return;
+                    closeWorkspaceActionMenus({ restoreFocus: openRow });
                 });
                 userRowsWrap.addEventListener('click', function (event) {
                     const driveBtn = event.target.closest('.metis-workspace-create-drive-folder-btn');

@@ -407,7 +407,7 @@ $renderCategoryCards = static function ( array $items ): void {
                     echo '</aside>';
                     echo '</div>';
 
-                    echo '<div class="metis-modal-backdrop" id="metis-help-support-modal" aria-hidden="true">';
+                    echo '<div class="metis-modal-backdrop" id="metis-help-support-modal" aria-hidden="true" hidden>';
                     echo '<div class="metis-modal metis-help-support-modal" role="dialog" aria-modal="true" aria-labelledby="metis-help-support-title">';
                     echo '<div class="metis-modal-header">';
                     echo '<h2 id="metis-help-support-title" class="metis-modal-title">Contact System Admin</h2>';

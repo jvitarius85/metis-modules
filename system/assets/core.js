@@ -1947,13 +1947,13 @@ Metis.modal = (function() {
             btn._metisModalCloseInited = true;
             btn.addEventListener('click', function() {
                 var target = btn.dataset.modalClose;
-                var backdrop = target ? document.getElementById(target) : btn.closest('.metis-modal-backdrop, .metis-modal-backdrop, .metis-media-preview-modal');
+                var backdrop = target ? document.getElementById(target) : btn.closest('.metis-modal-backdrop');
                 if (backdrop) close(backdrop);
             });
         });
 
         /* Close on backdrop click */
-        root.querySelectorAll('.metis-modal-backdrop, .metis-modal-backdrop, .metis-media-preview-modal').forEach(function(backdrop) {
+        root.querySelectorAll('.metis-modal-backdrop').forEach(function(backdrop) {
             if (backdrop._metisBackdropInited) return;
             backdrop._metisBackdropInited = true;
             backdrop.addEventListener('click', function(e) {
@@ -1966,7 +1966,7 @@ Metis.modal = (function() {
             document._metisEscInited = true;
             document.addEventListener('keydown', function(e) {
                 if (e.key !== 'Escape') return;
-                var open = document.querySelector('.metis-media-preview-modal.metis-open, .metis-modal-backdrop.is-open, .metis-modal-backdrop.metis-open, .metis-modal-backdrop.metis-open');
+                var open = document.querySelector('.metis-modal-backdrop.is-open, .metis-modal-backdrop.metis-open');
                 if (open) close(open);
             });
         }
@@ -3011,7 +3011,7 @@ Metis.accessibility = (function() {
    ============================================================ */
 
 Metis.a11y = (function() {
-    var dialogSelector = '.metis-modal-backdrop, .metis-modal-backdrop, .metis-media-preview-modal';
+    var dialogSelector = '.metis-modal-backdrop';
     var controlSelector = 'input:not([type="hidden"]), select, textarea';
 
     function cleanText(value) {
@@ -3036,10 +3036,10 @@ Metis.a11y = (function() {
         if (!modal || !(modal instanceof Element)) {
             return null;
         }
-        if (modal.matches('.metis-modal, .metis-modal, .metis-media-preview-modal-inner')) {
+        if (modal.matches('.metis-modal')) {
             return modal;
         }
-        return modal.querySelector('.metis-modal, .metis-modal, .metis-media-preview-modal-inner') || modal;
+        return modal.querySelector('.metis-modal') || modal;
     }
 
     function ensureDialogSemantics(modal) {
@@ -3054,7 +3054,7 @@ Metis.a11y = (function() {
         dialog.setAttribute('aria-modal', 'true');
 
         if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
-            var heading = dialog.querySelector('.metis-modal-title, .metis-modal-title, h1, h2, h3, strong');
+            var heading = dialog.querySelector('.metis-modal-title, h1, h2, h3, strong');
             var headingId = ensureId(heading, (modal.id || 'metis-modal') + '-title');
             if (headingId !== '') {
                 dialog.setAttribute('aria-labelledby', headingId);
@@ -3062,7 +3062,7 @@ Metis.a11y = (function() {
         }
 
         if (!dialog.hasAttribute('aria-describedby')) {
-            var description = dialog.querySelector('.metis-confirm-message, .metis-modal-body > p, .metis-media-preview-modal-body > p');
+            var description = dialog.querySelector('.metis-confirm-message, .metis-modal-body > p');
             var descriptionId = ensureId(description, (modal.id || 'metis-modal') + '-description');
             if (descriptionId !== '') {
                 dialog.setAttribute('aria-describedby', descriptionId);

@@ -1257,10 +1257,6 @@ table.metis-top-donors-table th.metis-top-donor-rank {
     display: block;
 }
 
-.metis-modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-    z-index: 9999; display: flex; align-items: center; justify-content: center;
-}
 .metis-modal--wide { max-width: 600px; }
 .metis-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid var(--metis-border); }
 .metis-modal-header h3 { font-size: 16px; font-weight: 700; color: #111827; margin: 0; }

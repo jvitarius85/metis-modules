@@ -719,7 +719,7 @@ if (!is_string($agenda_snapshot_json)) {
 </div>
 
 <?php if ($can_manage) : ?>
-<div id="metis-board-decision-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-decision-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Board Decision</h2>
         <form id="metis-board-decision-form" class="metis-form-grid">
@@ -742,7 +742,7 @@ if (!is_string($agenda_snapshot_json)) {
     </div>
 </div>
 
-<div id="metis-board-action-modal" class="metis-modal-backdrop" aria-hidden="true">
+<div id="metis-board-action-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
     <div class="metis-modal">
         <h2 class="metis-modal-title">Action Item</h2>
         <form id="metis-board-action-form" class="metis-form-grid">
@@ -758,7 +758,7 @@ if (!is_string($agenda_snapshot_json)) {
     </div>
 </div>
 
-<div class="metis-modal-backdrop" id="metis-board-drive-folder-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-board-drive-folder-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:560px;">
         <h3 class="metis-modal-title">Create Drive Folder</h3>
         <form class="metis-form-grid" id="metis-board-drive-folder-form">
@@ -777,7 +777,7 @@ if (!is_string($agenda_snapshot_json)) {
     </div>
 </div>
 
-<div class="metis-modal-backdrop" id="metis-board-doc-meta-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-board-doc-meta-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:640px;">
         <h3 class="metis-modal-title">Add Packet Document</h3>
         <form class="metis-form-grid" id="metis-board-doc-meta-form">
@@ -808,7 +808,7 @@ if (!is_string($agenda_snapshot_json)) {
     </div>
 </div>
 
-<div class="metis-modal-backdrop" id="metis-board-drive-preview-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-board-drive-preview-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:1080px;">
         <h3 class="metis-modal-title">Document Preview</h3>
         <iframe id="metis-board-drive-preview-frame" src="about:blank" style="width:100%;height:70vh;border:1px solid #d8deea;border-radius:8px;background:#fff;" title="Document preview"></iframe>
@@ -820,7 +820,7 @@ if (!is_string($agenda_snapshot_json)) {
     </div>
 </div>
 
-<div class="metis-modal-backdrop" id="metis-board-workflow-modal" aria-hidden="true">
+<div class="metis-modal-backdrop" id="metis-board-workflow-modal" aria-hidden="true" hidden>
     <div class="metis-modal" style="max-width:1080px;">
         <h3 class="metis-modal-title">Workflow Templates</h3>
         <div class="metis-board-workflow-modal-tabs" role="tablist" aria-label="Workflow template groups">

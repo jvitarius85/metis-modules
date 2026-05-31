@@ -82,46 +82,53 @@ $trigger_types = [
     <?php endif; ?>
 </div>
 
-<div id="metis-popup-form-wrap" class="metis-form-card metis-is-hidden">
-    <h2 class="metis-form-card-title">Popup Editor</h2>
-    <input type="hidden" id="metis-popup-id" value="">
-    <div class="metis-form-grid metis-form-grid-3">
-        <label>Name<input id="metis-popup-name" type="text" class="metis-editor-input"></label>
-        <label>Trigger
-            <select id="metis-popup-trigger" class="metis-editor-input">
-                <?php foreach ( $trigger_types as $trigger_key => $trigger_label ) : ?>
-                    <option value="<?php echo metis_escape_attr( $trigger_key ); ?>"><?php echo metis_escape_html( $trigger_label ); ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Status
-            <select id="metis-popup-status" class="metis-editor-input">
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-            </select>
-        </label>
-        <label>Delay (ms)<input id="metis-popup-delay" type="number" min="0" step="100" class="metis-editor-input" value="1500"></label>
-        <label>Scroll (%)<input id="metis-popup-scroll" type="number" min="1" max="100" step="1" class="metis-editor-input" value="50"></label>
-        <label>Frequency
-            <select id="metis-popup-frequency" class="metis-editor-input">
-                <option value="session">Once per session</option>
-                <option value="persisted">Persisted</option>
-                <option value="always">Every trigger</option>
-            </select>
-        </label>
-    </div>
-    <div class="metis-form-grid metis-form-grid-2 metis-form-grid-top">
-        <label>Headline<input id="metis-popup-headline" type="text" class="metis-editor-input"></label>
-        <label>Button Label<input id="metis-popup-button-label" type="text" class="metis-editor-input"></label>
-        <label>Button URL<input id="metis-popup-button-url" type="url" class="metis-editor-input" placeholder="https://example.org"></label>
-        <label>Target Paths<input id="metis-popup-target-paths" type="text" class="metis-editor-input" placeholder="/,/about"></label>
-        <label>Message<textarea id="metis-popup-message" class="metis-editor-input" rows="4"></textarea></label>
-        <label>Target Slugs<textarea id="metis-popup-target-slugs" class="metis-editor-input" rows="4" placeholder="home,about-us"></textarea></label>
-    </div>
-    <label class="metis-inline-toggle"><input id="metis-popup-site-wide" type="checkbox" checked> Site-wide</label>
-    <div class="metis-form-actions">
-        <button id="metis-popup-save-btn" class="metis-btn metis-btn-primary">Save Popup</button>
-        <button id="metis-popup-cancel-btn" class="metis-btn metis-btn-ghost">Cancel</button>
+<div id="metis-popup-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
+    <div class="metis-modal">
+        <div class="metis-modal-header">
+            <h2 class="metis-modal-title" id="metis-popup-modal-title">New Popup</h2>
+            <button type="button" class="metis-modal-close" data-modal-close="metis-popup-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="metis-modal-body">
+            <input type="hidden" id="metis-popup-id" value="">
+            <div class="metis-form-grid metis-form-grid-3">
+                <label>Name<input id="metis-popup-name" type="text" class="metis-editor-input"></label>
+                <label>Trigger
+                    <select id="metis-popup-trigger" class="metis-editor-input">
+                        <?php foreach ( $trigger_types as $trigger_key => $trigger_label ) : ?>
+                            <option value="<?php echo metis_escape_attr( $trigger_key ); ?>"><?php echo metis_escape_html( $trigger_label ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Status
+                    <select id="metis-popup-status" class="metis-editor-input">
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                    </select>
+                </label>
+                <label>Delay (ms)<input id="metis-popup-delay" type="number" min="0" step="100" class="metis-editor-input" value="1500"></label>
+                <label>Scroll (%)<input id="metis-popup-scroll" type="number" min="1" max="100" step="1" class="metis-editor-input" value="50"></label>
+                <label>Frequency
+                    <select id="metis-popup-frequency" class="metis-editor-input">
+                        <option value="session">Once per session</option>
+                        <option value="persisted">Persisted</option>
+                        <option value="always">Every trigger</option>
+                    </select>
+                </label>
+            </div>
+            <div class="metis-form-grid metis-form-grid-2 metis-form-grid-top">
+                <label>Headline<input id="metis-popup-headline" type="text" class="metis-editor-input"></label>
+                <label>Button Label<input id="metis-popup-button-label" type="text" class="metis-editor-input"></label>
+                <label>Button URL<input id="metis-popup-button-url" type="url" class="metis-editor-input" placeholder="https://example.org"></label>
+                <label>Target Paths<input id="metis-popup-target-paths" type="text" class="metis-editor-input" placeholder="/,/about"></label>
+                <label>Message<textarea id="metis-popup-message" class="metis-editor-input" rows="4"></textarea></label>
+                <label>Target Slugs<textarea id="metis-popup-target-slugs" class="metis-editor-input" rows="4" placeholder="home,about-us"></textarea></label>
+            </div>
+            <label class="metis-inline-toggle"><input id="metis-popup-site-wide" type="checkbox" checked> Site-wide</label>
+        </div>
+        <div class="metis-modal-footer">
+            <button id="metis-popup-save-btn" class="metis-btn metis-btn-primary">Save Popup</button>
+            <button id="metis-popup-cancel-btn" class="metis-btn metis-btn-ghost" type="button" data-modal-close="metis-popup-modal">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -191,6 +198,7 @@ function openPopupEditor(data) {
             buttonUrl = String(block.data.url || '');
         }
     });
+    $('#metis-popup-modal-title').text(data.id ? 'Edit Popup' : 'New Popup');
     $('#metis-popup-id').val(data.id || '');
     $('#metis-popup-name').val(data.name || '');
     $('#metis-popup-trigger').val(data.trigger_type || data.trigger || 'click');
@@ -205,7 +213,9 @@ function openPopupEditor(data) {
     $('#metis-popup-site-wide').prop('checked', displayRules.site_wide !== false);
     $('#metis-popup-target-paths').val((displayRules.paths || []).join(', '));
     $('#metis-popup-target-slugs').val((displayRules.slugs || []).join(', '));
-    $('#metis-popup-form-wrap').slideDown(120);
+    if (window.Metis && Metis.ui && Metis.ui.modal) {
+        Metis.ui.modal.form('metis-popup-modal');
+    }
 }
 
 $(document).on('click', '#metis-create-popup-btn, #metis-create-popup-btn-empty', function() {
@@ -225,16 +235,12 @@ $(document).on('click', '.metis-edit-popup', function() {
     });
 });
 
-$(document).on('click', '#metis-popup-cancel-btn', function() {
-    $('#metis-popup-form-wrap').slideUp(100);
-});
-
 $(document).on('click', '#metis-popup-save-btn', function() {
     var id = Number($('#metis-popup-id').val() || 0);
     var name = $('#metis-popup-name').val().trim();
     var message = $('#metis-popup-message').val().trim();
     if (!name || !message) {
-        metis_toast('Name and message are required.', 'error');
+        Metis.ui.toast.error('Name and message are required.');
         return;
     }
     var payload = {
@@ -260,20 +266,21 @@ $(document).on('click', '#metis-popup-save-btn', function() {
 
     $.post(metisWebsiteAjax.ajax_url, payload).done(function(r) {
         if (r && r.success) {
-            metis_toast('Popup saved.', 'success');
+            Metis.ui.toast.success('Popup saved.');
             window.location.reload();
             return;
         }
-        metis_toast((r && r.data && r.data.message) || 'Save failed.', 'error');
+        Metis.ui.toast.error((r && r.data && r.data.message) || 'Save failed.');
     }).fail(function() {
-        metis_toast('Request failed.', 'error');
+        Metis.ui.toast.error('Request failed.');
     });
 });
 
 $(document).on('click', '.metis-delete-popup', function() {
     var id = $(this).data('id');
     var name = $(this).closest('.metis-premium-row').find('.metis-premium-cell:first strong').text();
-    metis_confirm('Delete popup "' + name + '"?', function() {
+    Metis.ui.confirm.open({ message: 'Delete popup "' + name + '"?', confirmLabel: 'Delete', tone: 'danger' }).then(function(confirmed) {
+        if (!confirmed) return;
         $.ajax({
             url: metisWebsiteAjax.ajax_url, type: 'POST',
             data: { action: 'metis_website_popup_delete', nonce: metisWebsiteAjax.nonce, id: id },
@@ -282,11 +289,11 @@ $(document).on('click', '.metis-delete-popup', function() {
                     var $row = $('.metis-delete-popup[data-id="' + String(id || '') + '"]').first().closest('.metis-premium-row');
                     $row.remove();
                     updatePopupSubtitle();
-                    metis_toast('Popup deleted.', 'success');
+                    Metis.ui.toast.success('Popup deleted.');
                 }
-                else { metis_toast((r.data && r.data.message) || 'Delete failed.', 'error'); }
+                else { Metis.ui.toast.error((r.data && r.data.message) || 'Delete failed.'); }
             },
-            error: function() { metis_toast('Request failed.', 'error'); }
+            error: function() { Metis.ui.toast.error('Request failed.'); }
         });
     });
 });

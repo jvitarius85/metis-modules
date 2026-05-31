@@ -11,6 +11,7 @@ $sidebarPosition = isset($sidebar_position) ? (string) $sidebar_position : 'righ
 if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosition = 'right'; }
 ?>
 <div class="metis-template metis-template-image_overlay_banner metis-template-view-homepage">
+    <a class="metis-skip-link" href="#metis-template-main-content">Skip to main content</a>
     <header class="metis-template-header metis-template-sticky-capable" role="banner">
         <div class="metis-template-header-inner">
             <div class="metis-template-header-brand"><?php echo $brandHtml; ?></div>
@@ -31,7 +32,7 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
             <?php endif; ?>
         </div>
         <div class="metis-template-main-inner">
-            <section class="metis-template-region metis-template-region-content"><?php echo $contentHtml; ?></section>
+            <section id="metis-template-main-content" class="metis-template-region metis-template-region-content" tabindex="-1"><?php echo $contentHtml; ?></section>
         </div>
     </main>
     <footer class="metis-template-footer" role="contentinfo">

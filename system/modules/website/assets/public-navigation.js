@@ -16,6 +16,7 @@
   if (dropdownBehavior === "click") {
     body.classList.add("metis-menu-dropdown-click");
   }
+  var lastNavToggle = null;
 
   function triggerUrl(trigger) {
     if (!trigger) return "";
@@ -85,7 +86,7 @@
     }
   }
 
-  function setOpen(open) {
+  function setOpen(open, triggerSource) {
     var active = !!open && isMobileViewport();
     if (active) {
       body.classList.add("metis-nav-open");
@@ -96,12 +97,26 @@
     for (var i = 0; i < btns.length; i++) {
       btns[i].setAttribute("aria-expanded", active ? "true" : "false");
     }
+    var nav = document.querySelector(".metis-shell-nav-primary");
+    if (active) {
+      if (triggerSource && typeof triggerSource.focus === "function") {
+        lastNavToggle = triggerSource;
+      }
+      if (nav) {
+        var focusTarget = nav.querySelector("a[href], button:not([disabled]), [tabindex]:not([tabindex=\"-1\"])");
+        if (focusTarget && typeof focusTarget.focus === "function") {
+          window.setTimeout(function () { focusTarget.focus(); }, 0);
+        }
+      }
+    } else if (lastNavToggle && typeof lastNavToggle.focus === "function") {
+      window.setTimeout(function () { lastNavToggle.focus(); }, 0);
+    }
   }
 
   var btns = document.querySelectorAll("[data-metis-nav-toggle]");
   for (var i = 0; i < btns.length; i++) {
-    btns[i].addEventListener("click", function () {
-      setOpen(!body.classList.contains("metis-nav-open"));
+    btns[i].addEventListener("click", function (event) {
+      setOpen(!body.classList.contains("metis-nav-open"), event.currentTarget || this);
     });
   }
 
