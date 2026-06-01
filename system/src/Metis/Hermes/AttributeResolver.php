@@ -19,60 +19,9 @@ namespace Metis\Hermes;
  *   etc.
  */
 final class AttributeResolver {
-
-    private const ATTRIBUTE_MAP = [
-        // email
-        'email'           => 'email',
-        'email address'   => 'email',
-        'e-mail'          => 'email',
-        'e-mail address'  => 'email',
-        // phone
-        'phone'           => 'phone',
-        'phone number'    => 'phone',
-        'telephone'       => 'phone',
-        'mobile'          => 'phone',
-        'mobile number'   => 'phone',
-        'cell'            => 'phone',
-        // address
-        'address'         => 'address',
-        'mailing address' => 'address',
-        'street address'  => 'address',
-        'location'        => 'address',
-        // role
-        'role'            => 'role',
-        'user role'       => 'role',
-        'roles'           => 'role',
-        'position'        => 'role',
-        // status
-        'status'          => 'status',
-        'account status'  => 'status',
-        'active'          => 'status',
-        'volunteer'       => 'volunteer_status',
-        'volunteer status'=> 'volunteer_status',
-        // groups
-        'groups'          => 'groups',
-        'group'           => 'groups',
-        'workspace groups' => 'groups',
-        'google groups'   => 'groups',
-        // permissions
-        'permissions'     => 'permissions',
-        'permission'      => 'permissions',
-        'access'          => 'permissions',
-        'access level'    => 'permissions',
-        // name
-        'name'            => 'name',
-        'full name'       => 'name',
-        'display name'    => 'name',
-        // created
-        'created'         => 'created_at',
-        'created at'      => 'created_at',
-        'joined'          => 'created_at',
-        'join date'       => 'created_at',
-        // last login
-        'last login'      => 'last_login_at',
-        'last seen'       => 'last_login_at',
-        'last active'     => 'last_login_at',
-    ];
+    public function __construct(
+        private readonly ?HermesAttributeRegistry $registry = null
+    ) {}
 
     // ------------------------------------------------------------------
     // Public API
@@ -85,23 +34,7 @@ final class AttributeResolver {
      * @return string|null   Canonical attribute key or null if not detected
      */
     public function detectFromQuery( string $query ): ?string {
-        $query = strtolower( trim( $query ) );
-
-        // Longest-match first to avoid 'phone' matching before 'phone number'
-        $candidates = self::ATTRIBUTE_MAP;
-        arsort( $candidates ); // sort by value (canonical name) — stable order
-
-        $bestPhrase = '';
-        $bestAttr   = null;
-
-        foreach ( $candidates as $phrase => $attr ) {
-            if ( str_contains( $query, $phrase ) && strlen( $phrase ) > strlen( $bestPhrase ) ) {
-                $bestPhrase = $phrase;
-                $bestAttr   = $attr;
-            }
-        }
-
-        return $bestAttr;
+        return $this->attributeRegistry()->detectFromQuery( $query );
     }
 
     /**
@@ -111,8 +44,7 @@ final class AttributeResolver {
      * @return string|null  Canonical key or null if unknown
      */
     public function resolve( string $raw ): ?string {
-        $key = strtolower( trim( $raw ) );
-        return self::ATTRIBUTE_MAP[ $key ] ?? null;
+        return $this->attributeRegistry()->resolve( $raw );
     }
 
     /**
@@ -197,7 +129,7 @@ final class AttributeResolver {
      * List all supported canonical attribute keys.
      */
     public function supportedAttributes(): array {
-        return array_values( array_unique( array_values( self::ATTRIBUTE_MAP ) ) );
+        return $this->attributeRegistry()->supportedAttributes();
     }
 
     // ------------------------------------------------------------------
@@ -258,6 +190,10 @@ final class AttributeResolver {
             'attribute' => 'permissions',
             'error'     => 'Permissions require a live role lookup.',
         ];
+    }
+
+    private function attributeRegistry(): HermesAttributeRegistry {
+        return $this->registry ?? new HermesAttributeRegistry();
     }
 
     private function lookupPhoneFallback( array $record, string $entity_type ): ?string {

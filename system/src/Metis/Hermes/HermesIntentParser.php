@@ -65,13 +65,19 @@ final class HermesIntentParser {
 
     private HermesCommandRegistry $commands;
     private ?EntityRegistryBuilder $entityRegistry;
+    private HermesIntentRegistry $intentRegistry;
+    private HermesAttributeRegistry $attributeRegistry;
 
     public function __construct(
         HermesCommandRegistry  $commands,
-        ?EntityRegistryBuilder $entityRegistry = null
+        ?EntityRegistryBuilder $entityRegistry = null,
+        ?HermesIntentRegistry $intentRegistry = null,
+        ?HermesAttributeRegistry $attributeRegistry = null
     ) {
         $this->commands       = $commands;
         $this->entityRegistry = $entityRegistry;
+        $this->intentRegistry = $intentRegistry ?? new HermesIntentRegistry();
+        $this->attributeRegistry = $attributeRegistry ?? new HermesAttributeRegistry();
     }
 
     // ------------------------------------------------------------------
@@ -97,7 +103,10 @@ final class HermesIntentParser {
         $confidence = 0.0;
         $payload    = [];
 
-        if ( $this->matchesBackup( $normalized ) ) {
+        if ( $this->matchesInstructionalHelp( $normalized ) ) {
+            $action = 'resolve_help_issue';   $domain = 'general';       $confidence = 0.94;
+            $payload = [ 'user_message' => $query, 'current_route' => '', 'current_module' => '', 'session_context' => [] ];
+        } elseif ( $this->matchesBackup( $normalized ) ) {
             $action = 'run_backup';           $domain = 'system';        $confidence = 0.93;
         } elseif ( $this->matchesDriveSync( $normalized ) ) {
             $action = 'sync_drive';           $domain = 'system';        $confidence = 0.92;
@@ -167,7 +176,7 @@ final class HermesIntentParser {
             $payload = [ 'diagnostic_request' => [ 'query' => $query ] ];
         }
 
-        return $this->commandResult( $action, $domain, $confidence, $payload );
+        return $this->commandResult( $action, $domain, $confidence, $payload, $query );
     }
 
     // ------------------------------------------------------------------
@@ -219,6 +228,7 @@ final class HermesIntentParser {
         $interpretation = [
             'type'              => 'data',
             'intent'            => $intent,
+            'top_level_intent'  => in_array( $intent, [ 'count', 'aggregate', 'top', 'export' ], true ) ? 'REPORT' : 'LOOKUP',
             'action'            => $intent,
             'domain'            => (string) ( $definition['module'] ?? 'data' ),
             'entity'            => $entityKey,
@@ -420,11 +430,12 @@ final class HermesIntentParser {
     // Command path helpers
     // ------------------------------------------------------------------
 
-    private function commandResult( string $action, string $domain, float $confidence, array $payload ): array {
+    private function commandResult( string $action, string $domain, float $confidence, array $payload, string $query = '' ): array {
         return [
             'type'       => 'command',
             'action'     => $action,
             'intent'     => $action,
+            'top_level_intent' => $this->intentRegistry->classifyCommand( $action, $query ),
             'domain'     => $domain,
             'confidence' => $confidence,
             'command'    => $this->commands->definition( $action ),
@@ -490,6 +501,16 @@ final class HermesIntentParser {
                 return true;
             }
         }
+        return false;
+    }
+
+    private function matchesInstructionalHelp( string $query ): bool {
+        foreach ( [ 'how do i', 'how can i', 'where do i', 'show me how', 'walk me through' ] as $phrase ) {
+            if ( str_contains( $query, $phrase ) ) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -723,43 +744,7 @@ final class HermesIntentParser {
         $subject    = $this->extractSubject( $query );
 
         // Detect attribute from keyword
-        $attributeMap = [
-            'whose email is this' => 'name',
-            'who\'s email is this' => 'name',
-            'whose phone is this' => 'name',
-            'who\'s phone is this' => 'name',
-            'whose number is this' => 'name',
-            'who\'s number is this' => 'name',
-            'whose address is this' => 'name',
-            'who\'s address is this' => 'name',
-            'whose identifier is this' => 'name',
-            'who is this email' => 'name',
-            'who is this phone' => 'name',
-            'who is this address' => 'name',
-            'who is this email' => 'name',
-            'email address'  => 'email',
-            'email'          => 'email',
-            'phone number'   => 'phone',
-            'phone'          => 'phone',
-            'mobile'         => 'phone',
-            'address'        => 'address',
-            'user role'      => 'role',
-            'role'           => 'role',
-            'status'         => 'status',
-            'volunteer status' => 'volunteer_status',
-            'volunteer'      => 'volunteer_status',
-            'groups'         => 'groups',
-            'permissions'    => 'permissions',
-            'last login'     => 'last_login_at',
-            'birthday'       => 'birthday',
-        ];
-        $attribute = '';
-        foreach ( $attributeMap as $phrase => $canonical ) {
-            if ( str_contains( $normalized, $phrase ) ) {
-                $attribute = $canonical;
-                break;
-            }
-        }
+        $attribute = $this->attributeRegistry->detectFromQuery( $normalized ) ?? '';
 
         if ( $attribute === 'name' && $this->isOwnershipIdentifierQuery( $normalized ) ) {
             $identifierSubject = $this->extractOwnershipIdentifier( $query );

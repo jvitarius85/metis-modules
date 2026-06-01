@@ -10,6 +10,7 @@ $root = dirname( __DIR__ );
 
 require_once $root . '/src/Metis/Hermes/HermesCommandRegistry.php';
 require_once $root . '/src/Metis/Hermes/ConversationalParser.php';
+require_once $root . '/src/Metis/Hermes/HermesIntentRegistry.php';
 
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
@@ -19,7 +20,7 @@ $assert = static function ( bool $condition, string $message ) use ( &$failures 
 };
 
 $registry = new \Metis\Hermes\HermesCommandRegistry();
-$parser = new \Metis\Hermes\ConversationalParser( $registry, null, null, null );
+$parser = new \Metis\Hermes\ConversationalParser( $registry, null, null, null, new \Metis\Hermes\HermesIntentRegistry() );
 
 $multi = $parser->parse( 'please disable john@example.com and run diagnostics' );
 $assert( $multi['normalized_input'] === 'disable john@example.com and run diagnostics', 'Normalization should strip filler phrases.' );
@@ -33,6 +34,7 @@ $assert( ! empty( $context['requires_clarification'] ), 'Context-dependent short
 
 $single = $parser->parse( 'list users' );
 $assert( (string) ( $single['selected_intent'] ?? '' ) === 'list_users', 'Simple command should map to list_users.' );
+$assert( (string) ( $single['top_level_intent'] ?? '' ) === 'LOOKUP', 'Simple list commands should expose the LOOKUP top-level intent.' );
 $assert( (string) ( $single['confidence_label'] ?? '' ) === 'high', 'Direct command phrases should achieve high confidence.' );
 
 $lookup = $parser->parse( 'who is meg wallace' );
@@ -47,6 +49,7 @@ $assert( (string) ( $capability['selected_intent'] ?? '' ) === 'query_capability
 
 $help = $parser->parse( "I can't create a new GL entry" );
 $assert( (string) ( $help['selected_intent'] ?? '' ) === 'resolve_help_issue', 'Natural-language help issue should map to resolve_help_issue.' );
+$assert( (string) ( $help['top_level_intent'] ?? '' ) === 'HELP', 'Natural-language help issue should expose the HELP top-level intent.' );
 $assert( (string) ( $help['intents'][0]['payload']['user_message'] ?? '' ) !== '', 'Help issue payload should preserve the user message.' );
 
 $instructional = $parser->parse( 'how do I create a new donation?' );

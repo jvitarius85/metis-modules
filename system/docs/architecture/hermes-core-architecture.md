@@ -75,6 +75,42 @@ The Reasoning Engine uses a fixed execution state machine:
 
 This prevents free-form agent behavior and keeps Hermes predictable.
 
+### 2.1 Intent, Entity, and Attribute Registries
+
+Hermes maintains explicit registries for the three normalization layers that sit in front of secure execution:
+
+- `HermesIntentRegistry`: canonical top-level intents (`LOOKUP`, `REPORT`, `CREATE`, `UPDATE`, `DELETE`, `EXECUTE`, `HELP`) plus phrase aliases and command-family mapping.
+- `EntityRegistryBuilder`: canonical entities and aliases sourced from module entity manifests.
+- `HermesAttributeRegistry`: canonical attributes and aliases used for subject-attribute lookups.
+
+These registries let Hermes classify user language consistently without embedding duplicate alias maps across the parser, operational engine, and response flow.
+
+### 2.2 Intent Router and Conversation State Engine
+
+Hermes now separates two coordination concerns that previously sat implicitly inside the gateway:
+
+- `HermesIntentRouter`: converts conversational input into a deterministic routing decision (`command`, `data`, `entity_attribute`, `clarification`, or `knowledge`) and can fall back to the legacy parser when that yields a stronger structured interpretation, especially for data intents.
+- `HermesConversationStateEngine`: owns turn opening, session-context hydration, and post-response state persistence using the existing Hermes session and memory stores.
+
+This keeps request classification and conversation continuity explicit, testable, and independent from approval or execution logic.
+
+### 2.3 Intelligence and Operations Registries
+
+Hermes now also exposes two canonical registries above the raw services:
+
+- `HermesIntelligenceRegistry`: the normalized catalog of grounded knowledge sources, currently documentation, help topics, and walkthroughs.
+- `HermesOperationsRegistry`: the normalized catalog of executable or inspectable operations, built by joining Hermes command metadata with Hermes tool metadata and top-level intent classification.
+
+These registries reduce duplicated metadata, make dashboard/reporting surfaces easier to consume, and keep knowledge retrieval plus operation discovery explicit instead of implicit.
+
+### 2.4 Approval Engine
+
+Hermes now treats approval handling as its own coordination surface:
+
+- `HermesApprovalEngine`: packages pending approvals from operational responses, persists approval records, attaches approval UI prompts, and validates approval transitions before any later execution step.
+
+Execution still runs through the Secure Enclave path, but approval preparation and approval-state changes no longer live inline inside the gateway.
+
 ### 3. Hermes Tool Registry
 
 The Tool Registry is the canonical catalog of all module capabilities available to Hermes. It resolves tool definitions, validates request payloads, enforces availability rules, and routes calls to module-provided handlers.

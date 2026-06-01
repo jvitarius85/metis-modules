@@ -8,7 +8,7 @@ final class HermesOperationalEngine {
     /** Data-oriented intents routed to HermesReportingService. */
     private const DATA_INTENTS = [ 'list', 'search', 'get', 'count', 'aggregate', 'top', 'export' ];
 
-    private ConversationalParser      $parser;
+    private HermesIntentRouter        $router;
     private HermesContextPackLoader   $contextLoader;
     private HermesCommandRegistry     $commands;
     private HermesPermissionValidator $permissions;
@@ -19,7 +19,7 @@ final class HermesOperationalEngine {
     private ?HermesDebugLogger        $debugLogger;
 
     public function __construct(
-        ConversationalParser      $parser,
+        HermesIntentRouter        $router,
         HermesContextPackLoader   $contextLoader,
         HermesCommandRegistry     $commands,
         HermesPermissionValidator $permissions,
@@ -29,7 +29,7 @@ final class HermesOperationalEngine {
         ?AttributeResolver        $attributeResolver = null,
         ?HermesDebugLogger        $debugLogger       = null
     ) {
-        $this->parser            = $parser;
+        $this->router            = $router;
         $this->contextLoader     = $contextLoader;
         $this->commands          = $commands;
         $this->permissions       = $permissions;
@@ -41,29 +41,11 @@ final class HermesOperationalEngine {
     }
 
     public function process( string $query, array $runtimeContext = [] ): array {
-        $parsed = $this->parser->parse( $query );
-        $intent = [
-            'action' => (string) ( $parsed['selected_intent'] ?? 'unknown' ),
-            'confidence' => (float) ( $parsed['confidence_score'] ?? 0.0 ),
-            'payload' => (array) ( $parsed['intents'][0]['payload'] ?? [] ),
-        ];
-
-        if ( (string) ( $intent['action'] ?? '' ) === 'resolve_help_issue' ) {
-            $intent['payload']['current_route'] = trim( (string) ( $runtimeContext['current_route'] ?? ( $intent['payload']['current_route'] ?? '' ) ) );
-            $intent['payload']['current_module'] = trim( (string) ( $runtimeContext['current_module'] ?? ( $intent['payload']['current_module'] ?? '' ) ) );
-            $intent['payload']['session_context'] = array_merge(
-                (array) ( $intent['payload']['session_context'] ?? [] ),
-                array_filter( [
-                    'current_topic' => trim( (string) ( $runtimeContext['current_topic'] ?? '' ) ),
-                ], static fn ( mixed $value ): bool => is_string( $value ) && $value !== '' )
-            );
-            if ( isset( $parsed['intents'][0] ) && is_array( $parsed['intents'][0] ) ) {
-                $parsed['intents'][0]['payload'] = $intent['payload'];
-            }
-            if ( isset( $parsed['execution_plan'][0]['payload'] ) && is_array( $parsed['execution_plan'][0]['payload'] ) ) {
-                $parsed['execution_plan'][0]['payload'] = $intent['payload'];
-            }
-        }
+        $route = $this->router->route( $query, $runtimeContext );
+        $parsed = (array) ( $route['parsed'] ?? [] );
+        $intent = (array) ( $route['intent'] ?? [] );
+        $command = (array) ( $route['command'] ?? [] );
+        $routeType = (string) ( $route['route_type'] ?? 'knowledge' );
 
         if ( $this->debugLogger ) {
             $this->debugLogger->query( $query, (string) ( $intent['action'] ?? $intent['intent'] ?? 'unknown' ) );
@@ -86,16 +68,13 @@ final class HermesOperationalEngine {
         }
 
         // Route entity-attribute queries directly
-        if ( (string) ( $intent['action'] ?? '' ) === 'get_entity_attribute' ) {
+        if ( $routeType === 'entity_attribute' ) {
             return $this->processEntityAttributeIntent( $query, $intent );
         }
 
-        // Route data intents to the reporting service
-        if ( $this->isDataIntent( $intent ) ) {
+        if ( $routeType === 'data' || $this->isDataIntent( $intent ) ) {
             return $this->processDataIntent( $intent );
         }
-
-        $command = $this->commands->definition( (string) ( $parsed['selected_intent'] ?? $intent['action'] ?? '' ) );
 
         if ( $command === [] ) {
             return [
@@ -108,7 +87,7 @@ final class HermesOperationalEngine {
             ];
         }
 
-        $intent['payload'] = (array) ( $parsed['intents'][0]['payload'] ?? [] );
+        $intent['payload'] = (array) ( $parsed['intents'][0]['payload'] ?? $intent['payload'] ?? [] );
         $prep = $this->prepareIntentPayload( $intent, $command );
         $intent = (array) ( $prep['intent'] ?? $intent );
         $payloadError = (string) ( $prep['error'] ?? '' );

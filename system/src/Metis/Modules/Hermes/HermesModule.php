@@ -6,6 +6,7 @@ namespace Metis\Modules\Hermes;
 use Metis\Core\Application;
 use Metis\Hermes\HermesActionPlanner;
 use Metis\Hermes\HermesActionPreview;
+use Metis\Hermes\HermesApprovalEngine;
 use Metis\Hermes\HermesAuditLogger;
 use Metis\Hermes\HermesCommandRegistry;
 use Metis\Hermes\HermesContextBuilder;
@@ -18,10 +19,14 @@ use Metis\Hermes\HermesGateway;
 use Metis\Hermes\HermesGroundingValidator;
 use Metis\Hermes\HermesHelpResolver;
 use Metis\Hermes\HermesIntentParser;
+use Metis\Hermes\HermesIntentRegistry;
+use Metis\Hermes\HermesIntentRouter;
+use Metis\Hermes\HermesIntelligenceRegistry;
 use Metis\Hermes\HermesKnowledgeService;
 use Metis\Hermes\HermesMemoryStore;
 use Metis\Hermes\HermesMissionEngine;
 use Metis\Hermes\HermesOperationalEngine;
+use Metis\Hermes\HermesOperationsRegistry;
 use Metis\Hermes\HermesPlaybookEngine;
 use Metis\Hermes\HermesPermissionValidator;
 use Metis\Hermes\HermesReasoner;
@@ -38,11 +43,13 @@ use Metis\Hermes\HermesSafetyGovernor;
 use Metis\Hermes\HermesQueryBuilder;
 use Metis\Hermes\EntityResolver;
 use Metis\Hermes\AttributeResolver;
+use Metis\Hermes\HermesAttributeRegistry;
 use Metis\Hermes\HermesDebugLogger;
 use Metis\Hermes\HermesReportingService;
 use Metis\Hermes\HermesUniversalActionRegistry;
 use Metis\Hermes\HermesPlaybookValidator;
 use Metis\Hermes\HermesSecurityIntegration;
+use Metis\Hermes\HermesConversationStateEngine;
 
 final class HermesModule {
     private static bool $booted = false;
@@ -120,11 +127,14 @@ final class HermesModule {
             $registry->singleton( 'hermes_grounding_validator', static fn (): HermesGroundingValidator => new HermesGroundingValidator() );
         }
         if ( ! $registry->has( 'hermes_knowledge' ) ) {
-            $registry->singleton( 'hermes_knowledge', static fn (): HermesKnowledgeService => new HermesKnowledgeService(
+            $registry->singleton( 'hermes_intelligence_registry', static fn (): HermesIntelligenceRegistry => new HermesIntelligenceRegistry(
                 Application::service( 'hermes_documentation_index' ),
                 Application::service( 'hermes_help_resolver' ),
                 Application::service( 'hermes_walkthrough_resolver' ),
                 Application::service( 'hermes_grounding_validator' )
+            ) );
+            $registry->singleton( 'hermes_knowledge', static fn (): HermesKnowledgeService => new HermesKnowledgeService(
+                Application::service( 'hermes_intelligence_registry' )
             ) );
         }
         if ( ! $registry->has( 'hermes_tool_registry' ) ) {
@@ -133,22 +143,46 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_command_registry' ) ) {
             $registry->singleton( 'hermes_command_registry', static fn (): HermesCommandRegistry => new HermesCommandRegistry() );
         }
+        if ( ! $registry->has( 'hermes_operations_registry' ) ) {
+            $registry->singleton( 'hermes_operations_registry', static fn (): HermesOperationsRegistry => new HermesOperationsRegistry(
+                Application::service( 'hermes_command_registry' ),
+                Application::service( 'hermes_tool_registry' ),
+                Application::service( 'hermes_intent_registry' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_conversational_parser' ) ) {
             $registry->singleton( 'hermes_conversational_parser', static fn (): ConversationalParser => new ConversationalParser(
                 Application::service( 'hermes_command_registry' ),
                 Application::service( 'hermes_entity_resolver' ),
                 Application::service( 'hermes_memory_store' ),
-                Application::service( 'hermes_intent_parser' )
+                Application::service( 'hermes_intent_parser' ),
+                Application::service( 'hermes_intent_registry' )
             ) );
+        }
+        if ( ! $registry->has( 'hermes_intent_registry' ) ) {
+            $registry->singleton( 'hermes_intent_registry', static fn (): HermesIntentRegistry => new HermesIntentRegistry() );
+        }
+        if ( ! $registry->has( 'hermes_attribute_registry' ) ) {
+            $registry->singleton( 'hermes_attribute_registry', static fn (): HermesAttributeRegistry => new HermesAttributeRegistry() );
         }
         if ( ! $registry->has( 'hermes_intent_parser' ) ) {
             $registry->singleton( 'hermes_intent_parser', static fn (): HermesIntentParser => new HermesIntentParser(
                 Application::service( 'hermes_command_registry' ),
-                Application::service( 'hermes_entity_registry' )
+                Application::service( 'hermes_entity_registry' ),
+                Application::service( 'hermes_intent_registry' ),
+                Application::service( 'hermes_attribute_registry' )
             ) );
         }
         if ( ! $registry->has( 'hermes_context_pack_loader' ) ) {
             $registry->singleton( 'hermes_context_pack_loader', static fn (): HermesContextPackLoader => new HermesContextPackLoader( Application::service( 'hermes_library' ) ) );
+        }
+        if ( ! $registry->has( 'hermes_intent_router' ) ) {
+            $registry->singleton( 'hermes_intent_router', static fn (): HermesIntentRouter => new HermesIntentRouter(
+                Application::service( 'hermes_conversational_parser' ),
+                Application::service( 'hermes_command_registry' ),
+                Application::service( 'hermes_intent_parser' ),
+                Application::service( 'hermes_intent_registry' )
+            ) );
         }
         if ( ! $registry->has( 'hermes_permission_validator' ) ) {
             $registry->singleton( 'hermes_permission_validator', static fn (): HermesPermissionValidator => new HermesPermissionValidator( Application::service( 'permissions' ) ) );
@@ -173,14 +207,22 @@ final class HermesModule {
             ) );
         }
         if ( ! $registry->has( 'hermes_attribute_resolver' ) ) {
-            $registry->singleton( 'hermes_attribute_resolver', static fn (): AttributeResolver => new AttributeResolver() );
+            $registry->singleton( 'hermes_attribute_resolver', static fn (): AttributeResolver => new AttributeResolver(
+                Application::service( 'hermes_attribute_registry' )
+            ) );
         }
         if ( ! $registry->has( 'hermes_debug_logger' ) ) {
             $registry->singleton( 'hermes_debug_logger', static fn (): HermesDebugLogger => new HermesDebugLogger() );
         }
+        if ( ! $registry->has( 'hermes_conversation_state' ) ) {
+            $registry->singleton( 'hermes_conversation_state', static fn (): HermesConversationStateEngine => new HermesConversationStateEngine(
+                Application::service( 'hermes_repository' ),
+                Application::service( 'hermes_memory_store' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_operational_engine' ) ) {
             $registry->singleton( 'hermes_operational_engine', static fn (): HermesOperationalEngine => new HermesOperationalEngine(
-                Application::service( 'hermes_conversational_parser' ),
+                Application::service( 'hermes_intent_router' ),
                 Application::service( 'hermes_context_pack_loader' ),
                 Application::service( 'hermes_command_registry' ),
                 Application::service( 'hermes_permission_validator' ),
@@ -234,6 +276,14 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_action_preview' ) ) {
             $registry->singleton( 'hermes_action_preview', static fn (): HermesActionPreview => new HermesActionPreview() );
         }
+        if ( ! $registry->has( 'hermes_approval_engine' ) ) {
+            $registry->singleton( 'hermes_approval_engine', static fn (): HermesApprovalEngine => new HermesApprovalEngine(
+                Application::service( 'hermes_repository' ),
+                Application::service( 'hermes_action_preview' ),
+                Application::service( 'hermes_operational_engine' ),
+                Application::service( 'hermes_audit_logger' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_action_planner' ) ) {
             $registry->singleton( 'hermes_action_planner', static fn (): HermesActionPlanner => new HermesActionPlanner(
                 Application::service( 'hermes_action_preview' ),
@@ -261,7 +311,10 @@ final class HermesModule {
                 Application::service( 'hermes_knowledge' ),
                 Application::service( 'hermes_memory_store' ),
                 Application::service( 'hermes_audit_logger' ),
-                Application::service( 'hermes_operational_engine' )
+                Application::service( 'hermes_operational_engine' ),
+                Application::service( 'hermes_conversation_state' ),
+                Application::service( 'hermes_operations_registry' ),
+                Application::service( 'hermes_approval_engine' )
             ) );
         }
         if ( ! $registry->has( 'hermes_worker_manager' ) ) {

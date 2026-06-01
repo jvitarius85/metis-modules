@@ -18,7 +18,10 @@ final class HermesGateway {
         private readonly HermesKnowledgeService $knowledge,
         private readonly HermesMemoryStore $memory,
         private readonly HermesAuditLogger $audit,
-        private readonly HermesOperationalEngine $operations
+        private readonly HermesOperationalEngine $operations,
+        private readonly HermesConversationStateEngine $state,
+        private readonly HermesOperationsRegistry $operationRegistry,
+        private readonly HermesApprovalEngine $approvals
     ) {}
 
     public function dashboardPayload(): array {
@@ -95,6 +98,7 @@ final class HermesGateway {
             'pending_actions' => $pending,
             'missions' => array_values( $library->missions() ),
             'playbooks' => array_values( $library->playbooks() ),
+            'operations' => $this->operationRegistry->definitions(),
             'tools' => $this->tools->definitions(),
             'diagnostics' => $diagnostics,
             'alerts' => $alerts,
@@ -110,8 +114,10 @@ final class HermesGateway {
 
     public function converse( string $query, string $session_code = '', array $runtimeContext = [] ): array {
         $user_id = \metis_current_user_id();
-        $session = $this->repository->ensureSession( $user_id, $session_code, $this->deriveTitle( $query ) );
-        $user_message = $this->repository->saveMessage( (int) $session['id'], 'user', $query );
+        $turn = $this->state->openTurn( $user_id, $query, $session_code );
+        $session = (array) ( $turn['session'] ?? [] );
+        $user_message = (array) ( $turn['user_message'] ?? [] );
+        $runtimeContext = $this->state->hydrateRuntimeContext( $session, $runtimeContext );
 
         try {
             $processed = $this->operations->process( $query, $runtimeContext );
@@ -120,33 +126,7 @@ final class HermesGateway {
                 $processed = $this->knowledgeFallback( $query, $session, $processed, $runtimeContext );
                 $response = (array) ( $processed['response'] ?? [] );
             }
-            $actions = [];
-            if ( (string) ( $response['status'] ?? '' ) === 'awaiting_approval' && is_array( $processed['command'] ?? null ) ) {
-                $payload = [
-                    'intent' => (array) ( $processed['intent'] ?? [] ),
-                    'parser' => (array) ( $processed['parsed'] ?? [] ),
-                    'query' => $query,
-                    'operation' => (string) ( $processed['action_plan']['operation'] ?? '' ),
-                    'command_payload' => (array) ( $processed['intent']['payload'] ?? [] ),
-                    'execution_plan' => (array) ( $processed['parsed']['execution_plan'] ?? [] ),
-                    'action_plan' => (array) ( $processed['action_plan'] ?? [] ),
-                    'context_packs' => (array) ( $processed['context_packs'] ?? [] ),
-                    'required_permission' => (string) ( $processed['action_plan']['required_permission'] ?? '' ),
-                ];
-                $preview = $this->preview->preview( 'hermes_command', $payload, [
-                    'title' => (string) ( $processed['action_plan']['title'] ?? 'Hermes Command' ),
-                    'summary' => (string) ( $response['message'] ?? 'Approval required.' ),
-                ] );
-
-                $actions[] = $this->repository->createAction(
-                    (int) $session['id'],
-                    0,
-                    'hermes_command',
-                    (string) ( $processed['action_plan']['title'] ?? 'Hermes Action' ),
-                    $payload,
-                    $preview
-                );
-            }
+            $actions = $this->approvals->queueApprovalForProcessedResponse( $session, $query, $processed, $response );
             $reasoning = [
                 'intent' => (string) ( $processed['intent']['action'] ?? 'unknown' ),
                 'answer' => (string) ( $response['message'] ?? '' ),
@@ -154,31 +134,16 @@ final class HermesGateway {
             ];
             $assistant_message = $this->repository->saveMessage( (int) $session['id'], 'hermes', (string) ( $response['message'] ?? '' ), $reasoning );
 
-            if ( $actions !== [] ) {
-                foreach ( $actions as &$action ) {
-                    if ( ! is_array( $action ) ) {
-                        continue;
-                    }
-                    $response['ui_components'][] = [
-                        'type' => 'ApprovalPrompt',
-                        'action_code' => (string) ( $action['action_code'] ?? '' ),
-                        'buttons' => [ 'Approve', 'Cancel' ],
-                    ];
-                }
-            }
+            $response = $this->approvals->attachApprovalPrompts( $response, $actions );
 
-            $this->repository->touchSession( (int) $session['id'], (string) ( $processed['intent']['action'] ?? 'conversation' ) );
-            $this->memory->rememberConversation( (string) ( $session['session_code'] ?? '' ), [
-                'query' => $query,
-                'answer' => (string) ( $response['message'] ?? '' ),
-                'intent' => (string) ( $processed['intent']['action'] ?? '' ),
-            ] );
+            $this->state->completeTurn( $session, $query, $processed, $response );
             $this->audit->commandTrace( [
                 'session_code' => (string) ( $session['session_code'] ?? '' ),
                 'user_id' => $user_id,
                 'raw_input' => $query,
                 'normalized_input' => (string) ( $processed['parsed']['normalized_input'] ?? strtolower( trim( $query ) ) ),
                 'selected_intent' => (string) ( $processed['parsed']['selected_intent'] ?? $processed['intent']['action'] ?? '' ),
+                'top_level_intent' => (string) ( $processed['parsed']['top_level_intent'] ?? $processed['intent']['top_level_intent'] ?? '' ),
                 'tool_key' => (string) ( $processed['command']['tool_key'] ?? '' ),
                 'confidence_score' => (float) ( $processed['parsed']['confidence_score'] ?? 0 ),
                 'payload' => (array) ( $processed['intent']['payload'] ?? [] ),
@@ -269,6 +234,7 @@ final class HermesGateway {
                 'action' => (string) ( $reasoning['intent'] ?? 'conversation' ),
                 'confidence' => 0.62,
                 'payload' => [ 'query' => $query ],
+                'top_level_intent' => (string) ( $processed['intent']['top_level_intent'] ?? 'HELP' ),
             ],
             'command' => null,
             'context_packs' => array_values( (array) ( $context['context_packs'] ?? [] ) ),
@@ -320,27 +286,7 @@ final class HermesGateway {
     }
 
     public function approveAction( string $action_code, string $note = '' ): array {
-        $action = $this->repository->getActionByCode( $action_code );
-        if ( ! is_array( $action ) ) {
-            throw new \RuntimeException( 'Hermes action could not be approved.' );
-        }
-
-        $payload = (array) ( $action['payload'] ?? [] );
-        if ( (string) ( $action['action_type'] ?? '' ) === 'hermes_command' || ! empty( $payload['operation'] ) ) {
-            $prepared = $this->operations->validatePreparedAction( $payload );
-            $permission = (array) ( $prepared['permission'] ?? [] );
-            if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
-                throw new \RuntimeException( (string) ( $permission['reason'] ?? 'Permission denied.' ) );
-            }
-        }
-
-        $action = $this->repository->approveAction( $action_code, \metis_current_user_id(), $note );
-        if ( ! is_array( $action ) ) {
-            throw new \RuntimeException( 'Hermes action could not be approved.' );
-        }
-
-        $this->audit->approval( 'action_approved', $action_code, [ 'status' => 'approved' ] );
-        return $action;
+        return $this->approvals->approve( $action_code, \metis_current_user_id(), $note );
     }
 
     public function executeAction( string $action_code ): array {

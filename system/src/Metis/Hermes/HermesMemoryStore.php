@@ -19,4 +19,15 @@ final class HermesMemoryStore {
     public function recall( string $scope_key = '', int $limit = 6 ): array {
         return $this->repository->recentMemory( $scope_key, $limit );
     }
+
+    public function recallConversation( string $session_code ): array {
+        if ( $session_code === '' ) {
+            return [];
+        }
+
+        $rows = $this->repository->recentMemory( $session_code, 1 );
+        $row = (array) ( $rows[0] ?? [] );
+
+        return (array) ( $row['contents'] ?? [] );
+    }
 }

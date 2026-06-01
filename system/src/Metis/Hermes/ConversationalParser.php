@@ -27,7 +27,8 @@ final class ConversationalParser {
         private readonly HermesCommandRegistry $commands,
         private readonly ?EntityResolver $entityResolver = null,
         private readonly ?HermesMemoryStore $memory = null,
-        private readonly ?HermesIntentParser $legacy = null
+        private readonly ?HermesIntentParser $legacy = null,
+        private readonly ?HermesIntentRegistry $intentRegistry = null
     ) {}
 
     /**
@@ -105,11 +106,15 @@ final class ConversationalParser {
         }
 
         $selectedIntent = $intents[0]['intent'] ?? 'unknown';
+        $topLevelIntent = $this->intentRegistry?->classifyCommand( $selectedIntent, $normalized )
+            ?? $this->legacy?->parse( $normalized )['top_level_intent']
+            ?? 'LOOKUP';
 
         return [
             'normalized_input' => $normalized,
             'intents' => $intents,
             'selected_intent' => $selectedIntent,
+            'top_level_intent' => $topLevelIntent,
             'entities' => $entities,
             'confidence_score' => $maxConfidence,
             'confidence_label' => $this->confidenceLabel( $maxConfidence ),
