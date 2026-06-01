@@ -709,6 +709,11 @@ function metis_auth_current_method(): string {
     return metis_key_clean( (string) ( $_SESSION['metis_auth_method'] ?? '' ) );
 }
 
+function metis_auth_session_integrity_auth_method(): string {
+    $auth_method = metis_auth_current_method();
+    return $auth_method !== '' ? $auth_method : 'session';
+}
+
 function metis_auth_session_ttl_env_int( string $env_key, int $fallback ): int {
     $raw = getenv( $env_key );
     if ( ! is_string( $raw ) || trim( $raw ) === '' ) {
@@ -792,12 +797,14 @@ function metis_auth_current_person(): ?array {
 }
 
 function metis_auth_session_integrity_fingerprint(): string {
+    $auth_method = metis_auth_session_integrity_auth_method();
+
     if ( class_exists( '\Metis\Core\Application' ) && \Metis\Core\Application::has_service( 'security_kernel' ) ) {
         return \Metis\Core\Application::service( 'security_kernel' )->fingerprints()->sessionIntegrityFingerprint(
             \Metis\Core\Application::service( 'security_kernel' )->buildContext(
                 'auth.session.integrity',
-                [ 'auth_method' => 'session' ],
-                [ 'auth_method' => 'session' ]
+                [ 'auth_method' => $auth_method ],
+                [ 'auth_method' => $auth_method ]
             )
         );
     }
@@ -816,6 +823,7 @@ function metis_auth_session_integrity_fingerprint(): string {
         'person_id'    => (int) ( $_SESSION['metis_person_id'] ?? 0 ),
         'session'      => $session_token,
         'user_agent'   => substr( (string) ( $_SERVER['HTTP_USER_AGENT'] ?? '' ), 0, 255 ),
+        'auth_method'  => $auth_method,
     ];
 
     return hash_hmac( 'sha256', metis_json_encode( $payload ) ?: '', metis_auth_secret_key_bytes() );
@@ -848,13 +856,15 @@ function metis_auth_session_integrity_is_valid(): bool {
     }
 
     if ( class_exists( '\Metis\Core\Application' ) && \Metis\Core\Application::has_service( 'security_authorization_gate' ) ) {
+        $auth_method = metis_auth_session_integrity_auth_method();
         $context = \Metis\Core\Application::service( 'security_kernel' )->buildContext(
             'auth.session.integrity',
-            [ 'auth_method' => 'session' ],
-            [ 'auth_method' => 'session' ]
+            [ 'auth_method' => $auth_method ],
+            [ 'auth_method' => $auth_method ]
         );
 
-        return \Metis\Core\Application::service( 'security_authorization_gate' )->hasValidSession( $context );
+        $valid = \Metis\Core\Application::service( 'security_authorization_gate' )->hasValidSession( $context );
+        return $valid;
     }
 
     $fingerprint = metis_auth_session_integrity_fingerprint();
@@ -867,7 +877,6 @@ function metis_auth_session_integrity_is_valid(): bool {
         $_SESSION['metis_session_integrity'] = $fingerprint;
         return true;
     }
-
     return hash_equals( $stored, $fingerprint );
 }
 

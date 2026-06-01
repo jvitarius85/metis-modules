@@ -32,12 +32,13 @@ final class AuthorizationGate {
         }
 
         $stored = (string) ($_SESSION['metis_session_integrity'] ?? '');
+        $computed = $this->fingerprints->sessionIntegrityFingerprint($context);
         if ($stored === '') {
-            $_SESSION['metis_session_integrity'] = $this->fingerprints->sessionIntegrityFingerprint($context);
+            $_SESSION['metis_session_integrity'] = $computed;
             return true;
         }
 
-        return $this->fingerprints->matchesStored($context, $stored);
+        return hash_equals($stored, $computed);
     }
 
     public function hasPermission(SecurityContext $context): bool {

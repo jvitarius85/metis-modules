@@ -808,7 +808,17 @@ function metis_module_asset_content_type( string $path ): string {
     };
 }
 
+function metis_router_suppress_session_cookie_headers(): void {
+    if ( headers_sent() ) {
+        return;
+    }
+
+    header_remove( 'Set-Cookie' );
+}
+
 function metis_router_handle_core_asset_request( Metis_Http_Request $request ): Metis_Http_Response {
+    metis_router_suppress_session_cookie_headers();
+
     $asset = ltrim( (string) $request->attribute( 'core_asset_path', '' ), '/' );
     $extension = strtolower( pathinfo( $asset, PATHINFO_EXTENSION ) );
     $allowed = [
@@ -857,6 +867,8 @@ function metis_router_handle_core_asset_request( Metis_Http_Request $request ): 
 }
 
 function metis_router_handle_module_asset_request( Metis_Http_Request $request ): Metis_Http_Response {
+    metis_router_suppress_session_cookie_headers();
+
     $module = metis_key_clean( (string) $request->attribute( 'module_asset_module', '' ) );
     $asset  = ltrim( (string) $request->attribute( 'module_asset_path', '' ), '/' );
 
@@ -912,6 +924,7 @@ function metis_router_handle_module_asset_request( Metis_Http_Request $request )
 
 function metis_router_handle_runtime_asset_request( Metis_Http_Request $request ): Metis_Http_Response {
     metis_register_core_services();
+    metis_router_suppress_session_cookie_headers();
 
     $asset = ltrim( (string) $request->attribute( 'runtime_asset_path', '' ), '/' );
     $query = $request->query();
@@ -986,6 +999,8 @@ function metis_router_handle_runtime_asset_request( Metis_Http_Request $request 
 }
 
 function metis_router_handle_svg_icon_request( Metis_Http_Request $request ): Metis_Http_Response {
+    metis_router_suppress_session_cookie_headers();
+
     $slug = str_replace( '_', '-', metis_key_clean( (string) $request->attribute( 'svg_icon_slug', '' ) ) );
     if ( $slug === '' || preg_match( '/^[a-z0-9][a-z0-9-]*$/', $slug ) !== 1 ) {
         return Metis_Http_Response::html( 'Icon not found.', 404 );

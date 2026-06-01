@@ -213,6 +213,7 @@ function metis_security_runtime_request_context( array $input = [] ): array {
             'ip'         => isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '',
             'user_agent' => isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : '',
             'request_id' => metis_runtime_generate_uuid(),
+            'auth_method' => function_exists( 'metis_auth_current_method' ) ? (string) metis_auth_current_method() : '',
         ],
         'input' => $input,
     ];

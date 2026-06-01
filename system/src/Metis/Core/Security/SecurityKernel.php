@@ -86,6 +86,7 @@ final class SecurityKernel {
             'ip' => function_exists('metis_audit_ip_address') ? (string) metis_audit_ip_address() : (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
             'user_agent' => function_exists('metis_audit_user_agent') ? (string) metis_audit_user_agent() : (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''),
             'trace_id' => function_exists('metis_audit_request_id') ? (string) metis_audit_request_id() : '',
+            'auth_method' => function_exists('metis_auth_current_method') ? (string) metis_auth_current_method() : '',
         ];
     }
 }
