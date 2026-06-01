@@ -641,6 +641,21 @@ final class DonationsModule {
         );
     }
 
+    public static function updateBatchNote( int $note_id, string $batch_code, string $text ): bool|int {
+        return self::db()->update(
+            \Metis_Tables::get( 'batch_notes' ),
+            [ 'note_text' => $text ],
+            [ 'id' => $note_id, 'batch_code' => $batch_code ]
+        );
+    }
+
+    public static function deleteBatchNote( int $note_id, string $batch_code ): bool|int {
+        return self::db()->delete(
+            \Metis_Tables::get( 'batch_notes' ),
+            [ 'id' => $note_id, 'batch_code' => $batch_code ]
+        );
+    }
+
     public static function getBatchNotes( string $batch_code ): array {
         $table = \Metis_Tables::get( 'batch_notes' );
         return self::db()->fetchAll(

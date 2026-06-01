@@ -49,6 +49,10 @@ $boardDecisionAttendanceService = $read( 'src/Metis/Modules/Board/DecisionAttend
 $boardWorkflowTemplateService = $read( 'src/Metis/Modules/Board/WorkflowTemplateService.php' );
 $financeAjax = $read( 'modules/finance/assets/finance.ajax.php' );
 $financeService = $read( 'src/Metis/Modules/Finance/FinanceV2Service.php' );
+$donationsNotesAjax = $read( 'modules/donations/assets/notes.ajax.php' );
+$donationsTransactionMutationService = $read( 'src/Metis/Modules/Donations/TransactionMutationService.php' );
+$donationsBootstrap = $read( 'modules/donations/bootstrap.php' );
+$donationsModule = $read( 'src/Metis/Modules/Donations/DonationsModule.php' );
 $helpService = $read( 'src/Metis/Core/HelpService.php' );
 $helpSearchStore = $read( 'src/Metis/Core/HelpSearchStore.php' );
 $helpArticleSave = $read( 'enclave/help/article/save.php' );
@@ -108,6 +112,11 @@ $assert( str_contains( $boardDecisionAttendanceService, "\\metis_textarea_clean(
 $assert( str_contains( $boardWorkflowTemplateService, "\\metis_textarea_clean( \\metis_runtime_unslash( \$post['description'] ?? '' ) )" ), 'Board workflow template descriptions must preserve multiline Unicode via textarea cleaner.' );
 $assert( str_contains( $financeAjax, "'decision_notes' => metis_textarea_clean( (string) metis_finance_ajax_post_value( 'decision_notes', '' ) )" ), 'Finance reconciliation review notes must preserve multiline Unicode via textarea cleaner at the AJAX boundary.' );
 $assert( str_contains( $financeService, "\$decisionNotes = metis_textarea_clean( (string) ( \$input['decision_notes'] ?? '' ) );" ) && str_contains( $financeService, "\$notes = metis_textarea_clean( (string) ( \$input['notes'] ?? '' ) );" ), 'Finance service notes fields must preserve multiline Unicode via textarea cleaner.' );
+$assert( str_contains( $donationsNotesAjax, 'TransactionMutationService::ensureSupportingTables();' ) && str_contains( $donationsNotesAjax, 'TransactionMutationService::addTransactionNote(' ) && str_contains( $donationsNotesAjax, 'TransactionMutationService::recordTransactionRefund(' ) && str_contains( $donationsNotesAjax, 'TransactionMutationService::updateTransactionCampaign(' ), 'Donations transaction note/refund/campaign writes must delegate through the canonical mutation service.' );
+$assert( str_contains( $donationsTransactionMutationService, "'note'       => \$note" ) && str_contains( $donationsTransactionMutationService, "'notes'       => \$notes !== '' ? \$notes : null" ), 'Donations mutation service must preserve transaction note and refund notes text through canonical payloads.' );
+$assert( str_contains( $donationsNotesAjax, 'metis_update_batch_note( $id, $batch, $text )' ) && str_contains( $donationsNotesAjax, 'metis_delete_batch_note( $id, $batch )' ), 'Donations batch note AJAX handlers must delegate writes through the donations module path.' );
+$assert( str_contains( $donationsBootstrap, 'function metis_update_batch_note' ) && str_contains( $donationsBootstrap, 'function metis_delete_batch_note' ), 'Donations bootstrap must expose canonical batch note mutation helpers.' );
+$assert( str_contains( $donationsModule, 'public static function updateBatchNote' ) && str_contains( $donationsModule, 'public static function deleteBatchNote' ), 'Donations module must own batch note update and delete persistence.' );
 $assert( str_contains( $helpService, "return metis_text_clean( \$value );" ), 'Help plain-text normalization must delegate to the canonical text cleaner.' );
 $assert( str_contains( $helpSearchStore, "\\metis_text_raw_clean( \$content )" ) && str_contains( $helpSearchStore, "\\metis_runtime_kses_post( \$content )" ), 'Help article content normalization must preserve UTF-8 text and sanitize through the canonical rich-text path.' );
 $assert( str_contains( $helpArticleSave, "metis_text_raw_clean( metis_runtime_unslash( metis_request_post()['content'] ?? '' ) )" ), 'Help article save handler must normalize raw submitted content through the canonical raw cleaner.' );

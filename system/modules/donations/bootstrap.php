@@ -100,6 +100,14 @@ function metis_add_batch_note( string $batch_code, string $text ): bool|int {
     return \Metis\Modules\Donations\DonationsModule::addBatchNote( $batch_code, $text );
 }
 
+function metis_update_batch_note( int $note_id, string $batch_code, string $text ): bool|int {
+    return \Metis\Modules\Donations\DonationsModule::updateBatchNote( $note_id, $batch_code, $text );
+}
+
+function metis_delete_batch_note( int $note_id, string $batch_code ): bool|int {
+    return \Metis\Modules\Donations\DonationsModule::deleteBatchNote( $note_id, $batch_code );
+}
+
 function metis_get_batch_notes( string $batch_code ): array {
     return \Metis\Modules\Donations\DonationsModule::getBatchNotes( $batch_code );
 }
