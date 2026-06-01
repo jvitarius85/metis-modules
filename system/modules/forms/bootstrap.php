@@ -60,19 +60,5 @@ function metis_forms_render_embed( string $form_ref, array $options = [] ): stri
         return '';
     }
 
-    $action = metis_escape_url( \Metis\Modules\Forms\FormsModule::publicUrl( $slug ) );
-    if ( $action === '' ) {
-        return '';
-    }
-    $frame_title = trim( (string) ( $options['title'] ?? $form['name'] ?? 'Form' ) );
-    $height      = max( 640, (int) ( $options['height'] ?? 960 ) );
-
-    return '<div class="metis-forms-embed-frame">'
-        . '<iframe'
-        . ' src="' . $action . '"'
-        . ' title="' . metis_escape_attr( $frame_title ) . '"'
-        . ' loading="lazy"'
-        . ' style="width:100%;min-height:' . metis_escape_attr( (string) $height ) . 'px;border:0;border-radius:20px;background:#fff;"'
-        . '></iframe>'
-        . '</div>';
+    return \Metis\Modules\Forms\FormRenderer::renderEmbedHtml( $form, $options );
 }

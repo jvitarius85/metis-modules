@@ -191,6 +191,105 @@ html[data-metis-contrast="true"] [tabindex]:focus-visible {
     transform: translateY(0);
 }
 
+.metis-rich-text {
+    display: grid;
+    gap: 10px;
+}
+
+.metis-se-rich-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.metis-se-rich-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.metis-se-rich-dropdown {
+    position: relative;
+}
+
+.metis-se-toolbtn,
+.metis-se-rich-menu-trigger,
+.metis-se-rich-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--metis-border);
+    border-radius: 12px;
+    background: var(--metis-surface);
+    color: var(--metis-text);
+    cursor: pointer;
+}
+
+.metis-se-toolbtn img,
+.metis-se-rich-menu-trigger img,
+.metis-se-rich-icon-btn img {
+    width: 18px;
+    height: 18px;
+    display: block;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.metis-inline-icon-svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    pointer-events: none;
+    flex: 0 0 18px;
+}
+
+.metis-se-rich-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    display: none;
+    min-width: 180px;
+    padding: 8px;
+    border: 1px solid var(--metis-border);
+    border-radius: 14px;
+    background: var(--metis-surface);
+    box-shadow: var(--metis-shadow-md);
+    z-index: 40;
+}
+
+.metis-se-rich-dropdown.is-open .metis-se-rich-menu {
+    display: grid;
+    gap: 6px;
+}
+
+.metis-se-rich-menu button {
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.metis-se-rich-editor {
+    min-height: 260px;
+    padding: 14px 16px;
+    border: 1px solid var(--metis-border);
+    border-radius: 16px;
+    background: var(--metis-surface);
+    line-height: 1.7;
+}
+
+.metis-se-rich-editor:focus {
+    outline: 3px solid var(--metis-focus-ring);
+    outline-offset: 3px;
+}
+
+.metis-se-rich-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--metis-text-muted);
+}
+
 /* ============================================================
    SIDEBAR
    ============================================================ */
@@ -1643,6 +1742,11 @@ html[data-metis-contrast="true"] textarea:focus-visible {
 }
 
 .metis-field-hint { font-size: 12px; color: var(--metis-text-muted); margin-top: 2px; }
+.metis-campaign-desc-body img,
+.metis-campaign-content img {
+    max-width: 100%;
+    height: auto;
+}
 .metis-required   { color: #b91c1c; margin-left: 2px; }
 
 .metis-form-grid {

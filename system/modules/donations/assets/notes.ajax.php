@@ -42,6 +42,11 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'permission' => 'edit',
         'nonce_action' => metis_ajax_nonce_action( 'metis_record_transaction_refund' ),
     ] );
+    metis_ajax_register_controller( 'metis_update_transaction_campaign', [
+        'module' => 'donations',
+        'permission' => 'edit',
+        'nonce_action' => metis_ajax_nonce_action( 'metis_update_transaction_campaign' ),
+    ] );
 }
 
 function metis_donations_notes_ajax_verify( string $action, string $permission = 'edit' ): void {
@@ -397,6 +402,53 @@ metis_ajax_register_handler( 'metis_record_transaction_refund', function () {
         ],
         'total_refunded' => $total_refunded,
         'net_after_refunds' => max( 0, (float) ( $transaction['amount'] ?? 0 ) - $total_refunded ),
+    ] );
+}, [
+    'module' => 'donations',
+    'permission' => 'edit',
+] );
+
+metis_ajax_register_handler( 'metis_update_transaction_campaign', function () {
+    metis_donations_notes_ajax_verify( 'metis_update_transaction_campaign', 'edit' );
+
+    $tid = metis_text_clean( metis_request_post()['tid'] ?? '' );
+    $campaign_reference = metis_text_clean( metis_request_post()['campaign_code'] ?? '' );
+
+    if ( $tid === '' || $campaign_reference === '' ) {
+        metis_runtime_send_json_error( [ 'message' => 'Missing transaction ID or campaign.' ], 400 );
+    }
+
+    $transaction = metis_donations_transaction_exists( $tid );
+    if ( ! $transaction ) {
+        metis_runtime_send_json_error( [ 'message' => 'Transaction not found.' ], 404 );
+    }
+
+    $resolved_campaign = \Metis\Modules\Donations\CampaignService::resolveCampaignReference( $campaign_reference, false );
+    if ( $resolved_campaign === null ) {
+        metis_runtime_send_json_error( [ 'message' => 'Campaign not found.' ], 404 );
+    }
+
+    $campaign_row = metis_db()->fetchOne(
+        'SELECT cid, cname FROM ' . Metis_Tables::get( 'campaigns' ) . ' WHERE cid = %s LIMIT 1',
+        [ $resolved_campaign ]
+    );
+    if ( ! is_array( $campaign_row ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Campaign not found.' ], 404 );
+    }
+
+    $updated = metis_db()->update(
+        Metis_Tables::get( 'transactions' ),
+        [ 'campaign_code' => $resolved_campaign ],
+        [ 'tid' => $tid ]
+    );
+
+    if ( $updated === false ) {
+        metis_runtime_send_json_error( [ 'message' => 'Unable to update transaction campaign.' ], 500 );
+    }
+
+    metis_runtime_send_json_success( [
+        'campaign_code' => $resolved_campaign,
+        'campaign_name' => (string) ( $campaign_row['cname'] ?? $resolved_campaign ),
     ] );
 }, [
     'module' => 'donations',

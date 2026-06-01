@@ -40,7 +40,7 @@ if ( ! function_exists( 'metis_key_clean' ) ) {
 
 if ( ! function_exists( 'metis_text_clean' ) ) {
     function metis_text_clean( mixed $value ): string {
-        $value = is_scalar( $value ) ? (string) $value : '';
+        $value = is_scalar( $value ) ? metis_runtime_normalize_text_encoding( (string) $value ) : '';
         $value = strip_tags( $value );
         return trim( preg_replace( '/[\r\n\t ]+/', ' ', $value ) ?? '' );
     }
@@ -48,8 +48,14 @@ if ( ! function_exists( 'metis_text_clean' ) ) {
 
 if ( ! function_exists( 'metis_textarea_clean' ) ) {
     function metis_textarea_clean( mixed $value ): string {
-        $value = is_scalar( $value ) ? (string) $value : '';
+        $value = is_scalar( $value ) ? metis_runtime_normalize_text_encoding( (string) $value ) : '';
         return trim( strip_tags( $value ) );
+    }
+}
+
+if ( ! function_exists( 'metis_text_raw_clean' ) ) {
+    function metis_text_raw_clean( mixed $value ): string {
+        return is_scalar( $value ) ? trim( metis_runtime_normalize_text_encoding( (string) $value ) ) : '';
     }
 }
 
@@ -93,6 +99,95 @@ function metis_runtime_unslash( mixed $value ): mixed {
     }
 
     return is_string( $value ) ? stripslashes( $value ) : $value;
+}
+
+function metis_runtime_replace_common_mojibake_sequences( string $text ): string {
+    if ( $text === '' ) {
+        return '';
+    }
+
+    $replacements = [
+        'Ã¢ÂÂ' => '’',
+        'Ã¢ÂÂ' => '‘',
+        'Ã¢ÂÂ' => '“',
+        'Ã¢ÂÂ' => '”',
+        'Ã¢ÂÂ¦' => '…',
+        'Ã¢ÂÂ' => '–',
+        'Ã¢ÂÂ' => '—',
+        'â€™' => '’',
+        'â€˜' => '‘',
+        'â€œ' => '“',
+        'â€' => '”',
+        'â€¦' => '…',
+        'â€“' => '–',
+        'â€”' => '—',
+        'â' => '’',
+        'â' => '‘',
+        'â' => '“',
+        'â' => '”',
+        'â¦' => '…',
+        'â' => '–',
+        'â' => '—',
+        'ÃÂ ' => ' ',
+        'Â ' => ' ',
+    ];
+
+    $current = strtr( $text, $replacements );
+    $current = preg_replace( '/&Acirc;(&nbsp;|&#160;|&#xA0;|&#xa0;)/i', ' ', $current ) ?? $current;
+    $current = preg_replace( '/Â(&nbsp;|&#160;|&#xA0;|&#xa0;)/i', ' ', $current ) ?? $current;
+    $current = preg_replace( '/Ã+(?=\s|$)/', '', $current ) ?? $current;
+    $current = preg_replace( '/Ã(?=[A-Za-z0-9])/', '', $current ) ?? $current;
+    $current = preg_replace( '/\xC2+(?=\s|$)/u', '', $current ) ?? $current;
+    $current = preg_replace( '/\x{00A0}/u', ' ', $current ) ?? $current;
+    $current = preg_replace( '/\x{FFFD}+/u', '', $current ) ?? $current;
+
+    return $current;
+}
+
+function metis_runtime_mojibake_score( string $text ): int {
+    preg_match_all( '/(?:Ã.|â.|Â|�)/u', $text, $matches );
+    return count( $matches[0] ?? [] );
+}
+
+function metis_runtime_normalize_text_encoding( string $text ): string {
+    if ( $text === '' ) {
+        return '';
+    }
+
+    $current = metis_runtime_replace_common_mojibake_sequences( $text );
+    $score = metis_runtime_mojibake_score( $current );
+    if ( $score <= 0 ) {
+        return $current;
+    }
+
+    for ( $attempt = 0; $attempt < 2; $attempt++ ) {
+        if ( function_exists( 'mb_convert_encoding' ) ) {
+            $candidate = @mb_convert_encoding( $current, 'UTF-8', 'Windows-1252' );
+        } else {
+            $candidate = @iconv( 'Windows-1252', 'UTF-8//IGNORE', $current );
+        }
+        if ( ! is_string( $candidate ) || $candidate === '' ) {
+            break;
+        }
+
+        $candidate = metis_runtime_replace_common_mojibake_sequences( $candidate );
+        $candidate_score = metis_runtime_mojibake_score( $candidate );
+        if ( $candidate_score >= $score ) {
+            break;
+        }
+
+        $current = $candidate;
+        $score = $candidate_score;
+        if ( $score <= 0 ) {
+            break;
+        }
+    }
+
+    return $current;
+}
+
+function metis_runtime_utf8_html_fragment( string $html ): string {
+    return '<?xml encoding="UTF-8"><!DOCTYPE html><html><body>' . $html . '</body></html>';
 }
 
 /**
@@ -285,6 +380,7 @@ function metis_runtime_kses_post( string $html ): string {
         return '';
     }
 
+    $html = metis_runtime_normalize_text_encoding( $html );
     $allowed_map = metis_runtime_allowed_html_map();
     $allowed_tags = array_keys( $allowed_map );
     $precleaned = metis_runtime_strip_unsafe_html_elements( $html );
@@ -297,7 +393,7 @@ function metis_runtime_kses_post( string $html ): string {
 
     $internal_errors = libxml_use_internal_errors( true );
     $doc = new DOMDocument( '1.0', 'UTF-8' );
-    $wrapper = '<!DOCTYPE html><html><body><metis-root>' . $stripped . '</metis-root></body></html>';
+    $wrapper = metis_runtime_utf8_html_fragment( '<metis-root>' . $stripped . '</metis-root>' );
     $loaded = $doc->loadHTML( $wrapper, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
     libxml_clear_errors();
     libxml_use_internal_errors( $internal_errors );
@@ -374,7 +470,7 @@ function metis_runtime_kses_post( string $html ): string {
     foreach ( iterator_to_array( $root->childNodes ) as $child ) {
         $output .= $doc->saveHTML( $child );
     }
-    return (string) $output;
+    return metis_runtime_normalize_text_encoding( (string) $output );
 }
 
 if ( ! function_exists( 'metis_runtime_json_encode' ) ) {

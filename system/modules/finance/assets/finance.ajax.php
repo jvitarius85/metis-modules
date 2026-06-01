@@ -453,7 +453,7 @@ metis_ajax_register_handler( 'metis_finance_v2_recon_review', static function ()
     $input = [
         'review_queue_id' => (int) metis_finance_ajax_post_value( 'review_queue_id', 0 ),
         'decision' => metis_key_clean( (string) metis_finance_ajax_post_value( 'decision', '' ) ),
-        'decision_notes' => metis_text_clean( (string) metis_finance_ajax_post_value( 'decision_notes', '' ) ),
+        'decision_notes' => metis_textarea_clean( (string) metis_finance_ajax_post_value( 'decision_notes', '' ) ),
     ];
 
     $result = \Metis\Modules\Finance\FinanceV2Service::applyReconciliationReviewDecision( $input, metis_finance_ajax_current_user_id() );

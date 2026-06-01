@@ -767,6 +767,8 @@ final class ContactMutationService {
         $db = \metis_db();
         $contacts_table = \Metis_Tables::get( 'contacts' );
         $notes_table = \Metis_Tables::get( 'contact_notes' );
+        $cid = \metis_text_clean( $cid );
+        $note = \metis_textarea_clean( $note );
 
         if ( $cid === '' || $note === '' ) {
             \metis_runtime_send_json_error( 'CID and note are required.', 400 );

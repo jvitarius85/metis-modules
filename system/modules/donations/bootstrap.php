@@ -376,9 +376,60 @@ if ( ! function_exists( "metis_parse_goals" ) ) {
 }
 
 if ( ! function_exists( "metis_donations_render_form_embed" ) ) {
+    function metis_donations_form_embed_ref_for_campaign( array $campaign ): string {
+        if ( ! class_exists( '\Metis\Modules\Forms\Repository' ) ) {
+            return '';
+        }
+
+        $candidate_ids = array_values( array_filter( array_unique( [
+            trim( (string) ( $campaign['campaign_uid'] ?? '' ) ),
+            trim( (string) ( $campaign['cid'] ?? '' ) ),
+            trim( (string) ( $campaign['campaign_code'] ?? '' ) ),
+            trim( (string) ( $campaign['code'] ?? '' ) ),
+            isset( $campaign['id'] ) ? trim( (string) $campaign['id'] ) : '',
+        ] ) ) );
+        if ( $candidate_ids === [] ) {
+            return '';
+        }
+
+        static $resolved = [];
+        $cache_key = implode( '|', $candidate_ids );
+        if ( array_key_exists( $cache_key, $resolved ) ) {
+            return $resolved[ $cache_key ];
+        }
+
+        $match = '';
+        foreach ( \Metis\Modules\Forms\Repository::listForms( 250 ) as $summary ) {
+            $form_id = (int) ( $summary['id'] ?? 0 );
+            if ( $form_id < 1 ) {
+                continue;
+            }
+
+            $form = \Metis\Modules\Forms\Repository::getFormById( $form_id, true );
+            if ( ! is_array( $form ) ) {
+                continue;
+            }
+
+            foreach ( (array) ( $form['schema'] ?? [] ) as $field ) {
+                if ( ! is_array( $field ) || ( $field['type'] ?? '' ) !== 'payment' ) {
+                    continue;
+                }
+
+                $campaign_code = trim( (string) ( $field['payment']['campaign_code'] ?? '' ) );
+                if ( $campaign_code !== '' && in_array( $campaign_code, $candidate_ids, true ) ) {
+                    $match = (string) $form_id;
+                    break 2;
+                }
+            }
+        }
+
+        $resolved[ $cache_key ] = $match;
+        return $match;
+    }
+
     /**
-     * Render donation embed using existing public campaign donation flow.
-     * Returns empty string when campaign/public URL cannot be resolved.
+     * Render a canonical published Metis form for the donation campaign.
+     * Returns empty string when no published form is linked to the campaign.
      */
     function metis_donations_render_form_embed( array $options = [] ): string {
         $campaign_id = trim( metis_text_clean( (string) ( $options["campaign_id"] ?? "" ) ) );
@@ -399,24 +450,24 @@ if ( ! function_exists( "metis_donations_render_form_embed" ) ) {
         if ( ! array_key_exists( $campaign_id, $campaign_cache ) ) {
             $db = metis_db();
             $campaign = $db->fetchOne(
-                "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE cid = %s LIMIT 1",
+                "SELECT id, cid, campaign_uid, campaign_code, code, cname, url, public, active FROM {$campaigns_table} WHERE cid = %s LIMIT 1",
                 [ $campaign_id ]
             );
             if ( ! is_array( $campaign ) ) {
                 $campaign = $db->fetchOne(
-                    "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE campaign_code = %s LIMIT 1",
+                    "SELECT id, cid, campaign_uid, campaign_code, code, cname, url, public, active FROM {$campaigns_table} WHERE campaign_code = %s LIMIT 1",
                     [ $campaign_id ]
                 );
             }
             if ( ! is_array( $campaign ) ) {
                 $campaign = $db->fetchOne(
-                    "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE code = %s LIMIT 1",
+                    "SELECT id, cid, campaign_uid, campaign_code, code, cname, url, public, active FROM {$campaigns_table} WHERE code = %s LIMIT 1",
                     [ $campaign_id ]
                 );
             }
             if ( ! is_array( $campaign ) && ctype_digit( $campaign_id ) ) {
                 $campaign = $db->fetchOne(
-                    "SELECT cid, cname, url, public, active FROM {$campaigns_table} WHERE id = %d LIMIT 1",
+                    "SELECT id, cid, campaign_uid, campaign_code, code, cname, url, public, active FROM {$campaigns_table} WHERE id = %d LIMIT 1",
                     [ (int) $campaign_id ]
                 );
             }
@@ -435,55 +486,10 @@ if ( ! function_exists( "metis_donations_render_form_embed" ) ) {
             return "";
         }
 
-        $url = trim( (string) ( $campaign["url"] ?? "" ) );
-        if ( $url === "" ) {
-            return "";
+        $form_ref = metis_donations_form_embed_ref_for_campaign( $campaign );
+        if ( $form_ref !== '' && function_exists( 'metis_forms_render_embed' ) ) {
+            return (string) metis_forms_render_embed( $form_ref, $options );
         }
-
-        if ( preg_match( "#^https?://#i", $url ) === 1 ) {
-            $src = metis_escape_url( $url );
-        } else {
-            if ( $url[0] !== "/" ) {
-                $url = "/" . $url;
-            }
-            $src = metis_escape_url( metis_home_url( $url ) );
-        }
-
-        if ( $src === "" ) {
-            return "";
-        }
-
-        $mode = strtolower( trim( (string) ( $options["mode"] ?? "both" ) ) );
-        if ( ! in_array( $mode, [ "one_time", "monthly", "both" ], true ) ) {
-            $mode = "both";
-        }
-        $show_name = ! array_key_exists( "show_name", $options ) || ! empty( $options["show_name"] );
-        $show_email = ! array_key_exists( "show_email", $options ) || ! empty( $options["show_email"] );
-        $show_phone = ! empty( $options["show_phone"] );
-
-        $amount = isset( $options["default_amount"] ) ? max( 1, (int) $options["default_amount"] ) : 50;
-        $submit = trim( (string) ( $options["submit_label"] ?? "Continue to Donate" ) );
-        if ( $submit === "" ) {
-            $submit = "Continue to Donate";
-        }
-
-        $html = "<form class=\"metis-block-donation-form metis-block-donation-form-inline\" method=\"get\" action=\"" . $src . "\">";
-        $html .= "<input type=\"hidden\" name=\"mode\" value=\"" . metis_escape_attr( $mode ) . "\">";
-        $html .= "<div class=\"metis-donation-fields\">";
-        $html .= "<input class=\"metis-input\" type=\"number\" min=\"1\" step=\"1\" name=\"amount\" value=\"" . metis_escape_attr( (string) $amount ) . "\" placeholder=\"Amount\">";
-        if ( $show_name ) {
-            $html .= "<input class=\"metis-input\" type=\"text\" name=\"name\" placeholder=\"Full name\">";
-        }
-        if ( $show_email ) {
-            $html .= "<input class=\"metis-input\" type=\"email\" name=\"email\" placeholder=\"Email\">";
-        }
-        if ( $show_phone ) {
-            $html .= "<input class=\"metis-input\" type=\"tel\" name=\"phone\" placeholder=\"Phone\">";
-        }
-        $html .= "</div>";
-        $html .= "<button type=\"submit\" class=\"metis-btn\">" . metis_escape_html( $submit ) . "</button>";
-        $html .= "</form>";
-
-        return $html;
+        return "";
     }
 }

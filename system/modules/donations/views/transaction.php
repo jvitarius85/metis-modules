@@ -36,6 +36,12 @@ $stripe_refund_available = ! empty( $transaction->stripe_charge_id ) || ! empty(
 $batch_code = ! empty( $transaction->deposit_batch_id ) ? $transaction->deposit_batch_id : '';
 $batch_url  = $batch_code ? metis_donations_detail_url( 'batch', (string) $batch_code ) : '';
 $refunds = $snapshot['refunds'] ?? [];
+$campaign_options = $snapshot['campaign_options'] ?? [];
+$action_nonces = [
+    'metis_add_transaction_note' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_add_transaction_note' ) ),
+    'metis_record_transaction_refund' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_record_transaction_refund' ) ),
+    'metis_update_transaction_campaign' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_update_transaction_campaign' ) ),
+];
 
 $total_refunded_raw = array_sum( array_map( fn($r) => (float) $r->amount, $refunds ) );
 $notes = $snapshot['notes'] ?? [];
@@ -56,7 +62,29 @@ $notes = $snapshot['notes'] ?? [];
     </div>
     <div class="metis-premium-cell">
         <div class="metis-muted small-label">Campaign</div>
-        <div class="large-number"><?php echo metis_escape_html( $campaign ); ?></div>
+        <div class="large-number" id="metis-transaction-campaign-label"><?php echo metis_escape_html( $campaign ); ?></div>
+        <form class="metis-inline-form metis-transaction-campaign-form" id="metis-transaction-campaign-form">
+            <input type="hidden" name="tid" value="<?php echo metis_escape_attr( $transaction->tid ); ?>">
+            <label class="metis-screen-reader-text" for="metis-transaction-campaign-select">Campaign</label>
+            <select class="metis-select" id="metis-transaction-campaign-select" name="campaign_code">
+                <option value="">Select campaign</option>
+                <?php foreach ( $campaign_options as $option ) :
+                    $option_id = (string) ( $option->cid ?? '' );
+                    if ( $option_id === '' ) {
+                        continue;
+                    }
+                    $option_label = (string) ( $option->cname ?? $option_id );
+                    if ( ! empty( $option->active ) ) {
+                        $option_label .= ' (Active)';
+                    }
+                ?>
+                    <option value="<?php echo metis_escape_attr( $option_id ); ?>" <?php metis_attr_selected( (string) ( $transaction->campaign_code ?? '' ), $option_id ); ?>>
+                        <?php echo metis_escape_html( $option_label ); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="metis-btn metis-btn-xs">Save Campaign</button>
+        </form>
     </div>
     <div class="metis-premium-cell">
         <div class="metis-muted small-label">Amount</div>
@@ -190,6 +218,8 @@ $notes = $snapshot['notes'] ?? [];
 (function() {
     'use strict';
 
+    var ACTION_NONCES = <?php echo json_encode( $action_nonces ); ?>;
+
     function esc(value) {
         return String(value || '').replace(/[&<>"']/g, function(ch) {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
@@ -199,9 +229,10 @@ $notes = $snapshot['notes'] ?? [];
     function actionBody(action, fields) {
         var body = new URLSearchParams(Object.assign({ action: action }, fields || {}));
         var fallback = window.metisAjax && metisAjax.nonce ? metisAjax.nonce : '';
+        var localNonce = ACTION_NONCES[action] || '';
         var nonce = window.Metis && Metis.ajax && typeof Metis.ajax.nonceFor === 'function'
-            ? Metis.ajax.nonceFor(action, fallback)
-            : fallback;
+            ? Metis.ajax.nonceFor(action, localNonce || fallback)
+            : (localNonce || fallback);
         body.set('metis_action_nonce', nonce);
         return body;
     }
@@ -296,6 +327,34 @@ $notes = $snapshot['notes'] ?? [];
             }
             form.reset();
             toast('Refund recorded.', 'success');
+        }).catch(function() {
+            toast('Request failed.', 'error');
+        });
+    });
+
+    document.getElementById('metis-transaction-campaign-form')?.addEventListener('submit', function(event) {
+        event.preventDefault();
+        var form = event.currentTarget;
+        var campaignCode = String(form.campaign_code.value || '').trim();
+        if (!campaignCode) {
+            toast('Select a campaign before saving.', 'warning');
+            return;
+        }
+
+        post('metis_update_transaction_campaign', {
+            tid: form.tid.value,
+            campaign_code: campaignCode
+        }).then(function(result) {
+            if (!result || !result.success) {
+                toast((result && result.data && result.data.message) || 'Failed to update campaign.', 'error');
+                return;
+            }
+            var data = result.data || {};
+            var label = document.getElementById('metis-transaction-campaign-label');
+            if (label) {
+                label.textContent = String(data.campaign_name || data.campaign_code || campaignCode);
+            }
+            toast('Campaign updated.', 'success');
         }).catch(function() {
             toast('Request failed.', 'error');
         });

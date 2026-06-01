@@ -2,8 +2,6 @@
   const adminBoot = parseJsonScript('metis-forms-admin-data');
   const builderRoot = document.querySelector('[data-metis-forms-builder="1"]');
   const entriesRoot = document.querySelector('[data-metis-forms-entries="1"]');
-  const publicRoot = document.querySelector('[data-metis-forms-public="1"]');
-  const publicBoot = parseJsonScript('metis-forms-public-data');
   const formsRichSelectionStore = {};
   const formsRichColorOptions = [
     {value: '#1f2740', label: 'Default', color: '#1f2740'},
@@ -21,8 +19,31 @@
     initEntries(entriesRoot, adminBoot);
   }
 
-  if (publicRoot && publicBoot && publicBoot.mode === 'public') {
-    initPublic(publicRoot, publicBoot);
+  const metisRoot = window.Metis = window.Metis || {};
+  metisRoot.forms = metisRoot.forms || {};
+  metisRoot.forms.initPublicEmbeds = initPublicEmbeds;
+  initPublicEmbeds(document);
+
+  function initPublicEmbeds(scope) {
+    collectPublicRoots(scope).forEach((root) => {
+      if (!(root instanceof HTMLElement)) return;
+      if (root.dataset.metisFormsPublicInit === '1') return;
+      const publicBoot = parsePublicBoot(root);
+      if (!publicBoot || publicBoot.mode !== 'public') return;
+      root.dataset.metisFormsPublicInit = '1';
+      initPublic(root, publicBoot);
+    });
+  }
+
+  function collectPublicRoots(scope) {
+    const roots = [];
+    if (scope instanceof HTMLElement && scope.matches('[data-metis-forms-public="1"]')) {
+      roots.push(scope);
+    }
+    if (scope && typeof scope.querySelectorAll === 'function') {
+      scope.querySelectorAll('[data-metis-forms-public="1"]').forEach((node) => roots.push(node));
+    }
+    return roots;
   }
 
   function initBuilder(root, boot) {
@@ -85,7 +106,7 @@
         event.preventDefault();
         const editor = findRichEditorForControl(richAction);
         if (editor) {
-          applyRichAction(
+          await applyRichAction(
             editor,
             String(richAction.dataset.richAction || ''),
             String(richAction.dataset.richValue || ''),
@@ -102,7 +123,7 @@
         event.preventDefault();
         const editor = findRichEditorForControl(richButton);
         if (editor) {
-          applyRichCommand(editor, String(richButton.dataset.richCmd || ''), undefined, state);
+          await applyRichCommand(editor, String(richButton.dataset.richCmd || ''), undefined, state);
         }
         closeRichMenus(root);
         return;
@@ -877,7 +898,13 @@
     root.addEventListener('click', (event) => {
       const close = event.target.closest('[data-success-close]');
       if (!close || !successOverlay) return;
-      successOverlay.hidden = true;
+      hideSuccessOverlay(successOverlay);
+    });
+
+    root.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !successOverlay || successOverlay.hidden) return;
+      event.preventDefault();
+      hideSuccessOverlay(successOverlay);
     });
 
     if (!paymentField) {
@@ -914,9 +941,9 @@
       elements: null,
       clientSecret: '',
       sessionKey: '',
-      confirmButton: root.querySelector('#metis-forms-stripe-confirm'),
+      confirmButton: root.querySelector('[id$="metis-forms-stripe-confirm"]'),
       stripePanel: root.querySelector('.metis-forms-stripe-panel'),
-      paymentMount: root.querySelector('#metis-forms-stripe-mount')
+      paymentMount: root.querySelector('[id$="metis-forms-stripe-mount"]')
     };
 
     const updateTotals = () => {
@@ -2156,49 +2183,18 @@
     saveRichSelection(editor);
   }
 
-  function applyRichCommand(editor, command, value, state) {
+  async function applyRichCommand(editor, command, value, state) {
     if (!editor || !command) return;
-    editor.focus();
-    if (!restoreRichSelection(editor)) {
-      placeCaretAtEnd(editor);
-    }
-    if (command === 'createLink') {
-      const url = window.prompt('Enter a URL');
-      if (!url) return;
-      document.execCommand('createLink', false, url);
-    } else if (command === 'insertDivider') {
-      document.execCommand('insertHTML', false, '<hr class="metis-inline-divider">');
-    } else if (command === 'formatBlock') {
-      document.execCommand('formatBlock', false, value === 'P' ? '<p>' : '<' + String(value || 'P').toLowerCase() + '>');
-    } else if (command === 'justifyLeft' || command === 'justifyCenter' || command === 'justifyRight') {
-      applyRichAlignment(editor, command === 'justifyCenter' ? 'center' : (command === 'justifyRight' ? 'right' : 'left'));
-    } else {
-      document.execCommand(command, false, null);
+    if (window.Metis && Metis.ui && Metis.ui.richText) {
+      await Metis.ui.richText.applyCommand(editor, command, value);
     }
     updateRichSettingProperty(editor, state);
   }
 
-  function applyRichAction(editor, action, value, color, state) {
+  async function applyRichAction(editor, action, value, color, state) {
     if (!editor || !action) return;
-    editor.focus();
-    if (!restoreRichSelection(editor)) {
-      placeCaretAtEnd(editor);
-    }
-    if (action === 'merge') {
-      document.execCommand('insertText', false, value);
-    } else if (action === 'block') {
-      document.execCommand('formatBlock', false, value === 'P' ? '<p>' : '<' + String(value || 'P').toLowerCase() + '>');
-    } else if (action === 'size') {
-      const sizeMap = {sm: '0.92rem', lg: '1.12rem', xl: '1.28rem'};
-      if (value === 'default') {
-        document.execCommand('removeFormat', false, null);
-      } else {
-        applyRichSpanStyle(editor, 'font-size:' + (sizeMap[value] || '1rem'));
-      }
-    } else if (action === 'color') {
-      applyRichSpanStyle(editor, 'color:' + (color || value));
-    } else if (action === 'weight') {
-      applyRichSpanStyle(editor, 'font-weight:' + value);
+    if (window.Metis && Metis.ui && Metis.ui.richText) {
+      Metis.ui.richText.applyAction(editor, action, value, color);
     }
     updateRichSettingProperty(editor, state);
   }
@@ -2700,7 +2696,22 @@
     if (messageNode) {
       messageNode.textContent = String(message || 'Thanks, your submission has been received.');
     }
+    overlay._metisLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     overlay.hidden = false;
+    const focusTarget = overlay.querySelector('[data-success-close]') || overlay.querySelector('[data-success-message]');
+    if (focusTarget instanceof HTMLElement) {
+      window.setTimeout(() => focusTarget.focus(), 0);
+    }
+  }
+
+  function hideSuccessOverlay(overlay) {
+    if (!(overlay instanceof HTMLElement)) return;
+    overlay.hidden = true;
+    const lastFocus = overlay._metisLastFocus;
+    overlay._metisLastFocus = null;
+    if (lastFocus instanceof HTMLElement && typeof lastFocus.focus === 'function') {
+      window.setTimeout(() => lastFocus.focus(), 0);
+    }
   }
 
   function assignNestedFormValue(target, rawKey, value) {
@@ -2838,6 +2849,32 @@
     }
   }
 
+  function parsePublicBoot(root) {
+    const scoped = root && root.querySelector ? root.querySelector('script[data-metis-forms-public-data]') : null;
+    const source = scoped || findAdjacentPublicBoot(root) || document.getElementById('metis-forms-public-data');
+    if (!source) return null;
+    try {
+      return JSON.parse(source.textContent || 'null');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function findAdjacentPublicBoot(root) {
+    if (!(root instanceof HTMLElement)) return null;
+    let sibling = root.nextElementSibling;
+    while (sibling) {
+      if (sibling.matches && sibling.matches('script[data-metis-forms-public-data]')) {
+        return sibling;
+      }
+      if (sibling.matches && sibling.matches('[data-metis-forms-public="1"]')) {
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+    return null;
+  }
+
   function setText(root, selector, text) {
     const node = root.querySelector(selector);
     if (node) node.textContent = String(text || '');
@@ -2857,7 +2894,15 @@
   }
 
   function appBasePath() {
-    const ajax = String(window.metisFormsAjax || '').trim();
+    const metisAjax = window.Metis && window.Metis.ajax ? window.Metis.ajax : null;
+    const coreAjax = window.metisAjax || {};
+    const formsAjax = window.metisFormsAjax || {};
+    const ajax = String(
+      (metisAjax && metisAjax.url) ||
+      formsAjax.ajax_url ||
+      coreAjax.ajax_url ||
+      ''
+    ).trim();
     if (ajax) {
       try {
         const url = new URL(ajax, window.location.origin);
@@ -2872,14 +2917,24 @@
   }
 
   function iconUrl(slug) {
-    return appBasePath() + '/svg/' + encodeURIComponent(String(slug || '').replace(/_/g, '-'));
+    if (window.Metis && Metis.ui && Metis.ui.richText) {
+      return Metis.ui.richText.iconUrl(slug);
+    }
+    return appBasePath() + '/assets/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
   }
 
   function iconFallbackUrl(slug) {
-    return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
+    if (window.Metis && Metis.ui && Metis.ui.richText) {
+      return Metis.ui.richText.iconFallbackUrl(slug);
+    }
+    return appBasePath() + '/system/assets/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
   }
 
   function bindIconFallbacks(scope) {
+    if (window.Metis && Metis.ui && Metis.ui.richText) {
+      Metis.ui.richText.bindIconFallbacks(scope);
+      return;
+    }
     const rootNode = scope && scope.querySelectorAll ? scope : document;
     rootNode.querySelectorAll('img[data-icon-fallback]').forEach((img) => {
       if (img.getAttribute('data-fallback-bound') === '1') return;
@@ -2893,6 +2948,9 @@
   }
 
   function normalizeRichTextCharacters(value) {
+    if (window.Metis && Metis.ui && Metis.ui.richText) {
+      return Metis.ui.richText.normalizeHtml(value);
+    }
     return String(value || '')
       .replace(/\u00a0/g, ' ')
       .replace(/Â /g, ' ')

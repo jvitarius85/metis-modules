@@ -734,6 +734,14 @@
     position: relative;
 }
 
+.metis-forms-public-card--embed {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
 .metis-forms-public-header {
     margin-bottom: 22px;
 }
@@ -895,6 +903,10 @@
     display: flex;
     justify-content: flex-start;
     padding-top: 10px;
+}
+
+.metis-forms-public-card--embed .metis-forms-public-actions {
+    padding-top: 4px;
 }
 
 .metis-forms-success-overlay[hidden] {

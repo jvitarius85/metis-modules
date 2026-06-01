@@ -29,6 +29,11 @@ $dirty = implode( '', [
 ] );
 
 $clean = metis_runtime_kses_post( $dirty );
+ $unicode = "Help Us Build a Waco That Works for Everyone\n\nAt Mobilize Waco, we believe that disability justice isn’t just about access — it’s about leadership, visibility, and equity. We’re on a mission to make sure every disabled resident in Waco has the opportunity not just to participate, but to lead.\n\n🌟 Whether it's advocating for inclusive policies, breaking down barriers, or elevating disabled voices into positions of power, we’re mobilizing for a future where everyone thrives — and we need your support to get there.\n\nDonate today to help us:\n✅ Amplify disabled leadership\n✅ Fight for access and justice\n✅ Create a truly inclusive Waco\n\n✨ Your gift helps turn our vision into reality: a community designed for people of all talents and abilities to thrive and lead.";
+ $unicode_html = '<p>' . nl2br( htmlspecialchars( $unicode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ) ) . '</p>';
+$unicode_clean = metis_runtime_kses_post( $unicode_html );
+$textarea_clean = metis_textarea_clean( $unicode );
+$raw_clean = metis_text_raw_clean( $unicode );
 
 $assert( ! str_contains( strtolower( $clean ), 'onclick' ), 'Event handler attributes must be stripped.' );
 $assert( ! str_contains( strtolower( $clean ), 'onerror' ), 'Image event handler attributes must be stripped.' );
@@ -43,6 +48,11 @@ $assert( str_contains( $clean, 'class="metis-text-align-center"' ), 'Safe rich t
 $assert( str_contains( $clean, 'href="https://example.com/path"' ), 'Safe external links must be preserved.' );
 $assert( str_contains( $clean, 'src="/uploads/photo.jpg"' ), 'Safe image URLs must be preserved.' );
 $assert( str_contains( $clean, 'width="120"' ) && str_contains( $clean, 'height="80"' ), 'Safe image dimensions must be preserved.' );
+$assert( str_contains( $unicode_clean, 'isn’t just about access — it’s about leadership' ), 'Rich-text sanitizer must preserve smart punctuation.' );
+$assert( str_contains( $unicode_clean, 'We’re on a mission' ), 'Rich-text sanitizer must preserve apostrophes in UTF-8 text.' );
+$assert( str_contains( $unicode_clean, '🌟' ) && str_contains( $unicode_clean, '✅' ) && str_contains( $unicode_clean, '✨' ), 'Rich-text sanitizer must preserve emoji in UTF-8 text.' );
+$assert( str_contains( $textarea_clean, '🌟' ) && str_contains( $textarea_clean, '✅' ) && str_contains( $textarea_clean, '✨' ), 'Textarea sanitizer must preserve emoji in plain text.' );
+$assert( str_contains( $raw_clean, 'We’re' ) && str_contains( $raw_clean, '🌟' ) && str_contains( $raw_clean, '✅' ) && str_contains( $raw_clean, '✨' ), 'Raw text normalizer must preserve Unicode punctuation and emoji in plain submitted text.' );
 
 $fallback = metis_runtime_sanitize_html_attributes_fallback(
     '<a href="https://example.com" title="Safe" onclick="evil()">Link</a><img src="/x.jpg" alt="X" onerror="evil()">',

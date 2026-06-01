@@ -1030,9 +1030,15 @@ final class HelpSearchStore {
     }
 
     private function sanitizeContentHtml( string $content ): string {
-        $content = trim( $content );
+        $content = function_exists( 'metis_text_raw_clean' )
+            ? \metis_text_raw_clean( $content )
+            : trim( $content );
         if ( $content === '' ) {
             return '';
+        }
+
+        if ( function_exists( 'metis_runtime_kses_post' ) ) {
+            return trim( (string) \metis_runtime_kses_post( $content ) );
         }
 
         $allowed = '<h1><h2><h3><p><ul><ol><li><strong><em><b><i><a><code><pre><blockquote><br>';

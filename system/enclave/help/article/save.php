@@ -22,14 +22,14 @@ try {
             $id = isset( metis_request_post()['id'] ) ? (int) metis_request_post()['id'] : 0;
             $articleId = $store->saveArticle(
                 [
-                    'title' => (string) ( metis_request_post()['title'] ?? '' ),
-                    'slug' => (string) ( metis_request_post()['slug'] ?? '' ),
-                    'summary' => (string) ( metis_request_post()['summary'] ?? '' ),
-                    'content' => (string) ( metis_request_post()['content'] ?? '' ),
+                    'title' => metis_text_clean( metis_runtime_unslash( metis_request_post()['title'] ?? '' ) ),
+                    'slug' => metis_text_clean( metis_runtime_unslash( metis_request_post()['slug'] ?? '' ) ),
+                    'summary' => metis_textarea_clean( metis_runtime_unslash( metis_request_post()['summary'] ?? '' ) ),
+                    'content' => metis_text_raw_clean( metis_runtime_unslash( metis_request_post()['content'] ?? '' ) ),
                     'category_id' => (int) ( metis_request_post()['category_id'] ?? 0 ),
-                    'tags' => (string) ( metis_request_post()['tags'] ?? '' ),
-                    'search_terms' => (string) ( metis_request_post()['search_terms'] ?? '' ),
-                    'status' => (string) ( metis_request_post()['status'] ?? 'draft' ),
+                    'tags' => metis_textarea_clean( metis_runtime_unslash( metis_request_post()['tags'] ?? '' ) ),
+                    'search_terms' => metis_textarea_clean( metis_runtime_unslash( metis_request_post()['search_terms'] ?? '' ) ),
+                    'status' => metis_text_clean( metis_runtime_unslash( metis_request_post()['status'] ?? 'draft' ) ),
                 ],
                 $id > 0 ? $id : null
             );

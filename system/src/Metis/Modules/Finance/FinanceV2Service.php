@@ -1237,7 +1237,7 @@ final class FinanceV2Service {
 
         $queueId = (int) ( $input['review_queue_id'] ?? 0 );
         $decision = metis_key_clean( (string) ( $input['decision'] ?? '' ) );
-        $decisionNotes = metis_text_clean( (string) ( $input['decision_notes'] ?? '' ) );
+        $decisionNotes = metis_textarea_clean( (string) ( $input['decision_notes'] ?? '' ) );
 
         if ( $queueId < 1 ) {
             return [ 'ok' => false, 'status' => 422, 'message' => 'Review queue item is required.' ];
@@ -2400,7 +2400,7 @@ final class FinanceV2Service {
         }
         $currency = substr( $currency, 0, 12 );
 
-        $notes = metis_text_clean( (string) ( $input['notes'] ?? '' ) );
+        $notes = metis_textarea_clean( (string) ( $input['notes'] ?? '' ) );
         if ( $notes === '' ) {
             $notes = null;
         }

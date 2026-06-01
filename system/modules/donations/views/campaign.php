@@ -14,10 +14,10 @@ endif;
 $snapshot = \Metis\Modules\Donations\ReadService::campaignDetailSnapshot( $cid );
 $campaign = $snapshot['campaign'] ?? null;
 
-// Decode base64 cdesc if it doesn't look like HTML
+// Decode base64 cdesc if it doesn't look like HTML.
 if ( $campaign && ! empty( $campaign->cdesc ) ) {
     $raw = $campaign->cdesc;
-    // If the stored value has no HTML tags, try base64 decode
+    // If the stored value has no HTML tags, try base64 decode.
     if ( strpos( $raw, '<' ) === false ) {
         $decoded = base64_decode( $raw, true );
         if ( $decoded !== false && $decoded !== $raw ) {
@@ -28,6 +28,18 @@ if ( $campaign && ! empty( $campaign->cdesc ) ) {
             );
             $campaign->cdesc = $decoded;
         }
+    }
+}
+
+if ( $campaign ) {
+    $normalized_desc = \Metis\Modules\Donations\CampaignService::normalizeDescriptionHtml( (string) ( $campaign->cdesc ?? '' ) );
+    if ( $normalized_desc !== (string) ( $campaign->cdesc ?? '' ) ) {
+        metis_db()->update(
+            Metis_Tables::get( 'campaigns' ),
+            [ 'cdesc' => $normalized_desc !== '' ? $normalized_desc : null ],
+            [ 'cid'   => $cid ]
+        );
+        $campaign->cdesc = $normalized_desc;
     }
 }
 
@@ -56,6 +68,14 @@ $year_pct    = ( $year_goal && $year_goal > 0 ) ? min( 100, round( ( $year_raise
 
 $nonce = metis_runtime_create_nonce( 'metis_campaign_edit' );
 metis_set_page_title( $campaign->cname );
+$campaign_desc_html = \Metis\Modules\Donations\CampaignService::normalizeDescriptionHtml( (string) ( $campaign->cdesc ?? '' ) );
+$editor_icon_base = function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/svg' ) : '/svg';
+$editor_icon_fallback_base = function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/assets/Images/icons' ) : '/assets/Images/icons';
+$action_nonces = [
+    'metis_campaign_save_desc' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_campaign_save_desc' ) ),
+    'metis_campaign_save_goal' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_campaign_save_goal' ) ),
+    'metis_campaign_save_info' => metis_runtime_create_nonce( metis_ajax_nonce_action( 'metis_campaign_save_info' ) ),
+];
 ?>
 
 <p><a href="<?php echo metis_escape_url( $base_url . '/campaigns/' ); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">← All Campaigns</a></p>
@@ -251,15 +271,69 @@ metis_set_page_title( $campaign->cname );
         <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-edit-desc-btn">Edit</button>
     </div>
     <div id="metis-desc-display">
-        <?php if ( $campaign->cdesc ) : ?>
-            <div class="metis-campaign-desc-body"><?php echo metis_runtime_kses_post( $campaign->cdesc ); ?></div>
+        <?php if ( $campaign_desc_html !== '' ) : ?>
+            <div class="metis-campaign-desc-body"><?php echo metis_runtime_kses_post( $campaign_desc_html ); ?></div>
         <?php else : ?>
             <p class="metis-muted">No description set. Click Edit to add one.</p>
         <?php endif; ?>
     </div>
-    <!-- Editor wrapper: hidden until Edit clicked. Quill WYSIWYG. -->
-    <div id="metis-desc-editor" class="metis-campaign-desc-editor">
-        <div id="metis-quill-editor" class="metis-campaign-quill-host"></div>
+    <div id="metis-desc-editor" class="metis-campaign-desc-editor" hidden>
+        <div class="metis-rich-text metis-campaign-rich-text" data-metis-rich-root="campaign-description">
+            <div class="metis-se-rich-toolbar">
+                <div class="metis-se-rich-group">
+                    <div class="metis-se-rich-dropdown">
+                        <button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger" data-rich-toggle="menu" aria-label="Text style">
+                            <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-scale' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-scale.svg' ); ?>" alt="" aria-hidden="true">
+                        </button>
+                        <div class="metis-se-rich-menu">
+                            <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="P">Paragraph</button>
+                            <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="H2">Heading 2</button>
+                            <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="H3">Heading 3</button>
+                            <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="BLOCKQUOTE">Quote</button>
+                            <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="PRE">Code block</button>
+                        </div>
+                    </div>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="bold" aria-label="Bold">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-bold' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-bold.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="italic" aria-label="Italic">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/italic' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/italic.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="underline" aria-label="Underline">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-underline' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-underline.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="strikeThrough" aria-label="Strikethrough">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-strikethrough' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-strikethrough.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                </div>
+                <div class="metis-se-rich-group">
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="insertOrderedList" aria-label="Numbered list">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/list-ordered' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/list-ordered.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="insertUnorderedList" aria-label="Bulleted list">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/list-unordered' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/list-unordered.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="createLink" aria-label="Insert link">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/link' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/link.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="removeFormat" aria-label="Clear formatting">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/clear-formatting' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/clear-formatting.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                </div>
+                <div class="metis-se-rich-group">
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="justifyLeft" aria-label="Align left">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-align-left' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-align-left.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="justifyCenter" aria-label="Align center">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-align-center' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-align-center.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                    <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="justifyRight" aria-label="Align right">
+                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-align-right' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-align-right.svg' ); ?>" alt="" aria-hidden="true">
+                    </button>
+                </div>
+            </div>
+            <div id="metis-campaign-desc-rich" class="metis-se-rich-editor metis-campaign-desc-rich" contenteditable="true" spellcheck="true" data-placeholder="Add campaign description..." data-metis-rich-editor="campaign-description"></div>
+        </div>
         <div class="metis-flex metis-campaign-desc-actions">
             <button type="button" class="metis-btn metis-btn-xs" id="metis-save-desc-btn">Save Description</button>
             <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-cancel-desc-btn">Cancel</button>
@@ -390,13 +464,15 @@ metis_set_page_title( $campaign->cname );
     const notify = (message, type) => Metis.util.notify(message, type || 'info');
     const CID   = <?php echo json_encode( $cid ); ?>;
     const NONCE = <?php echo json_encode( $nonce ); ?>;
+    const ACTION_NONCES = <?php echo json_encode( $action_nonces ); ?>;
     const AJAX  = <?php echo json_encode( metis_ajax_endpoint_url() ); ?>;
 
     function postPayload(payload) {
         const body = new URLSearchParams(payload);
         const action = body.get('action') || '';
         if (action) {
-            body.set('metis_action_nonce', Metis.ajax.nonceFor(action, body.get('metis_action_nonce') || body.get('nonce') || NONCE));
+            const localNonce = ACTION_NONCES[action] || '';
+            body.set('metis_action_nonce', Metis.ajax.nonceFor(action, body.get('metis_action_nonce') || localNonce || body.get('nonce') || NONCE));
             body.set('nonce', body.get('nonce') || NONCE);
         }
         return fetch(AJAX, {
@@ -431,74 +507,144 @@ metis_set_page_title( $campaign->cname );
         });
     });
 
-    // -------------------------------------------------------------------------
-    // Description WYSIWYG editor — Quill
-    // -------------------------------------------------------------------------
-    let quillEditor = null;
-    const initialDesc = <?php echo json_encode( $campaign->cdesc ?? '' ); ?>;
+    const descDisplay = document.getElementById('metis-desc-display');
+    const descEditorWrap = document.getElementById('metis-desc-editor');
+    const descEditor = document.getElementById('metis-campaign-desc-rich');
+    const descToolbar = descEditorWrap ? descEditorWrap.querySelector('[data-metis-rich-root="campaign-description"]') : null;
+    let currentDescHtml = <?php echo json_encode( $campaign_desc_html ); ?>;
+    let descEditorReady = false;
 
-    function loadQuill(callback) {
-        if (window.Quill) { callback(); return; }
-        // Load Quill CSS
-        const link = document.createElement('link');
-        link.rel  = 'stylesheet';
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css';
-        document.head.appendChild(link);
-        // Load Quill JS
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js';
-        script.onload = callback;
-        document.head.appendChild(script);
+    function normalizeDescHtml(value) {
+        if (window.Metis && Metis.ui && Metis.ui.richText) {
+            return Metis.ui.richText.normalizeHtml(value || '');
+        }
+        return String(value || '');
+    }
+
+    function closeDescMenus() {
+        if (window.Metis && Metis.ui && Metis.ui.richText) {
+            Metis.ui.richText.closeMenus(descEditorWrap || document);
+        }
+    }
+
+    function prepareDescEditor() {
+        if (!descEditor || descEditorReady) {
+            return;
+        }
+        descEditorReady = true;
+        if (window.Metis && Metis.ui && Metis.ui.richText) {
+            Metis.ui.richText.bindIconFallbacks(descEditorWrap || document);
+        }
+        descEditor.innerHTML = normalizeDescHtml(currentDescHtml || '<p></p>');
+        descEditor.addEventListener('focus', () => {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(descEditor);
+            }
+        });
+        ['mouseup', 'keyup', 'blur'].forEach((eventName) => {
+            descEditor.addEventListener(eventName, () => {
+                if (window.Metis && Metis.ui && Metis.ui.richText) {
+                    Metis.ui.richText.saveSelection(descEditor);
+                }
+            });
+        });
+        descEditor.addEventListener('input', () => {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.normalizeEditor(descEditor);
+                Metis.ui.richText.saveSelection(descEditor);
+            }
+        });
+        descToolbar?.addEventListener('click', async (event) => {
+            const toggle = event.target.closest('[data-rich-toggle="menu"]');
+            if (toggle) {
+                event.preventDefault();
+                const dropdown = toggle.closest('.metis-se-rich-dropdown');
+                descToolbar.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach((node) => {
+                    if (node !== dropdown) {
+                        node.classList.remove('is-open');
+                    }
+                });
+                if (dropdown) {
+                    dropdown.classList.toggle('is-open');
+                }
+                return;
+            }
+
+            const action = event.target.closest('[data-rich-action]');
+            if (action && window.Metis && Metis.ui && Metis.ui.richText) {
+                event.preventDefault();
+                Metis.ui.richText.applyAction(
+                    descEditor,
+                    String(action.getAttribute('data-rich-action') || ''),
+                    String(action.getAttribute('data-rich-value') || ''),
+                    String(action.getAttribute('data-rich-color') || '')
+                );
+                closeDescMenus();
+                return;
+            }
+
+            const command = event.target.closest('[data-rich-cmd]');
+            if (command && window.Metis && Metis.ui && Metis.ui.richText) {
+                event.preventDefault();
+                await Metis.ui.richText.applyCommand(descEditor, String(command.getAttribute('data-rich-cmd') || ''), '');
+                closeDescMenus();
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!descToolbar || descToolbar.contains(event.target)) {
+                return;
+            }
+            closeDescMenus();
+        });
     }
 
     document.getElementById('metis-edit-desc-btn')?.addEventListener('click', () => {
-        document.getElementById('metis-desc-display').style.display = 'none';
-        document.getElementById('metis-desc-editor').style.display  = 'block';
-
-        if (quillEditor) return; // already initialized
-
-        loadQuill(() => {
-            quillEditor = new Quill('#metis-quill-editor', {
-                theme:   'snow',
-                modules: {
-                    toolbar: [
-                        [{ header: [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        [{ color: [] }, { background: [] }],
-                        [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
-                        [{ align: [] }],
-                        ['link', 'blockquote', 'code-block'],
-                        ['clean']
-                    ]
-                }
-            });
-            // Load existing content as HTML
-            if (initialDesc) {
-                quillEditor.clipboard.dangerouslyPasteHTML(initialDesc);
-            }
-            quillEditor.focus();
-        });
+        if (!descDisplay || !descEditorWrap || !descEditor) {
+            return;
+        }
+        prepareDescEditor();
+        descDisplay.hidden = true;
+        descEditorWrap.hidden = false;
+        descEditor.innerHTML = normalizeDescHtml(currentDescHtml || '<p></p>');
+        if (window.Metis && Metis.ui && Metis.ui.richText) {
+            Metis.ui.richText.placeCaretAtEnd(descEditor);
+        } else {
+            descEditor.focus();
+        }
     });
 
     document.getElementById('metis-cancel-desc-btn')?.addEventListener('click', () => {
-        document.getElementById('metis-desc-editor').style.display  = 'none';
-        document.getElementById('metis-desc-display').style.display = 'block';
+        if (!descDisplay || !descEditorWrap) {
+            return;
+        }
+        descEditorWrap.hidden = true;
+        descDisplay.hidden = false;
+        closeDescMenus();
     });
 
     document.getElementById('metis-save-desc-btn')?.addEventListener('click', async function () {
-        const content = quillEditor ? quillEditor.root.innerHTML : '';
+        const content = normalizeDescHtml(descEditor ? descEditor.innerHTML : '');
 
         const btn = this;
         btn.disabled = true; btn.textContent = 'Saving…';
-        const data = await postPayload({ action: 'metis_campaign_save_desc', nonce: NONCE, cid: CID, desc: content });
+        const data = await postPayload({
+            action: 'metis_campaign_save_desc',
+            nonce: NONCE,
+            metis_action_nonce: ACTION_NONCES.metis_campaign_save_desc || '',
+            cid: CID,
+            desc: content
+        });
         btn.disabled = false; btn.textContent = 'Save Description';
         if (data.success) {
-            const display = document.getElementById('metis-desc-display');
-            display.innerHTML = content
-                ? `<div class="metis-campaign-desc-body">${content}</div>`
+            const savedDesc = normalizeDescHtml((data.data && data.data.desc) ? data.data.desc : content);
+            currentDescHtml = savedDesc;
+            descDisplay.innerHTML = savedDesc
+                ? `<div class="metis-campaign-desc-body">${savedDesc}</div>`
                 : `<p class="metis-muted">No description set. Click Edit to add one.</p>`;
-            document.getElementById('metis-desc-editor').style.display  = 'none';
-            display.style.display = 'block';
+            descEditorWrap.hidden = true;
+            descDisplay.hidden = false;
+            closeDescMenus();
+            notify('Campaign description saved.', 'success');
         } else {
             notify('Save failed. Please try again.', 'error');
         }
@@ -540,7 +686,14 @@ metis_set_page_title( $campaign->cname );
         goalStatus.style.display = 'block';
         goalStatus.dataset.type  = 'busy';
         goalStatus.textContent   = 'Saving…';
-        const data = await postPayload({ action: 'metis_campaign_save_goal', nonce: NONCE, cid: CID, year, amount });
+        const data = await postPayload({
+            action: 'metis_campaign_save_goal',
+            nonce: NONCE,
+            metis_action_nonce: ACTION_NONCES.metis_campaign_save_goal || '',
+            cid: CID,
+            year,
+            amount
+        });
         if (data.success) {
             goalStatus.dataset.type = 'ok';
             goalStatus.textContent  = 'Goal saved.';
@@ -599,6 +752,7 @@ metis_set_page_title( $campaign->cname );
         const data = await postPayload({
             action: 'metis_campaign_save_info',
             nonce:  NONCE,
+            metis_action_nonce: ACTION_NONCES.metis_campaign_save_info || '',
             cid:    CID,
             cname:  document.getElementById('metis-edit-cname')?.value  || '',
             type:   document.getElementById('metis-edit-type')?.value   || '',

@@ -100,7 +100,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_update_item_status', function 
 metis_ajax_register_handler( 'metis_grandys_stash_add_note', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.comment' );
     $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
-    $content   = (string) ( metis_request_post()['content'] ?? '' );
+    $content   = metis_textarea_clean( metis_runtime_unslash( metis_request_post()['content'] ?? '' ) );
     if ( $ticket_id < 1 || trim( $content ) === '' ) {
         metis_runtime_send_json_error( 'Ticket ID and note content are required.', 422 );
     }
@@ -119,8 +119,8 @@ metis_ajax_register_handler( 'metis_grandys_stash_add_note', function (): void {
 metis_ajax_register_handler( 'metis_grandys_stash_send_reply', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.reply' );
     $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
-    $content   = (string) ( metis_request_post()['content'] ?? '' );
-    $subject   = (string) ( metis_request_post()['subject'] ?? '' );
+    $content   = metis_textarea_clean( metis_runtime_unslash( metis_request_post()['content'] ?? '' ) );
+    $subject   = metis_text_clean( metis_runtime_unslash( metis_request_post()['subject'] ?? '' ) );
     if ( $ticket_id < 1 || trim( $content ) === '' ) {
         metis_runtime_send_json_error( 'Ticket ID and reply content are required.', 422 );
     }

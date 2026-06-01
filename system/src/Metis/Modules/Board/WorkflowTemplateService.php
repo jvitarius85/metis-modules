@@ -29,7 +29,7 @@ final class WorkflowTemplateService {
 
         $template_id = (int) ( $post['template_id'] ?? 0 );
         $name = \metis_text_clean( \metis_runtime_unslash( $post['name'] ?? '' ) );
-        $description = \metis_text_clean( \metis_runtime_unslash( $post['description'] ?? '' ) );
+        $description = \metis_textarea_clean( \metis_runtime_unslash( $post['description'] ?? '' ) );
         $sort_order = max( 0, (int) ( $post['sort_order'] ?? 0 ) );
         $is_required = (int) ( $post['is_required'] ?? 0 ) === 1 ? 1 : 0;
         $is_active = (int) ( $post['is_active'] ?? 1 ) === 1 ? 1 : 0;
@@ -95,7 +95,7 @@ final class WorkflowTemplateService {
 
         $template_id = (int) ( $post['template_id'] ?? 0 );
         $title = \metis_text_clean( \metis_runtime_unslash( $post['title'] ?? '' ) );
-        $description = \metis_text_clean( \metis_runtime_unslash( $post['description'] ?? '' ) );
+        $description = \metis_textarea_clean( \metis_runtime_unslash( $post['description'] ?? '' ) );
         $sort_order = max( 0, (int) ( $post['sort_order'] ?? 0 ) );
         $default_outcome = \metis_key_clean( \metis_runtime_unslash( $post['default_outcome'] ?? 'pending' ) );
         if ( ! in_array( $default_outcome, [ 'pending', 'approved', 'rejected', 'tabled' ], true ) ) {

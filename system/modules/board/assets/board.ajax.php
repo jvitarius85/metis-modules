@@ -581,7 +581,7 @@ metis_ajax_register_handler( 'metis_board_format_bylaws', function () {
 
     $post = metis_request_post();
     $title = metis_text_clean(metis_runtime_unslash($post['title'] ?? 'Bylaws'));
-    $source_text = trim((string) metis_runtime_unslash($post['source_text'] ?? ''));
+    $source_text = metis_text_raw_clean(metis_runtime_unslash($post['source_text'] ?? ''));
     if ($source_text === '') {
         metis_runtime_send_json_error('Paste bylaws text before formatting.', 422);
     }

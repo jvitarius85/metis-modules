@@ -10,7 +10,7 @@ final class BylawsService {
 
         $bylaw_id = (int) ( $post['bylaw_id'] ?? 0 );
         $title = \metis_text_clean( \metis_runtime_unslash( $post['title'] ?? 'Bylaws' ) );
-        $source_text = trim( (string) \metis_runtime_unslash( $post['source_text'] ?? '' ) );
+        $source_text = \metis_text_raw_clean( \metis_runtime_unslash( $post['source_text'] ?? '' ) );
         $signed_pdf_url = \metis_board_normalize_pdf_url( (string) \metis_runtime_unslash( $post['signed_pdf_url'] ?? '' ) );
         $signed_pdf_file_id = \metis_text_clean( \metis_runtime_unslash( $post['signed_pdf_file_id'] ?? '' ) );
         $signed_pdf_title = \metis_text_clean( \metis_runtime_unslash( $post['signed_pdf_title'] ?? 'Signed bylaws PDF' ) );

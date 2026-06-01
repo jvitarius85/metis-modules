@@ -751,6 +751,18 @@
     margin-top: 12px;
 }
 
+.metis-transaction-campaign-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.metis-transaction-campaign-form .metis-select {
+    min-width: 220px;
+}
+
 /* =========================================================
    DEPOSITS / BATCH TABLES
    ========================================================= */
@@ -985,8 +997,9 @@ table.metis-top-donors-table th.metis-top-donor-rank {
 .metis-campaign-shortcode-label { margin-bottom: 6px; }
 .metis-campaign-shortcode-help { font-size: 12px; margin-top: 6px; }
 .metis-campaign-detail-card-spaced { margin-top: 16px; }
-.metis-campaign-desc-editor { display: none; }
-.metis-campaign-quill-host { min-height: 300px; font-size: 14px; line-height: 1.7; }
+.metis-campaign-desc-editor[hidden] { display: none !important; }
+.metis-campaign-rich-text { gap: 12px; }
+.metis-campaign-desc-rich { min-height: 320px; font-size: 14px; color: #111827; }
 .metis-campaign-desc-actions { gap: 8px; margin-top: 12px; }
 .metis-campaign-tx-did { font-size: 12px; }
 .metis-campaign-modal-hidden { display: none; }
@@ -1009,11 +1022,6 @@ table.metis-top-donors-table th.metis-top-donor-rank {
 .metis-campaign-desc-truncated::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 32px; background: var(--metis-surface, #fff); }
 .metis-campaign-desc-link { font-size: 12px; color: #485bc7; cursor: pointer; text-decoration: underline; margin-top: 4px; display: inline-block; }
 .metis-campaign-desc-body { font-size: 14px; line-height: 1.7; color: #374151; }
-
-/* Quill WYSIWYG editor */
-#metis-quill-editor .ql-toolbar  { border-radius: var(--metis-radius) var(--metis-radius) 0 0; border-color: #dde1e7 !important; background: #f9fafb; }
-#metis-quill-editor .ql-container { border-radius: 0 0 var(--metis-radius) var(--metis-radius); border-color: #dde1e7 !important; font-size: 14px; line-height: 1.7; min-height: 260px; }
-#metis-quill-editor .ql-editor    { min-height: 260px; padding: 14px 16px; color: #111827; }
 
 /* =========================================================
    MODALS — donations overlay variant

@@ -1319,7 +1319,7 @@ final class RecurringDonationsService {
     public static function sendDonorInquiry( string $email, string $message, string $transactionId = '' ): array {
         self::ensureSchema();
         $email = strtolower( trim( \metis_email_clean( $email ) ) );
-        $message = trim( \metis_text_clean( $message ) );
+        $message = trim( \metis_textarea_clean( $message ) );
         $transactionId = trim( \metis_text_clean( $transactionId ) );
         if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
             return [ 'ok' => false, 'message' => 'The portal access link is no longer valid.' ];

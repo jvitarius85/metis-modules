@@ -47,7 +47,7 @@ final class RevisionTimelineService {
                 'entity_type' => $normalized_type,
                 'entity_id' => $entity_id,
                 'revision_data' => self::jsonEncode( $record, JSON_UNESCAPED_SLASHES ),
-                'revision_note' => metis_text_clean( $note ),
+                'revision_note' => metis_textarea_clean( $note ),
                 'created_by' => self::currentUserId() ?: null,
                 'created_at' => (string) \metis_current_time( 'mysql' ),
             ]

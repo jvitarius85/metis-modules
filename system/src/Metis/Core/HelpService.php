@@ -16,6 +16,10 @@ if ( ! function_exists( 'metis_help_plain_key' ) ) {
 
 if ( ! function_exists( 'metis_help_plain_text' ) ) {
     function metis_help_plain_text( mixed $value ): string {
+        if ( function_exists( 'metis_text_clean' ) ) {
+            return metis_text_clean( $value );
+        }
+
         $value = strip_tags( (string) $value );
         $value = preg_replace( '/\s+/', ' ', $value ) ?? '';
         return trim( $value );

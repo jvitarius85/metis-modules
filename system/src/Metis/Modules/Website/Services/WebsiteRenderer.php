@@ -3042,44 +3042,7 @@ final class WebsiteRenderer {
         }
 
         $content = is_array( $section['content'] ?? null ) ? $section['content'] : [];
-        $body = '';
-        if ( $type === 'heading' ) {
-            $body = self::renderStructuredHeadingSection( $content );
-        } elseif ( $type === 'text' ) {
-            $body = self::renderStructuredTextSection( $content );
-        } elseif ( $type === 'image' ) {
-            $body = self::renderStructuredImageSection( $content );
-        } elseif ( $type === 'button' ) {
-            $body = self::renderStructuredButtonSection( $content );
-        } elseif ( $type === 'hero' ) {
-            $body = self::renderStructuredHeroBlockSection( $content );
-        } elseif ( $type === 'html' ) {
-            $body = self::renderStructuredHtmlSection( $content );
-        } elseif ( $type === 'transcript' ) {
-            $body = self::renderStructuredTranscriptSection( $content );
-        } elseif ( $type === 'columns' ) {
-            $body = self::renderStructuredColumnsSection( $content );
-        } elseif ( $type === 'feature_grid' || $type === 'card_grid' ) {
-            $body = self::renderStructuredFeatureGridSection( $content );
-        } elseif ( $type === 'cta' ) {
-            $body = self::renderStructuredCtaSection( $content );
-        } elseif ( $type === 'events' ) {
-            $body = self::renderStructuredEventsSection( $content, $context );
-        } elseif ( $type === 'form' ) {
-            $body = self::renderStructuredFormSection( $content, $context );
-        } elseif ( $type === 'donation_form' ) {
-            $body = self::renderStructuredDonationFormSection( $content, $context );
-        } elseif ( $type === 'donation_progress' ) {
-            $body = self::renderStructuredDonationProgressSection( $content, $context );
-        } elseif ( $type === 'campaign_summary' ) {
-            $body = self::renderStructuredCampaignSummarySection( $content, $context );
-        } elseif ( $type === 'divider' ) {
-            $body = self::renderStructuredDividerSection( $content, $context );
-        } elseif ( $type === 'spacer' ) {
-            $body = self::renderStructuredSpacerSection( $content );
-        } elseif ( $type === 'posts_list' ) {
-            $body = self::renderStructuredPostsListSection( $content, $context );
-        }
+        $body = self::renderStructuredSectionBody( $type, $content, $context );
         if ( trim( $body ) === '' ) {
             return '';
         }
@@ -3119,6 +3082,68 @@ final class WebsiteRenderer {
             . '<div class="metis-structured-section__inner">'
             . '<div class="metis-structured-section__content">' . $body . '</div>'
             . '</div></section>';
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredSectionBody( string $type, array $content, array $context = [] ): string {
+        if ( $type === 'heading' ) {
+            return self::renderStructuredHeadingSection( $content );
+        }
+        if ( $type === 'text' ) {
+            return self::renderStructuredTextSection( $content );
+        }
+        if ( $type === 'image' ) {
+            return self::renderStructuredImageSection( $content );
+        }
+        if ( $type === 'button' ) {
+            return self::renderStructuredButtonSection( $content );
+        }
+        if ( $type === 'hero' ) {
+            return self::renderStructuredHeroBlockSection( $content );
+        }
+        if ( $type === 'html' ) {
+            return self::renderStructuredHtmlSection( $content );
+        }
+        if ( $type === 'transcript' ) {
+            return self::renderStructuredTranscriptSection( $content );
+        }
+        if ( $type === 'columns' ) {
+            return self::renderStructuredColumnsSection( $content, $context );
+        }
+        if ( $type === 'feature_grid' || $type === 'card_grid' ) {
+            return self::renderStructuredFeatureGridSection( $content );
+        }
+        if ( $type === 'cta' ) {
+            return self::renderStructuredCtaSection( $content );
+        }
+        if ( $type === 'events' ) {
+            return self::renderStructuredEventsSection( $content, $context );
+        }
+        if ( $type === 'form' ) {
+            return self::renderStructuredFormSection( $content, $context );
+        }
+        if ( $type === 'donation_form' ) {
+            return self::renderStructuredDonationFormSection( $content, $context );
+        }
+        if ( $type === 'donation_progress' ) {
+            return self::renderStructuredDonationProgressSection( $content, $context );
+        }
+        if ( $type === 'campaign_summary' ) {
+            return self::renderStructuredCampaignSummarySection( $content, $context );
+        }
+        if ( $type === 'divider' ) {
+            return self::renderStructuredDividerSection( $content, $context );
+        }
+        if ( $type === 'spacer' ) {
+            return self::renderStructuredSpacerSection( $content );
+        }
+        if ( $type === 'posts_list' ) {
+            return self::renderStructuredPostsListSection( $content, $context );
+        }
+        return '';
     }
 
     /**
@@ -4067,7 +4092,7 @@ final class WebsiteRenderer {
     /**
      * @param array<string,mixed> $content
      */
-    private static function renderStructuredColumnsSection( array $content ): string {
+    private static function renderStructuredColumnsSection( array $content, array $context = [] ): string {
         $columns = is_array( $content['columns'] ?? null ) ? $content['columns'] : [];
         $items = '';
         $count = 0;
@@ -4080,14 +4105,25 @@ final class WebsiteRenderer {
             if ( ! in_array( $width, [ 25, 33, 50, 100 ], true ) ) {
                 $width = 50;
             }
-            $body = trim( (string) ( $column['body'] ?? '' ) );
-            if ( $body === '' ) {
-                $body = '<p></p>';
+            $module = is_array( $column['module'] ?? null ) ? $column['module'] : [];
+            $module_type = metis_key_clean( (string) ( $module['type'] ?? 'text' ) );
+            $safe_body = '';
+            if ( in_array( $module_type, [ 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'button', 'image' ], true ) ) {
+                $module_content = is_array( $module['content'] ?? null ) ? $module['content'] : [];
+                $safe_body = self::renderStructuredSectionBody( $module_type, $module_content, $context );
+            } else {
+                $body = trim( (string) ( $column['body'] ?? '' ) );
+                if ( $body === '' ) {
+                    $body = is_array( $module['content'] ?? null ) ? (string) ( $module['content']['body'] ?? '' ) : '';
+                }
+                if ( $body === '' ) {
+                    $body = '<p></p>';
+                }
+                $safe_body = function_exists( 'metis_runtime_kses_post' )
+                    ? (string) metis_runtime_kses_post( $body )
+                    : strip_tags( $body, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div>' );
+                $safe_body = self::repairPublicHtmlText( $safe_body );
             }
-            $safe_body = function_exists( 'metis_runtime_kses_post' )
-                ? (string) metis_runtime_kses_post( $body )
-                : strip_tags( $body, '<p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><h4><h5><h6><blockquote><span><div>' );
-            $safe_body = self::repairPublicHtmlText( $safe_body );
             $items .= '<div class="metis-structured-columns__col is-w' . metis_escape_attr( (string) $width ) . '">'
                 . $safe_body . '</div>';
             $count++;
@@ -5106,12 +5142,9 @@ final class WebsiteRenderer {
             '.metis-donation-progress{display:block;width:100%;}',
             '.metis-donation-progress-total,.metis-donation-progress-goal{margin:0 0 var(--metis-space-xs,6px);color:var(--metis-color-text,#1a1f2b);}',
             '.metis-donation-progress-goal{margin-bottom:var(--metis-space-sm,10px);}',
-            '.metis-donation-progress-track{position:relative;display:block;width:100%;border-radius:999px;overflow:hidden;}',
-            '.metis-donation-progress-svg{display:block;width:100%;height:36px;}',
-            '.metis-donation-progress-track-bg{fill:var(--metis-token-donation-track,var(--metis-color-border,#d8deea));}',
-            '.metis-donation-progress-fill{fill:var(--metis-token-donation-fill,var(--metis-color-primary,#485bc7));}',
-            '.metis-donation-progress-accent{fill:var(--metis-token-donation-accent,var(--metis-color-text,#1a1f2b));}',
-            '.metis-donation-progress-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px;color:var(--metis-token-donation-label,var(--metis-color-button_text,#ffffff));font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;}',
+            '.metis-donation-progress-track{position:relative;display:block;width:100%;min-height:40px;border-radius:999px;overflow:hidden;background:var(--metis-token-donation-track,var(--metis-color-accent,#ff7542));}',
+            '.metis-donation-progress-fill{position:absolute;inset:0 auto 0 0;display:block;height:100%;border-radius:inherit;background:var(--metis-token-donation-fill,var(--metis-color-primary,#485bc7));}',
+            '.metis-donation-progress-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 14px;color:var(--metis-token-donation-label,var(--metis-color-button_text,#ffffff));font-weight:700;line-height:1.2;text-shadow:0 1px 2px rgba(15,23,42,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;}',
             '.metis-public-popup[hidden]{display:none !important;}',
             '.metis-public-popup{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;}',
             '.metis-public-popup__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.62);}',

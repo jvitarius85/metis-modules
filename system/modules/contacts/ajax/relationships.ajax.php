@@ -20,7 +20,7 @@ metis_ajax_register_handler( 'metis_contact_remove_relationship', function () {
     $cid = isset( metis_request_post()['cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['cid'] ) ) : '';
     $related_cid = isset( metis_request_post()['related_cid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['related_cid'] ) ) : '';
     $relation_type = isset( metis_request_post()['relation_type'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['relation_type'] ) ) : '';
-    $notes = isset( metis_request_post()['notes'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['notes'] ) ) : '';
+    $notes = isset( metis_request_post()['notes'] ) ? metis_textarea_clean( metis_runtime_unslash( metis_request_post()['notes'] ) ) : '';
 
     if ( $cid === '' || $related_cid === '' || $relation_type === '' ) {
         metis_runtime_send_json_error( 'Missing relationship payload.', 400 );

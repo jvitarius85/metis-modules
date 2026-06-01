@@ -19,7 +19,7 @@ metis_ajax_register_handler( 'metis_people_save_template', function () {
 
     $template_key = isset(metis_request_post()['template_key']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['template_key'])) : '';
     $template_name = isset(metis_request_post()['template_name']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['template_name'])) : '';
-    $description = isset(metis_request_post()['description']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['description'])) : '';
+    $description = isset(metis_request_post()['description']) ? metis_textarea_clean(metis_runtime_unslash(metis_request_post()['description'])) : '';
     $checklist_json = null;
     if (isset(metis_request_post()['checklist_json'])) {
         $decoded_checklist = json_decode((string) metis_runtime_unslash(metis_request_post()['checklist_json']), true);

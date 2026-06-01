@@ -7,15 +7,86 @@ use Metis\Http\Response;
 
 final class FormRenderer {
     public static function render( array $form, array $result = [] ): Response {
+        $title = (string) ( $form['name'] ?? 'Form' );
+        $asset_css = \metis_module_asset_url( 'forms', 'forms.css' );
+        $asset_js = \metis_module_asset_url( 'forms', 'forms.js' );
+        $instance_id = 'metis-forms-public-' . (string) ( (int) ( $form['id'] ?? 0 ) ) . '-page';
+
+        ob_start();
+        ?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?php echo metis_escape_html( $title ); ?></title>
+    <link rel="stylesheet" href="<?php echo metis_escape_url( $asset_css ); ?>">
+    <?php if ( self::paymentField( (array) ( $form['schema'] ?? [] ) ) !== null ) : ?>
+        <script src="https://js.stripe.com/v3/"></script>
+    <?php endif; ?>
+</head>
+<body class="metis-forms-public-body">
+    <main class="metis-forms-public-shell">
+        <?php echo self::renderMarkup( $form, $result, [ 'embedded' => false, 'instance_id' => $instance_id ] ); ?>
+    </main>
+    <script src="<?php echo metis_escape_url( $asset_js ); ?>"></script>
+</body>
+</html>
+        <?php
+
+        return Response::html( (string) ob_get_clean(), (int) ( $result['status'] ?? 200 ) );
+    }
+
+    public static function renderEmbedHtml( array $form, array $options = [] ): string {
+        $instance_id = 'metis-forms-public-' . (string) ( (int) ( $form['id'] ?? 0 ) ) . '-embed';
+        $asset_css = \metis_module_asset_url( 'forms', 'forms.css' );
+        $asset_js = \metis_module_asset_url( 'forms', 'forms.js' );
+        $needs_stripe = self::paymentField( (array) ( $form['schema'] ?? [] ) ) !== null;
+        $loader = '(function(){'
+            . 'if(!document.getElementById("metis-forms-public-css")){'
+            . 'var link=document.createElement("link");'
+            . 'link.id="metis-forms-public-css";'
+            . 'link.rel="stylesheet";'
+            . 'link.href=' . \metis_json_encode( (string) $asset_css ) . ';'
+            . 'document.head.appendChild(link);'
+            . '}'
+            . ( $needs_stripe
+                ? 'if(!window.Stripe&&!document.getElementById("metis-forms-stripe-js")){'
+                    . 'var stripe=document.createElement("script");'
+                    . 'stripe.id="metis-forms-stripe-js";'
+                    . 'stripe.src="https://js.stripe.com/v3/";'
+                    . 'document.head.appendChild(stripe);'
+                . '}'
+                : '' )
+            . 'if(!window.__metisFormsPublicScriptRequested){'
+            . 'window.__metisFormsPublicScriptRequested=true;'
+            . 'var script=document.createElement("script");'
+            . 'script.src=' . \metis_json_encode( (string) $asset_js ) . ';'
+            . 'script.onload=function(){'
+                . 'if(window.Metis&&Metis.forms&&typeof Metis.forms.initPublicEmbeds==="function"){'
+                    . 'Metis.forms.initPublicEmbeds(document);'
+                . '}'
+            . '};'
+            . 'document.body.appendChild(script);'
+            . '}else if(window.Metis&&Metis.forms&&typeof Metis.forms.initPublicEmbeds==="function"){'
+                . 'Metis.forms.initPublicEmbeds(document);'
+            . '}'
+        . '})();';
+
+        return self::renderMarkup( $form, [], [ 'embedded' => true, 'instance_id' => $instance_id ] )
+            . '<script>' . $loader . '</script>';
+    }
+
+    private static function renderMarkup( array $form, array $result = [], array $options = [] ): string {
         $schema = (array) ( $form['schema'] ?? [] );
         $settings = (array) ( $form['settings'] ?? [] );
         $title = (string) ( $form['name'] ?? 'Form' );
         $description = (string) ( $form['description'] ?? '' );
-        $asset_css = \metis_module_asset_url( 'forms', 'forms.css' );
-        $asset_js = \metis_module_asset_url( 'forms', 'forms.js' );
         $blocked = ! empty( $result['blocked'] );
         $alert_class = ! empty( $result['ok'] ) ? 'metis-alert-success' : 'metis-alert-error';
         $payment_field = self::paymentField( $schema );
+        $embedded = ! empty( $options['embedded'] );
+        $instance_id = (string) ( $options['instance_id'] ?? ( 'metis-forms-public-' . (string) ( (int) ( $form['id'] ?? 0 ) ) ) );
 
         $boot = [
             'mode'   => 'public',
@@ -33,20 +104,8 @@ final class FormRenderer {
 
         ob_start();
         ?>
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?php echo metis_escape_html( $title ); ?></title>
-    <link rel="stylesheet" href="<?php echo metis_escape_url( $asset_css ); ?>">
-    <?php if ( $payment_field !== null ) : ?>
-        <script src="https://js.stripe.com/v3/"></script>
-    <?php endif; ?>
-</head>
-<body class="metis-forms-public-body">
-    <main class="metis-forms-public-shell">
-        <section class="metis-forms-public-card" data-metis-forms-public="1">
+        <section class="metis-forms-public-card<?php echo $embedded ? ' metis-forms-public-card--embed' : ''; ?>" data-metis-forms-public="1" data-metis-forms-instance="<?php echo metis_escape_attr( $instance_id ); ?>">
+            <?php if ( ! $embedded ) : ?>
             <header class="metis-forms-public-header">
                 <p class="metis-forms-public-kicker">Metis Forms</p>
                 <h1><?php echo metis_escape_html( $title ); ?></h1>
@@ -54,6 +113,7 @@ final class FormRenderer {
                     <p><?php echo metis_escape_html( $description ); ?></p>
                 <?php endif; ?>
             </header>
+            <?php endif; ?>
 
             <div id="metis-forms-public-alert" class="metis-alert <?php echo metis_escape_attr( $alert_class ); ?>"<?php echo empty( $result['message'] ) ? ' hidden' : ''; ?>>
                 <?php echo ! empty( $result['message'] ) ? \metis_runtime_kses_post( (string) $result['message'] ) : ''; ?>
@@ -72,14 +132,14 @@ final class FormRenderer {
                 <form id="metis-forms-public-form" class="metis-forms-public-form" action="<?php echo metis_escape_url( Support::publicUrl( (string) ( $form['slug'] ?? '' ) ) ); ?>" method="post" novalidate>
                     <?php foreach ( $schema as $field ) : ?>
                         <?php if ( is_array( $field ) ) : ?>
-                            <?php self::renderField( $field ); ?>
+                            <?php self::renderField( $field, '', $instance_id ); ?>
                         <?php endif; ?>
                     <?php endforeach; ?>
 
                     <?php if ( ( $settings['access']['mode'] ?? '' ) === 'password' ) : ?>
                         <section class="metis-forms-public-field is-full">
-                            <label for="metis-forms-access-password">Form password</label>
-                            <input id="metis-forms-access-password" class="metis-input" type="password" name="_access_password" autocomplete="current-password">
+                            <label for="<?php echo metis_escape_attr( $instance_id . '-access-password' ); ?>">Form password</label>
+                            <input id="<?php echo metis_escape_attr( $instance_id . '-access-password' ); ?>" class="metis-input" type="password" name="_access_password" autocomplete="current-password">
                         </section>
                     <?php endif; ?>
 
@@ -90,21 +150,16 @@ final class FormRenderer {
                     </div>
                 </form>
             <?php endif; ?>
+            <script type="application/json" data-metis-forms-public-data><?php echo \metis_json_encode( $boot ); ?></script>
         </section>
-    </main>
-    <script id="metis-forms-public-data" type="application/json"><?php echo \metis_json_encode( $boot ); ?></script>
-    <script src="<?php echo metis_escape_url( $asset_js ); ?>"></script>
-</body>
-</html>
         <?php
-
-        return Response::html( (string) ob_get_clean(), (int) ( $result['status'] ?? 200 ) );
+        return (string) ob_get_clean();
     }
 
     private static function renderField( array $field, string $name_prefix = '', string $dom_prefix = '' ): void {
         $type = (string) ( $field['type'] ?? 'text' );
         if ( $type === 'payment' ) {
-            self::renderPaymentField( $field );
+            self::renderPaymentField( $field, $dom_prefix );
             return;
         }
 
@@ -231,17 +286,18 @@ final class FormRenderer {
         echo '</section>';
     }
 
-    private static function renderPaymentField( array $field ): void {
+    private static function renderPaymentField( array $field, string $dom_prefix = '' ): void {
         $payment = (array) ( $field['payment'] ?? [] );
         $currency = strtoupper( (string) ( $payment['currency'] ?? 'USD' ) );
         $amounts = (array) ( $payment['donation_amounts'] ?? [] );
         $label = (string) ( $field['label'] ?? 'Payment' );
+        $prefix = $dom_prefix !== '' ? $dom_prefix . '__' : '';
 
         echo '<section class="metis-forms-public-field is-full metis-forms-payment-field" data-field-key="' . metis_escape_attr( (string) ( $field['key'] ?? 'payment' ) ) . '" data-field-type="payment">';
         echo '<div class="metis-forms-payment-head"><h2>' . metis_escape_html( $label ) . '</h2></div>';
         echo '<fieldset class="metis-forms-payment-choices"><legend>Donation amount</legend><div class="metis-forms-payment-choice-grid">';
         foreach ( $amounts as $index => $amount ) {
-            $choice_id = 'payment-choice-' . (int) $index;
+            $choice_id = $prefix . 'payment-choice-' . (int) $index;
             $display = number_format( (float) $amount, 2 );
             echo '<label class="metis-forms-payment-choice" for="' . metis_escape_attr( $choice_id ) . '">';
             echo '<input type="radio" id="' . metis_escape_attr( $choice_id ) . '" name="_donation_amount_choice" value="' . metis_escape_attr( (string) $amount ) . '">';
@@ -260,7 +316,7 @@ final class FormRenderer {
             'annual' => 'Annual',
         ];
         foreach ( $frequencies as $frequency_key => $frequency_label ) {
-            $choice_id = 'payment-frequency-' . $frequency_key;
+            $choice_id = $prefix . 'payment-frequency-' . $frequency_key;
             echo '<label class="metis-forms-payment-choice" for="' . metis_escape_attr( $choice_id ) . '">';
             echo '<input type="radio" id="' . metis_escape_attr( $choice_id ) . '" name="_donation_frequency" value="' . metis_escape_attr( $frequency_key ) . '"' . ( $frequency_key === 'one_time' ? ' checked' : '' ) . '>';
             echo '<span>' . metis_escape_html( $frequency_label ) . '</span>';
@@ -269,9 +325,10 @@ final class FormRenderer {
         echo '</div></fieldset>';
 
         if ( ! empty( $payment['allow_custom_amount'] ) ) {
+            $custom_amount_id = $prefix . 'metis-forms-custom-amount';
             echo '<div class="metis-forms-payment-custom">';
-            echo '<label for="metis-forms-custom-amount">' . metis_escape_html( (string) ( $payment['custom_amount_label'] ?? 'Other amount' ) ) . '</label>';
-            echo '<input id="metis-forms-custom-amount" class="metis-input" type="number" min="1" step="0.01" name="_donation_amount_custom" inputmode="decimal">';
+            echo '<label for="' . metis_escape_attr( $custom_amount_id ) . '">' . metis_escape_html( (string) ( $payment['custom_amount_label'] ?? 'Other amount' ) ) . '</label>';
+            echo '<input id="' . metis_escape_attr( $custom_amount_id ) . '" class="metis-input" type="number" min="1" step="0.01" name="_donation_amount_custom" inputmode="decimal">';
             echo '</div>';
         }
 
@@ -288,8 +345,8 @@ final class FormRenderer {
         echo '<div class="is-grand"><span>' . metis_escape_html( (string) ( $payment['summary_label'] ?? 'Total' ) ) . '</span><strong data-total-grand>' . metis_escape_html( $currency . ' 0.00' ) . '</strong></div>';
         echo '</div>';
         echo '<div class="metis-forms-stripe-panel" hidden>';
-        echo '<div id="metis-forms-stripe-mount"></div>';
-        echo '<button type="button" class="metis-btn" id="metis-forms-stripe-confirm">Pay and submit</button>';
+        echo '<div id="' . metis_escape_attr( $prefix . 'metis-forms-stripe-mount' ) . '"></div>';
+        echo '<button type="button" class="metis-btn" id="' . metis_escape_attr( $prefix . 'metis-forms-stripe-confirm' ) . '">Pay and submit</button>';
         echo '</div>';
         echo '</section>';
     }

@@ -131,7 +131,7 @@ metis_ajax_register_handler( 'metis_hermes_preview_action', function () {
 metis_ajax_register_handler( 'metis_hermes_approve_action', function () {
     metis_hermes_ajax_verify( true );
     $action_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['action_code'] ?? '' ) );
-    $note = metis_text_clean( metis_runtime_unslash( metis_request_post()['note'] ?? '' ) );
+    $note = metis_textarea_clean( metis_runtime_unslash( metis_request_post()['note'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => [ 'action' => metis_hermes_gateway()->approveAction( $action_code, $note ) ] );
 } );
 

@@ -116,7 +116,7 @@ final class DecisionAttendanceService {
         }
 
         $role_label = \metis_text_clean( \metis_runtime_unslash( $post['role_label'] ?? '' ) );
-        $notes = \metis_text_clean( \metis_runtime_unslash( $post['notes'] ?? '' ) );
+        $notes = \metis_textarea_clean( \metis_runtime_unslash( $post['notes'] ?? '' ) );
 
         $table = \Metis_Tables::get( 'board_attendance' );
         $existing_id = (int) $db->scalar(

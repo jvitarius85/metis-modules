@@ -1981,7 +1981,7 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
 
     $autosave = ! empty( metis_request_post()['autosave'] );
     $revision_note = isset( metis_request_post()['revision_note'] )
-        ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
+        ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
         : ( $autosave ? 'Autosave' : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) ) );
     RevisionTimelineService::save(
         'page',
@@ -2169,7 +2169,7 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
 
     $autosave = ! empty( metis_request_post()['autosave'] );
     $revision_note = isset( metis_request_post()['revision_note'] )
-        ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
+        ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
         : ( $autosave ? 'Autosave' : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) ) );
     $checkpoint_layout_json = (string) ( $data['draft_layout_json'] ?? '' );
     if ( $suppressed_layout_write && $existing_page !== null ) {
@@ -2527,7 +2527,7 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
 
     $autosave = ! empty( metis_request_post()['autosave'] );
     $revision_note = isset( metis_request_post()['revision_note'] )
-        ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
+        ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
         : ( $autosave ? 'Autosave' : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) ) );
     RevisionTimelineService::save(
         'post',
@@ -2729,7 +2729,7 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
 
     $autosave = ! empty( metis_request_post()['autosave'] );
     $revision_note = isset( metis_request_post()['revision_note'] )
-        ? metis_text_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
+        ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
         : ( $autosave ? 'Autosave' : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) ) );
     $checkpoint_content_json = (string) ( $data['draft_content_json'] ?? '' );
     if ( $suppressed_content_write && $existing_post !== null ) {

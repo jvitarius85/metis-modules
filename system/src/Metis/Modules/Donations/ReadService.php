@@ -638,6 +638,13 @@ final class ReadService {
 
         $refunds = [];
         $notes = [];
+        $campaign_options = array_map( static function ( array $row ) {
+            return (object) $row;
+        }, $db->fetchAll(
+            "SELECT cid, cname, active
+             FROM {$campaigns_table}
+             ORDER BY active DESC, cname ASC, cid ASC"
+        ) ?: [] );
         if ( $transaction ) {
             $refund_columns = $db->column( "SHOW COLUMNS FROM {$refunds_table}" );
             $refund_user_column = in_array( 'created_by', $refund_columns, true )
@@ -675,6 +682,7 @@ final class ReadService {
             'transaction' => $transaction,
             'refunds' => $refunds,
             'notes' => $notes,
+            'campaign_options' => $campaign_options,
         ];
     }
 

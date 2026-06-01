@@ -352,17 +352,23 @@ final class StructuredWebsiteBuilderService {
                     continue;
                 }
                 $width = self::normalizeColumnWidth( $column['width'] ?? '50%' );
+                $body = self::sanitizeRichText( (string) ( $column['body'] ?? '' ) );
+                if ( $body === '' ) {
+                    $body = '<p></p>';
+                }
+                $module = self::normalizeColumnModule( isset( $column['module'] ) && is_array( $column['module'] ) ? $column['module'] : [], $body );
                 $out[] = [
                     'width' => $width,
-                    'body' => self::sanitizeRichText( (string) ( $column['body'] ?? '' ) ),
+                    'body' => $body,
+                    'module' => $module,
                 ];
                 if ( count( $out ) >= 4 ) {
                     break;
                 }
             }
             if ( $out === [] ) {
-                $out[] = [ 'width' => '50%', 'body' => '<p></p>' ];
-                $out[] = [ 'width' => '50%', 'body' => '<p></p>' ];
+                $out[] = [ 'width' => '50%', 'body' => '<p></p>', 'module' => [ 'type' => 'text', 'content' => [ 'body' => '<p></p>' ] ] ];
+                $out[] = [ 'width' => '50%', 'body' => '<p></p>', 'module' => [ 'type' => 'text', 'content' => [ 'body' => '<p></p>' ] ] ];
             }
             return [ 'columns' => $out ];
         }
@@ -532,6 +538,35 @@ final class StructuredWebsiteBuilderService {
         return [ 'body' => '<p></p>' ];
     }
 
+    /**
+     * @param array<string,mixed> $module
+     * @return array<string,mixed>
+     */
+    private static function normalizeColumnModule( array $module, string $fallback_body ): array {
+        $type = metis_key_clean( (string) ( $module['type'] ?? 'text' ) );
+        $allowed = [ 'text', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'button', 'image' ];
+        if ( ! in_array( $type, $allowed, true ) ) {
+            $type = 'text';
+        }
+
+        $content = isset( $module['content'] ) && is_array( $module['content'] ) ? $module['content'] : [];
+        if ( $type === 'text' ) {
+            $body = self::sanitizeRichText( (string) ( $content['body'] ?? $fallback_body ) );
+            if ( $body === '' ) {
+                $body = '<p></p>';
+            }
+            return [
+                'type' => 'text',
+                'content' => [ 'body' => $body ],
+            ];
+        }
+
+        return [
+            'type' => $type,
+            'content' => self::normalizeSectionContent( $type, $content ),
+        ];
+    }
+
     private static function normalizeColumnWidth( mixed $raw ): string {
         $value = trim( (string) $raw );
         $value = str_replace( '%', '', $value );
@@ -540,6 +575,121 @@ final class StructuredWebsiteBuilderService {
             $width = 50;
         }
         return (string) $width . '%';
+    }
+
+    /**
+     * @param array<string,mixed> $module
+     * @return array<int,array<string,mixed>>
+     */
+    private static function structuredColumnModuleBlocks( string $id_prefix, array $module, string $fallback_body ): array {
+        $normalized = self::normalizeColumnModule( $module, $fallback_body );
+        $type = (string) ( $normalized['type'] ?? 'text' );
+        $content = isset( $normalized['content'] ) && is_array( $normalized['content'] ) ? $normalized['content'] : [];
+
+        if ( $type === 'form' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'form',
+                'data' => [
+                    'form_id' => (string) ( $content['form_id'] ?? '' ),
+                    'submit_label' => (string) ( $content['submit_label'] ?? 'Submit' ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'donation_form' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'donation_form_block',
+                'data' => [
+                    'campaign_id' => (string) ( $content['campaign_id'] ?? '' ),
+                    'preset_amounts' => self::sanitizePresetAmounts( $content['preset_amounts'] ?? [] ),
+                    'allow_custom_amount' => self::sanitizeBoolean( $content['allow_custom_amount'] ?? true ),
+                    'mode' => (string) ( $content['mode'] ?? 'both' ),
+                    'show_name' => self::sanitizeBoolean( $content['show_name'] ?? true ),
+                    'show_email' => self::sanitizeBoolean( $content['show_email'] ?? true ),
+                    'show_phone' => self::sanitizeBoolean( $content['show_phone'] ?? false ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'donation_progress' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'progress_bar_block',
+                'data' => [
+                    'campaign_id' => (string) ( $content['campaign_id'] ?? '' ),
+                    'goal_amount' => self::sanitizeDecimalString( $content['goal_amount'] ?? '' ),
+                    'raised_amount' => self::sanitizeDecimalString( $content['raised_amount'] ?? '' ),
+                    'percent' => self::sanitizePercentString( $content['percent'] ?? '' ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'campaign_summary' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'campaign_description_block',
+                'data' => [
+                    'campaign_id' => (string) ( $content['campaign_id'] ?? '' ),
+                    'title' => (string) ( $content['title'] ?? '' ),
+                    'content' => (string) ( $content['content'] ?? '' ),
+                    'image' => (string) ( $content['image'] ?? '' ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'button' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'button_group',
+                'data' => [
+                    'align' => (string) ( $content['align'] ?? 'left' ),
+                    'buttons' => [[
+                        'label' => (string) ( $content['label'] ?? 'Learn more' ),
+                        'url' => self::normalizeUrl( (string) ( $content['url'] ?? '#' ) ),
+                        'bgcolor' => '#485bc7',
+                        'color' => '#ffffff',
+                    ]],
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'image' ) {
+            $blocks = [[
+                'id' => $id_prefix,
+                'type' => 'image',
+                'data' => [
+                    'src' => (string) ( $content['src'] ?? '' ),
+                    'alt' => (string) ( $content['alt'] ?? '' ),
+                    'width' => (string) ( $content['width'] ?? '' ),
+                    'height' => (string) ( $content['height'] ?? '' ),
+                ],
+                'style' => [],
+            ]];
+            $caption = trim( (string) ( $content['caption'] ?? '' ) );
+            if ( $caption !== '' ) {
+                $blocks[] = [
+                    'id' => $id_prefix . '_caption',
+                    'type' => 'text',
+                    'data' => [ 'content' => '<p>' . metis_escape_html( $caption ) . '</p>', 'tag' => 'div' ],
+                    'style' => [],
+                ];
+            }
+            return $blocks;
+        }
+
+        return [[
+            'id' => $id_prefix,
+            'type' => 'text',
+            'data' => [ 'content' => (string) ( $content['body'] ?? $fallback_body ?: '<p></p>' ), 'tag' => 'div' ],
+            'style' => [],
+        ]];
     }
 
     private static function normalizePageType( string $raw, bool $is_post, bool $set_as_homepage = false ): string {
@@ -773,14 +923,9 @@ final class StructuredWebsiteBuilderService {
                     $ratio = 50.0;
                 }
                 $ratios[] = $ratio;
-                $col_blocks[] = [
-                    [
-                        'id' => $section_id . '_col_' . (string) $i,
-                        'type' => 'text',
-                        'data' => [ 'content' => (string) ( $column['body'] ?? '<p></p>' ), 'tag' => 'div' ],
-                        'style' => [],
-                    ],
-                ];
+                $module = isset( $column['module'] ) && is_array( $column['module'] ) ? $column['module'] : [];
+                $module_blocks = self::structuredColumnModuleBlocks( $section_id . '_col_' . (string) $i, $module, (string) ( $column['body'] ?? '<p></p>' ) );
+                $col_blocks[] = $module_blocks;
             }
             if ( $col_blocks === [] ) {
                 $col_blocks = [ [ [ 'id' => $section_id . '_col_0', 'type' => 'text', 'data' => [ 'content' => '<p></p>', 'tag' => 'div' ], 'style' => [] ] ] ];

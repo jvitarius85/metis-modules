@@ -1347,11 +1347,7 @@ final class BlockRenderer {
                 '<p class="metis-donation-progress-total">Total Donations received this year %2$s.</p>' .
                 '<p class="metis-donation-progress-goal">Our %3$s goal is %4$s</p>' .
                 '<div class="metis-donation-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="%5$s" aria-label="%6$s">' .
-                    '<svg class="metis-donation-progress-svg" viewBox="0 0 100 14" preserveAspectRatio="none" aria-hidden="true" focusable="false">' .
-                        '<rect class="metis-donation-progress-track-bg" x="0" y="0" width="100" height="14" rx="7" ry="7"></rect>' .
-                        '<rect class="metis-donation-progress-fill" x="0" y="0" width="%7$s" height="14" rx="7" ry="7"></rect>' .
-                        '<rect class="metis-donation-progress-accent" x="0" y="0" width="3" height="14" rx="2" ry="2"></rect>' .
-                    '</svg>' .
+                    '<span class="metis-donation-progress-fill" style="width:%7$s;"></span>' .
                     '<span class="metis-donation-progress-label">%8$s%% of %3$s Goal</span>' .
                 '</div>' .
             '</section>',
@@ -1409,6 +1405,9 @@ final class BlockRenderer {
         }
         $title = self::resolveDynamicShortcodes( $title, $context );
         $content = self::resolveDynamicShortcodes( $content, $context );
+        if ( class_exists( '\Metis\Modules\Donations\CampaignService' ) ) {
+            $content = \Metis\Modules\Donations\CampaignService::normalizeDescriptionHtml( $content );
+        }
 
         $safe_content = '';
         if ( $content !== '' ) {

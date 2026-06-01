@@ -104,7 +104,9 @@ metis_ajax_register_handler( 'metis_campaign_save_desc', function () {
     $table = Metis_Tables::get( 'campaigns' );
 
     $cid  = metis_text_clean( metis_request_post()['cid'] ?? '' );
-    $desc = metis_runtime_kses_post( metis_runtime_unslash( metis_request_post()['desc'] ?? '' ) ); // allow safe HTML from WYSIWYG
+    $desc = CampaignService::normalizeDescriptionHtml(
+        metis_runtime_kses_post( metis_runtime_unslash( metis_request_post()['desc'] ?? '' ) )
+    );
 
     if ( ! $cid ) {
         metis_runtime_send_json_error( 'Missing campaign ID' );
@@ -122,7 +124,7 @@ metis_ajax_register_handler( 'metis_campaign_save_desc', function () {
 
     Metis_Logger::info( 'Campaign description saved', [ 'cid' => $cid ] );
 
-    metis_runtime_send_json_success();
+    metis_runtime_send_json_success( [ 'desc' => $desc ] );
 } );
 
 // -------------------------------------------------------------------------

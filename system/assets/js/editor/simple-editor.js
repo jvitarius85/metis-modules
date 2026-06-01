@@ -629,6 +629,10 @@
     }
 
     function bindIconFallbacks(scope) {
+        if (window.Metis && Metis.ui && Metis.ui.richText && typeof Metis.ui.richText.bindIconFallbacks === 'function') {
+            Metis.ui.richText.bindIconFallbacks(scope || document);
+            return;
+        }
         var rootNode = scope && scope.querySelectorAll ? scope : document;
         rootNode.querySelectorAll('img[data-icon-fallback]').forEach(function (img) {
             if (img.getAttribute('data-fallback-bound') === '1') return;
@@ -2736,7 +2740,7 @@
             else if (t === 'button') base.content = { label: 'Learn more', url: '#', align: 'left' };
             else if (t === 'hero') base.content = { title: 'Hero Title', subtitle: '', cta_label: 'Learn More', cta_url: '#', image_src: '' };
             else if (t === 'html') base.content = { html: '<div></div>' };
-            else if (t === 'columns') base.content = { columns: [{ width: '50%', body: '<p></p>' }, { width: '50%', body: '<p></p>' }] };
+            else if (t === 'columns') base.content = { columns: [{ width: '50%', body: '<p></p>', module: { type: 'text', content: { body: '<p></p>' } } }, { width: '50%', body: '<p></p>', module: { type: 'text', content: { body: '<p></p>' } } }] };
             else if (t === 'feature_grid') base.content = { columns: 3, items: [{ icon: '', title: 'Feature', text: '', cta: { label: '', url: '#' } }] };
             else if (t === 'card_grid') base.content = { columns: 3, items: [{ icon: '', title: 'Card', text: '', cta: { label: '', url: '#' } }] };
             else if (t === 'cta') base.content = { layout: 'single', items: [{ title: 'Call to Action', text: '', button: { label: 'Learn More', url: '#' } }] };
@@ -2750,6 +2754,75 @@
             else if (t === 'posts_list') base.content = { source: 'this_page', specific_page: 0, category_ids: [], limit: 5, sort: 'latest' };
             else base.content = { body: '<p></p>' };
             return base;
+        }
+
+        function columnModuleTypes() {
+            return ['text', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'button', 'image'];
+        }
+
+        function defaultColumnModule(type) {
+            var moduleType = columnModuleTypes().indexOf(s(type || 'text')) === -1 ? 'text' : s(type || 'text');
+            if (moduleType === 'form') return { type: 'form', content: { form_id: '', submit_label: 'Submit' } };
+            if (moduleType === 'donation_form') return { type: 'donation_form', content: { campaign_id: '', preset_amounts: [25, 50, 100], allow_custom_amount: true, mode: 'both', show_name: true, show_email: true, show_phone: false } };
+            if (moduleType === 'donation_progress') return { type: 'donation_progress', content: { campaign_id: '', goal_amount: '', raised_amount: '', percent: '' } };
+            if (moduleType === 'campaign_summary') return { type: 'campaign_summary', content: { campaign_id: '', title: '', content: '<p></p>', image: '' } };
+            if (moduleType === 'button') return { type: 'button', content: { label: 'Learn more', url: '#', align: 'left' } };
+            if (moduleType === 'image') return { type: 'image', content: { src: '', alt: '', caption: '', width: '', height: '' } };
+            return { type: 'text', content: { body: '<p></p>' } };
+        }
+
+        function normalizeColumnModule(module, fallbackBody) {
+            var src = module && typeof module === 'object' ? module : {};
+            var next = defaultColumnModule(s(src.type || 'text'));
+            var content = src.content && typeof src.content === 'object' ? src.content : {};
+            if (next.type === 'text') {
+                next.content.body = repairMojibakeHtml(content.body || fallbackBody || '<p></p>') || '<p></p>';
+            } else if (next.type === 'form') {
+                next.content.form_id = s(content.form_id || '');
+                next.content.submit_label = repairMojibakeText(content.submit_label || 'Submit') || 'Submit';
+            } else if (next.type === 'donation_form') {
+                var mode = s(content.mode || 'both');
+                next.content.campaign_id = s(content.campaign_id || '');
+                next.content.preset_amounts = normalizePresetAmounts(content.preset_amounts || [25, 50, 100]);
+                if (!next.content.preset_amounts.length) next.content.preset_amounts = [25, 50, 100];
+                next.content.allow_custom_amount = content.allow_custom_amount === undefined ? true : !!content.allow_custom_amount;
+                next.content.mode = ['one_time', 'monthly', 'both'].indexOf(mode) === -1 ? 'both' : mode;
+                next.content.show_name = content.show_name === undefined ? true : !!content.show_name;
+                next.content.show_email = content.show_email === undefined ? true : !!content.show_email;
+                next.content.show_phone = !!content.show_phone;
+            } else if (next.type === 'donation_progress') {
+                next.content.campaign_id = s(content.campaign_id || '');
+                next.content.goal_amount = normalizeDecimalString(content.goal_amount || '', 1000000000);
+                next.content.raised_amount = normalizeDecimalString(content.raised_amount || '', 1000000000);
+                next.content.percent = normalizePercentString(content.percent || '');
+            } else if (next.type === 'campaign_summary') {
+                next.content.campaign_id = s(content.campaign_id || '');
+                next.content.title = repairMojibakeText(content.title || '');
+                next.content.content = repairMojibakeHtml(content.content || '<p></p>') || '<p></p>';
+                next.content.image = s(content.image || '');
+            } else if (next.type === 'button') {
+                next.content.label = repairMojibakeText(content.label || 'Learn more');
+                next.content.url = s(content.url || '#') || '#';
+                next.content.align = ['left', 'center', 'right'].indexOf(s(content.align || 'left')) === -1 ? 'left' : s(content.align || 'left');
+            } else if (next.type === 'image') {
+                next.content.src = s(content.src || '');
+                next.content.alt = repairMojibakeText(content.alt || '');
+                next.content.caption = repairMojibakeText(content.caption || '');
+                next.content.width = normalizeImageDimension(content.width || '');
+                next.content.height = normalizeImageDimension(content.height || '');
+            }
+            return next;
+        }
+
+        function normalizeColumnEntry(column, width) {
+            var row = column && typeof column === 'object' ? column : {};
+            var body = repairMojibakeHtml(row.body || '<p></p>') || '<p></p>';
+            var module = normalizeColumnModule(row.module, body);
+            if (module.type === 'text') {
+                body = s(module.content.body || body || '<p></p>') || '<p></p>';
+                module.content.body = body;
+            }
+            return { width: width, body: body, module: module };
         }
 
         function defaultSectionFromLibraryType(type) {
@@ -3062,7 +3135,7 @@
                 var cols = [];
                 for (var i = 0; i < count; i += 1) {
                     var row = Array.isArray(content.columns) && content.columns[i] && typeof content.columns[i] === 'object' ? content.columns[i] : {};
-                    cols.push({ width: widths[count - 1], body: s(row.body || '<p></p>') || '<p></p>' });
+                    cols.push(normalizeColumnEntry(row, widths[count - 1]));
                 }
                 out.content.columns = cols;
             } else if (out.type === 'feature_grid' || out.type === 'card_grid') {
@@ -3473,7 +3546,13 @@
             if (type === 'columns') {
                 var active = s(state.activeRichTargetId || '');
                 if (active.indexOf('metis-v2-canvas-col-' + String(index) + '-') === 0) return active;
-                return 'metis-v2-canvas-col-' + String(index) + '-0';
+                var cols = Array.isArray(sec && sec.content && sec.content.columns) ? sec.content.columns : [];
+                for (var i = 0; i < cols.length; i += 1) {
+                    var module = normalizeColumnModule(cols[i] && cols[i].module, cols[i] && cols[i].body);
+                    if (module.type === 'text') {
+                        return 'metis-v2-canvas-col-' + String(index) + '-' + String(i);
+                    }
+                }
             }
             return '';
         }
@@ -3500,6 +3579,41 @@
             var content = sec && sec.content && typeof sec.content === 'object' ? sec.content : {};
             var selected = index === state.activeSection;
             var body = '';
+            function renderColumnModulePreview(column, colIndex) {
+                var module = normalizeColumnModule(column && column.module, column && column.body);
+                var moduleContent = module.content && typeof module.content === 'object' ? module.content : {};
+                if (module.type === 'text') {
+                    return '<div class="metis-builder-column metis-se-rich-editor" id="metis-v2-canvas-col-' + esc(String(index)) + '-' + esc(String(colIndex)) + '" contenteditable="' + ((state.canEdit || (state.id < 1 && state.canCreate)) ? 'true' : 'false') + '" spellcheck="true" data-v2-inline-col="' + esc(String(colIndex)) + '" data-inline-index="' + esc(String(index)) + '">' + s(moduleContent.body || '<p>Column text</p>') + '</div>';
+                }
+                if (module.type === 'form') {
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Form</strong><span>' + esc(optionLabel(state.options.forms, moduleContent.form_id, 'Select a form in settings.')) + '</span><small>Submit button: ' + esc(s(moduleContent.submit_label || 'Submit')) + '</small></div></div>';
+                }
+                if (module.type === 'donation_form') {
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Donation form</strong><span>' + esc(optionLabel(state.options.donationCampaigns, moduleContent.campaign_id, 'Select a campaign in settings.')) + '</span><small>Amounts: ' + esc(presetAmountsInputValue(moduleContent.preset_amounts || [25, 50, 100])) + '</small></div></div>';
+                }
+                if (module.type === 'donation_progress') {
+                    var pct = parseFloat(s(moduleContent.percent || ''));
+                    if (!isFinite(pct)) pct = 40;
+                    pct = Math.max(0, Math.min(100, pct));
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Donation progress</strong><span>' + esc(optionLabel(state.options.donationCampaigns, moduleContent.campaign_id, 'Manual progress')) + '</span><div class="metis-builder-progress"><span style="width:' + esc(String(pct)) + '%"></span></div><small>' + esc(String(Math.round(pct))) + '% preview</small></div></div>';
+                }
+                if (module.type === 'campaign_summary') {
+                    return '<div class="metis-builder-column"><div class="metis-builder-campaign-summary">' +
+                        (moduleContent.image ? '<div class="metis-builder-campaign-media"><img src="' + esc(s(moduleContent.image || '')) + '" alt=""></div>' : '') +
+                        '<div><strong>' + esc(s(moduleContent.title || optionLabel(state.options.donationCampaigns, moduleContent.campaign_id, 'Campaign summary'))) + '</strong><p>' + esc(plainTextFromHtml(s(moduleContent.content || '')).slice(0, 180) || 'Campaign content appears here.') + '</p></div>' +
+                    '</div></div>';
+                }
+                if (module.type === 'button') {
+                    return '<div class="metis-builder-column"><div class="metis-builder-button-row is-' + esc(s(moduleContent.align || 'left')) + '"><a class="metis-builder-button" href="' + esc(s(moduleContent.url || '#')) + '" data-builder-link="1">' + esc(s(moduleContent.label || 'Learn more')) + '</a></div></div>';
+                }
+                if (module.type === 'image') {
+                    return '<div class="metis-builder-column"><figure class="metis-builder-image">' +
+                        (moduleContent.src ? '<img src="' + esc(s(moduleContent.src || '')) + '" alt="' + esc(s(moduleContent.alt || '')) + '"' + imageDimensionAttrs(moduleContent) + '>' : '<div class="metis-builder-media-empty">Choose an image in settings.</div>') +
+                        '<figcaption>' + esc(s(moduleContent.caption || '')) + '</figcaption>' +
+                    '</figure></div>';
+                }
+                return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Column block</strong><span>Configure this column in settings.</span></div></div>';
+            }
             if (type === 'heading') {
                 var headingVariant = s(content.variant || '') === 'section_header' ? 'section_header' : 'default';
                 var level = headingVariant === 'section_header' ? 'h1' : (['h1', 'h2', 'h3', 'h4'].indexOf(s(content.level || 'h2')) !== -1 ? s(content.level || 'h2') : 'h2');
@@ -3529,7 +3643,7 @@
             } else if (type === 'columns') {
                 var cols = Array.isArray(content.columns) ? content.columns : [];
                 body = '<div class="metis-builder-columns" style="--metis-builder-cols:' + esc(String(Math.max(1, cols.length || 2))) + ';">' + cols.map(function (col, colIndex) {
-                    return '<div class="metis-builder-column metis-se-rich-editor" id="metis-v2-canvas-col-' + esc(String(index)) + '-' + esc(String(colIndex)) + '" contenteditable="' + ((state.canEdit || (state.id < 1 && state.canCreate)) ? 'true' : 'false') + '" spellcheck="true" data-v2-inline-col="' + esc(String(colIndex)) + '" data-inline-index="' + esc(String(index)) + '">' + s(col.body || '<p>Column text</p>') + '</div>';
+                    return renderColumnModulePreview(col, colIndex);
                 }).join('') + '</div>';
             } else if (type === 'feature_grid' || type === 'card_grid') {
                 var items = Array.isArray(content.items) ? content.items : [];
@@ -3805,6 +3919,48 @@
                     '<option value="3"' + (columnCount === 3 ? ' selected' : '') + '>3</option>' +
                     '<option value="4"' + (columnCount === 4 ? ' selected' : '') + '>4</option>' +
                 '</select></div>';
+                columns.forEach(function (column, columnIndex) {
+                    var module = normalizeColumnModule(column && column.module, column && column.body);
+                    var moduleContent = module.content && typeof module.content === 'object' ? module.content : {};
+                    html += '<div class="metis-se-card"><div class="metis-se-field-grid">';
+                    html += '<div class="metis-se-field-row"><label>Column ' + esc(String(columnIndex + 1)) + ' Content</label><select class="metis-se-select" data-v2-column-type="' + esc(String(columnIndex)) + '">' +
+                        '<option value="text"' + (module.type === 'text' ? ' selected' : '') + '>Text</option>' +
+                        '<option value="form"' + (module.type === 'form' ? ' selected' : '') + '>Form</option>' +
+                        '<option value="donation_form"' + (module.type === 'donation_form' ? ' selected' : '') + '>Donation Form</option>' +
+                        '<option value="donation_progress"' + (module.type === 'donation_progress' ? ' selected' : '') + '>Donation Progress</option>' +
+                        '<option value="campaign_summary"' + (module.type === 'campaign_summary' ? ' selected' : '') + '>Campaign Summary</option>' +
+                        '<option value="button"' + (module.type === 'button' ? ' selected' : '') + '>Button</option>' +
+                        '<option value="image"' + (module.type === 'image' ? ' selected' : '') + '>Image</option>' +
+                    '</select></div>';
+                    if (module.type === 'text') {
+                        html += '<div class="metis-se-field-row"><label>Text</label><textarea class="metis-se-textarea" rows="6" data-v2-column-field="body" data-column-idx="' + esc(String(columnIndex)) + '">' + esc(s(moduleContent.body || '<p></p>')) + '</textarea><div class="metis-se-field-help">Rich text is also editable directly on the canvas.</div></div>';
+                    } else if (module.type === 'form') {
+                        html += '<div class="metis-se-field-row"><label>Form</label><select class="metis-se-select" data-v2-column-field="form_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.forms, moduleContent.form_id, 'Select form') + '</select></div>';
+                        html += '<div class="metis-se-field-row"><label>Submit Label</label><input class="metis-se-input" data-v2-column-field="submit_label" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.submit_label || 'Submit')) + '"></div>';
+                    } else if (module.type === 'donation_form') {
+                        html += '<div class="metis-se-field-row"><label>Campaign</label><select class="metis-se-select" data-v2-column-field="campaign_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.donationCampaigns, moduleContent.campaign_id, 'Select campaign') + '</select></div>';
+                        html += '<div class="metis-se-field-row"><label>Preset Amounts</label><input class="metis-se-input" data-v2-column-field="preset_amounts" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(presetAmountsInputValue(moduleContent.preset_amounts || [25, 50, 100])) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Mode</label><select class="metis-se-select" data-v2-column-field="mode" data-column-idx="' + esc(String(columnIndex)) + '"><option value="both"' + (s(moduleContent.mode || 'both') === 'both' ? ' selected' : '') + '>One-time and monthly</option><option value="one_time"' + (s(moduleContent.mode || '') === 'one_time' ? ' selected' : '') + '>One-time only</option><option value="monthly"' + (s(moduleContent.mode || '') === 'monthly' ? ' selected' : '') + '>Monthly only</option></select></div>';
+                        html += '<div class="metis-se-field-row"><label class="metis-se-check-label"><input type="checkbox" data-v2-column-check="allow_custom_amount" data-column-idx="' + esc(String(columnIndex)) + '"' + (moduleContent.allow_custom_amount ? ' checked' : '') + '> Allow custom amount</label></div>';
+                    } else if (module.type === 'donation_progress') {
+                        html += '<div class="metis-se-field-row"><label>Campaign</label><select class="metis-se-select" data-v2-column-field="campaign_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.donationCampaigns, moduleContent.campaign_id, 'Use manual values') + '</select></div>';
+                        html += '<div class="metis-se-field-row"><label>Goal Amount</label><input class="metis-se-input" data-v2-column-field="goal_amount" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.goal_amount || '')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Raised Amount</label><input class="metis-se-input" data-v2-column-field="raised_amount" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.raised_amount || '')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Percent</label><input class="metis-se-input" data-v2-column-field="percent" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.percent || '')) + '" placeholder="Auto"></div>';
+                    } else if (module.type === 'campaign_summary') {
+                        html += '<div class="metis-se-field-row"><label>Campaign</label><select class="metis-se-select" data-v2-column-field="campaign_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.donationCampaigns, moduleContent.campaign_id, 'Use custom content') + '</select></div>';
+                        html += '<div class="metis-se-field-row"><label>Title</label><input class="metis-se-input" data-v2-column-field="title" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.title || '')) + '"></div>';
+                    } else if (module.type === 'button') {
+                        html += '<div class="metis-se-field-row"><label>Label</label><input class="metis-se-input" data-v2-column-field="label" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.label || 'Learn more')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>URL</label><input class="metis-se-input" data-v2-column-field="url" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.url || '#')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Alignment</label><select class="metis-se-select" data-v2-column-field="align" data-column-idx="' + esc(String(columnIndex)) + '"><option value="left"' + (s(moduleContent.align || 'left') === 'left' ? ' selected' : '') + '>Left</option><option value="center"' + (s(moduleContent.align || '') === 'center' ? ' selected' : '') + '>Center</option><option value="right"' + (s(moduleContent.align || '') === 'right' ? ' selected' : '') + '>Right</option></select></div>';
+                    } else if (module.type === 'image') {
+                        html += '<div class="metis-se-field-row"><label>Image URL</label><input class="metis-se-input" data-v2-column-field="src" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.src || '')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Alt Text</label><input class="metis-se-input" data-v2-column-field="alt" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.alt || '')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Caption</label><input class="metis-se-input" data-v2-column-field="caption" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.caption || '')) + '"></div>';
+                    }
+                    html += '</div></div>';
+                });
             } else if (sec.type === 'feature_grid' || sec.type === 'card_grid') {
                 var items = Array.isArray(sec.content.items) ? sec.content.items : [];
                 var fgCols = parseInt(s(sec.content.columns || '3'), 10) || 3;
@@ -5637,18 +5793,48 @@
                     var count = Math.max(1, Math.min(4, parseInt(s(target.value || '2'), 10) || 2));
                     var widths = ['100%', '50%', '33%', '25%'];
                     var cols = Array.isArray(sec.content.columns) ? sec.content.columns : [];
-                    while (cols.length < count) cols.push({ width: widths[count - 1], body: '<p></p>' });
+                    while (cols.length < count) cols.push({ width: widths[count - 1], body: '<p></p>', module: defaultColumnModule('text') });
                     if (cols.length > count) cols = cols.slice(0, count);
-                    cols = cols.map(function (col) { return { width: widths[count - 1], body: s(col.body || '<p></p>') || '<p></p>' }; });
+                    cols = cols.map(function (col) { return normalizeColumnEntry(col, widths[count - 1]); });
                     sec.content.columns = cols;
                     renderStep2Editor();
+                    renderBuilderCanvas();
                     setDirtyAutosave();
                     return;
                 }
                 if (target.matches('[data-v2-rich=\"col_body\"]')) {
                     var colIdx = parseInt(s(target.getAttribute('data-col-idx') || '-1'), 10);
-                    if (colIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[colIdx]) sec.content.columns[colIdx].body = target.innerHTML;
+                    if (colIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[colIdx]) {
+                        sec.content.columns[colIdx].body = target.innerHTML;
+                        sec.content.columns[colIdx].module = normalizeColumnModule({ type: 'text', content: { body: target.innerHTML } }, target.innerHTML);
+                    }
                     setDirtyAutosave();
+                    return;
+                }
+                if (target.matches('[data-v2-column-field]')) {
+                    var fieldColIdx = parseInt(s(target.getAttribute('data-column-idx') || '-1'), 10);
+                    var fieldName = s(target.getAttribute('data-v2-column-field') || '');
+                    if (fieldColIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[fieldColIdx]) {
+                        var fieldColumn = sec.content.columns[fieldColIdx];
+                        fieldColumn.module = normalizeColumnModule(fieldColumn.module, fieldColumn.body);
+                        var fieldContent = fieldColumn.module.content && typeof fieldColumn.module.content === 'object' ? fieldColumn.module.content : {};
+                        if (fieldName === 'body') {
+                            fieldContent.body = s(target.value || '<p></p>') || '<p></p>';
+                            fieldColumn.body = fieldContent.body;
+                        } else if (fieldName === 'preset_amounts') {
+                            fieldContent.preset_amounts = normalizePresetAmounts(target.value || '');
+                        } else if (fieldName === 'goal_amount' || fieldName === 'raised_amount') {
+                            fieldContent[fieldName] = normalizeDecimalString(target.value || '', 1000000000);
+                            target.value = fieldContent[fieldName];
+                        } else if (fieldName === 'percent') {
+                            fieldContent.percent = normalizePercentString(target.value || '');
+                            target.value = fieldContent.percent;
+                        } else {
+                            fieldContent[fieldName] = s(target.value || '');
+                        }
+                        renderBuilderCanvas();
+                        setDirtyAutosave();
+                    }
                     return;
                 }
                 if (target.id === 'metis-v2-feature-cols') {
@@ -5766,6 +5952,21 @@
                 if (target.id === 'metis-v2-button-align') { sec.content.align = ['left', 'center', 'right'].indexOf(s(target.value || 'left')) === -1 ? 'left' : s(target.value || 'left'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-background') { sec.settings = normalizeSectionSettings(Object.assign({}, sec.settings || {}, { background: target.value })); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-type') { sec.type = availableSectionTypes().indexOf(s(target.value || 'text')) === -1 ? 'text' : s(target.value); sec.content = defaultSectionByType(sec.type).content; renderSectionList(); renderStep2Editor(); setDirtyAutosave(); return; }
+                if (target.matches('[data-v2-column-type]')) {
+                    var typeColIdx = parseInt(s(target.getAttribute('data-v2-column-type') || '-1'), 10);
+                    if (typeColIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[typeColIdx]) {
+                        var typeColumn = sec.content.columns[typeColIdx];
+                        var nextType = s(target.value || 'text');
+                        typeColumn.module = normalizeColumnModule(defaultColumnModule(nextType), typeColumn.body);
+                        if (typeColumn.module.type === 'text') {
+                            typeColumn.body = s(typeColumn.module.content.body || typeColumn.body || '<p></p>') || '<p></p>';
+                        }
+                        renderStep2Editor();
+                        renderBuilderCanvas();
+                        setDirtyAutosave();
+                    }
+                    return;
+                }
                 if (target.id === 'metis-v2-form-id') { sec.content.form_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-donation-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-donation-mode') { sec.content.mode = ['one_time', 'monthly', 'both'].indexOf(s(target.value || 'both')) === -1 ? 'both' : s(target.value || 'both'); setDirtyAutosave(); return; }
@@ -5773,6 +5974,18 @@
                 if (target.id === 'metis-v2-donation-show-name') { sec.content.show_name = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-donation-show-email') { sec.content.show_email = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-donation-show-phone') { sec.content.show_phone = !!target.checked; setDirtyAutosave(); return; }
+                if (target.matches('[data-v2-column-check]')) {
+                    var checkColIdx = parseInt(s(target.getAttribute('data-column-idx') || '-1'), 10);
+                    var checkField = s(target.getAttribute('data-v2-column-check') || '');
+                    if (checkColIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[checkColIdx]) {
+                        var checkColumn = sec.content.columns[checkColIdx];
+                        checkColumn.module = normalizeColumnModule(checkColumn.module, checkColumn.body);
+                        checkColumn.module.content[checkField] = !!target.checked;
+                        renderBuilderCanvas();
+                        setDirtyAutosave();
+                    }
+                    return;
+                }
                 if (target.id === 'metis-v2-progress-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-campaign-summary-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-divider-style') { sec.content.style = ['solid', 'dashed', 'dotted'].indexOf(s(target.value || 'solid')) === -1 ? 'solid' : s(target.value || 'solid'); renderBuilderCanvas(); setDirtyAutosave(); return; }

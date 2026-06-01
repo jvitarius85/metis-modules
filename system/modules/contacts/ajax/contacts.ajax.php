@@ -75,7 +75,7 @@ function metis_contacts_normalize_relationships( array $raw, string $self_cid ):
 
         $related_cid = metis_text_clean( (string) ( $entry['related_contact_cid'] ?? $entry['related_contact_id'] ?? '' ) );
         $relation_type = metis_text_clean( (string) ( $entry['relation_type'] ?? '' ) );
-        $notes = metis_text_clean( (string) ( $entry['notes'] ?? '' ) );
+        $notes = metis_textarea_clean( (string) ( $entry['notes'] ?? '' ) );
 
         if ( $related_cid === '' || $relation_type === '' || $related_cid === $self_cid ) {
             continue;

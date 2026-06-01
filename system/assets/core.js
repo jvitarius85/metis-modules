@@ -1554,6 +1554,303 @@ Metis.ui.select = (function() {
     };
 }());
 
+Metis.ui.richText = (function() {
+    var selectionStore = Object.create(null);
+    var iconMarkupCache = Object.create(null);
+
+    function appBasePath() {
+        var ajax = String(
+            (window.Metis && Metis.ajax && (Metis.ajax.url || Metis.ajax.ajax_url)) ||
+            (window.metisAjax && window.metisAjax.ajax_url) ||
+            ''
+        ).trim();
+        if (ajax) {
+            return ajax.replace(/\/api\/ajax\/?$/, '').replace(/\/+$/, '');
+        }
+        return '';
+    }
+
+    function iconUrl(slug) {
+        return appBasePath() + '/svg/' + encodeURIComponent(String(slug || '').replace(/_/g, '-'));
+    }
+
+    function iconFallbackUrl(slug) {
+        return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
+    }
+
+    function iconCacheKey(img) {
+        return [
+            String(img && img.getAttribute && img.getAttribute('src') || '').trim(),
+            String(img && img.getAttribute && img.getAttribute('data-icon-fallback') || '').trim()
+        ].join('||');
+    }
+
+    function inlineSvgNode(markup, img) {
+        if (!markup || !img || !img.parentNode) return null;
+        var template = document.createElement('template');
+        template.innerHTML = String(markup || '').trim();
+        var svg = template.content && template.content.firstElementChild ? template.content.firstElementChild : null;
+        if (!svg || String(svg.tagName || '').toLowerCase() !== 'svg') return null;
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+        svg.classList.add('metis-inline-icon-svg');
+        if (img.className) svg.classList.add.apply(svg.classList, img.className.split(/\s+/).filter(Boolean));
+        return svg;
+    }
+
+    function fetchIconMarkup(url) {
+        if (!url || typeof fetch !== 'function') return Promise.resolve('');
+        return fetch(url, { credentials: 'same-origin' }).then(function(response) {
+            if (!response || !response.ok) return '';
+            return response.text();
+        }).then(function(markup) {
+            return /<svg[\s>]/i.test(String(markup || '')) ? String(markup || '') : '';
+        }).catch(function() {
+            return '';
+        });
+    }
+
+    function resolveIconMarkup(img) {
+        var key = iconCacheKey(img);
+        if (!key || key === '||') return Promise.resolve('');
+        if (iconMarkupCache[key]) return iconMarkupCache[key];
+        var primary = String(img.getAttribute('src') || '').trim();
+        var fallback = String(img.getAttribute('data-icon-fallback') || '').trim();
+        iconMarkupCache[key] = fetchIconMarkup(primary).then(function(markup) {
+            if (markup || !fallback || fallback === primary) return markup;
+            return fetchIconMarkup(fallback);
+        });
+        return iconMarkupCache[key];
+    }
+
+    function hydrateIcon(img) {
+        if (!img || img.dataset.iconHydrated === '1' || img.dataset.iconHydrating === '1') return;
+        img.dataset.iconHydrating = '1';
+        resolveIconMarkup(img).then(function(markup) {
+            img.dataset.iconHydrating = '0';
+            if (!markup || !img.parentNode) return;
+            var svg = inlineSvgNode(markup, img);
+            if (!svg) return;
+            img.dataset.iconHydrated = '1';
+            img.parentNode.replaceChild(svg, img);
+        });
+    }
+
+    function bindIconFallbacks(scope) {
+        (scope || document).querySelectorAll('img[data-icon-fallback]').forEach(function(img) {
+            if (img.dataset.iconFallbackBound === '1') return;
+            img.dataset.iconFallbackBound = '1';
+            img.addEventListener('error', function onError() {
+                var fallback = String(img.getAttribute('data-icon-fallback') || '').trim();
+                if (!fallback || img.dataset.iconFallbackUsed === '1') return;
+                img.dataset.iconFallbackUsed = '1';
+                img.src = fallback;
+            }, { once: false });
+            hydrateIcon(img);
+        });
+    }
+
+    function normalizeHtml(value) {
+        var current = String(value || '');
+        if (!current) return '';
+        var replacements = {
+            'Ã¢ÂÂ': '’',
+            'Ã¢ÂÂ': '‘',
+            'Ã¢ÂÂ': '“',
+            'Ã¢ÂÂ': '”',
+            'Ã¢ÂÂ¦': '…',
+            'Ã¢ÂÂ': '–',
+            'Ã¢ÂÂ': '—',
+            'â€™': '’',
+            'â€˜': '‘',
+            'â€œ': '“',
+            'â€': '”',
+            'â€¦': '…',
+            'â€“': '–',
+            'â€”': '—',
+            'â': '’',
+            'â': '‘',
+            'â': '“',
+            'â': '”',
+            'â¦': '…',
+            'â': '–',
+            'â': '—',
+            'ÃÂ ': ' ',
+            'Â ': ' '
+        };
+        Object.keys(replacements).forEach(function(key) {
+            current = current.split(key).join(replacements[key]);
+        });
+        current = current.replace(/&Acirc;(&nbsp;|&#160;|&#xA0;|&#xa0;)/gi, ' ');
+        current = current.replace(/Â(&nbsp;|&#160;|&#xA0;|&#xa0;)/gi, ' ');
+        current = current.replace(/Ã+(?=\s|$)/g, '');
+        current = current.replace(/Ã(?=[A-Za-z0-9])/g, '');
+        current = current.replace(/\u00c2+(?=\s|$)/g, '');
+        current = current.replace(/\u00c2(?=[A-Za-z0-9])/g, '');
+        current = current.replace(/\u00a0/g, ' ');
+        current = current.replace(/\uFFFD+/g, '');
+        return current;
+    }
+
+    function saveSelection(editor) {
+        var key = String(editor && editor.getAttribute('data-metis-rich-editor') || '');
+        var selection = window.getSelection ? window.getSelection() : null;
+        if (!key || !selection || !selection.rangeCount) return;
+        var range = selection.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) return;
+        selectionStore[key] = range.cloneRange();
+    }
+
+    function restoreSelection(editor) {
+        var key = String(editor && editor.getAttribute('data-metis-rich-editor') || '');
+        var selection = window.getSelection ? window.getSelection() : null;
+        var range = key ? selectionStore[key] : null;
+        if (!selection || !range) return null;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return range;
+    }
+
+    function placeCaretAtEnd(editor) {
+        if (!editor) return;
+        editor.focus();
+        var range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        var selection = window.getSelection ? window.getSelection() : null;
+        if (!selection) return;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        saveSelection(editor);
+    }
+
+    function selectedHtml(range) {
+        if (!range) return '';
+        var div = document.createElement('div');
+        div.appendChild(range.cloneContents());
+        return div.innerHTML;
+    }
+
+    function wrapSelection(editor, html) {
+        if (!editor) return;
+        restoreSelection(editor);
+        document.execCommand('insertHTML', false, html);
+        editor.innerHTML = normalizeHtml(editor.innerHTML || '');
+        saveSelection(editor);
+    }
+
+    function topLevelNode(editor, range) {
+        var node = range && range.commonAncestorContainer ? range.commonAncestorContainer : null;
+        if (!node) return null;
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+        while (node && node.parentNode && node.parentNode !== editor) {
+            node = node.parentNode;
+        }
+        return node && node !== editor && node.nodeType === Node.ELEMENT_NODE ? node : null;
+    }
+
+    function applySpanStyle(editor, styleText) {
+        var selection = window.getSelection ? window.getSelection() : null;
+        var range = restoreSelection(editor) || (selection && selection.rangeCount ? selection.getRangeAt(0) : null);
+        if (!range || range.collapsed) return;
+        wrapSelection(editor, '<span style="' + String(styleText || '') + '">' + selectedHtml(range) + '</span>');
+    }
+
+    function applyAlignment(editor, align) {
+        var selection = window.getSelection ? window.getSelection() : null;
+        var range = restoreSelection(editor) || (selection && selection.rangeCount ? selection.getRangeAt(0) : null);
+        var target = topLevelNode(editor, range);
+        if (target) target.style.textAlign = align;
+        else editor.style.textAlign = align;
+        saveSelection(editor);
+    }
+
+    function closeMenus(root) {
+        (root || document).querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function(node) {
+            node.classList.remove('is-open');
+        });
+    }
+
+    function normalizeEditor(editor) {
+        if (!editor) return '';
+        var normalized = normalizeHtml(editor.innerHTML || '');
+        if (String(editor.innerHTML || '') !== normalized) {
+            editor.innerHTML = normalized;
+            placeCaretAtEnd(editor);
+        }
+        return normalized;
+    }
+
+    async function applyCommand(editor, command, value) {
+        if (!editor || !command) return false;
+        editor.focus();
+        if (!restoreSelection(editor)) {
+            placeCaretAtEnd(editor);
+        }
+        if (command === 'createLink') {
+            var url = await Metis.prompt.open({
+                title: 'Insert Link',
+                message: 'Provide the destination URL for the selected text.',
+                label: 'URL',
+                defaultValue: 'https://',
+                required: true,
+                confirmLabel: 'Insert Link'
+            });
+            if (!url) return false;
+            document.execCommand('createLink', false, url);
+        } else if (command === 'formatBlock') {
+            document.execCommand('formatBlock', false, value === 'P' ? '<p>' : '<' + String(value || 'P').toLowerCase() + '>');
+        } else if (command === 'justifyLeft' || command === 'justifyCenter' || command === 'justifyRight') {
+            applyAlignment(editor, command === 'justifyCenter' ? 'center' : (command === 'justifyRight' ? 'right' : 'left'));
+        } else if (command === 'insertDivider') {
+            document.execCommand('insertHTML', false, '<hr class="metis-inline-divider">');
+        } else {
+            document.execCommand(command, false, null);
+        }
+        normalizeEditor(editor);
+        saveSelection(editor);
+        return true;
+    }
+
+    function applyAction(editor, action, value, color) {
+        if (!editor || !action) return;
+        editor.focus();
+        if (!restoreSelection(editor)) {
+            placeCaretAtEnd(editor);
+        }
+        if (action === 'block') {
+            document.execCommand('formatBlock', false, value === 'P' ? '<p>' : '<' + String(value || 'P').toLowerCase() + '>');
+        } else if (action === 'merge') {
+            document.execCommand('insertText', false, String(value || ''));
+        } else if (action === 'size') {
+            var sizeMap = { sm: '0.92rem', lg: '1.12rem', xl: '1.28rem' };
+            if (value === 'default') document.execCommand('removeFormat', false, null);
+            else applySpanStyle(editor, 'font-size:' + (sizeMap[value] || '1rem'));
+        } else if (action === 'color') {
+            applySpanStyle(editor, 'color:' + (color || value || ''));
+        } else if (action === 'weight') {
+            applySpanStyle(editor, 'font-weight:' + String(value || '400'));
+        }
+        normalizeEditor(editor);
+        saveSelection(editor);
+    }
+
+    return {
+        appBasePath: appBasePath,
+        iconUrl: iconUrl,
+        iconFallbackUrl: iconFallbackUrl,
+        bindIconFallbacks: bindIconFallbacks,
+        normalizeHtml: normalizeHtml,
+        normalizeEditor: normalizeEditor,
+        saveSelection: saveSelection,
+        restoreSelection: restoreSelection,
+        placeCaretAtEnd: placeCaretAtEnd,
+        closeMenus: closeMenus,
+        applyCommand: applyCommand,
+        applyAction: applyAction
+    };
+}());
+
 /* ============================================================
    CORE TOOLTIP SYSTEM
    data-metis-tooltip="Message"
