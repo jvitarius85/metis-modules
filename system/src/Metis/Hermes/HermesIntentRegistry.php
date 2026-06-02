@@ -44,6 +44,7 @@ final class HermesIntentRegistry {
         'query_giving_summary' => 'REPORT',
         'resolve_help_issue' => 'HELP',
         'create_user' => 'CREATE',
+        'workspace_user_create' => 'CREATE',
         'create_post' => 'CREATE',
         'create_job' => 'CREATE',
         'send_announcement' => 'EXECUTE',

@@ -12,6 +12,30 @@ final class HermesMemoryStore {
         $this->repository->upsertMemory( 'conversation:' . $session_code, 'conversation_summary', $session_code, $summary );
     }
 
+    public function rememberRecentEntity( string $session_code, array $entity ): void {
+        if ( $session_code === '' || $entity === [] ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'entity:' . $session_code, 'recent_entity', $session_code, $entity );
+    }
+
+    public function rememberPendingWorkflow( string $session_code, array $workflow ): void {
+        if ( $session_code === '' || $workflow === [] ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'workflow:' . $session_code, 'pending_workflow', $session_code, $workflow );
+    }
+
+    public function rememberPendingDisambiguation( string $session_code, array $disambiguation ): void {
+        if ( $session_code === '' || $disambiguation === [] ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'disambiguation:' . $session_code, 'pending_disambiguation', $session_code, $disambiguation );
+    }
+
     public function rememberReport( string $report_code, array $summary ): void {
         $this->repository->upsertMemory( 'report:' . $report_code, 'diagnostic_report', 'reports', $summary );
     }
@@ -29,5 +53,88 @@ final class HermesMemoryStore {
         $row = (array) ( $rows[0] ?? [] );
 
         return (array) ( $row['contents'] ?? [] );
+    }
+
+    public function recallRecentEntity( string $session_code ): array {
+        if ( $session_code === '' ) {
+            return [];
+        }
+
+        $rows = $this->repository->recentMemory( $session_code, 6 );
+        foreach ( $rows as $row ) {
+            if ( (string) ( $row['memory_type'] ?? '' ) !== 'recent_entity' ) {
+                continue;
+            }
+
+            return (array) ( $row['contents'] ?? [] );
+        }
+
+        return [];
+    }
+
+    public function recallPendingWorkflow( string $session_code ): array {
+        if ( $session_code === '' ) {
+            return [];
+        }
+
+        $rows = $this->repository->recentMemory( $session_code, 6 );
+        foreach ( $rows as $row ) {
+            if ( (string) ( $row['memory_type'] ?? '' ) !== 'pending_workflow' ) {
+                continue;
+            }
+
+            $contents = (array) ( $row['contents'] ?? [] );
+            if ( $contents === [] ) {
+                return [];
+            }
+
+            return [
+                'updated_at' => (string) ( $row['updated_at'] ?? '' ),
+                'contents' => $contents,
+            ];
+        }
+
+        return [];
+    }
+
+    public function clearPendingWorkflow( string $session_code ): void {
+        if ( $session_code === '' ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'workflow:' . $session_code, 'pending_workflow', $session_code, [] );
+    }
+
+    public function recallPendingDisambiguation( string $session_code ): array {
+        if ( $session_code === '' ) {
+            return [];
+        }
+
+        $rows = $this->repository->recentMemory( $session_code, 8 );
+        foreach ( $rows as $row ) {
+            if ( (string) ( $row['memory_type'] ?? '' ) !== 'pending_disambiguation' ) {
+                continue;
+            }
+
+            $contents = (array) ( $row['contents'] ?? [] );
+            if ( $contents === [] ) {
+                return [];
+            }
+
+            return [
+                'updated_at' => (string) ( $row['updated_at'] ?? '' ),
+                'contents' => $contents,
+            ];
+        }
+
+        return [];
+    }
+
+    public function clearPendingDisambiguation( string $session_code ): void {
+        if ( $session_code === '' ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'disambiguation:' . $session_code, 'pending_disambiguation', $session_code, [] );
     }
 }

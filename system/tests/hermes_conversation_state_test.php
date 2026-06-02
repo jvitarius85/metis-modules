@@ -36,6 +36,9 @@ $assert = static function ( bool $condition, string $message ) use ( &$failures 
 $state = \Metis\Core\Application::service( 'hermes_conversation_state' );
 $repository = \Metis\Core\Application::service( 'hermes_repository' );
 $memory = \Metis\Core\Application::service( 'hermes_memory_store' );
+$manager = \Metis\Core\Application::service( 'hermes_conversation_state_manager' );
+$resolver = \Metis\Core\Application::service( 'hermes_conversation_resolver' );
+$store = \Metis\Core\Application::service( 'hermes_conversation_store' );
 
 $turn = $state->openTurn( 0, 'List users in the workspace', 'TESTSTATE001' );
 $session = (array) ( $turn['session'] ?? [] );
@@ -73,6 +76,25 @@ $assert( (string) ( $updatedSession['last_intent'] ?? '' ) === 'list_users', 'Co
 $assert( (string) ( $summary['top_level_intent'] ?? '' ) === 'LOOKUP', 'Conversation summaries should retain the top-level intent.' );
 $assert( (string) ( $summary['response_type'] ?? '' ) === 'ExecutionResult', 'Conversation summaries should retain the response type.' );
 $assert( (string) ( $summary['status'] ?? '' ) === 'success', 'Conversation summaries should retain the response status.' );
+
+$memory->rememberPendingWorkflow( 'TESTSTATE001', [ 'type' => 'create_user', 'step' => 'email', 'request' => [ 'display_name' => 'Jordan Lee' ] ] );
+$memory->rememberPendingDisambiguation( 'TESTSTATE001', [ 'kind' => 'entity_attribute', 'candidates' => [ [ 'name' => 'Jordan Lee', 'email' => 'jordan@example.org' ] ] ] );
+$action = $repository->createAction(
+    (int) ( $session['id'] ?? 0 ),
+    0,
+    'open_help_topic',
+    'Open Help Topic',
+    [ 'topic_id' => 'finance.gl_entry' ],
+    [ 'title' => 'Open Help Topic', 'summary' => 'Approval required.', 'requires_approval' => true ]
+);
+$rehydrated = $manager->hydrateRuntimeContext( $updatedSession, [] );
+$resolvedContext = $resolver->hydrateContext( $updatedSession, [] );
+
+$assert( (string) ( $rehydrated['pending_workflow']['step'] ?? '' ) === 'email', 'Conversation state manager should expose pending workflow context.' );
+$assert( ! empty( $rehydrated['pending_disambiguation']['candidates'] ), 'Conversation state manager should expose pending disambiguation context.' );
+$assert( (string) ( $rehydrated['pending_action']['action_code'] ?? '' ) === (string) ( $action['action_code'] ?? '' ), 'Conversation state manager should expose the latest pending action.' );
+$assert( (string) ( $resolvedContext['pending_action']['action_type'] ?? '' ) === 'open_help_topic', 'Conversation resolver should hydrate pending action metadata.' );
+$assert( $store->pendingWorkflow( 'TESTSTATE001' ) !== [], 'Conversation store should expose pending workflow state.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

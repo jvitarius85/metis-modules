@@ -28,12 +28,16 @@ $registry = new \Metis\Hermes\HermesOperationsRegistry(
 
 $operations = $registry->definitions();
 $createUser = (array) ( $operations['create_user'] ?? [] );
+$workspaceUserCreate = (array) ( $operations['workspace_user_create'] ?? [] );
 $lookupProfile = (array) ( $operations['lookup_profile'] ?? [] );
 
 $assert( $createUser !== [], 'Operations registry should include create_user.' );
 $assert( (string) ( $createUser['tool_key'] ?? '' ) === 'hermes.user.create_user', 'Operations registry should retain tool mapping.' );
 $assert( (string) ( $createUser['top_level_intent'] ?? '' ) === 'CREATE', 'Create operations should surface the CREATE top-level intent.' );
 $assert( ! empty( $createUser['dispatch']['method'] ), 'Operations registry should expose dispatch metadata.' );
+$assert( $workspaceUserCreate !== [], 'Operations registry should include workspace_user_create.' );
+$assert( (string) ( $workspaceUserCreate['tool_key'] ?? '' ) === 'hermes.user.create_user', 'Workspace user create should reuse the user creation tool mapping.' );
+$assert( (string) ( $workspaceUserCreate['top_level_intent'] ?? '' ) === 'CREATE', 'Workspace user create should surface the CREATE top-level intent.' );
 
 $assert( (string) ( $lookupProfile['top_level_intent'] ?? '' ) === 'LOOKUP', 'Lookup operations should surface the LOOKUP top-level intent.' );
 $assert( (string) ( $lookupProfile['risk_level'] ?? '' ) === 'low', 'Lookup operations should inherit risk level from the tool registry.' );

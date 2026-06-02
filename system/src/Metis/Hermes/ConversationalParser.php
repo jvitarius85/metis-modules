@@ -11,7 +11,18 @@ final class ConversationalParser {
     ];
 
     private const CONTEXT_PATTERNS = [
+        'his',
+        'her',
+        'hers',
+        'him',
+        'they',
+        'them',
+        'their',
+        'it',
         'that user',
+        'that donor',
+        'that contact',
+        'that campaign',
         'last one',
         'do it again',
         'that module',
@@ -228,17 +239,24 @@ final class ConversationalParser {
         ];
 
         foreach ( self::CONTEXT_PATTERNS as $pattern ) {
-            if ( str_contains( $normalized, $pattern ) ) {
+            if ( preg_match( '/\b' . preg_quote( $pattern, '/' ) . '\b/', $normalized ) === 1 ) {
                 $context['references'][] = $pattern;
             }
         }
 
         if ( $context['references'] !== [] ) {
-            $memory = $this->memory?->recall( 'conversation:' . $session_code, 3 ) ?? [];
-            if ( $memory === [] ) {
-                $context['ambiguous'] = true;
-            } else {
+            $recentEntity = $this->memory?->recallRecentEntity( $session_code ) ?? [];
+            if ( $recentEntity !== [] ) {
+                $context['recent_entity'] = $recentEntity;
+            }
+
+            $memory = $this->memory?->recallConversation( $session_code ) ?? [];
+            if ( $memory !== [] ) {
                 $context['memory'] = $memory;
+            }
+
+            if ( empty( $context['recent_entity'] ) && empty( $context['memory'] ) ) {
+                $context['ambiguous'] = true;
             }
         }
 
@@ -410,8 +428,8 @@ final class ConversationalParser {
         $entity_subject = (string) ( $entities[0]['subject'] ?? '' );
         if ( $entity_subject !== '' ) {
             $payload['subject'] = $entity_subject;
-        } elseif ( ! empty( $context['memory'][0]['contents']['query'] ) ) {
-            $payload['subject'] = (string) $context['memory'][0]['contents']['query'];
+        } elseif ( ! empty( $context['recent_entity']['subject'] ) ) {
+            $payload['subject'] = (string) $context['recent_entity']['subject'];
         }
 
         if ( preg_match( '/\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b/i', $fragment, $match ) ) {
@@ -447,7 +465,7 @@ final class ConversationalParser {
             ];
         }
 
-        return $payload;
+        return $this->normalizeContextualPayload( $command_name, $fragment, $payload, $context );
     }
 
     private function commandAcceptsKeyPayload( string $command_name, string $kind, string $value ): bool {
@@ -522,6 +540,63 @@ final class ConversationalParser {
         }
 
         return $candidates;
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @param array<string,mixed> $context
+     * @return array<string,mixed>
+     */
+    private function normalizeContextualPayload( string $command_name, string $fragment, array $payload, array $context ): array {
+        $recentEntity = (array) ( $context['recent_entity'] ?? [] );
+        $recentSubject = trim( (string) ( $recentEntity['subject'] ?? '' ) );
+
+        if ( $recentSubject === '' || ! $this->hasContextReference( $fragment ) ) {
+            return $payload;
+        }
+
+        if ( in_array( $command_name, [ 'lookup_profile', 'get_entity_attribute' ], true ) ) {
+            if ( $command_name === 'lookup_profile' ) {
+                $request = (array) ( $payload['profile_request'] ?? [] );
+                $request['subject'] = $recentSubject;
+                if ( trim( (string) ( $request['entity_hint'] ?? '' ) ) === '' ) {
+                    $request['entity_hint'] = (string) ( $recentEntity['entity_hint'] ?? 'auto' );
+                }
+                $payload['profile_request'] = $request;
+            } else {
+                $request = (array) ( $payload['attribute_request'] ?? [] );
+                $request['subject'] = $recentSubject;
+                if ( trim( (string) ( $request['entity_hint'] ?? '' ) ) === '' ) {
+                    $request['entity_hint'] = (string) ( $recentEntity['entity_hint'] ?? 'auto' );
+                }
+                $payload['attribute_request'] = $request;
+            }
+
+            return $payload;
+        }
+
+        $command = $this->commands->definition( $command_name );
+        if ( empty( $command['supports_context'] ) ) {
+            return $payload;
+        }
+
+        $payload['subject'] = $recentSubject;
+        if ( ! isset( $payload['entity_hint'] ) || trim( (string) $payload['entity_hint'] ) === '' ) {
+            $payload['entity_hint'] = (string) ( $recentEntity['entity_hint'] ?? 'auto' );
+        }
+
+        return $payload;
+    }
+
+    private function hasContextReference( string $fragment ): bool {
+        $normalized = strtolower( trim( $fragment ) );
+        foreach ( self::CONTEXT_PATTERNS as $pattern ) {
+            if ( preg_match( '/\b' . preg_quote( $pattern, '/' ) . '\b/', $normalized ) === 1 ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function applyPayloadReadinessPenalty( string $intent, array $payload, float $score ): float {

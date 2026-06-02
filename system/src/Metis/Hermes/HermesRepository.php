@@ -249,6 +249,22 @@ final class HermesRepository {
         return \is_array( $row ) ? $this->hydrateAction( $row ) : null;
     }
 
+    public function latestPendingActionForSession( int $session_id ): ?array {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $row = $db->fetchOne(
+            'SELECT * FROM ' . \Metis_Tables::get( 'hermes_actions' ) . '
+             WHERE session_id = %d
+               AND approval_status = %s
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1',
+            [ $session_id, 'pending' ]
+        );
+
+        return \is_array( $row ) ? $this->hydrateAction( $row ) : null;
+    }
+
     public function approveAction( string $action_code, int $user_id, string $note = '' ): ?array {
         SchemaManager::ensureSchema();
         $db = $this->db();
@@ -262,6 +278,43 @@ final class HermesRepository {
             ],
             [ 'action_code' => $action_code ],
             [ '%s', '%d', '%s' ],
+            [ '%s' ]
+        );
+
+        return $this->getActionByCode( $action_code );
+    }
+
+    public function cancelAction( string $action_code, int $user_id = 0, string $note = '' ): ?array {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $db->update(
+            \Metis_Tables::get( 'hermes_actions' ),
+            [
+                'approval_status' => 'cancelled',
+                'approved_by'     => $user_id > 0 ? $user_id : null,
+                'approval_note'   => $note !== '' ? $note : null,
+            ],
+            [ 'action_code' => $action_code ],
+            [ '%s', '%d', '%s' ],
+            [ '%s' ]
+        );
+
+        return $this->getActionByCode( $action_code );
+    }
+
+    public function expireAction( string $action_code, string $note = '' ): ?array {
+        SchemaManager::ensureSchema();
+        $db = $this->db();
+
+        $db->update(
+            \Metis_Tables::get( 'hermes_actions' ),
+            [
+                'approval_status' => 'expired',
+                'approval_note'   => $note !== '' ? $note : null,
+            ],
+            [ 'action_code' => $action_code ],
+            [ '%s', '%s' ],
             [ '%s' ]
         );
 

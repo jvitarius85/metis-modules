@@ -135,7 +135,7 @@ final class HermesOperationalEngine {
         $operation = (string) ( $command['key'] ?? '' );
         $payload = (array) ( $intent['payload'] ?? [] );
 
-        if ( $operation !== 'create_user' ) {
+        if ( ! in_array( $operation, [ 'create_user', 'workspace_user_create' ], true ) ) {
             return [ 'intent' => $intent, 'error' => '' ];
         }
 
@@ -164,6 +164,10 @@ final class HermesOperationalEngine {
             if ( trim( (string) ( $request['workspace_email'] ?? '' ) ) === '' ) {
                 $request['workspace_email'] = $email;
             }
+        }
+
+        if ( $operation === 'workspace_user_create' ) {
+            $request['workspace_enabled'] = true;
         }
 
         $payload['user_request'] = $request;
@@ -254,6 +258,16 @@ final class HermesOperationalEngine {
         return $this->responses->executionResult( $command, $contextPacks, $plan, $result );
     }
 
+    public function processEntityAttributeRequest( array $request, string $query = '' ): array {
+        return $this->processEntityAttributeIntent( $query, [
+            'action' => 'get_entity_attribute',
+            'top_level_intent' => 'LOOKUP',
+            'payload' => [
+                'attribute_request' => $request,
+            ],
+        ] );
+    }
+
     // ------------------------------------------------------------------
     // Entity attribute intent handler
     // ------------------------------------------------------------------
@@ -327,7 +341,7 @@ final class HermesOperationalEngine {
                 'permission'  => $permission,
                 'response'    => [
                     'status'        => 'disambiguation_required',
-                    'message'       => 'Multiple matches found. Found: ' . implode( '; ', $candidates ),
+                    'message'       => $this->disambiguationPrompt( (array) ( $resolved['candidates'] ?? [] ) ),
                     'response_type' => 'Disambiguation',
                     'candidates'    => $resolved['candidates'] ?? [],
                 ],
@@ -487,6 +501,22 @@ final class HermesOperationalEngine {
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $candidates
+     */
+    private function disambiguationPrompt( array $candidates ): string {
+        $lines = [ 'I found multiple matches:' ];
+        foreach ( $candidates as $index => $candidate ) {
+            $name = trim( (string) ( $candidate['name'] ?? '' ) );
+            $email = trim( (string) ( $candidate['email'] ?? '' ) );
+            $suffix = $email !== '' ? ' (' . $email . ')' : '';
+            $lines[] = sprintf( '%d. %s%s', $index + 1, $name !== '' ? $name : 'Unknown', $suffix );
+        }
+        $lines[] = 'Which person would you like?';
+
+        return implode( "\n", $lines );
     }
 
     private function entityAttributeError( array $intent, string $message ): array {

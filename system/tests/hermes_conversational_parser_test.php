@@ -65,6 +65,10 @@ $assert( (string) ( $userAction['selected_intent'] ?? '' ) === 'create_user', 'C
 $assert( empty( $userAction['requires_clarification'] ), 'Concrete user creation request should not require clarification.' );
 $assert( (string) ( $userAction['intents'][0]['payload']['email'] ?? '' ) === 'riley@example.com', 'Concrete user creation request should capture the email payload.' );
 
+$workspaceUser = $parser->parse( 'create a workspace user for Riley with email riley@example.com' );
+$assert( (string) ( $workspaceUser['selected_intent'] ?? '' ) === 'workspace_user_create', 'Workspace user creation request should map to workspace_user_create.' );
+$assert( empty( $workspaceUser['requires_clarification'] ), 'Workspace user creation request should not require clarification.' );
+
 $noSplit = $parser->parse( 'how do I create a GL entry with debit and credit lines?' );
 $assert( count( (array) ( $noSplit['execution_plan'] ?? [] ) ) === 1, 'Instructional GL phrasing should not split on debit and credit wording.' );
 $assert( (string) ( $noSplit['selected_intent'] ?? '' ) === 'resolve_help_issue', 'Instructional GL phrasing with accounting terms should still map to resolve_help_issue.' );

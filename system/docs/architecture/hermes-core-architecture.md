@@ -111,6 +111,59 @@ Hermes now treats approval handling as its own coordination surface:
 
 Execution still runs through the Secure Enclave path, but approval preparation and approval-state changes no longer live inline inside the gateway.
 
+### 2.5 Action Executor
+
+Hermes now isolates approved-action execution behind a dedicated executor:
+
+- `HermesActionExecutor`: runs approved actions through the Secure Enclave path, dispatches supported non-command action types, redacts sensitive result fields, persists execution results, and handles one-time secret reveal retrieval.
+
+The gateway still enforces high-level action state checks, but the enclave execution path and post-execution handling are no longer embedded there.
+
+### 2.6 Workflow Continuation
+
+Hermes now treats short conversational follow-up replies as an explicit continuation layer:
+
+- `HermesWorkflowContinuationEngine`: resolves approval replies such as `yes` and `no` against the latest pending session action, enforces a 15-minute workflow TTL, transitions expired or cancelled actions out of the pending queue, and delegates approved execution back to `HermesActionExecutor`.
+
+This keeps approval memory deterministic and session-scoped without duplicating approval or enclave execution logic inside the gateway.
+
+### 2.7 Recent Entity Memory
+
+Hermes now persists a canonical recent-entity reference alongside normal conversation summaries:
+
+- `HermesConversationStateEngine`: extracts the most recent entity subject from completed turns and stores it in session memory.
+- `HermesMemoryStore`: exposes dedicated recent-entity recall instead of overloading generic conversation summaries.
+- `ConversationalParser`: uses that recent-entity memory only for context-aware commands so pronouns such as `his`, `her`, `them`, `it`, and phrases such as `that user` resolve deterministically inside the current session.
+
+This keeps follow-up entity resolution explicit and auditable without guessing across sessions or reintroducing parser-local alias maps.
+
+### 2.8 Pending Workflow Engine
+
+Hermes now isolates incomplete multi-turn command capture behind a dedicated workflow layer:
+
+- `HermesPendingWorkflowEngine`: persists incomplete workflow state per session, asks the next deterministic question for missing command fields, expires stale workflows after 15 minutes, and hands completed payloads back into the existing operational and approval pipeline.
+
+The first implemented workflow is `create_user`, which can now collect name, email, and an optional role across multiple turns before Hermes presents the normal approval prompt.
+
+### 2.9 Disambiguation Memory
+
+Hermes now persists entity disambiguation prompts as explicit session state:
+
+- `HermesDisambiguationEngine`: stores candidate lists when entity resolution finds multiple matches, accepts a numbered or named follow-up reply on the next turn, expires stale prompts after 15 minutes, and hands the selected entity back into the normal attribute-resolution path.
+
+This lets Hermes ask `Which person would you like?` once and continue deterministically on the user’s next reply instead of starting a fresh parse.
+
+### 2.10 Conversation Package
+
+Hermes now has an explicit `Metis\Hermes\Conversation` package that matches the directive’s conversation-layer separation:
+
+- `ConversationStore`: session, message, summary, recent-entity, pending-workflow, pending-disambiguation, and pending-action access.
+- `ConversationResolver`: runtime-context hydration plus recent-entity extraction.
+- `ConversationStateManager`: turn opening and completion orchestration.
+- `ConversationContext`, `PendingAction`, and `PendingQuestion`: typed conversation-state objects for session runtime state.
+
+`HermesConversationStateEngine` remains the public compatibility surface, but it now delegates into these dedicated conversation classes instead of owning the logic directly.
+
 ### 3. Hermes Tool Registry
 
 The Tool Registry is the canonical catalog of all module capabilities available to Hermes. It resolves tool definitions, validates request payloads, enforces availability rules, and routes calls to module-provided handlers.
