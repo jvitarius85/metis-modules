@@ -3,35 +3,16 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
+use Metis\Intelligence\Registry\IntelligenceProviderRegistry;
+
 final class HermesIntelligenceRegistry {
     public function __construct(
-        private readonly HermesDocumentationIndex $documentation,
-        private readonly HermesHelpResolver $help,
-        private readonly HermesWalkthroughResolver $walkthroughs,
+        private readonly IntelligenceProviderRegistry $providers,
         private readonly HermesGroundingValidator $grounding
     ) {}
 
     public function definitions(): array {
-        return [
-            'documentation' => [
-                'key' => 'documentation',
-                'label' => 'Documentation Index',
-                'type' => 'knowledge',
-                'default_limit' => 6,
-            ],
-            'help_topics' => [
-                'key' => 'help_topics',
-                'label' => 'Help Topics',
-                'type' => 'knowledge',
-                'default_limit' => 6,
-            ],
-            'walkthroughs' => [
-                'key' => 'walkthroughs',
-                'label' => 'Walkthroughs',
-                'type' => 'workflow_guidance',
-                'default_limit' => 3,
-            ],
-        ];
+        return $this->providers->definitions();
     }
 
     public function definition( string $key ): ?array {
@@ -40,35 +21,18 @@ final class HermesIntelligenceRegistry {
     }
 
     public function resolve( string $query, int $limit = 6 ): array {
-        $definitions = $this->definitions();
-        $docs = $this->documentation->search( $query, max( 1, min( 25, $limit ) ) );
-        $helpTopics = $this->help->search( $query, max( 1, min( 25, $limit ) ) );
-        $walkthroughs = $this->walkthroughs->search(
-            $query,
-            (int) ( $definitions['walkthroughs']['default_limit'] ?? 3 )
-        );
-
-        $sources = array_merge( $docs, $helpTopics, $walkthroughs );
+        $sources = $this->providers->resolve( $query, $limit );
+        $docs = array_values( (array) ( $sources['documentation']['results'] ?? [] ) );
+        $helpTopics = array_values( (array) ( $sources['help_topics']['results'] ?? [] ) );
+        $walkthroughs = array_values( (array) ( $sources['walkthroughs']['results'] ?? [] ) );
+        $groundingSources = array_merge( $docs, $helpTopics, $walkthroughs );
 
         return [
             'docs' => $docs,
             'help_topics' => $helpTopics,
             'walkthroughs' => $walkthroughs,
-            'sources' => [
-                'documentation' => [
-                    'definition' => $definitions['documentation'],
-                    'results' => $docs,
-                ],
-                'help_topics' => [
-                    'definition' => $definitions['help_topics'],
-                    'results' => $helpTopics,
-                ],
-                'walkthroughs' => [
-                    'definition' => $definitions['walkthroughs'],
-                    'results' => $walkthroughs,
-                ],
-            ],
-            'grounding' => $this->grounding->validate( 'knowledge', $sources ),
+            'sources' => $sources,
+            'grounding' => $this->grounding->validate( 'knowledge', $groundingSources ),
         ];
     }
 }

@@ -4,6 +4,11 @@ declare(strict_types=1);
 namespace Metis\Modules\Hermes;
 
 use Metis\Core\Application;
+use Metis\Intelligence\Registry\IntelligenceProviderRegistry;
+use Metis\Intelligence\Services\DocumentationIntelligenceProvider;
+use Metis\Intelligence\Services\HelpTopicIntelligenceProvider;
+use Metis\Intelligence\Services\WalkthroughIntelligenceProvider;
+use Metis\Intelligence\Support\IntelligenceResponseFactory;
 use Metis\Hermes\Conversation\ConversationResolver;
 use Metis\Hermes\Conversation\ConversationStateManager;
 use Metis\Hermes\Conversation\ConversationStore;
@@ -133,11 +138,22 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_grounding_validator' ) ) {
             $registry->singleton( 'hermes_grounding_validator', static fn (): HermesGroundingValidator => new HermesGroundingValidator() );
         }
+        if ( ! $registry->has( 'intelligence_response_factory' ) ) {
+            $registry->singleton( 'intelligence_response_factory', static fn (): IntelligenceResponseFactory => new IntelligenceResponseFactory() );
+        }
+        if ( ! $registry->has( 'intelligence_provider_registry' ) ) {
+            $registry->singleton( 'intelligence_provider_registry', static fn (): IntelligenceProviderRegistry => new IntelligenceProviderRegistry(
+                [
+                    new DocumentationIntelligenceProvider( Application::service( 'hermes_documentation_index' ) ),
+                    new HelpTopicIntelligenceProvider( Application::service( 'hermes_help_resolver' ) ),
+                    new WalkthroughIntelligenceProvider( Application::service( 'hermes_walkthrough_resolver' ) ),
+                ],
+                Application::service( 'intelligence_response_factory' )
+            ) );
+        }
         if ( ! $registry->has( 'hermes_knowledge' ) ) {
             $registry->singleton( 'hermes_intelligence_registry', static fn (): HermesIntelligenceRegistry => new HermesIntelligenceRegistry(
-                Application::service( 'hermes_documentation_index' ),
-                Application::service( 'hermes_help_resolver' ),
-                Application::service( 'hermes_walkthrough_resolver' ),
+                Application::service( 'intelligence_provider_registry' ),
                 Application::service( 'hermes_grounding_validator' )
             ) );
             $registry->singleton( 'hermes_knowledge', static fn (): HermesKnowledgeService => new HermesKnowledgeService(

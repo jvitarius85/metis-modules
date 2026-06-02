@@ -164,6 +164,18 @@ Hermes now has an explicit `Metis\Hermes\Conversation` package that matches the 
 
 `HermesConversationStateEngine` remains the public compatibility surface, but it now delegates into these dedicated conversation classes instead of owning the logic directly.
 
+### 2.11 Intelligence Framework Foundation
+
+Hermes now delegates grounded knowledge retrieval through an explicit `Metis\Intelligence` package:
+
+- `Contracts/IntelligenceProviderInterface`: stable provider contract with `supports()`, `getMetrics()`, `getInsights()`, `getAlerts()`, and `getRecommendations()`.
+- `DTOs/IntelligenceSnapshot`: normalized response DTO for provider output.
+- `Support/IntelligenceResponseFactory`: common snapshot construction.
+- `Registry/IntelligenceProviderRegistry`: canonical provider catalog and resolution entrypoint.
+- `Services/*IntelligenceProvider`: adapter providers for documentation, help topics, and walkthrough intelligence.
+
+`HermesIntelligenceRegistry` now acts as the Hermes-facing compatibility layer over that provider registry rather than assembling grounded sources directly itself.
+
 ### 3. Hermes Tool Registry
 
 The Tool Registry is the canonical catalog of all module capabilities available to Hermes. It resolves tool definitions, validates request payloads, enforces availability rules, and routes calls to module-provided handlers.
