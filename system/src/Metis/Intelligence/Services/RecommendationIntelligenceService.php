@@ -26,7 +26,7 @@ final class RecommendationIntelligenceService {
         }
 
         if ( $this->hasAlertForModule( $alerts, 'hermes' ) || count( $integrationFailures ) > 0 ) {
-            $rows[] = $this->recommendation(
+            $recommendation = $this->recommendation(
                 'high',
                 'hermes',
                 'Review worker backlog and failed jobs',
@@ -35,10 +35,13 @@ final class RecommendationIntelligenceService {
                 $operationsByKey,
                 'queue_health'
             );
+            if ( is_array( $recommendation ) ) {
+                $rows[] = $recommendation;
+            }
         }
 
         if ( $this->hasAlertForModule( $alerts, 'finance' ) ) {
-            $rows[] = $this->recommendation(
+            $recommendation = $this->recommendation(
                 'high',
                 'finance',
                 'Run finance reconciliation follow-up',
@@ -47,10 +50,13 @@ final class RecommendationIntelligenceService {
                 $operationsByKey,
                 'finance_reconciliation'
             );
+            if ( is_array( $recommendation ) ) {
+                $rows[] = $recommendation;
+            }
         }
 
         if ( $this->hasAlertForModule( $alerts, 'board' ) || $this->hasDiagnostic( $diagnostics, 'board_workspace_health' ) ) {
-            $rows[] = $this->recommendation(
+            $recommendation = $this->recommendation(
                 'high',
                 'board',
                 'Inspect board workspace integrity',
@@ -59,10 +65,13 @@ final class RecommendationIntelligenceService {
                 $operationsByKey,
                 'board_workspace'
             );
+            if ( is_array( $recommendation ) ) {
+                $rows[] = $recommendation;
+            }
         }
 
         if ( $this->hasMonitoringModule( $moduleSummaries, 'newsletter' ) ) {
-            $rows[] = $this->recommendation(
+            $recommendation = $this->recommendation(
                 'medium',
                 'newsletter',
                 'Check newsletter delivery dependencies',
@@ -71,10 +80,13 @@ final class RecommendationIntelligenceService {
                 $operationsByKey,
                 'newsletter_delivery'
             );
+            if ( is_array( $recommendation ) ) {
+                $rows[] = $recommendation;
+            }
         }
 
         if ( $this->hasPermissionPressure( $alerts ) ) {
-            $rows[] = $this->recommendation(
+            $recommendation = $this->recommendation(
                 'medium',
                 'people',
                 'Audit permission mismatches',
@@ -83,6 +95,9 @@ final class RecommendationIntelligenceService {
                 $operationsByKey,
                 'permission_mismatch'
             );
+            if ( is_array( $recommendation ) ) {
+                $rows[] = $recommendation;
+            }
         }
 
         usort( $rows, $this->ranker->compare( ... ) );
@@ -98,8 +113,11 @@ final class RecommendationIntelligenceService {
         string $operationKey,
         array $operationsByKey,
         string $sourceKey
-    ): array {
+    ): ?array {
         $operation = (array) ( $operationsByKey[ $operationKey ] ?? [] );
+        if ( $operation === [] || ( array_key_exists( 'supported', $operation ) && empty( $operation['supported'] ) ) ) {
+            return null;
+        }
 
         return [
             'severity' => $severity,
@@ -112,6 +130,8 @@ final class RecommendationIntelligenceService {
                 'title' => (string) ( $operation['title'] ?? $operationKey ),
                 'requires_approval' => ! empty( $operation['requires_approval'] ),
                 'read_only' => ! empty( $operation['read_only'] ),
+                'supported' => ! array_key_exists( 'supported', $operation ) || ! empty( $operation['supported'] ),
+                'unsupported_message' => (string) ( $operation['unsupported_message'] ?? '' ),
                 'domain' => (string) ( $operation['domain'] ?? '' ),
                 'module' => (string) ( $operation['module'] ?? '' ),
             ],

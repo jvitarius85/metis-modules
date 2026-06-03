@@ -23,6 +23,7 @@ require_once $root . '/src/Metis/Operations/Services/OperationsServiceCatalog.ph
 require_once $root . '/src/Metis/Operations/Services/OperationDefinitionBuilder.php';
 require_once $root . '/src/Metis/Operations/Registry/OperationsRegistry.php';
 require_once $root . '/src/Metis/Hermes/HermesOperationsRegistry.php';
+require_once $root . '/tests/_support/hermes_blocked_operations_fixture.php';
 
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
@@ -65,6 +66,7 @@ $campaignCreate = (array) ( $operations['campaign_create'] ?? [] );
 $newsletterSend = (array) ( $operations['newsletter_send'] ?? [] );
 $newsletterCancel = (array) ( $operations['newsletter_cancel'] ?? [] );
 $lookupProfile = (array) ( $operations['lookup_profile'] ?? [] );
+$serviceRestart = (array) ( $operations['service_restart'] ?? [] );
 
 $assert( $createUser !== [], 'Operations registry should include create_user.' );
 $assert( (string) ( $createUser['tool_key'] ?? '' ) === 'hermes.user.create_user', 'Operations registry should retain tool mapping.' );
@@ -117,6 +119,17 @@ $assert( (string) ( $newsletterSend['handler_metadata']['operation_family'] ?? '
 
 $assert( (string) ( $lookupProfile['top_level_intent'] ?? '' ) === 'LOOKUP', 'Lookup operations should surface the LOOKUP top-level intent.' );
 $assert( (string) ( $lookupProfile['risk_level'] ?? '' ) === 'low', 'Lookup operations should inherit risk level from the tool registry.' );
+$assert( array_key_exists( 'supported', $serviceRestart ), 'Operations registry should expose supported metadata for blocked operations.' );
+$assert( empty( $serviceRestart['supported'] ), 'Operations registry should mark service_restart unsupported.' );
+$assert( (string) ( $serviceRestart['unsupported_message'] ?? '' ) === 'Service restart does not have a trusted backend registered for Hermes execution yet.', 'Operations registry should preserve the unsupported message for service_restart.' );
+
+foreach ( metis_hermes_blocked_operations_fixture() as $operationKey => $fixture ) {
+    $definition = (array) ( $operations[ $operationKey ] ?? [] );
+    $assert( $definition !== [], sprintf( 'Operations registry should expose blocked operation %s.', $operationKey ) );
+    $assert( array_key_exists( 'supported', $definition ), sprintf( 'Operations registry should expose supported metadata for %s.', $operationKey ) );
+    $assert( empty( $definition['supported'] ), sprintf( 'Operations registry should mark %s unsupported.', $operationKey ) );
+    $assert( (string) ( $definition['unsupported_message'] ?? '' ) === (string) $fixture['unsupported_message'], sprintf( 'Operations registry should preserve the unsupported message for %s.', $operationKey ) );
+}
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

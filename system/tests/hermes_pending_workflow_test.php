@@ -97,6 +97,16 @@ $assert( (string) ( $workspaceReview['status'] ?? '' ) === 'awaiting_approval', 
 $assert( str_contains( (string) ( $workspaceReview['message'] ?? '' ), 'Create workspace user?' ), 'Workspace user workflow review should reflect the workspace operation.' );
 $assert( (bool) ( $workspaceRequest['workspace_enabled'] ?? false ) === true, 'Workspace user workflow should force workspace-enabled user creation.' );
 
+$workspaceCancelSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfwc', true ) ), 0, 8 ) );
+$workspaceCancelStart = $gateway->converse( 'Create a workspace user.', $workspaceCancelSessionCode );
+$gateway->converse( 'Casey Workspace', $workspaceCancelSessionCode );
+$gateway->converse( 'casey.workspace@example.org', $workspaceCancelSessionCode );
+$workspaceCancelResult = $gateway->converse( 'no', $workspaceCancelSessionCode );
+$assert( (string) ( $workspaceCancelStart['status'] ?? '' ) === 'workflow_question', 'Workspace user cancellation fixture should begin from a workflow question.' );
+$assert( (string) ( $workspaceCancelResult['status'] ?? '' ) === 'cancelled', 'Bare no should cancel the workspace user role-question step.' );
+$assert( (string) ( $workspaceCancelResult['response_type'] ?? '' ) === 'WorkflowCancellation', 'Workspace user role-question cancellation should return WorkflowCancellation.' );
+$assert( $memory->recallPendingWorkflow( $workspaceCancelSessionCode ) === [], 'Cancelled workspace user workflows should be cleared from memory.' );
+
 $passwordSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfp', true ) ), 0, 8 ) );
 $passwordStart = $gateway->converse( 'Reset John Smith password.', $passwordSessionCode );
 $assert( (string) ( $passwordStart['status'] ?? '' ) === 'workflow_question', 'Ambiguous password reset should start a pending workflow.' );
@@ -161,6 +171,16 @@ $assert( (string) ( $restoreFileReview['status'] ?? '' ) === 'awaiting_approval'
 $assert( (string) ( $restoreFilePayload['operation'] ?? '' ) === 'restore_file', 'Restore file workflow should preserve the restore_file operation key.' );
 $assert( (string) ( $restoreFilePayload['command_payload']['run_uuid'] ?? '' ) === 'run_20260601_file12345', 'Restore file workflow should carry the captured backup run ID into approval.' );
 $assert( (string) ( $restoreFilePayload['command_payload']['relative_path'] ?? '' ) === 'storage/public-media/reports/summary.pdf', 'Restore file workflow should carry the captured backup-relative path into approval.' );
+
+$restoreFileCancelSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wffc', true ) ), 0, 8 ) );
+$restoreFileCancelStart = $gateway->converse( 'Restore file.', $restoreFileCancelSessionCode );
+$restoreFileCancelPathQuestion = $gateway->converse( 'run_20260601_file54321', $restoreFileCancelSessionCode );
+$restoreFileCancelResult = $gateway->converse( 'cancel', $restoreFileCancelSessionCode );
+$assert( (string) ( $restoreFileCancelStart['status'] ?? '' ) === 'workflow_question', 'Restore file cancellation fixture should begin from a workflow question.' );
+$assert( (string) ( $restoreFileCancelPathQuestion['status'] ?? '' ) === 'workflow_question', 'Restore file cancellation fixture should advance to the file-path question.' );
+$assert( (string) ( $restoreFileCancelResult['status'] ?? '' ) === 'cancelled', 'Cancel should cancel the restore file path-question step.' );
+$assert( (string) ( $restoreFileCancelResult['response_type'] ?? '' ) === 'WorkflowCancellation', 'Restore file path-question cancellation should return WorkflowCancellation.' );
+$assert( $memory->recallPendingWorkflow( $restoreFileCancelSessionCode ) === [], 'Cancelled restore file workflows should be cleared from memory.' );
 
 $cronTaskSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfj', true ) ), 0, 8 ) );
 $cronTaskStart = $gateway->converse( 'Create job.', $cronTaskSessionCode );
@@ -257,6 +277,16 @@ $assert( (string) ( $assignRoleReview['status'] ?? '' ) === 'awaiting_approval',
 $assert( (string) ( $assignRolePayload['operation'] ?? '' ) === 'assign_role', 'Assign role workflow should preserve the assign_role operation key.' );
 $assert( (string) ( $assignRolePayload['command_payload']['subject'] ?? '' ) === 'Morgan Example', 'Assign role workflow should carry the captured user subject into approval.' );
 $assert( (array) ( $assignRolePayload['command_payload']['roles'] ?? [] ) === [ 'administrator' ], 'Assign role workflow should carry the captured role keys into approval.' );
+
+$assignRoleCancelSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfarc', true ) ), 0, 8 ) );
+$assignRoleCancelStart = $gateway->converse( 'Assign role.', $assignRoleCancelSessionCode );
+$assignRoleCancelQuestion = $gateway->converse( 'Morgan Example', $assignRoleCancelSessionCode );
+$assignRoleCancelResult = $gateway->converse( 'never mind', $assignRoleCancelSessionCode );
+$assert( (string) ( $assignRoleCancelStart['status'] ?? '' ) === 'workflow_question', 'Assign role cancellation fixture should begin from a workflow question.' );
+$assert( (string) ( $assignRoleCancelQuestion['status'] ?? '' ) === 'workflow_question', 'Assign role cancellation fixture should advance to the role question.' );
+$assert( (string) ( $assignRoleCancelResult['status'] ?? '' ) === 'cancelled', 'Never mind should cancel the assign-role question step.' );
+$assert( (string) ( $assignRoleCancelResult['response_type'] ?? '' ) === 'WorkflowCancellation', 'Assign-role question cancellation should return WorkflowCancellation.' );
+$assert( $memory->recallPendingWorkflow( $assignRoleCancelSessionCode ) === [], 'Cancelled assign-role workflows should be cleared from memory.' );
 
 $workspaceGroupSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfwg', true ) ), 0, 8 ) );
 $workspaceGroupStart = $gateway->converse( 'Add workspace group.', $workspaceGroupSessionCode );

@@ -9,8 +9,35 @@ final class HermesToolRegistry {
      */
     public function definitions(): array {
         $defs = [];
+        $commandMetadataByTool = [];
+
+        foreach ( ( new HermesCommandRegistry() )->definitions() as $command ) {
+            if ( ! is_array( $command ) ) {
+                continue;
+            }
+
+            $toolKey = (string) ( $command['tool_key'] ?? '' );
+            if ( $toolKey === '' ) {
+                continue;
+            }
+
+            if ( ! isset( $commandMetadataByTool[ $toolKey ] ) ) {
+                $commandMetadataByTool[ $toolKey ] = [
+                    'supported' => true,
+                    'unsupported_message' => '',
+                ];
+            }
+
+            if ( array_key_exists( 'supported', $command ) && empty( $command['supported'] ) ) {
+                $commandMetadataByTool[ $toolKey ] = [
+                    'supported' => false,
+                    'unsupported_message' => trim( (string) ( $command['unsupported_message'] ?? '' ) ),
+                ];
+            }
+        }
 
         foreach ( $this->requiredToolMatrix() as $tool_key => $spec ) {
+            $commandMetadata = (array) ( $commandMetadataByTool[ $tool_key ] ?? [] );
             $defs[ $tool_key ] = $this->buildTool(
                 $tool_key,
                 (string) $spec['description'],
@@ -22,6 +49,8 @@ final class HermesToolRegistry {
                 (string) $spec['risk_level'],
                 (bool) $spec['requires_approval'],
                 (bool) $spec['worker_supported'],
+                ! array_key_exists( 'supported', $commandMetadata ) || ! empty( $commandMetadata['supported'] ),
+                (string) ( $commandMetadata['unsupported_message'] ?? '' ),
                 (string) $spec['service'],
                 (string) $spec['method']
             );
@@ -103,6 +132,7 @@ final class HermesToolRegistry {
             'hermes.system.check_updates' => [ 'description' => 'Check trusted system releases for updates.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'low', 'requires_approval' => false, 'worker_supported' => false, 'service' => 'hermes_capabilities', 'method' => 'checkSystemUpdates' ],
             'hermes.system.install_update' => [ 'description' => 'Queue a trusted system update install.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'critical', 'requires_approval' => true, 'worker_supported' => true, 'service' => 'hermes_capabilities', 'method' => 'installSystemUpdate' ],
             'hermes.system.rollback_release' => [ 'description' => 'Queue rollback to the previous trusted release.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'critical', 'requires_approval' => true, 'worker_supported' => true, 'service' => 'hermes_capabilities', 'method' => 'rollbackRelease' ],
+            'hermes.system.restart_service' => [ 'description' => 'Restart a service.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'critical', 'requires_approval' => true, 'worker_supported' => false, 'service' => 'hermes_capabilities', 'method' => 'restartService' ],
             'hermes.system.sync_drive' => [ 'description' => 'Queue Drive sync across configured drives.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'high', 'requires_approval' => true, 'worker_supported' => true, 'service' => 'hermes_capabilities', 'method' => 'queueDriveSync' ],
             'hermes.system.sync_calendar' => [ 'description' => 'Queue Calendar sync across configured calendars.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'high', 'requires_approval' => true, 'worker_supported' => true, 'service' => 'hermes_capabilities', 'method' => 'queueCalendarSync' ],
             'hermes.system.drain_queue' => [ 'description' => 'Queue a system queue drain.', 'module' => 'settings', 'required_permissions' => [ 'system.backup.execute' ], 'input_schema' => $basicSubject, 'enclave_action' => 'hermes.tool.execute', 'risk_level' => 'critical', 'requires_approval' => true, 'worker_supported' => true, 'service' => 'hermes_capabilities', 'method' => 'drainQueue' ],
@@ -171,6 +201,8 @@ final class HermesToolRegistry {
         string $risk_level,
         bool $requires_approval,
         bool $worker_supported,
+        bool $supported,
+        string $unsupported_message,
         string $service,
         string $method
     ): array {
@@ -185,6 +217,8 @@ final class HermesToolRegistry {
             'risk_level' => $risk_level,
             'requires_approval' => $requires_approval,
             'worker_supported' => $worker_supported,
+            'supported' => $supported,
+            'unsupported_message' => $unsupported_message,
             'dispatch' => [
                 'service' => $service,
                 'method' => $method,

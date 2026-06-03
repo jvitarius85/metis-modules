@@ -31,9 +31,12 @@ $integrityRuntime = $read( 'src/Metis/Core/IntegrityRuntime.php' );
 $recoveryService = $read( 'src/Metis/Core/Recovery/GitRecoveryService.php' );
 $financeService = $read( 'src/Metis/Modules/Finance/FinanceV2Service.php' );
 $scanner = $read( 'tools/security_scan.php' );
+$blockedCatalog = $read( 'src/Metis/Hermes/HermesBlockedOperationCatalog.php' );
 $hermesRegistry = $read( 'src/Metis/Hermes/HermesToolRegistry.php' );
+$hermesCommandRegistry = $read( 'src/Metis/Hermes/HermesCommandRegistry.php' );
 $hermesExecutor = $read( 'src/Metis/Hermes/HermesToolExecutor.php' );
 $hermesGateway = $read( 'src/Metis/Hermes/HermesGateway.php' );
+$hermesBlockedFixture = $read( 'tests/_support/hermes_blocked_operations_fixture.php' );
 $governance = require $root . '/config/governance.php';
 
 $assert( str_contains( $bootstrap, 'function metis_runtime_require_app_key' ), 'Runtime must expose a central app-key requirement helper.' );
@@ -109,6 +112,9 @@ $assert( ! str_contains( $scanner, '$' . '_REQUEST\\b' ), 'Security scan must no
 $assert( str_contains( $hermesRegistry, 'required_permissions' ), 'Hermes tools must declare required permissions.' );
 $assert( str_contains( $hermesRegistry, 'enclave_action' ), 'Hermes tools must declare enclave actions.' );
 $assert( str_contains( $hermesRegistry, 'requires_approval' ), 'Hermes tools must declare approval requirements.' );
+$assert( str_contains( $blockedCatalog, 'final class HermesBlockedOperationCatalog' ), 'Hermes must centralize blocked backend metadata in HermesBlockedOperationCatalog.' );
+$assert( str_contains( $hermesCommandRegistry, 'HermesBlockedOperationCatalog::definitions()' ), 'Hermes command registry must source blocked metadata from HermesBlockedOperationCatalog.' );
+$assert( str_contains( $hermesBlockedFixture, 'HermesBlockedOperationCatalog::definitions()' ), 'Blocked-operation test fixtures must delegate to the runtime blocked catalog.' );
 $assert( str_contains( $hermesExecutor, 'HermesPermissionValidator' ), 'Hermes executor must validate permissions.' );
 $assert( str_contains( $hermesExecutor, 'EnclaveToolRuntime.php' ), 'Hermes executor must route through Secure Enclave runtime.' );
 $assert( str_contains( $hermesGateway, 'approval_status' ), 'Hermes gateway must track approval state for actions.' );

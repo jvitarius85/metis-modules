@@ -63,6 +63,9 @@ $assert( (string) ( $recommendations[0]['recommended_operation']['operation_key'
 $assert( (string) ( $recommendations[1]['recommended_operation']['operation_key'] ?? '' ) === 'run_full_diagnostics', 'Recommendation intelligence should map finance anomalies to a real Hermes operation.' );
 $assert( (string) ( $recommendations[2]['recommended_operation']['operation_key'] ?? '' ) === 'scan_integrity', 'Recommendation intelligence should recommend integrity scans for board workspace drift.' );
 $assert( (string) ( $recommendations[4]['recommended_operation']['operation_key'] ?? '' ) === 'audit_permissions', 'Recommendation intelligence should route permission issues to permission audits.' );
+$assert( ! array_key_exists( 'supported', (array) ( $operations['service_restart'] ?? [] ) ) || empty( $operations['service_restart']['supported'] ), 'Recommendation intelligence fixture should expose blocked operations from the registry.' );
+$assert( ! empty( $recommendations[0]['recommended_operation']['supported'] ), 'Recommendation intelligence should surface supported metadata for recommended operations.' );
+$assert( (string) ( $recommendations[0]['recommended_operation']['unsupported_message'] ?? '' ) === '', 'Recommendation intelligence should not attach blocked-operation guidance to supported recommendations.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

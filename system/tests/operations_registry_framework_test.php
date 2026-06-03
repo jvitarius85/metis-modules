@@ -22,6 +22,7 @@ require_once $root . '/src/Metis/Operations/Services/SystemOperationsService.php
 require_once $root . '/src/Metis/Operations/Services/OperationsServiceCatalog.php';
 require_once $root . '/src/Metis/Operations/Services/OperationDefinitionBuilder.php';
 require_once $root . '/src/Metis/Operations/Registry/OperationsRegistry.php';
+require_once $root . '/tests/_support/hermes_blocked_operations_fixture.php';
 
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
@@ -76,6 +77,7 @@ $campaignCreate = (array) ( $definitions['campaign_create'] ?? [] );
 $campaignPublish = (array) ( $definitions['campaign_publish'] ?? [] );
 $newsletterSchedule = (array) ( $definitions['newsletter_schedule'] ?? [] );
 $newsletterCancel = (array) ( $definitions['newsletter_cancel'] ?? [] );
+$serviceRestart = (array) ( $definitions['service_restart'] ?? [] );
 
 $assert( isset( $definitions['create_user'] ), 'Operations framework registry should expose create_user.' );
 $assert( (string) ( $clearCache['enclave_action'] ?? '' ) === 'hermes.system.clear_cache', 'Operations framework should preserve enclave execution metadata.' );
@@ -112,6 +114,17 @@ $assert( (string) ( $campaignCreate['handler_metadata']['handler'] ?? '' ) === \
 $assert( (string) ( $campaignPublish['dispatch']['method'] ?? '' ) === 'publishCampaign', 'Operations framework should preserve campaign publish dispatch metadata.' );
 $assert( (string) ( $newsletterSchedule['handler_metadata']['handler'] ?? '' ) === \Metis\Operations\Services\NewsletterOperationsService::class, 'Operations framework should assign newsletter scheduling to the newsletter operations service.' );
 $assert( (string) ( $newsletterCancel['dispatch']['method'] ?? '' ) === 'cancelNewsletter', 'Operations framework should preserve newsletter cancel dispatch metadata.' );
+$assert( array_key_exists( 'supported', $serviceRestart ), 'Operations framework should expose supported metadata for blocked operations.' );
+$assert( empty( $serviceRestart['supported'] ), 'Operations framework should mark service_restart unsupported.' );
+$assert( (string) ( $serviceRestart['unsupported_message'] ?? '' ) === 'Service restart does not have a trusted backend registered for Hermes execution yet.', 'Operations framework should preserve the unsupported message for service_restart.' );
+
+foreach ( metis_hermes_blocked_operations_fixture() as $operationKey => $fixture ) {
+    $definition = (array) ( $definitions[ $operationKey ] ?? [] );
+    $assert( $definition !== [], sprintf( 'Operations framework should expose blocked operation %s.', $operationKey ) );
+    $assert( array_key_exists( 'supported', $definition ), sprintf( 'Operations framework should expose supported metadata for %s.', $operationKey ) );
+    $assert( empty( $definition['supported'] ), sprintf( 'Operations framework should mark %s unsupported.', $operationKey ) );
+    $assert( (string) ( $definition['unsupported_message'] ?? '' ) === (string) $fixture['unsupported_message'], sprintf( 'Operations framework should preserve the unsupported message for %s.', $operationKey ) );
+}
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

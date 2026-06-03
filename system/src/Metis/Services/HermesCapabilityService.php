@@ -547,6 +547,10 @@ final class HermesCapabilityService {
         return $this->unsupportedOperation( 'update_module', 'Module-specific updates are not supported separately from trusted system releases.' );
     }
 
+    public function restartService( array $payload ): array {
+        return $this->unsupportedOperation( 'service_restart', 'Service restart does not have a trusted backend registered for Hermes execution yet.' );
+    }
+
     public function exportData( array $payload ): array {
         return $this->unsupportedOperation( 'export_data', 'Generic data export needs a concrete report or dataset target. Ask Hermes to run or export a specific report.' );
     }

@@ -103,6 +103,23 @@ final class HermesOperationalEngine {
             ];
         }
 
+        if ( array_key_exists( 'supported', $command ) && empty( $command['supported'] ) ) {
+            $unsupportedMessage = trim( (string) ( $command['unsupported_message'] ?? '' ) );
+            if ( $unsupportedMessage === '' ) {
+                $unsupportedMessage = 'This Hermes operation does not have an executable backend yet.';
+            }
+
+            return [
+                'intent'        => $intent,
+                'command'       => $command,
+                'context_packs' => [],
+                'action_plan'   => [],
+                'permission'    => [ 'status' => 'not_applicable', 'required_permission' => (string) ( $command['permission'] ?? '' ), 'reason' => '' ],
+                'response'      => $this->responses->unsupported( $intent, $command, $unsupportedMessage ),
+                'parsed'        => $parsed,
+            ];
+        }
+
         $contextPacks = $this->contextLoader->loadForCommand( $command );
         $executionPlan = $this->resolvedExecutionPlan( $parsed, $command );
         $permission   = $this->validateExecutionPlanPermissions( $executionPlan );

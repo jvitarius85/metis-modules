@@ -11,6 +11,7 @@ $root = dirname( __DIR__ );
 require_once $root . '/src/Metis/Hermes/HermesCommandRegistry.php';
 require_once $root . '/src/Metis/Hermes/HermesToolRegistry.php';
 require_once $root . '/src/Metis/Services/HermesCapabilityService.php';
+require_once $root . '/tests/_support/hermes_blocked_operations_fixture.php';
 
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
@@ -26,6 +27,7 @@ $required = [
     'create_user', 'update_user', 'disable_user', 'enable_user', 'user_delete', 'user_unlock', 'assign_role', 'remove_role', 'manage_workspace_groups', 'reset_user_mfa', 'link_drive_folder', 'list_users', 'get_user',
     'lookup_profile', 'get_entity_attribute', 'resolve_help_issue', 'diagnose_permissions', 'query_giving_summary', 'query_capability_actors',
     'clear_cache', 'backup_validate', 'rebuild_indexes', 'reload_config', 'get_system_status', 'check_system_updates', 'release_rollback',
+    'service_restart',
     'drive_sync', 'calendar_sync', 'queue_drain', 'integrity_baseline', 'module_compliance_audit',
     'board_workspace_prepare',
     'run_full_diagnostics', 'check_modules', 'scan_integrity', 'check_db', 'check_workers',
@@ -45,11 +47,23 @@ foreach ( $required as $commandKey ) {
     $assert( isset( $tools[ $toolKey ] ), sprintf( 'Tool [%s] mapped from [%s] is missing.', $toolKey, $commandKey ) );
 }
 
+foreach ( metis_hermes_blocked_operations_fixture() as $commandKey => $fixture ) {
+    $command = (array) ( $commands[ $commandKey ] ?? [] );
+    $assert( array_key_exists( 'supported', $command ) && empty( $command['supported'] ), sprintf( 'Blocked command [%s] should be marked unsupported.', $commandKey ) );
+    $assert( (string) ( $command['unsupported_message'] ?? '' ) === (string) $fixture['unsupported_message'], sprintf( 'Blocked command [%s] should expose the canonical operator guidance message.', $commandKey ) );
+    $toolKey = (string) ( $command['tool_key'] ?? '' );
+    $tool = (array) ( $tools[ $toolKey ] ?? [] );
+    $assert( array_key_exists( 'supported', $tool ) && empty( $tool['supported'] ), sprintf( 'Blocked tool [%s] should be marked unsupported.', $toolKey ) );
+    $assert( (string) ( $tool['unsupported_message'] ?? '' ) === (string) $fixture['unsupported_message'], sprintf( 'Blocked tool [%s] should preserve the canonical command guidance message.', $toolKey ) );
+}
+
 foreach ( $tools as $toolKey => $tool ) {
     $assert( (string) ( $tool['tool_key'] ?? '' ) === $toolKey, sprintf( 'Tool [%s] has an inconsistent tool_key.', $toolKey ) );
     $assert( ! empty( $tool['enclave_action'] ), sprintf( 'Tool [%s] is missing enclave_action.', $toolKey ) );
     $assert( isset( $tool['input_schema'] ), sprintf( 'Tool [%s] is missing input_schema.', $toolKey ) );
     $assert( isset( $tool['output_schema'] ), sprintf( 'Tool [%s] is missing output_schema.', $toolKey ) );
+    $assert( array_key_exists( 'supported', $tool ), sprintf( 'Tool [%s] should expose supported metadata.', $toolKey ) );
+    $assert( array_key_exists( 'unsupported_message', $tool ), sprintf( 'Tool [%s] should expose unsupported_message metadata.', $toolKey ) );
     $dispatch = (array) ( $tool['dispatch'] ?? [] );
     $assert( (string) ( $dispatch['service'] ?? '' ) !== '', sprintf( 'Tool [%s] is missing dispatch service.', $toolKey ) );
     $assert( (string) ( $dispatch['method'] ?? '' ) !== '', sprintf( 'Tool [%s] is missing dispatch method.', $toolKey ) );

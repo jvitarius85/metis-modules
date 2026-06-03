@@ -46,6 +46,25 @@ final class HermesResponseRenderer {
         ];
     }
 
+    public function unsupported( array $intent, array $command, string $message ): array {
+        $operation = (string) ( $command['key'] ?? $intent['action'] ?? 'unknown' );
+        $result = [
+            'status' => 'error',
+            'error_code' => 'TOOL_NOT_FOUND',
+            'operation' => $operation,
+            'message' => $message,
+        ];
+
+        return [
+            'intent' => $operation,
+            'status' => 'error',
+            'result' => $result,
+            'response_type' => 'ExecutionResult',
+            'ui_components' => [ [ 'type' => 'ExecutionResult', 'operation' => $this->humanizeOperation( $operation ), 'result' => $result ] ],
+            'message' => $message,
+        ];
+    }
+
     public function executionResult( array $command, array $contextPacks, array $plan, array $result ): array {
         $showPlan  = empty( $command['read_only'] );
         $showCtx   = empty( $command['read_only'] );

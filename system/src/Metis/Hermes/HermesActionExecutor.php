@@ -51,9 +51,24 @@ final class HermesActionExecutor {
                 }
             );
         } catch ( \Throwable $e ) {
+            $errorCode = 'EXECUTION_FAILED';
+            $rawCode = '';
+            if ( method_exists( $e, 'code_name' ) ) {
+                $rawCode = (string) $e->code_name();
+            }
+
+            if ( $rawCode === 'operation_not_registered' ) {
+                $errorCode = 'TOOL_NOT_FOUND';
+            } elseif ( in_array( $rawCode, [ 'authentication_required', 'invalid_session', 'permission_denied', 'invalid_nonce', 'rate_limit_exceeded' ], true ) ) {
+                $errorCode = 'PERMISSION_DENIED';
+            }
+
             $result = [
                 'status' => 'error',
-                'message' => 'Action execution failed.',
+                'error_code' => $errorCode,
+                'message' => $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : 'Action execution failed.',
                 'detail' => $e->getMessage(),
             ];
         }

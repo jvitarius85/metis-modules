@@ -742,6 +742,9 @@ final class ConversationalParser {
         }
 
         $score = $this->applyPayloadReadinessPenalty( $intent, $payload, $score );
+        if ( array_key_exists( 'supported', $command ) && empty( $command['supported'] ) && $this->isExactBlockedPhraseMatch( $fragment, $command ) ) {
+            $score = max( $score, 0.9 );
+        }
         $candidate['confidence'] = min( 1.0, max( 0.0, $score ) );
         $candidate['confidence_label'] = $this->confidenceLabel( (float) $candidate['confidence'] );
 
@@ -899,6 +902,21 @@ final class ConversationalParser {
                 && $jobKey === '' => $score * 0.55,
             default => $score,
         };
+    }
+
+    /**
+     * @param array<string,mixed> $command
+     */
+    private function isExactBlockedPhraseMatch( string $fragment, array $command ): bool {
+        $normalized = strtolower( trim( $fragment ) );
+        foreach ( (array) ( $command['phrases'] ?? [] ) as $phrase ) {
+            $phrase = strtolower( trim( (string) $phrase ) );
+            if ( $phrase !== '' && $normalized === $phrase ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isHelpStyleFragment( string $fragment ): bool {

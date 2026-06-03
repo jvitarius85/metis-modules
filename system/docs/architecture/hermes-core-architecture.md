@@ -260,6 +260,35 @@ Hermes operational processing now preserves parser-emitted multi-step `execution
 
 Each step is resolved against the command registry independently, carries its own approval/read-only metadata, and is validated separately before execution. This closes the gap between the earlier conversational multi-fragment parser output and the directive’s required multi-step operational handling.
 
+### 2.18a Blocked Operation Catalog
+
+Hermes now centralizes intentionally blocked backend metadata in `Metis\Hermes\HermesBlockedOperationCatalog`.
+
+That catalog owns the canonical metadata for operations that Hermes must expose but cannot safely execute yet, including:
+
+- canonical operation key
+- tool key
+- Hermes capability method
+- representative conversational phrase
+- operator-facing unsupported message
+- expected guidance fragment used by contract tests
+
+The current blocked surface includes:
+
+- `service_restart`
+- `recover_module`
+- `rollback_module`
+- `enable_module`
+- `disable_module`
+- `install_module`
+- `update_module`
+- `export_data`
+- `import_data`
+- `deduplicate`
+- `rotate_keys`
+
+`HermesCommandRegistry` now reads unsupported messages from this catalog instead of embedding them inline, and the shared blocked-operation test fixture delegates to the same runtime source. That removes the last duplicated blocked-backend message list between production code and contract tests.
+
 ### 2.19 Broader Trusted Operations Coverage
 
 Hermes now exposes first-class operations for trusted backends that already exist in Metis:
@@ -1183,3 +1212,16 @@ Hermes now also treats people membership mutations as deterministic multi-step w
 Hermes now also extracts direct membership payloads more accurately when the user supplies them in one sentence. In particular, Workspace group commands now treat email addresses as `group_emails` rather than misclassifying them as the target `subject`, and role or group commands carry an explicit mutation `mode` so the execution layer does not have to infer add versus remove semantics later.
 
 Drive-folder linking now also preserves explicit folder references from the conversational layer. When a user provides a Google Drive folder URL or folder ID in a `link_drive_folder` request, Hermes now carries that `folder_id` through parsing and tool schemas instead of dropping back to the default auto-create behavior.
+
+## Directive Completion Checklist
+
+- [x] explicit `Metis\Hermes\Conversation` package with state, context, and pending-action/question types
+- [x] explicit `Metis\Intelligence` framework with provider contracts, DTOs, registry, support, trend, and recommendation services
+- [x] explicit `Metis\Operations` framework with contracts, DTOs, registry, builder, and service ownership catalogs
+- [x] deterministic approval, pending-workflow, continuation, disambiguation, and recent-entity conversation layers
+- [x] multi-step operational planning, validation, approval packaging, and stop-on-failure execution
+- [x] dashboard payload exposure for operations, tools, alerts, trends, recommendations, and blocked-operation metadata
+- [x] blocked backend catalog with consistent unsupported metadata across commands, tools, operations, dashboard payloads, and tests
+- [x] domain intelligence providers for donor, campaign, financial, newsletter, and system surfaces
+- [x] first-class registry-backed user, workspace-user, campaign, newsletter, worker, backup, update, rollback, and diagnostics operations
+- [x] top-level completion and parity audits plus a single directive regression runner at `tools/governance/run-hermes-directive-regression.php`

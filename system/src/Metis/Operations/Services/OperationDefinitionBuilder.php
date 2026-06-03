@@ -36,6 +36,8 @@ final class OperationDefinitionBuilder {
                 ! empty( $command['requires_approval'] ),
                 ! empty( $command['read_only'] ),
                 ! empty( $command['worker_supported'] ) || ! empty( $tool['worker_supported'] ),
+                ! array_key_exists( 'supported', $command ) || ! empty( $command['supported'] ),
+                trim( (string) ( $command['unsupported_message'] ?? '' ) ),
                 (string) ( $tool['risk_level'] ?? ( ! empty( $command['read_only'] ) ? 'low' : 'medium' ) ),
                 (string) ( $tool['enclave_action'] ?? '' ),
                 (array) ( $command['input_schema'] ?? [] ),
