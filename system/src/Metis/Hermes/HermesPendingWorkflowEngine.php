@@ -34,6 +34,20 @@ final class HermesPendingWorkflowEngine {
             );
         }
 
+        if ( $this->workflowCancellationDecision( $query ) === 'reject' ) {
+            $this->memory->clearPendingWorkflow( $sessionCode );
+
+            return [
+                'status' => 'cancelled',
+                'message' => 'Cancelled the pending workflow.',
+                'response_type' => 'WorkflowCancellation',
+                'workflow' => [
+                    'type' => (string) ( $workflow['type'] ?? '' ),
+                    'step' => (string) ( $workflow['step'] ?? '' ),
+                ],
+            ];
+        }
+
         $workflowType = (string) ( $workflow['type'] ?? '' );
         if ( in_array( $workflowType, [ 'create_user', 'workspace_user_create' ], true ) ) {
             return $this->continueCreateUserWorkflow( $sessionCode, $workflowType, $query, $workflow );
@@ -137,6 +151,16 @@ final class HermesPendingWorkflowEngine {
             'message' => $message,
             'response_type' => $responseType,
         ];
+    }
+
+    private function workflowCancellationDecision( string $query ): string {
+        $normalized = strtolower( trim( preg_replace( '/\s+/', ' ', $query ) ?? $query ) );
+
+        if ( in_array( $normalized, [ 'no', 'n', 'cancel', 'stop', 'never mind', 'nevermind', 'do not', 'don\'t' ], true ) ) {
+            return 'reject';
+        }
+
+        return '';
     }
 
     private function nextStep( array $request, string $currentStep ): string {

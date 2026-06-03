@@ -238,6 +238,13 @@ final class ConversationalParser {
             'references' => [],
         ];
 
+        if ( $session_code !== '' ) {
+            $recentEntity = $this->memory?->recallRecentEntity( $session_code ) ?? [];
+            if ( $recentEntity !== [] ) {
+                $context['recent_entity'] = $recentEntity;
+            }
+        }
+
         foreach ( self::CONTEXT_PATTERNS as $pattern ) {
             if ( preg_match( '/\b' . preg_quote( $pattern, '/' ) . '\b/', $normalized ) === 1 ) {
                 $context['references'][] = $pattern;
@@ -245,11 +252,6 @@ final class ConversationalParser {
         }
 
         if ( $context['references'] !== [] ) {
-            $recentEntity = $this->memory?->recallRecentEntity( $session_code ) ?? [];
-            if ( $recentEntity !== [] ) {
-                $context['recent_entity'] = $recentEntity;
-            }
-
             $memory = $this->memory?->recallConversation( $session_code ) ?? [];
             if ( $memory !== [] ) {
                 $context['memory'] = $memory;
@@ -345,8 +347,15 @@ final class ConversationalParser {
             && $this->hasExplicitPasswordScope( $fragment )
             && in_array( strtolower( trim( (string) ( $selected['intent'] ?? '' ) ) ), [ 'user_password_reset', 'workspace_user_password_reset' ], true )
             && in_array( strtolower( trim( (string) ( $second['intent'] ?? '' ) ) ), [ 'user_password_reset', 'workspace_user_password_reset' ], true );
+        $workspaceScopeResolved = $selected !== [] && $second !== []
+            && $this->hasExplicitWorkspaceScope( $fragment )
+            && $this->isWorkspaceScopePair(
+                strtolower( trim( (string) ( $selected['intent'] ?? '' ) ) ),
+                strtolower( trim( (string) ( $second['intent'] ?? '' ) ) )
+            );
         $ambiguous = ! $sameTool
             && ! $passwordScopeResolved
+            && ! $workspaceScopeResolved
             && $selected !== []
             && $second !== []
             && $specificityGap < 0.05
@@ -561,6 +570,35 @@ final class ConversationalParser {
             || str_contains( $fragment, 'internal' );
     }
 
+    private function hasExplicitWorkspaceScope( string $fragment ): bool {
+        return str_contains( $fragment, 'workspace' )
+            || str_contains( $fragment, 'google workspace' )
+            || str_contains( $fragment, 'workspace access' );
+    }
+
+    private function isWorkspaceScopePair( string $selectedIntent, string $secondIntent ): bool {
+        $workspaceScoped = [
+            'workspace_user_create',
+            'workspace_user_update',
+            'workspace_user_disable',
+            'workspace_user_enable',
+            'workspace_user_delete',
+            'workspace_user_password_reset',
+        ];
+        $genericPeople = [
+            'create_user',
+            'update_user',
+            'disable_user',
+            'offboard_user',
+            'enable_user',
+            'user_delete',
+            'user_password_reset',
+        ];
+
+        return ( in_array( $selectedIntent, $workspaceScoped, true ) && in_array( $secondIntent, $genericPeople, true ) )
+            || ( in_array( $secondIntent, $workspaceScoped, true ) && in_array( $selectedIntent, $genericPeople, true ) );
+    }
+
     /**
      * @param array<int,array<string,mixed>> $entities
      * @param array<string,mixed> $context
@@ -625,14 +663,21 @@ final class ConversationalParser {
             } elseif ( preg_match( '/\bfolder(?:\s+id)?[:=\s]+([A-Za-z0-9_-]{10,})\b/i', $fragment, $match ) ) {
                 $payload['folder_id'] = trim( (string) ( $match[1] ?? '' ) );
             }
+
+            if (
+                isset( $payload['folder_id'], $payload['subject'] )
+                && strcasecmp( (string) $payload['folder_id'], (string) $payload['subject'] ) === 0
+            ) {
+                unset( $payload['subject'] );
+            }
         }
 
-        if ( preg_match( '/\broles?\s+([a-z0-9_-]+(?:\s*,\s*[a-z0-9_-]+)*(?:\s+and\s+[a-z0-9_-]+)*)\b(?=(?:\s+to\b|\s+for\b|$))/i', $fragment, $match ) ) {
+        if ( preg_match( '/\brole(?:s)?\s+([a-z0-9_-]+(?:\s*,\s*[a-z0-9_-]+)*(?:\s+and\s+[a-z0-9_-]+)*)\b(?=(?:\s+to\b|\s+for\b|\s+from\b|$))/i', $fragment, $match ) ) {
             $roles = preg_split( '/\s*,\s*|\s+and\s+/', strtolower( trim( $match[1] ) ) ) ?: [];
             $payload['roles'] = array_values( array_filter( array_map( static fn ( string $role ): string => trim( $role ), $roles ) ) );
         }
 
-        if ( ! isset( $payload['subject'] ) && preg_match( '/\b(?:for|to)\s+([a-z][a-z0-9._-]*(?:\s+[a-z][a-z0-9._-]*){0,2})\b(?=(?:\s+(?:with|using|via|in)\b|$))/i', $fragment, $match ) ) {
+        if ( ! isset( $payload['subject'] ) && preg_match( '/\b(?:for|to|from)\s+([a-z][a-z0-9._-]*(?:\s+[a-z][a-z0-9._-]*){0,2})\b(?=(?:\s+(?:with|using|via|in)\b|$))/i', $fragment, $match ) ) {
             $payload['subject'] = trim( $match[1] );
         }
 
@@ -744,7 +789,14 @@ final class ConversationalParser {
         $recentEntity = (array) ( $context['recent_entity'] ?? [] );
         $recentSubject = trim( (string) ( $recentEntity['subject'] ?? '' ) );
 
-        if ( $recentSubject === '' || ! $this->hasContextReference( $fragment ) ) {
+        if ( $recentSubject === '' ) {
+            return $payload;
+        }
+
+        $useRecentSubject = $this->hasContextReference( $fragment )
+            || $this->shouldImplicitlyApplyRecentSubject( $command_name, $payload );
+
+        if ( ! $useRecentSubject ) {
             return $payload;
         }
 
@@ -779,6 +831,29 @@ final class ConversationalParser {
         }
 
         return $payload;
+    }
+
+    /**
+     * Reuse the recent subject only for bounded follow-up actions where the user supplied
+     * the rest of the action payload and omitted only the target entity.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function shouldImplicitlyApplyRecentSubject( string $command_name, array $payload ): bool {
+        if ( trim( (string) ( $payload['subject'] ?? '' ) ) !== '' ) {
+            return false;
+        }
+
+        $roles = array_values( array_filter( array_map( 'strval', (array) ( $payload['roles'] ?? [] ) ) ) );
+        $groupEmails = array_values( array_filter( array_map( 'strval', (array) ( $payload['group_emails'] ?? [] ) ) ) );
+        $folderId = trim( (string) ( $payload['folder_id'] ?? '' ) );
+
+        return match ( $command_name ) {
+            'assign_role', 'remove_role', 'manage_user_roles' => $roles !== [],
+            'manage_workspace_groups' => $groupEmails !== [],
+            'link_drive_folder' => $folderId !== '',
+            default => false,
+        };
     }
 
     private function hasContextReference( string $fragment ): bool {

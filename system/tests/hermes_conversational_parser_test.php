@@ -128,11 +128,31 @@ $assert( (string) ( $workspaceGroupPayload['subject'] ?? '' ) === 'riley', 'Work
 $assert( (array) ( $workspaceGroupPayload['group_emails'] ?? [] ) === [ 'finance-team@example.org' ], 'Workspace group update request should capture Workspace group emails.' );
 $assert( (string) ( $workspaceGroupPayload['mode'] ?? '' ) === 'add', 'Workspace group update request should infer add mode by default.' );
 
+$workspaceGroupRemoval = $parser->parse( 'remove workspace group finance-team@example.org from Riley' );
+$workspaceGroupRemovalPayload = (array) ( $workspaceGroupRemoval['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $workspaceGroupRemoval['selected_intent'] ?? '' ) === 'manage_workspace_groups', 'Workspace group removal request should map to manage_workspace_groups.' );
+$assert( (string) ( $workspaceGroupRemovalPayload['subject'] ?? '' ) === 'riley', 'Workspace group removal request should preserve the target user subject.' );
+$assert( (array) ( $workspaceGroupRemovalPayload['group_emails'] ?? [] ) === [ 'finance-team@example.org' ], 'Workspace group removal request should capture Workspace group emails.' );
+$assert( (string) ( $workspaceGroupRemovalPayload['mode'] ?? '' ) === 'remove', 'Workspace group removal request should infer remove mode.' );
+
+$removeRole = $parser->parse( 'remove role administrator from Riley' );
+$removeRolePayload = (array) ( $removeRole['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $removeRole['selected_intent'] ?? '' ) === 'remove_role', 'Remove role request should map to remove_role.' );
+$assert( (string) ( $removeRolePayload['subject'] ?? '' ) === 'riley', 'Remove role request should preserve the target user subject.' );
+$assert( (array) ( $removeRolePayload['roles'] ?? [] ) === [ 'administrator' ], 'Remove role request should capture the requested role list.' );
+$assert( (string) ( $removeRolePayload['mode'] ?? '' ) === 'remove', 'Remove role request should preserve remove mode.' );
+
 $linkDriveFolder = $parser->parse( 'link drive folder https://drive.google.com/drive/folders/1AbCdEfGhIJkLmNoPqRsTuVwXyZ to Riley' );
 $linkDriveFolderPayload = (array) ( $linkDriveFolder['intents'][0]['payload'] ?? [] );
 $assert( (string) ( $linkDriveFolder['selected_intent'] ?? '' ) === 'link_drive_folder', 'Drive folder link request should map to link_drive_folder.' );
 $assert( (string) ( $linkDriveFolderPayload['subject'] ?? '' ) === 'riley', 'Drive folder link request should preserve the target user subject.' );
 $assert( (string) ( $linkDriveFolderPayload['folder_id'] ?? '' ) === '1abcdefghijklmnopqrstuvwxyz', 'Drive folder link request should capture the explicit Drive folder ID.' );
+
+$linkDriveFolderById = $parser->parse( 'link drive folder id 1AbCdEfGhIJkLmNoPqRsTuVwXyZ to Riley' );
+$linkDriveFolderByIdPayload = (array) ( $linkDriveFolderById['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $linkDriveFolderById['selected_intent'] ?? '' ) === 'link_drive_folder', 'Drive folder ID request should map to link_drive_folder.' );
+$assert( (string) ( $linkDriveFolderByIdPayload['subject'] ?? '' ) === 'riley', 'Drive folder ID request should preserve the target user subject.' );
+$assert( (string) ( $linkDriveFolderByIdPayload['folder_id'] ?? '' ) === '1abcdefghijklmnopqrstuvwxyz', 'Drive folder ID request should capture the explicit Drive folder ID.' );
 
 $boardWorkspace = $parser->parse( 'prepare board workspace for Q3-2026' );
 $assert( (string) ( $boardWorkspace['selected_intent'] ?? '' ) === 'board_workspace_prepare', 'Board workspace request should map to board_workspace_prepare.' );

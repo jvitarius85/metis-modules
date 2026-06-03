@@ -88,9 +88,11 @@ $assert( (string) ( $userPasswordReset['tool_key'] ?? '' ) === 'hermes.user.rese
 $assert( (string) ( $userPasswordReset['top_level_intent'] ?? '' ) === 'EXECUTE', 'User password reset should surface the EXECUTE top-level intent.' );
 $assert( (string) ( $manageWorkspaceGroups['tool_key'] ?? '' ) === 'hermes.user.manage_workspace_groups', 'Workspace group management should map to the dedicated workspace-group tool.' );
 $assert( (string) ( $manageWorkspaceGroups['top_level_intent'] ?? '' ) === 'UPDATE', 'Workspace group management should surface the UPDATE top-level intent.' );
+$assert( isset( $manageWorkspaceGroups['input_schema']['properties']['group_emails'] ), 'Workspace group management should expose group_emails in the input schema.' );
 $assert( (string) ( $resetUserMfa['tool_key'] ?? '' ) === 'hermes.user.reset_user_mfa', 'MFA reset should map to the dedicated MFA reset tool.' );
 $assert( (string) ( $resetUserMfa['top_level_intent'] ?? '' ) === 'EXECUTE', 'MFA reset should surface the EXECUTE top-level intent.' );
 $assert( (string) ( $linkDriveFolder['tool_key'] ?? '' ) === 'hermes.user.link_drive_folder', 'Drive folder linking should map to the dedicated drive-link tool.' );
+$assert( isset( $linkDriveFolder['input_schema']['properties']['folder_id'] ), 'Drive folder linking should expose folder_id in the input schema.' );
 $assert( (string) ( $workspacePasswordReset['required_permission'] ?? '' ) === 'people.workspace_manage', 'Workspace password reset should require workspace-management permission.' );
 $assert( (string) ( $backupStart['tool_key'] ?? '' ) === 'hermes.system.start_backup', 'Backup start should map to the trusted backup tool.' );
 $assert( ! empty( $backupStart['requires_approval'] ), 'Backup start should require approval.' );

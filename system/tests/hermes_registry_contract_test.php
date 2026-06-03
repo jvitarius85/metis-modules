@@ -61,6 +61,14 @@ foreach ( $tools as $toolKey => $tool ) {
     }
 }
 
+$manageWorkspaceGroupsTool = (array) ( $tools['hermes.user.manage_workspace_groups'] ?? [] );
+$manageWorkspaceGroupsSchema = (array) ( $manageWorkspaceGroupsTool['input_schema']['properties'] ?? [] );
+$assert( isset( $manageWorkspaceGroupsSchema['group_emails'] ), 'Workspace group management tool schema should declare group_emails.' );
+
+$linkDriveFolderTool = (array) ( $tools['hermes.user.link_drive_folder'] ?? [] );
+$linkDriveFolderSchema = (array) ( $linkDriveFolderTool['input_schema']['properties'] ?? [] );
+$assert( isset( $linkDriveFolderSchema['folder_id'] ), 'Drive folder linking tool schema should declare folder_id.' );
+
 $engineSource = file_get_contents( $root . '/src/Metis/Hermes/HermesExecutionEngine.php' ) ?: '';
 $toolExecutorSource = file_get_contents( $root . '/src/Metis/Hermes/HermesToolExecutor.php' ) ?: '';
 $capabilitySource = file_get_contents( $root . '/src/Metis/Services/HermesCapabilityService.php' ) ?: '';

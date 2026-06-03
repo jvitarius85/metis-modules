@@ -110,6 +110,14 @@ $assert( (string) ( $passwordReview['status'] ?? '' ) === 'awaiting_approval', '
 $assert( (string) ( $passwordReview['response_type'] ?? '' ) === 'WorkflowReview', 'Password reset workflow should return a review response.' );
 $assert( (string) ( $passwordPayload['operation'] ?? '' ) === 'workspace_user_password_reset', 'Password reset workflow should canonicalize to the workspace password reset operation.' );
 
+$passwordCancelSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfpc', true ) ), 0, 8 ) );
+$passwordCancelStart = $gateway->converse( 'Reset John Smith password.', $passwordCancelSessionCode );
+$passwordCancelResult = $gateway->converse( 'no', $passwordCancelSessionCode );
+$assert( (string) ( $passwordCancelStart['status'] ?? '' ) === 'workflow_question', 'Password reset cancellation fixture should begin from a workflow question.' );
+$assert( (string) ( $passwordCancelResult['status'] ?? '' ) === 'cancelled', 'No should cancel an active password reset workflow question.' );
+$assert( (string) ( $passwordCancelResult['response_type'] ?? '' ) === 'WorkflowCancellation', 'No should return a workflow cancellation response for password reset questions.' );
+$assert( $memory->recallPendingWorkflow( $passwordCancelSessionCode ) === [], 'Cancelled password reset workflows should be cleared from memory.' );
+
 $backupSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfb', true ) ), 0, 8 ) );
 $backupStart = $gateway->converse( 'Restore backup.', $backupSessionCode );
 $assert( (string) ( $backupStart['status'] ?? '' ) === 'workflow_question', 'Incomplete backup restore should start a pending workflow.' );
@@ -268,6 +276,70 @@ $assert( (string) ( $workspaceGroupPayload['operation'] ?? '' ) === 'manage_work
 $assert( (string) ( $workspaceGroupPayload['command_payload']['subject'] ?? '' ) === 'Skyler Example', 'Workspace group workflow should carry the captured user subject into approval.' );
 $assert( (array) ( $workspaceGroupPayload['command_payload']['group_emails'] ?? [] ) === [ 'finance-team@example.org' ], 'Workspace group workflow should carry the captured group emails into approval.' );
 
+$directAssignRoleSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfdar', true ) ), 0, 8 ) );
+$directAssignRole = $gateway->converse( 'Assign role administrator to Riley', $directAssignRoleSessionCode );
+$directAssignRoleActions = (array) ( $directAssignRole['actions'] ?? [] );
+$directAssignRoleAction = (array) ( $directAssignRoleActions[0] ?? [] );
+$directAssignRolePayload = (array) ( $directAssignRoleAction['payload'] ?? [] );
+$assert( (string) ( $directAssignRole['status'] ?? '' ) === 'awaiting_approval', 'Complete assign role requests should go directly to approval.' );
+$assert( (string) ( $directAssignRolePayload['operation'] ?? '' ) === 'assign_role', 'Direct assign role should preserve the assign_role operation key.' );
+$assert( (string) ( $directAssignRolePayload['command_payload']['subject'] ?? '' ) === 'riley', 'Direct assign role should preserve the requested user subject.' );
+$assert( (array) ( $directAssignRolePayload['command_payload']['roles'] ?? [] ) === [ 'administrator' ], 'Direct assign role should preserve the requested role list.' );
+$assert( (string) ( $directAssignRolePayload['command_payload']['mode'] ?? '' ) === 'add', 'Direct assign role should preserve add mode.' );
+
+$directWorkspaceGroupSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfdwg', true ) ), 0, 8 ) );
+$directWorkspaceGroup = $gateway->converse( 'Add workspace group finance-team@example.org to Riley', $directWorkspaceGroupSessionCode );
+$directWorkspaceGroupActions = (array) ( $directWorkspaceGroup['actions'] ?? [] );
+$directWorkspaceGroupAction = (array) ( $directWorkspaceGroupActions[0] ?? [] );
+$directWorkspaceGroupPayload = (array) ( $directWorkspaceGroupAction['payload'] ?? [] );
+$assert( (string) ( $directWorkspaceGroup['status'] ?? '' ) === 'awaiting_approval', 'Complete Workspace group requests should go directly to approval.' );
+$assert( (string) ( $directWorkspaceGroupPayload['operation'] ?? '' ) === 'manage_workspace_groups', 'Direct Workspace group request should preserve the manage_workspace_groups operation key.' );
+$assert( (string) ( $directWorkspaceGroupPayload['command_payload']['subject'] ?? '' ) === 'riley', 'Direct Workspace group request should preserve the target user subject.' );
+$assert( (array) ( $directWorkspaceGroupPayload['command_payload']['group_emails'] ?? [] ) === [ 'finance-team@example.org' ], 'Direct Workspace group request should preserve group emails.' );
+$assert( (string) ( $directWorkspaceGroupPayload['command_payload']['mode'] ?? '' ) === 'add', 'Direct Workspace group request should preserve add mode.' );
+
+$directWorkspaceGroupRemovalSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfdrwg', true ) ), 0, 8 ) );
+$directWorkspaceGroupRemoval = $gateway->converse( 'Remove workspace group finance-team@example.org from Riley', $directWorkspaceGroupRemovalSessionCode );
+$directWorkspaceGroupRemovalActions = (array) ( $directWorkspaceGroupRemoval['actions'] ?? [] );
+$directWorkspaceGroupRemovalAction = (array) ( $directWorkspaceGroupRemovalActions[0] ?? [] );
+$directWorkspaceGroupRemovalPayload = (array) ( $directWorkspaceGroupRemovalAction['payload'] ?? [] );
+$assert( (string) ( $directWorkspaceGroupRemoval['status'] ?? '' ) === 'awaiting_approval', 'Complete Workspace group removal requests should go directly to approval.' );
+$assert( (string) ( $directWorkspaceGroupRemovalPayload['operation'] ?? '' ) === 'manage_workspace_groups', 'Direct Workspace group removal should preserve the manage_workspace_groups operation key.' );
+$assert( (string) ( $directWorkspaceGroupRemovalPayload['command_payload']['subject'] ?? '' ) === 'riley', 'Direct Workspace group removal should preserve the target user subject.' );
+$assert( (array) ( $directWorkspaceGroupRemovalPayload['command_payload']['group_emails'] ?? [] ) === [ 'finance-team@example.org' ], 'Direct Workspace group removal should preserve group emails.' );
+$assert( (string) ( $directWorkspaceGroupRemovalPayload['command_payload']['mode'] ?? '' ) === 'remove', 'Direct Workspace group removal should preserve remove mode.' );
+
+$directRemoveRoleSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfdrar', true ) ), 0, 8 ) );
+$directRemoveRole = $gateway->converse( 'Remove role administrator from Riley', $directRemoveRoleSessionCode );
+$directRemoveRoleActions = (array) ( $directRemoveRole['actions'] ?? [] );
+$directRemoveRoleAction = (array) ( $directRemoveRoleActions[0] ?? [] );
+$directRemoveRolePayload = (array) ( $directRemoveRoleAction['payload'] ?? [] );
+$assert( (string) ( $directRemoveRole['status'] ?? '' ) === 'awaiting_approval', 'Complete remove role requests should go directly to approval.' );
+$assert( (string) ( $directRemoveRolePayload['operation'] ?? '' ) === 'remove_role', 'Direct remove role should preserve the remove_role operation key.' );
+$assert( (string) ( $directRemoveRolePayload['command_payload']['subject'] ?? '' ) === 'riley', 'Direct remove role should preserve the requested user subject.' );
+$assert( (array) ( $directRemoveRolePayload['command_payload']['roles'] ?? [] ) === [ 'administrator' ], 'Direct remove role should preserve the requested role list.' );
+$assert( (string) ( $directRemoveRolePayload['command_payload']['mode'] ?? '' ) === 'remove', 'Direct remove role should preserve remove mode.' );
+
+$directDriveLinkSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfddl', true ) ), 0, 8 ) );
+$directDriveLink = $gateway->converse( 'Link drive folder https://drive.google.com/drive/folders/1AbCdEfGhIJkLmNoPqRsTuVwXyZ to Riley', $directDriveLinkSessionCode );
+$directDriveLinkActions = (array) ( $directDriveLink['actions'] ?? [] );
+$directDriveLinkAction = (array) ( $directDriveLinkActions[0] ?? [] );
+$directDriveLinkPayload = (array) ( $directDriveLinkAction['payload'] ?? [] );
+$assert( (string) ( $directDriveLink['status'] ?? '' ) === 'awaiting_approval', 'Complete Drive folder link requests should go directly to approval.' );
+$assert( (string) ( $directDriveLinkPayload['operation'] ?? '' ) === 'link_drive_folder', 'Direct Drive folder link request should preserve the link_drive_folder operation key.' );
+$assert( (string) ( $directDriveLinkPayload['command_payload']['subject'] ?? '' ) === 'riley', 'Direct Drive folder link request should preserve the target user subject.' );
+$assert( (string) ( $directDriveLinkPayload['command_payload']['folder_id'] ?? '' ) === '1abcdefghijklmnopqrstuvwxyz', 'Direct Drive folder link request should preserve the explicit folder ID.' );
+
+$directDriveLinkByIdSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfddli', true ) ), 0, 8 ) );
+$directDriveLinkById = $gateway->converse( 'Link drive folder id 1AbCdEfGhIJkLmNoPqRsTuVwXyZ to Riley', $directDriveLinkByIdSessionCode );
+$directDriveLinkByIdActions = (array) ( $directDriveLinkById['actions'] ?? [] );
+$directDriveLinkByIdAction = (array) ( $directDriveLinkByIdActions[0] ?? [] );
+$directDriveLinkByIdPayload = (array) ( $directDriveLinkByIdAction['payload'] ?? [] );
+$assert( (string) ( $directDriveLinkById['status'] ?? '' ) === 'awaiting_approval', 'Complete Drive folder ID requests should go directly to approval.' );
+$assert( (string) ( $directDriveLinkByIdPayload['operation'] ?? '' ) === 'link_drive_folder', 'Direct Drive folder ID request should preserve the link_drive_folder operation key.' );
+$assert( (string) ( $directDriveLinkByIdPayload['command_payload']['subject'] ?? '' ) === 'riley', 'Direct Drive folder ID request should preserve the target user subject.' );
+$assert( (string) ( $directDriveLinkByIdPayload['command_payload']['folder_id'] ?? '' ) === '1abcdefghijklmnopqrstuvwxyz', 'Direct Drive folder ID request should preserve the explicit folder ID.' );
+
 $boardWorkspaceSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfbw', true ) ), 0, 8 ) );
 $boardWorkspaceStart = $gateway->converse( 'Prepare board workspace.', $boardWorkspaceSessionCode );
 $assert( (string) ( $boardWorkspaceStart['status'] ?? '' ) === 'workflow_question', 'Incomplete board workspace prepare should start a pending workflow.' );
@@ -311,6 +383,16 @@ $assert( (string) ( $newsletterScheduleReview['status'] ?? '' ) === 'awaiting_ap
 $assert( (string) ( $newsletterSchedulePayload['operation'] ?? '' ) === 'newsletter_schedule', 'Newsletter schedule workflow should preserve the newsletter_schedule operation key.' );
 $assert( (string) ( $newsletterSchedulePayload['command_payload']['subject'] ?? '' ) === 'Monthly Donor Update', 'Newsletter schedule workflow should carry the captured newsletter reference into approval.' );
 $assert( (string) ( $newsletterSchedulePayload['command_payload']['scheduled_at'] ?? '' ) === '2026-06-15 09:00:00', 'Newsletter schedule workflow should carry the captured schedule time into approval.' );
+
+$newsletterScheduleCancelSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfsc', true ) ), 0, 8 ) );
+$newsletterScheduleCancelStart = $gateway->converse( 'Schedule newsletter.', $newsletterScheduleCancelSessionCode );
+$newsletterScheduleCancelTime = $gateway->converse( 'Monthly Donor Update', $newsletterScheduleCancelSessionCode );
+$newsletterScheduleCancelResult = $gateway->converse( 'no', $newsletterScheduleCancelSessionCode );
+$assert( (string) ( $newsletterScheduleCancelStart['status'] ?? '' ) === 'workflow_question', 'Newsletter schedule cancellation fixture should begin from a workflow question.' );
+$assert( (string) ( $newsletterScheduleCancelTime['status'] ?? '' ) === 'workflow_question', 'Newsletter schedule cancellation fixture should advance to the schedule-time question.' );
+$assert( (string) ( $newsletterScheduleCancelResult['status'] ?? '' ) === 'cancelled', 'No should cancel an active newsletter schedule workflow question.' );
+$assert( (string) ( $newsletterScheduleCancelResult['response_type'] ?? '' ) === 'WorkflowCancellation', 'No should return a workflow cancellation response for newsletter schedule questions.' );
+$assert( $memory->recallPendingWorkflow( $newsletterScheduleCancelSessionCode ) === [], 'Cancelled newsletter schedule workflows should be cleared from memory.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );
