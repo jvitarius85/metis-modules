@@ -1002,6 +1002,84 @@ final class BackupService {
         }
     }
 
+    public function restoreFile( string $run_uuid, string $relative_path ): array {
+        $this->ensureSchema();
+
+        $run_uuid = trim( $run_uuid );
+        $relative_path = $this->normalizeRestoreRelativePath( $relative_path );
+        if ( $run_uuid === '' ) {
+            return [ 'ok' => false, 'error' => 'A backup run ID is required.' ];
+        }
+        if ( $relative_path === '' ) {
+            return [ 'ok' => false, 'error' => 'A restore file path is required.' ];
+        }
+
+        $destination = $this->resolveRestoreFileDestination( $relative_path );
+        if ( $destination === '' ) {
+            return [ 'ok' => false, 'error' => 'That file path is not eligible for file-level restore.' ];
+        }
+
+        $row = $this->findRun( $run_uuid );
+        if ( $row === null ) {
+            return [ 'ok' => false, 'error' => 'Backup run not found.' ];
+        }
+
+        $archive = $this->resolveFullArchivePathForRun( $run_uuid, $row );
+        if ( $archive === '' ) {
+            return [ 'ok' => false, 'error' => 'The full backup archive is missing for this run.' ];
+        }
+
+        $zip = new \ZipArchive();
+        if ( $zip->open( $archive ) !== true ) {
+            return [ 'ok' => false, 'error' => 'The full backup archive could not be opened.' ];
+        }
+
+        $entryName = $this->locateRestoreFileEntry( $zip, $relative_path );
+        if ( $entryName === '' ) {
+            $zip->close();
+            return [ 'ok' => false, 'error' => 'The requested file is not present in the backup archive.' ];
+        }
+
+        $stream = $zip->getStream( $entryName );
+        if ( ! is_resource( $stream ) ) {
+            $zip->close();
+            return [ 'ok' => false, 'error' => 'The requested file could not be read from the backup archive.' ];
+        }
+
+        $targetDir = dirname( $destination );
+        if ( ! \metis_runtime_make_dir( $targetDir ) || ! is_dir( $targetDir ) ) {
+            fclose( $stream );
+            $zip->close();
+            return [ 'ok' => false, 'error' => 'The restore destination could not be prepared.' ];
+        }
+
+        $tempPath = $targetDir . '/.metis-restore-' . md5( $relative_path ) . '.tmp';
+        $write = fopen( $tempPath, 'wb' );
+        if ( ! is_resource( $write ) ) {
+            fclose( $stream );
+            $zip->close();
+            return [ 'ok' => false, 'error' => 'The restore workspace could not be prepared.' ];
+        }
+
+        stream_copy_to_stream( $stream, $write );
+        fclose( $write );
+        fclose( $stream );
+        $zip->close();
+
+        if ( ! @rename( $tempPath, $destination ) ) {
+            @unlink( $tempPath );
+            return [ 'ok' => false, 'error' => 'The restored file could not be written to its destination.' ];
+        }
+
+        return [
+            'ok' => true,
+            'run_uuid' => $run_uuid,
+            'relative_path' => $relative_path,
+            'destination' => $destination,
+            'restored_at' => \metis_current_time( 'mysql' ),
+        ];
+    }
+
     private function buildDatabaseSnapshot( string $directory, string $run_uuid ): string {
         $this->initializeLongRunningExecution();
         $db = $this->database();
@@ -1995,6 +2073,100 @@ final class BackupService {
         return \function_exists( 'metis_runtime_date' )
             ? \metis_runtime_date( 'Y-m-d H:i:s', $timestamp )
             : date( 'Y-m-d H:i:s', $timestamp );
+    }
+
+    private function resolveFullArchivePathForRun( string $run_uuid, array $row ): string {
+        $components = $this->decode( (string) ( $row['components_json'] ?? '' ) );
+        if ( empty( $components['full']['local_path'] ) && empty( $components['full']['drive_file_id'] ) ) {
+            return '';
+        }
+
+        $full_archive = (string) ( $components['full']['local_path'] ?? '' );
+        if ( $full_archive !== '' && \is_file( $full_archive ) ) {
+            return $full_archive;
+        }
+
+        $drive_cfg = $this->resolveDriveConfig( (string) ( $row['drive_id'] ?? '' ) );
+        if ( empty( $drive_cfg['ok'] ) ) {
+            return '';
+        }
+
+        $download_target = $this->runDirectory( $run_uuid ) . '/downloaded-full.zip';
+        $download = $this->downloadDriveFile(
+            $drive_cfg,
+            (string) ( $components['full']['drive_file_id'] ?? '' ),
+            $download_target
+        );
+        if ( empty( $download['ok'] ) ) {
+            return '';
+        }
+
+        return $download_target;
+    }
+
+    private function normalizeRestoreRelativePath( string $relative_path ): string {
+        $relative_path = trim( str_replace( '\\', '/', $relative_path ) );
+        $relative_path = preg_replace( '#/+#', '/', $relative_path ) ?? $relative_path;
+        $relative_path = trim( $relative_path, '/' );
+        if ( $relative_path === '' || str_contains( $relative_path, '..' ) ) {
+            return '';
+        }
+
+        return $relative_path;
+    }
+
+    private function resolveRestoreFileDestination( string $relative_path ): string {
+        if ( str_starts_with( $relative_path, 'config/' ) ) {
+            $suffix = substr( $relative_path, strlen( 'config/' ) );
+            return $suffix !== '' ? $this->configPath() . '/' . $suffix : '';
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/media/' ) ) {
+            return $this->metisPath( $relative_path );
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/public-media/' ) ) {
+            return $this->metisPath( $relative_path );
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/protected-media/' ) ) {
+            return $this->metisPath( $relative_path );
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/private-records/' ) ) {
+            return $this->metisPath( $relative_path );
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/runtime/' ) ) {
+            $suffix = substr( $relative_path, strlen( 'storage/runtime/' ) );
+            if ( $suffix === '' || str_starts_with( $suffix, 'backups/' ) || $suffix === 'backups' ) {
+                return '';
+            }
+
+            return $this->metisPath( $relative_path );
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/uploads/' ) ) {
+            $suffix = substr( $relative_path, strlen( 'storage/uploads/' ) );
+            return $suffix !== '' ? $this->metisPath( 'storage/public-media/' . $suffix ) : '';
+        }
+
+        return '';
+    }
+
+    private function locateRestoreFileEntry( \ZipArchive $zip, string $relative_path ): string {
+        if ( $zip->locateName( $relative_path ) !== false ) {
+            return $relative_path;
+        }
+
+        if ( str_starts_with( $relative_path, 'storage/public-media/' ) ) {
+            $legacy = 'storage/uploads/' . substr( $relative_path, strlen( 'storage/public-media/' ) );
+            if ( $zip->locateName( $legacy ) !== false ) {
+                return $legacy;
+            }
+        }
+
+        return '';
     }
 
     private function metisPath( string $suffix = '' ): string {

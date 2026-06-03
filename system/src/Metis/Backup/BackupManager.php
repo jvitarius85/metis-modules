@@ -33,4 +33,8 @@ final class BackupManager {
     public function restoreRun( string $runUuid ): array {
         return ( new RestoreManager( $this->service ) )->restore( $runUuid );
     }
+
+    public function restoreFile( string $runUuid, string $relativePath ): array {
+        return $this->service->restoreFile( $runUuid, $relativePath );
+    }
 }

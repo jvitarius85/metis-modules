@@ -23,9 +23,11 @@ $commands = ( new \Metis\Hermes\HermesCommandRegistry() )->definitions();
 $tools = ( new \Metis\Hermes\HermesToolRegistry() )->definitions();
 
 $required = [
-    'create_user', 'update_user', 'disable_user', 'enable_user', 'assign_role', 'remove_role', 'list_users', 'get_user',
+    'create_user', 'update_user', 'disable_user', 'enable_user', 'user_delete', 'user_unlock', 'assign_role', 'remove_role', 'manage_workspace_groups', 'reset_user_mfa', 'link_drive_folder', 'list_users', 'get_user',
     'lookup_profile', 'get_entity_attribute', 'resolve_help_issue', 'diagnose_permissions', 'query_giving_summary', 'query_capability_actors',
-    'clear_cache', 'rebuild_indexes', 'reload_config', 'get_system_status', 'check_system_updates',
+    'clear_cache', 'backup_validate', 'rebuild_indexes', 'reload_config', 'get_system_status', 'check_system_updates', 'release_rollback',
+    'drive_sync', 'calendar_sync', 'queue_drain', 'integrity_baseline', 'module_compliance_audit',
+    'board_workspace_prepare',
     'run_full_diagnostics', 'check_modules', 'scan_integrity', 'check_db', 'check_workers',
     'recover_module', 'restore_file', 'rollback_module',
     'enable_module', 'disable_module', 'install_module', 'update_module',

@@ -600,6 +600,13 @@ function metis_register_core_services(): void {
         );
     }
 
+    if ( ! $registry->has( 'hermes_newsletter_admin' ) ) {
+        $registry->singleton(
+            'hermes_newsletter_admin',
+            static fn (): \Metis\Services\HermesNewsletterAdminService => new \Metis\Services\HermesNewsletterAdminService()
+        );
+    }
+
     if ( ! $registry->has( 'hermes_library' ) ) {
         $registry->singleton( 'hermes_library', static fn (): \Metis\Services\HermesDefinitionLibrary => new \Metis\Services\HermesDefinitionLibrary() );
     }

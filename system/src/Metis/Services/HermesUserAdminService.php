@@ -5,6 +5,7 @@ namespace Metis\Services;
 
 use Metis\Modules\People\AccessManager;
 use Metis\Modules\People\SchemaManager;
+use Metis\Modules\People\WorkspaceUserService;
 
 final class HermesUserAdminService {
     public function __construct(
@@ -180,6 +181,117 @@ final class HermesUserAdminService {
                 'name' => $this->personName( $person ),
             ],
             'message' => sprintf( 'Enabled %s.', $this->personName( $person ) ),
+        ];
+    }
+
+    public function deleteUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $person = $this->requirePerson( (string) ( $request['subject'] ?? $request['email'] ?? '' ) );
+        $personId = (int) ( $person['id'] ?? 0 );
+        if ( $personId < 1 ) {
+            throw new \RuntimeException( 'No matching person record was found.' );
+        }
+
+        $workspaceEmail = strtolower( trim( (string) ( $person['workspace_email'] ?? '' ) ) );
+        if ( \metis_email_is_valid( $workspaceEmail ) ) {
+            throw new \RuntimeException( 'This user still has Workspace access. Offboard or delete the Workspace account first.' );
+        }
+
+        $peopleTable = \Metis_Tables::get( 'people' );
+        $userRolesTable = \Metis_Tables::get( 'people_user_roles' );
+
+        $this->database()->update(
+            $peopleTable,
+            [
+                'status' => 'inactive',
+                'lifecycle_status' => 'deleted',
+                'is_workspace_user' => 0,
+                'workspace_email' => null,
+                'workspace_role' => null,
+                'stripe_role' => null,
+                'offboarded_at' => \metis_current_time( 'mysql' ),
+            ],
+            [ 'id' => $personId ],
+            [ '%s', '%s', '%d', '%s', '%s', '%s', '%s' ],
+            [ '%d' ]
+        );
+        $this->database()->delete( $userRolesTable, [ 'person_id' => $personId ], [ '%d' ] );
+
+        if ( \function_exists( 'metis_auth_find_user' ) && \function_exists( 'metis_auth_upsert_user_from_person' ) ) {
+            $authUser = \metis_auth_find_user( 'person_id', $personId );
+            $updatedPerson = $this->database()->fetchOne(
+                "SELECT * FROM {$peopleTable} WHERE id = %d LIMIT 1",
+                [ $personId ]
+            );
+            if ( is_array( $updatedPerson ) ) {
+                \metis_auth_upsert_user_from_person( $updatedPerson, is_array( $authUser ) ? $authUser : null );
+            }
+            if ( is_array( $authUser ) && \function_exists( 'metis_auth_protection_service' ) ) {
+                \metis_auth_protection_service()->invalidateUserSessions( (int) ( $authUser['id'] ?? 0 ) );
+            }
+        }
+
+        return [
+            'status' => 'success',
+            'user' => [
+                'pid' => (string) ( $person['pid'] ?? '' ),
+                'name' => $this->personName( $person ),
+            ],
+            'message' => sprintf( 'Soft-deleted %s.', $this->personName( $person ) ),
+        ];
+    }
+
+    public function unlockUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $person = $this->requirePerson( (string) ( $request['subject'] ?? $request['email'] ?? '' ) );
+        $personId = (int) ( $person['id'] ?? 0 );
+        if ( $personId < 1 ) {
+            throw new \RuntimeException( 'No matching person record was found.' );
+        }
+
+        if ( ! \function_exists( 'metis_auth_find_user' ) || ! \function_exists( 'metis_auth_protection_service' ) ) {
+            throw new \RuntimeException( 'Authentication protection services are unavailable.' );
+        }
+
+        $authUser = \metis_auth_find_user( 'person_id', $personId );
+        if ( ! is_array( $authUser ) ) {
+            throw new \RuntimeException( 'No linked authentication account was found for this user.' );
+        }
+
+        $identifier = strtolower( trim( (string) ( $authUser['user_email'] ?? $person['email'] ?? '' ) ) );
+        if ( $identifier === '' ) {
+            $identifier = (string) ( $authUser['user_login'] ?? '' );
+        }
+        if ( $identifier === '' ) {
+            throw new \RuntimeException( 'The linked authentication account is missing a login identifier.' );
+        }
+
+        $protection = \metis_auth_protection_service();
+        $protection->clearFailedLogins( $identifier, $authUser );
+
+        if ( \class_exists( '\Metis\Core\Application' ) && \Metis\Core\Application::has_service( 'security_kernel' ) ) {
+            $kernel = \Metis\Core\Application::service( 'security_kernel' );
+            if ( $kernel instanceof \Metis\Core\Security\SecurityKernel ) {
+                $context = $kernel->buildContext(
+                    'auth.password_login',
+                    [ 'identifier' => $identifier, 'auth_method' => 'password' ],
+                    [ 'identifier' => $identifier, 'auth_method' => 'password', 'ip' => '' ],
+                    [ 'id' => (int) ( $authUser['id'] ?? 0 ), 'session_id' => '' ]
+                );
+                $kernel->threatScores()->clearAuthenticationRisk( $context );
+            }
+        }
+
+        return [
+            'status' => 'success',
+            'user' => [
+                'pid' => (string) ( $person['pid'] ?? '' ),
+                'name' => $this->personName( $person ),
+            ],
+            'message' => sprintf( 'Cleared account-level login lockout state for %s.', $this->personName( $person ) ),
+            'notes' => [
+                'Remote IP-based throttles may still expire separately.',
+            ],
         ];
     }
 
@@ -381,6 +493,99 @@ final class HermesUserAdminService {
                 'delivery_note' => 'Provide this password securely to the user.',
             ],
             'message' => sprintf( 'Updated the Workspace password for %s.', $this->personName( $person ) ),
+        ];
+    }
+
+    public function updateWorkspaceUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $workspaceUser = $this->requireWorkspaceUserReference( (string) ( $request['subject'] ?? $request['email'] ?? '' ) );
+        $workspaceUserId = (int) ( $workspaceUser['id'] ?? 0 );
+        if ( $workspaceUserId < 1 ) {
+            throw new \RuntimeException( 'No matching Workspace user was found.' );
+        }
+
+        $payload = [
+            'workspace_user_id' => $workspaceUserId,
+            'primary_email' => strtolower( trim( (string) ( $request['workspace_email'] ?? $request['email'] ?? $workspaceUser['primary_email'] ?? '' ) ) ),
+            'first_name' => trim( (string) ( $request['first_name'] ?? $workspaceUser['first_name'] ?? '' ) ),
+            'last_name' => trim( (string) ( $request['last_name'] ?? $workspaceUser['last_name'] ?? '' ) ),
+            'display_name' => trim( (string) ( $request['display_name'] ?? $workspaceUser['display_name'] ?? '' ) ),
+            'org_unit_path' => trim( (string) ( $request['org_unit_path'] ?? $workspaceUser['org_unit_path'] ?? '/' ) ),
+            'secondary_email' => strtolower( trim( (string) ( $request['secondary_email'] ?? $this->workspaceMetadataValue( $workspaceUser, 'secondary_email' ) ) ) ),
+            'recovery_email' => strtolower( trim( (string) ( $request['recovery_email'] ?? $workspaceUser['recovery_email'] ?? '' ) ) ),
+            'linked_pid' => trim( (string) ( $workspaceUser['linked_pid'] ?? '' ) ),
+            'is_suspended' => ! empty( $workspaceUser['is_suspended'] ),
+            'is_protected' => ! empty( $workspaceUser['is_protected'] ),
+            'is_hidden' => ! empty( $this->workspaceMetadataValue( $workspaceUser, 'ui_hidden' ) ),
+            'role_keys' => array_key_exists( 'role_keys', $request ) ? $this->normalizeKeys( (array) $request['role_keys'] ) : (array) ( $workspaceUser['role_keys'] ?? [] ),
+            'group_ids' => array_key_exists( 'group_ids', $request ) ? array_values( array_unique( array_map( 'intval', (array) $request['group_ids'] ) ) ) : (array) ( $workspaceUser['group_ids'] ?? [] ),
+        ];
+
+        $result = WorkspaceUserService::saveUser( $payload, $this->currentPersonId() );
+        $summary = $this->workspaceUserSummary( $result );
+
+        return [
+            'status' => 'success',
+            'workspace_user' => $summary,
+            'updated_fields' => $this->workspaceUserUpdatedFields( $request ),
+            'message' => sprintf( 'Updated Workspace user %s.', (string) ( $summary['primary_email'] ?? $payload['primary_email'] ) ),
+        ];
+    }
+
+    public function disableWorkspaceUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $workspaceUser = $this->requireWorkspaceUserReference( (string) ( $request['subject'] ?? '' ) );
+        $result = WorkspaceUserService::queueSecurityAction(
+            (int) ( $workspaceUser['id'] ?? 0 ),
+            'suspend_account',
+            'hermes_workspace_user_disable',
+            $this->currentPersonId()
+        );
+
+        return [
+            'status' => 'success',
+            'workspace_user' => [
+                'workspace_user_id' => (int) ( $result['workspace_user_id'] ?? 0 ),
+                'primary_email' => (string) ( $result['primary_email'] ?? '' ),
+            ],
+            'job_id' => (int) ( $result['job_id'] ?? 0 ),
+            'message' => sprintf( 'Disabled Workspace access for %s.', (string) ( $result['primary_email'] ?? 'the user' ) ),
+        ];
+    }
+
+    public function enableWorkspaceUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $workspaceUser = $this->requireWorkspaceUserReference( (string) ( $request['subject'] ?? '' ) );
+        $result = WorkspaceUserService::queueSecurityAction(
+            (int) ( $workspaceUser['id'] ?? 0 ),
+            'unsuspend_account',
+            'hermes_workspace_user_enable',
+            $this->currentPersonId()
+        );
+
+        return [
+            'status' => 'success',
+            'workspace_user' => [
+                'workspace_user_id' => (int) ( $result['workspace_user_id'] ?? 0 ),
+                'primary_email' => (string) ( $result['primary_email'] ?? '' ),
+            ],
+            'job_id' => (int) ( $result['job_id'] ?? 0 ),
+            'message' => sprintf( 'Enabled Workspace access for %s.', (string) ( $result['primary_email'] ?? 'the user' ) ),
+        ];
+    }
+
+    public function deleteWorkspaceUser( mixed $request = null ): array {
+        $request = is_array( $request ) ? $request : [];
+        $workspaceUser = $this->requireWorkspaceUserReference( (string) ( $request['subject'] ?? '' ) );
+        $result = WorkspaceUserService::deleteUser( (int) ( $workspaceUser['id'] ?? 0 ) );
+
+        return [
+            'status' => 'success',
+            'workspace_user' => [
+                'workspace_user_id' => (int) ( $result['workspace_user_id'] ?? 0 ),
+                'primary_email' => (string) ( $result['primary_email'] ?? '' ),
+            ],
+            'message' => sprintf( 'Deleted Workspace user %s.', (string) ( $result['primary_email'] ?? 'account' ) ),
         ];
     }
 
@@ -606,6 +811,137 @@ final class HermesUserAdminService {
         }
 
         return $person;
+    }
+
+    private function requireWorkspaceUserReference( string $subject ): array {
+        $reference = trim( $subject );
+        if ( $reference === '' ) {
+            throw new \RuntimeException( 'A Workspace user reference is required.' );
+        }
+
+        $person = $this->directory->resolvePersonReference( $reference );
+        $workspaceUsersTable = \Metis_Tables::get( 'people_workspace_users' );
+        $usersTable = \Metis_Tables::get( 'people_workspace_users' );
+        $membersTable = \Metis_Tables::get( 'people_workspace_group_members' );
+        $peopleTable = \Metis_Tables::get( 'people' );
+
+        if ( is_array( $person ) ) {
+            $personId = (int) ( $person['id'] ?? 0 );
+            $workspaceEmail = strtolower( trim( (string) ( $person['workspace_email'] ?? $person['email'] ?? '' ) ) );
+            $row = $this->database()->fetchOne(
+                "SELECT *
+                 FROM {$workspaceUsersTable}
+                 WHERE person_id = %d
+                    OR primary_email = %s
+                 ORDER BY id DESC
+                 LIMIT 1",
+                [ $personId, $workspaceEmail ]
+            );
+            if ( is_array( $row ) ) {
+                return $this->hydrateWorkspaceUserRow( $row );
+            }
+        }
+
+        $args = [];
+        $where = '';
+        if ( ctype_digit( $reference ) ) {
+            $where = 'id = %d';
+            $args[] = (int) $reference;
+        } else {
+            $normalized = strtolower( $reference );
+            $where = "LOWER(primary_email) = %s OR LOWER(COALESCE(display_name, '')) = %s";
+            $args[] = $normalized;
+            $args[] = $normalized;
+        }
+
+        $row = $this->database()->fetchOne(
+            "SELECT *
+             FROM {$usersTable}
+             WHERE {$where}
+             ORDER BY id DESC
+             LIMIT 1",
+            $args
+        );
+        if ( ! is_array( $row ) ) {
+            throw new \RuntimeException( 'No matching Workspace user was found.' );
+        }
+
+        return $this->hydrateWorkspaceUserRow( $row );
+    }
+
+    private function hydrateWorkspaceUserRow( array $row ): array {
+        $workspaceUserId = (int) ( $row['id'] ?? 0 );
+        $userRolesTable = \Metis_Tables::get( 'people_workspace_user_roles' );
+        $groupsTable = \Metis_Tables::get( 'people_workspace_groups' );
+        $membersTable = \Metis_Tables::get( 'people_workspace_group_members' );
+        $peopleTable = \Metis_Tables::get( 'people' );
+
+        $roleRows = $this->database()->column(
+            "SELECT role_key
+             FROM {$userRolesTable}
+             WHERE workspace_user_id = %d
+             ORDER BY role_key ASC",
+            [ $workspaceUserId ]
+        ) ?: [];
+        $groupRows = $this->database()->fetchAll(
+            "SELECT gm.group_id, g.group_email
+             FROM {$membersTable} gm
+             INNER JOIN {$groupsTable} g ON g.id = gm.group_id
+             WHERE gm.workspace_user_id = %d
+             ORDER BY gm.group_id ASC",
+            [ $workspaceUserId ]
+        ) ?: [];
+
+        $linkedPid = '';
+        $personId = (int) ( $row['person_id'] ?? 0 );
+        if ( $personId > 0 ) {
+            $linkedPid = (string) $this->database()->scalar(
+                "SELECT pid
+                 FROM {$peopleTable}
+                 WHERE id = %d
+                 LIMIT 1",
+                [ $personId ]
+            );
+        }
+
+        $row['role_keys'] = array_values( array_map( 'strval', $roleRows ) );
+        $row['group_ids'] = array_values( array_map( static fn( array $group ): int => (int) ( $group['group_id'] ?? 0 ), $groupRows ) );
+        $row['group_emails'] = array_values( array_filter( array_map( static fn( array $group ): string => (string) ( $group['group_email'] ?? '' ), $groupRows ) ) );
+        $row['linked_pid'] = $linkedPid;
+
+        return $row;
+    }
+
+    private function workspaceMetadataValue( array $workspaceUser, string $key ): mixed {
+        $metadata = json_decode( (string) ( $workspaceUser['metadata_json'] ?? '' ), true );
+        if ( ! is_array( $metadata ) ) {
+            return null;
+        }
+
+        return $metadata[ $key ] ?? null;
+    }
+
+    private function workspaceUserSummary( array $result ): array {
+        $user = (array) ( $result['user'] ?? [] );
+        return [
+            'workspace_user_id' => (int) ( $result['workspace_user_id'] ?? $user['id'] ?? 0 ),
+            'primary_email' => (string) ( $user['primary_email'] ?? '' ),
+            'display_name' => (string) ( $user['display_name'] ?? '' ),
+            'is_suspended' => ! empty( $user['is_suspended'] ),
+            'role_keys' => array_values( array_map( 'strval', (array) ( $user['role_keys'] ?? [] ) ) ),
+            'group_ids' => array_values( array_map( 'intval', (array) ( $user['group_ids'] ?? [] ) ) ),
+        ];
+    }
+
+    private function workspaceUserUpdatedFields( array $request ): array {
+        $fields = [];
+        foreach ( [ 'workspace_email', 'email', 'first_name', 'last_name', 'display_name', 'org_unit_path', 'secondary_email', 'recovery_email', 'role_keys', 'group_ids' ] as $field ) {
+            if ( array_key_exists( $field, $request ) ) {
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
     }
 
     private function replaceUserRoles( int $personId, array $roles ): array {

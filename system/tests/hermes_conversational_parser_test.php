@@ -69,6 +69,79 @@ $workspaceUser = $parser->parse( 'create a workspace user for Riley with email r
 $assert( (string) ( $workspaceUser['selected_intent'] ?? '' ) === 'workspace_user_create', 'Workspace user creation request should map to workspace_user_create.' );
 $assert( empty( $workspaceUser['requires_clarification'] ), 'Workspace user creation request should not require clarification.' );
 
+$workspaceDisable = $parser->parse( 'disable workspace access for Riley' );
+$assert( (string) ( $workspaceDisable['selected_intent'] ?? '' ) === 'workspace_user_disable', 'Workspace access disable request should map to workspace_user_disable.' );
+$assert( empty( $workspaceDisable['requires_clarification'] ), 'Workspace access disable request should not require clarification.' );
+
+$userDelete = $parser->parse( 'delete user Riley' );
+$assert( (string) ( $userDelete['selected_intent'] ?? '' ) === 'user_delete', 'User delete request should map to user_delete.' );
+$assert( empty( $userDelete['requires_clarification'] ), 'User delete request should not require clarification.' );
+
+$userUnlock = $parser->parse( 'unlock user Riley' );
+$assert( (string) ( $userUnlock['selected_intent'] ?? '' ) === 'user_unlock', 'User unlock request should map to user_unlock.' );
+$assert( empty( $userUnlock['requires_clarification'] ), 'User unlock request should not require clarification.' );
+
+$mfaReset = $parser->parse( 'reset mfa for Riley' );
+$assert( (string) ( $mfaReset['selected_intent'] ?? '' ) === 'reset_user_mfa', 'MFA reset request should map to reset_user_mfa.' );
+$assert( empty( $mfaReset['requires_clarification'] ), 'MFA reset request should not require clarification.' );
+
+$driveSync = $parser->parse( 'sync drives' );
+$assert( (string) ( $driveSync['selected_intent'] ?? '' ) === 'drive_sync', 'Drive sync request should map to drive_sync.' );
+$assert( empty( $driveSync['requires_clarification'] ), 'Drive sync request should not require clarification.' );
+
+$queueDrain = $parser->parse( 'drain queue' );
+$assert( (string) ( $queueDrain['selected_intent'] ?? '' ) === 'queue_drain', 'Queue drain request should map to queue_drain.' );
+$assert( empty( $queueDrain['requires_clarification'] ), 'Queue drain request should not require clarification.' );
+
+$restoreFile = $parser->parse( 'restore file "storage/public-media/reports/summary.pdf" from run_20260601_abc12345' );
+$restoreFilePayload = (array) ( $restoreFile['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $restoreFile['selected_intent'] ?? '' ) === 'restore_file', 'Restore file request should map to restore_file.' );
+$assert( (string) ( $restoreFilePayload['run_uuid'] ?? '' ) === 'run_20260601_abc12345', 'Restore file request should capture the backup run ID.' );
+$assert( (string) ( $restoreFilePayload['relative_path'] ?? '' ) === 'storage/public-media/reports/summary.pdf', 'Restore file request should capture the backup-relative file path.' );
+
+$moduleCompliance = $parser->parse( 'run module compliance audit' );
+$assert( (string) ( $moduleCompliance['selected_intent'] ?? '' ) === 'module_compliance_audit', 'Module compliance audit request should map to module_compliance_audit.' );
+$assert( empty( $moduleCompliance['requires_clarification'] ), 'Module compliance audit request should not require clarification.' );
+
+$createJob = $parser->parse( 'queue job task module_compliance_audit' );
+$createJobPayload = (array) ( $createJob['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $createJob['selected_intent'] ?? '' ) === 'create_job', 'Cron task queue request should map to create_job.' );
+$assert( (string) ( $createJobPayload['task_slug'] ?? '' ) === 'module_compliance_audit', 'Cron task queue request should capture the task slug.' );
+$assert( empty( $createJob['requires_clarification'] ), 'Cron task queue request should not require clarification when the task slug is present.' );
+
+$cancelJob = $parser->parse( 'cancel job JOBABC123' );
+$cancelJobPayload = (array) ( $cancelJob['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $cancelJob['selected_intent'] ?? '' ) === 'cancel_job', 'Worker cancel request should map to cancel_job.' );
+$assert( (string) ( $cancelJobPayload['subject'] ?? '' ) === 'JOBABC123', 'Worker cancel request should capture the job code as the subject.' );
+$assert( (string) ( $cancelJobPayload['job_key'] ?? '' ) === 'jobabc123', 'Worker cancel request should normalize the job code key.' );
+
+$retryJob = $parser->parse( 'retry job JOBXYZ789' );
+$retryJobPayload = (array) ( $retryJob['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $retryJob['selected_intent'] ?? '' ) === 'retry_job', 'Worker retry request should map to retry_job.' );
+$assert( (string) ( $retryJobPayload['subject'] ?? '' ) === 'JOBXYZ789', 'Worker retry request should capture the job code as the subject.' );
+$assert( (string) ( $retryJobPayload['job_key'] ?? '' ) === 'jobxyz789', 'Worker retry request should normalize the job code key.' );
+
+$workspaceGroupUpdate = $parser->parse( 'add workspace group finance-team@example.org to Riley' );
+$workspaceGroupPayload = (array) ( $workspaceGroupUpdate['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $workspaceGroupUpdate['selected_intent'] ?? '' ) === 'manage_workspace_groups', 'Workspace group update request should map to manage_workspace_groups.' );
+$assert( (string) ( $workspaceGroupPayload['subject'] ?? '' ) === 'riley', 'Workspace group update request should preserve the target user subject.' );
+$assert( (array) ( $workspaceGroupPayload['group_emails'] ?? [] ) === [ 'finance-team@example.org' ], 'Workspace group update request should capture Workspace group emails.' );
+$assert( (string) ( $workspaceGroupPayload['mode'] ?? '' ) === 'add', 'Workspace group update request should infer add mode by default.' );
+
+$linkDriveFolder = $parser->parse( 'link drive folder https://drive.google.com/drive/folders/1AbCdEfGhIJkLmNoPqRsTuVwXyZ to Riley' );
+$linkDriveFolderPayload = (array) ( $linkDriveFolder['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $linkDriveFolder['selected_intent'] ?? '' ) === 'link_drive_folder', 'Drive folder link request should map to link_drive_folder.' );
+$assert( (string) ( $linkDriveFolderPayload['subject'] ?? '' ) === 'riley', 'Drive folder link request should preserve the target user subject.' );
+$assert( (string) ( $linkDriveFolderPayload['folder_id'] ?? '' ) === '1abcdefghijklmnopqrstuvwxyz', 'Drive folder link request should capture the explicit Drive folder ID.' );
+
+$boardWorkspace = $parser->parse( 'prepare board workspace for Q3-2026' );
+$assert( (string) ( $boardWorkspace['selected_intent'] ?? '' ) === 'board_workspace_prepare', 'Board workspace request should map to board_workspace_prepare.' );
+$assert( empty( $boardWorkspace['requires_clarification'] ), 'Board workspace request should not require clarification when the meeting reference is present.' );
+
+$newsletterCancel = $parser->parse( 'cancel newsletter' );
+$assert( (string) ( $newsletterCancel['selected_intent'] ?? '' ) === 'newsletter_cancel', 'Newsletter cancel request should map to newsletter_cancel.' );
+$assert( empty( $newsletterCancel['requires_clarification'] ), 'Newsletter cancel request should not require clarification.' );
+
 $noSplit = $parser->parse( 'how do I create a GL entry with debit and credit lines?' );
 $assert( count( (array) ( $noSplit['execution_plan'] ?? [] ) ) === 1, 'Instructional GL phrasing should not split on debit and credit wording.' );
 $assert( (string) ( $noSplit['selected_intent'] ?? '' ) === 'resolve_help_issue', 'Instructional GL phrasing with accounting terms should still map to resolve_help_issue.' );

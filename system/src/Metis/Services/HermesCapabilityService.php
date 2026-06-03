@@ -14,6 +14,7 @@ final class HermesCapabilityService {
         private readonly HermesDirectoryService $directory,
         private readonly HermesUserAdminService $userAdmin,
         private readonly HermesSystemOperationsService $systemOps,
+        private readonly ?HermesNewsletterAdminService $newsletterAdmin = null,
         private readonly ?JobQueue $jobs = null,
         private readonly ?HelpIssueResolver $helpIssueResolver = null
     ) {}
@@ -34,6 +35,38 @@ final class HermesCapabilityService {
         return $this->userAdmin->enableUser( $payload );
     }
 
+    public function deleteUser( array $payload ): array {
+        return $this->userAdmin->deleteUser( $payload );
+    }
+
+    public function unlockUser( array $payload ): array {
+        return $this->userAdmin->unlockUser( $payload );
+    }
+
+    public function resetMetisPassword( array $payload ): array {
+        return $this->userAdmin->resetMetisPassword( $payload );
+    }
+
+    public function resetWorkspacePassword( array $payload ): array {
+        return $this->userAdmin->resetWorkspacePassword( $payload );
+    }
+
+    public function updateWorkspaceUser( array $payload ): array {
+        return $this->userAdmin->updateWorkspaceUser( $payload );
+    }
+
+    public function disableWorkspaceUser( array $payload ): array {
+        return $this->userAdmin->disableWorkspaceUser( $payload );
+    }
+
+    public function enableWorkspaceUser( array $payload ): array {
+        return $this->userAdmin->enableWorkspaceUser( $payload );
+    }
+
+    public function deleteWorkspaceUser( array $payload ): array {
+        return $this->userAdmin->deleteWorkspaceUser( $payload );
+    }
+
     public function assignRole( array $payload ): array {
         $payload['mode'] = 'add';
         return $this->userAdmin->manageUserRoles( $payload );
@@ -42,6 +75,18 @@ final class HermesCapabilityService {
     public function removeRole( array $payload ): array {
         $payload['mode'] = 'remove';
         return $this->userAdmin->manageUserRoles( $payload );
+    }
+
+    public function manageWorkspaceGroups( array $payload ): array {
+        return $this->userAdmin->manageWorkspaceGroups( $payload );
+    }
+
+    public function resetUserMfa( array $payload ): array {
+        return $this->userAdmin->resetUserMfa( $payload );
+    }
+
+    public function linkDriveFolder( array $payload ): array {
+        return $this->userAdmin->linkDriveFolder( $payload );
     }
 
     public function listUsers( array $payload ): array {
@@ -275,6 +320,94 @@ final class HermesCapabilityService {
         ];
     }
 
+    public function startBackup( array $payload ): array {
+        return $this->systemOps->runBackup( $payload );
+    }
+
+    public function restoreBackup( array $payload ): array {
+        return $this->systemOps->restoreBackup( $payload );
+    }
+
+    public function validateBackup( array $payload ): array {
+        return $this->systemOps->validateBackup( $payload );
+    }
+
+    public function restoreFile( array $payload ): array {
+        return $this->systemOps->restoreFile( $payload );
+    }
+
+    public function installSystemUpdate( array $payload ): array {
+        return $this->systemOps->installSystemUpdate( $payload );
+    }
+
+    public function rollbackRelease( array $payload ): array {
+        return $this->systemOps->rollbackRelease( $payload );
+    }
+
+    public function queueDriveSync( array $payload ): array {
+        return $this->systemOps->queueDriveSync( $payload );
+    }
+
+    public function queueCalendarSync( array $payload ): array {
+        return $this->systemOps->queueCalendarSync( $payload );
+    }
+
+    public function drainQueue( array $payload ): array {
+        return $this->systemOps->drainQueue( $payload );
+    }
+
+    public function buildIntegrityBaseline( array $payload ): array {
+        return $this->systemOps->buildIntegrityBaseline( $payload );
+    }
+
+    public function runModuleComplianceAudit( array $payload ): array {
+        return $this->systemOps->runModuleComplianceAudit( $payload );
+    }
+
+    public function prepareBoardWorkspace( array $payload ): array {
+        return $this->systemOps->prepareBoardWorkspace( $payload );
+    }
+
+    public function createCampaign( array $payload ): array {
+        return $this->requireNewsletterAdmin()->createCampaign( $payload );
+    }
+
+    public function updateCampaign( array $payload ): array {
+        return $this->requireNewsletterAdmin()->updateCampaign( $payload );
+    }
+
+    public function publishCampaign( array $payload ): array {
+        return $this->requireNewsletterAdmin()->sendCampaign( $payload );
+    }
+
+    public function archiveCampaign( array $payload ): array {
+        return $this->requireNewsletterAdmin()->archiveCampaign( $payload );
+    }
+
+    public function deleteCampaign( array $payload ): array {
+        return $this->requireNewsletterAdmin()->deleteCampaign( $payload );
+    }
+
+    public function createNewsletter( array $payload ): array {
+        return $this->requireNewsletterAdmin()->createCampaign( $payload );
+    }
+
+    public function sendNewsletter( array $payload ): array {
+        return $this->requireNewsletterAdmin()->sendCampaign( $payload );
+    }
+
+    public function scheduleNewsletter( array $payload ): array {
+        return $this->requireNewsletterAdmin()->scheduleCampaign( $payload );
+    }
+
+    public function cancelNewsletter( array $payload ): array {
+        return $this->requireNewsletterAdmin()->cancelCampaign( $payload );
+    }
+
+    public function deleteNewsletter( array $payload ): array {
+        return $this->requireNewsletterAdmin()->deleteCampaign( $payload );
+    }
+
     public function runFullDiagnostics( array $payload ): array {
         return $this->queueGenericJob(
             'hermes.diagnostics',
@@ -394,10 +527,6 @@ final class HermesCapabilityService {
         return $this->unsupportedOperation( 'recover_module', 'Module recovery does not have an executable backend yet. Use release rollback or backup restore for supported recovery paths.' );
     }
 
-    public function restoreFile( array $payload ): array {
-        return $this->unsupportedOperation( 'restore_file', 'File restore needs a backup run id and restore backend. Use the backup restore workflow until Hermes file-level restore is implemented.' );
-    }
-
     public function rollbackModule( array $payload ): array {
         return $this->unsupportedOperation( 'rollback_module', 'Module rollback is not independently executable. Use release rollback for supported rollback behavior.' );
     }
@@ -431,15 +560,48 @@ final class HermesCapabilityService {
     }
 
     public function createJob( array $payload ): array {
-        return $this->queueGenericJob(
-            trim( (string) ( $payload['job_type'] ?? 'hermes.manual.job' ) ),
-            $payload,
-            'Job queued.'
-        );
+        $taskSlug = \metis_key_clean( (string) ( $payload['task_slug'] ?? $payload['subject'] ?? '' ) );
+        if ( $taskSlug === '' ) {
+            return $this->error( 'INVALID_INPUT', 'A cron task slug is required.' );
+        }
+
+        if ( ! class_exists( 'Metis_Cron_Manager' ) || ! method_exists( 'Metis_Cron_Manager', 'registered_tasks' ) ) {
+            return $this->error( 'EXECUTION_FAILED', 'Cron task registry is unavailable.' );
+        }
+
+        $registeredTasks = (array) \Metis_Cron_Manager::registered_tasks();
+        $taskConfig = is_array( $registeredTasks[ $taskSlug ] ?? null ) ? $registeredTasks[ $taskSlug ] : [];
+        if ( $taskConfig === [] ) {
+            return $this->error( 'INVALID_INPUT', sprintf( 'Cron task [%s] is not registered.', $taskSlug ) );
+        }
+
+        if ( array_key_exists( 'enabled', $taskConfig ) && empty( $taskConfig['enabled'] ) ) {
+            return $this->error( 'INVALID_INPUT', sprintf( 'Cron task [%s] is disabled.', $taskSlug ) );
+        }
+
+        if ( ! Application::has_service( 'operations' ) ) {
+            return $this->error( 'EXECUTION_FAILED', 'Operations service is unavailable.' );
+        }
+
+        $queued = Application::service( 'operations' )->queueOperation( 'cron.task.run', [ 'task_slug' => $taskSlug ] );
+        if ( ! is_array( $queued ) || empty( $queued['ok'] ) ) {
+            return $this->error( 'EXECUTION_FAILED', (string) ( $queued['message'] ?? 'Cron task queue request failed.' ) );
+        }
+
+        return [
+            'status' => 'success',
+            'queued' => [
+                'operation' => 'cron.task.run',
+                'job_code' => (string) ( $queued['job_code'] ?? '' ),
+                'queue' => (string) ( $queued['queue_name'] ?? 'system' ),
+                'payload' => [ 'task_slug' => $taskSlug ],
+            ],
+            'message' => sprintf( 'Cron task [%s] queued.', $taskSlug ),
+        ];
     }
 
     public function cancelJob( array $payload ): array {
-        $jobCode = trim( (string) ( $payload['subject'] ?? $payload['job_code'] ?? '' ) );
+        $jobCode = $this->normalizeJobCode( $payload );
         if ( $jobCode === '' ) {
             return $this->error( 'INVALID_INPUT', 'A job code is required.' );
         }
@@ -460,7 +622,7 @@ final class HermesCapabilityService {
     }
 
     public function retryJob( array $payload ): array {
-        $jobCode = trim( (string) ( $payload['subject'] ?? $payload['job_code'] ?? '' ) );
+        $jobCode = $this->normalizeJobCode( $payload );
         if ( $jobCode === '' ) {
             return $this->error( 'INVALID_INPUT', 'A job code is required.' );
         }
@@ -673,6 +835,15 @@ final class HermesCapabilityService {
         ];
     }
 
+    private function normalizeJobCode( array $payload ): string {
+        $jobCode = trim( (string) ( $payload['job_code'] ?? $payload['job_key'] ?? $payload['subject'] ?? '' ) );
+        if ( $jobCode === '' ) {
+            return '';
+        }
+
+        return strtoupper( preg_replace( '/[^A-Z0-9_-]+/i', '', $jobCode ) ?? '' );
+    }
+
     private function unsupportedOperation( string $operation, string $message ): array {
         return [
             'status' => 'error',
@@ -688,5 +859,13 @@ final class HermesCapabilityService {
             'error_code' => $code,
             'message' => $message,
         ];
+    }
+
+    private function requireNewsletterAdmin(): HermesNewsletterAdminService {
+        if ( $this->newsletterAdmin === null ) {
+            throw new \RuntimeException( 'Newsletter campaign administration is unavailable.' );
+        }
+
+        return $this->newsletterAdmin;
     }
 }

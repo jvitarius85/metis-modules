@@ -67,6 +67,10 @@ $recentEntity = $memory->recallRecentEntity( $sessionCode );
 $hydrated = $state->hydrateRuntimeContext( $session, [] );
 $attributeFollowUp = $parser->parse( 'what is his email', $sessionCode );
 $actionFollowUp = $parser->parse( 'disable that user', $sessionCode );
+$workspaceResetFollowUp = $parser->parse( 'reset his workspace password', $sessionCode );
+$genericResetFollowUp = $parser->parse( 'reset his password', $sessionCode );
+$enableFollowUp = $parser->parse( 'enable that user', $sessionCode );
+$updateFollowUp = $parser->parse( 'update that user', $sessionCode );
 
 $assert( (string) ( $recentEntity['subject'] ?? '' ) === 'John Smith', 'Recent entity memory should persist the latest resolved subject.' );
 $assert( (string) ( $recentEntity['entity_hint'] ?? '' ) === 'person', 'Recent entity memory should retain the entity hint.' );
@@ -76,6 +80,18 @@ $assert( (string) ( $attributeFollowUp['intents'][0]['payload']['attribute_reque
 $assert( (string) ( $actionFollowUp['selected_intent'] ?? '' ) === 'disable_user', 'Contextual action follow-up should resolve to disable_user.' );
 $assert( (string) ( $actionFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'John Smith', 'Contextual action follow-up should reuse the recent entity subject.' );
 $assert( empty( $actionFollowUp['requires_clarification'] ), 'Contextual action follow-up should not require clarification when recent entity memory exists.' );
+$assert( (string) ( $workspaceResetFollowUp['selected_intent'] ?? '' ) === 'workspace_user_password_reset', 'Contextual workspace password reset follow-up should resolve to workspace_user_password_reset.' );
+$assert( (string) ( $workspaceResetFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'John Smith', 'Contextual workspace password reset should reuse the recent entity subject.' );
+$assert( empty( $workspaceResetFollowUp['requires_clarification'] ), 'Scoped workspace password reset follow-up should not require clarification when recent entity memory exists.' );
+$assert( (string) ( $genericResetFollowUp['selected_intent'] ?? '' ) === 'user_password_reset', 'Generic password reset follow-up should still resolve to user_password_reset before workflow clarification.' );
+$assert( (string) ( $genericResetFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'John Smith', 'Generic password reset follow-up should reuse the recent entity subject.' );
+$assert( empty( $genericResetFollowUp['requires_clarification'] ), 'Generic password reset follow-up should gain enough confidence from recent entity context.' );
+$assert( (string) ( $enableFollowUp['selected_intent'] ?? '' ) === 'enable_user', 'Contextual enable follow-up should resolve to enable_user.' );
+$assert( (string) ( $enableFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'John Smith', 'Contextual enable follow-up should reuse the recent entity subject.' );
+$assert( empty( $enableFollowUp['requires_clarification'] ), 'Contextual enable follow-up should not require clarification when recent entity memory exists.' );
+$assert( (string) ( $updateFollowUp['selected_intent'] ?? '' ) === 'update_user', 'Contextual update follow-up should resolve to update_user.' );
+$assert( (string) ( $updateFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'John Smith', 'Contextual update follow-up should reuse the recent entity subject.' );
+$assert( empty( $updateFollowUp['requires_clarification'] ), 'Contextual update follow-up should not require clarification when recent entity memory exists.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

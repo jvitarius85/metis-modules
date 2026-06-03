@@ -228,6 +228,7 @@ final class OperationsService {
             'backup.run' => $this->runBackupOperation( $operation ),
             'backup.stage' => $this->runBackupStageOperation( $operation, $payload ),
             'backup.restore' => $this->runBackupRestoreOperation( $operation, $payload ),
+            'backup.file_restore' => $this->runBackupFileRestoreOperation( $operation, $payload ),
             'release.check' => $this->runReleaseCheckOperation( $operation ),
             'release.auto_update' => $this->runReleaseAutoUpdateOperation( $operation ),
             'release.apply' => $this->runReleaseApplyOperation( $operation, $payload ),
@@ -359,6 +360,7 @@ final class OperationsService {
             'backup.run'         => [ 'label' => 'Run Backup', 'priority' => 12, 'max_attempts' => 2 ],
             'backup.stage'       => [ 'label' => 'Run Backup Stage', 'priority' => 11, 'max_attempts' => 1 ],
             'backup.restore'     => [ 'label' => 'Restore Backup', 'priority' => 6, 'max_attempts' => 1 ],
+            'backup.file_restore' => [ 'label' => 'Restore Backup File', 'priority' => 6, 'max_attempts' => 1 ],
             'release.check'      => [ 'label' => 'Check Releases', 'priority' => 16, 'max_attempts' => 2 ],
             'release.auto_update' => [ 'label' => 'Auto Update Release', 'priority' => 7, 'max_attempts' => 1 ],
             'release.apply'      => [ 'label' => 'Apply Release', 'priority' => 7, 'max_attempts' => 1 ],
@@ -377,7 +379,8 @@ final class OperationsService {
         }
         if ( isset( $payload['run_uuid'] ) ) {
             $stage = isset( $payload['stage'] ) ? ':' . \metis_key_clean( (string) $payload['stage'] ) : '';
-            return 'operation:' . $normalized . ':' . trim( (string) $payload['run_uuid'] ) . $stage;
+            $path = isset( $payload['relative_path'] ) ? ':' . md5( trim( (string) $payload['relative_path'] ) ) : '';
+            return 'operation:' . $normalized . ':' . trim( (string) $payload['run_uuid'] ) . $stage . $path;
         }
         if ( isset( $payload['tag'] ) ) {
             return 'operation:' . $normalized . ':' . strtolower( trim( (string) $payload['tag'] ) );
@@ -580,6 +583,25 @@ final class OperationsService {
         }
 
         return [ 'operation' => $operation, 'run_uuid' => $runUuid, 'result' => \metis_backup_restore_run( $runUuid ) ];
+    }
+
+    private function runBackupFileRestoreOperation( string $operation, array $payload ): array {
+        if ( ! \function_exists( 'metis_backup_restore_file' ) ) {
+            throw new RuntimeException( 'Backup file restore service is not available.' );
+        }
+
+        $runUuid = trim( (string) ( $payload['run_uuid'] ?? '' ) );
+        $relativePath = trim( (string) ( $payload['relative_path'] ?? '' ) );
+        if ( $runUuid === '' || $relativePath === '' ) {
+            throw new RuntimeException( 'Backup run ID and restore file path are required.' );
+        }
+
+        return [
+            'operation' => $operation,
+            'run_uuid' => $runUuid,
+            'relative_path' => $relativePath,
+            'result' => \metis_backup_restore_file( $runUuid, $relativePath ),
+        ];
     }
 
     private function runReleaseCheckOperation( string $operation ): array {

@@ -176,6 +176,288 @@ Hermes now delegates grounded knowledge retrieval through an explicit `Metis\Int
 
 `HermesIntelligenceRegistry` now acts as the Hermes-facing compatibility layer over that provider registry rather than assembling grounded sources directly itself.
 
+### 2.12 Dashboard Intelligence Services
+
+Hermes dashboard health synthesis is now delegated into explicit deterministic intelligence services:
+
+- `Support/SeverityRanker`: shared severity ordering and threshold checks.
+- `Services/AlertIntelligenceService`: operator-facing alert synthesis from queue, cron, reconciliation, permission, and board-health evidence.
+- `Services/IntegrationFailureIntelligenceService`: integration-failure summaries from the same evidence surfaces without duplicating gateway rule logic.
+- `Services/ModuleHealthIntelligenceService`: per-module status, restriction, and live board-diagnostic resolution.
+- `Services/DiagnosticTrendIntelligenceService`: oldest-first chart points for recent diagnostic reports.
+
+`HermesGateway` still owns dashboard orchestration and caching, but it no longer owns these rule engines directly. That keeps the dashboard read path deterministic, testable, and aligned with the directive’s broader intelligence-layer separation.
+
+### 2.13 Trend Engine
+
+Hermes now has a centralized trend engine in `Metis\Intelligence\Services\TrendIntelligenceService` with shared support for:
+
+- day-over-day
+- week-over-week
+- month-over-month
+- quarter-over-quarter
+- year-over-year
+
+The service owns comparison normalization, current/previous window resolution, delta-percentage calculation, and deterministic label/class formatting like `up 100.0% vs previous month`. `DiagnosticTrendIntelligenceService` now consumes this engine instead of carrying ad hoc comparison logic, which satisfies the directive’s requirement to avoid duplicated trend rules.
+
+### 2.14 Recommendation Engine
+
+Hermes now exposes deterministic dashboard recommendations through `Metis\Intelligence\Services\RecommendationIntelligenceService`.
+
+The recommendation engine:
+
+- consumes existing health evidence from alerts, integration failures, module summaries, and live diagnostics
+- resolves each recommendation to a real Hermes operation key when one exists
+- keeps recommendation generation outside `HermesGateway`
+- avoids freeform advice by grounding next steps in the operations catalog
+
+Current rule coverage includes queue pressure, reconciliation anomalies, board workspace drift, newsletter delivery friction, and permission mismatches.
+
+### 2.15 Domain Intelligence Providers
+
+The intelligence registry now includes first-class deterministic domain providers backed by existing Metis module services:
+
+- `DonorIntelligenceProvider`: delegates to donations dashboard snapshots for fundraising and donor-health signals.
+- `CampaignIntelligenceProvider`: delegates to donations campaign snapshots for campaign activity and raised totals.
+- `FinancialIntelligenceProvider`: delegates to `FinanceV2Service::summary()` for reconciliation and ledger-health signals.
+- `NewsletterIntelligenceProvider`: delegates to newsletter dashboard snapshots for delivery and subscriber signals.
+- `SystemIntelligenceProvider`: delegates to Hermes diagnostics and queue summaries for system-health signals.
+
+These providers keep Hermes out of direct business calculation paths while expanding the explicit `Metis\Intelligence` framework toward the directive’s domain-specific intelligence model.
+
+### 2.16 Operations Framework
+
+Hermes now has an explicit `Metis\Operations` package with:
+
+- `Contracts/OperationsRegistryInterface`
+- `DTOs/OperationDefinition`
+- `Services/OperationDefinitionBuilder`
+- `Registry/OperationsRegistry`
+
+The builder composes operation metadata from the existing Hermes command, tool, and intent registries, while `HermesOperationsRegistry` now acts as the backward-compatible facade over this standalone package. This keeps the current gateway and dashboard path stable while satisfying the directive’s requirement that operations metadata live under an explicit `system/src/Metis/Operations/` framework.
+
+### 2.17 Operations Service Catalogs
+
+The operations framework now also exposes explicit service ownership catalogs for the directive’s major operation domains:
+
+- `UserOperationsService`
+- `WorkspaceUserOperationsService`
+- `CampaignOperationsService`
+- `NewsletterOperationsService`
+- `SystemOperationsService`
+
+`OperationsServiceCatalog` resolves handler metadata for each known operation, and `OperationDefinitionBuilder` now attaches that handler ownership directly into the normalized operation definitions. This does not change Secure Enclave execution, but it makes command-to-service ownership explicit and testable.
+
+### 2.18 Multi-Step Command Handling
+
+Hermes operational processing now preserves parser-emitted multi-step `execution_plan` data through:
+
+- action-plan rendering
+- approval payload packaging
+- per-step permission validation
+- prepared-action validation
+- sequential execution with stop-on-failure semantics
+
+Each step is resolved against the command registry independently, carries its own approval/read-only metadata, and is validated separately before execution. This closes the gap between the earlier conversational multi-fragment parser output and the directive’s required multi-step operational handling.
+
+### 2.19 Broader Trusted Operations Coverage
+
+Hermes now exposes first-class operations for trusted backends that already exist in Metis:
+
+- `user_password_reset`
+- `workspace_user_password_reset`
+- `run_backup`
+- `backup_start`
+- `backup_restore`
+- `backup_validate`
+- `cache_clear`
+- `update_check`
+- `aut_update_check`
+- `update_install`
+- `aut_update_install`
+- `release_rollback`
+- `diagnostics_run`
+
+These commands are normalized through the Hermes command/tool registries and the standalone `Metis\Operations` framework, while dispatch remains grounded in real services:
+
+- password resets delegate to `HermesUserAdminService`
+- backup start and restore queue trusted operations through `HermesSystemOperationsService`
+- update install queues trusted release operations through `HermesSystemOperationsService`
+- release rollback queues the trusted `release.rollback` operation through `HermesSystemOperationsService`
+- diagnostics and cache aliases reuse the existing Hermes tools instead of creating duplicate execution paths
+
+This phase expands the directive-required operations surface without weakening the enclave or approval model: mutating commands remain approval-gated, and only operations with concrete backends are exposed as executable.
+
+### 2.20 Expanded Pending Workflows
+
+Hermes pending workflows now cover more than user creation. `HermesPendingWorkflowEngine` now handles:
+
+- `create_user`
+- `workspace_user_create`
+- ambiguous password reset requests
+- explicit Metis password reset requests with missing subject
+- explicit Workspace password reset requests with missing subject
+- `backup_restore` requests with a missing run ID
+- `backup_validate` requests with a missing run ID
+
+The workflow engine now asks deterministic follow-up questions only for missing executable inputs:
+
+- missing user name or email for create-user flows
+- missing password target scope for ambiguous reset requests
+- missing subject for reset requests
+- missing `run_uuid` for backup restore and backup validation
+
+Once the missing inputs are collected, Hermes converts the workflow back into the canonical operation review path and reuses the existing approval continuation system. This preserves the Secure Enclave execution path while broadening multi-turn recovery for operational requests that were previously dead ends.
+
+### 2.21 Contextual Action Confidence
+
+Recent-entity memory now feeds action-command confidence more directly inside `ConversationalParser`, not just lookup follow-ups. Hermes now treats ordered phrase matches with lightweight filler words in between as valid command evidence, so prompts like:
+
+- `enable that user`
+- `update that user`
+- `reset his password`
+- `reset his workspace password`
+
+can resolve against the last referenced person without falling into low-confidence clarification loops.
+
+The parser now also breaks ties with pattern specificity instead of raw confidence alone, which keeps more specific commands ahead of generic ones. That matters for cases like:
+
+- `create a workspace user` over generic `create_user`
+- `module diagnostic` over generic full-diagnostics runs
+- explicitly scoped Workspace password resets over generic password reset commands
+
+This improves follow-up determinism while still preserving workflow-based clarification when the request is genuinely under-specified, such as an unscoped password reset that needs Metis-versus-Workspace confirmation.
+
+### 2.22 Campaign and Newsletter Operations
+
+The standalone operations package now exposes real `campaign` and `newsletter` families instead of empty placeholders. Hermes now registers first-class operations for:
+
+- `campaign_create`
+- `campaign_update`
+- `campaign_publish`
+- `campaign_archive`
+- `campaign_delete`
+- `newsletter_create`
+- `newsletter_send`
+- `newsletter_schedule`
+- `newsletter_delete`
+
+These operations are backed by a dedicated `HermesNewsletterAdminService`, which delegates to the existing newsletter module services:
+
+- `CampaignService::save()` for create and update
+- `QueueService::queueCampaignMessages()` for publish/send and scheduled sends
+- `CampaignService::archive()` for archive
+- `CampaignService::delete()` for delete
+
+This keeps business logic in the module that already owns newsletter campaigns while allowing Hermes and the `Metis\Operations` framework to surface those capabilities as deterministic, approval-gated enterprise operations.
+
+### 2.23 Backup Validation Operation
+
+Hermes now exposes `backup_validate` as a first-class trusted system operation instead of treating backup verification as an undocumented backend detail.
+
+The operation is grounded in the existing Metis operations runtime rather than new inline logic:
+
+- `HermesSystemOperationsService::validateBackup()` queues the trusted `backup.stage` operation
+- the queued payload pins `stage` to `verify`
+- Hermes preserves approval gating because backup verification still targets a specific backup run and executes through the worker-backed system-operations path
+
+`HermesPendingWorkflowEngine` now shares one backup-run workflow path for both `backup_restore` and `backup_validate`. If the user says `Validate backup.` without a run ID, Hermes asks for the missing `run_uuid`, stores the pending workflow in session memory, and then returns to the standard approval review using the canonical `backup_validate` operation key.
+
+### 2.24 Release Rollback Operation
+
+Hermes now exposes `release_rollback` as a first-class system operation instead of leaving rollback only as an internal operations-runtime command or unsupported recovery hint.
+
+The operation is deliberately narrow:
+
+- `HermesSystemOperationsService::rollbackRelease()` queues the trusted `release.rollback` operation
+- the Hermes command and tool registries expose `release rollback`, `rollback release`, and related phrases as one canonical approval-gated action
+- dispatch stays in the existing worker-backed release runtime rather than introducing a new synchronous rollback path
+
+This gives Hermes a real supported rollback command without pretending that module-level rollback or service restart are solved. The operation stays grounded in the release manager that already owns trusted release rollback behavior.
+
+### 2.25 Workspace User Operation Expansion
+
+The standalone workspace-user operations family now exposes more than create and password reset. Hermes now registers first-class operations for:
+
+- `workspace_user_update`
+- `workspace_user_disable`
+- `workspace_user_enable`
+- `workspace_user_delete`
+
+These operations are routed through `HermesUserAdminService`, but execution remains grounded in the existing people-module workspace services:
+
+- updates reuse `WorkspaceUserService::saveUser()`
+- enable and disable actions queue `WorkspaceUserService::queueSecurityAction()` with suspend and unsuspend actions
+- deletes reuse `WorkspaceUserService::deleteUser()`
+
+Hermes also now treats phrases like `disable workspace access` as canonical workspace-user actions instead of falling back to generic user-management routing. This expands the directive-required workspace-user surface while keeping the actual persistence and Google Workspace sync logic inside the module that already owns it.
+
+### 2.26 User Admin Operation Expansion
+
+Hermes now exposes more of the existing user-admin runtime as first-class operations instead of leaving those capabilities hidden behind internal service methods. This phase adds canonical operations for:
+
+- `manage_workspace_groups`
+- `reset_user_mfa`
+- `link_drive_folder`
+
+These operations are routed through `HermesCapabilityService`, but execution remains grounded in the existing `HermesUserAdminService` methods that already own the underlying behavior:
+
+- Workspace group changes continue to use the configured Workspace integration and local membership sync logic
+- MFA resets continue to use the existing person and passkey reset path
+- Drive folder linking continues to use the existing Shared Drive validation and mapping logic
+
+This closes another directive gap by turning real administrative capabilities into explicit registry-backed Hermes operations, without introducing a new execution path or speculative backend behavior.
+
+### 2.27 Newsletter Cancel Operation
+
+Hermes now exposes `newsletter_cancel` as a first-class newsletter operation instead of leaving scheduled-campaign cancellation implicit in the module internals.
+
+The implementation is intentionally narrow and deterministic:
+
+- it only applies to campaigns currently in `scheduled` or `queued` state
+- it removes queued newsletter message rows for that campaign
+- it resets the campaign back to `draft` with no active schedule
+
+This keeps cancellation grounded in the existing newsletter schema and queue model rather than inventing a separate delivery-control subsystem. Sent, sending, and archived campaigns remain non-cancelable, matching the module’s existing safety boundaries.
+
+### 2.28 Content Operation Pending Workflows
+
+Hermes pending workflows now recover incomplete campaign and newsletter actions, not just user and backup requests. `HermesPendingWorkflowEngine` now opens deterministic follow-up workflows for existing-resource content operations when key inputs are missing.
+
+Current coverage includes:
+
+- `campaign_update`
+- `campaign_publish`
+- `campaign_archive`
+- `campaign_delete`
+- `newsletter_send`
+- `newsletter_schedule`
+- `newsletter_cancel`
+- `newsletter_delete`
+
+The workflow behavior is deliberately narrow:
+
+- if the operation needs a campaign or newsletter reference, Hermes asks for the missing subject
+- if `newsletter_schedule` also lacks a schedule time, Hermes asks for that second
+- once the missing fields are collected, Hermes returns to the standard approval packaging path using the canonical operation key
+
+This gives Hermes a more general multi-turn recovery path for operational actions without introducing freeform agentic planning or changing the enclave-backed execution model.
+
+### 2.29 User Delete Operation
+
+Hermes now exposes `user_delete` as a first-class user operation, but it is intentionally implemented as a conservative soft delete rather than a physical row delete.
+
+The current behavior is:
+
+- require an existing Metis person reference
+- refuse deletion if the person still has linked Workspace access
+- mark the person as inactive with `lifecycle_status = deleted`
+- clear Metis role assignments
+- upsert the linked auth user to an inactive state
+- invalidate active auth sessions for that auth user
+
+This keeps the operation aligned with the existing people and auth runtime instead of introducing destructive record deletion that the broader application is not clearly designed around.
+
 ### 3. Hermes Tool Registry
 
 The Tool Registry is the canonical catalog of all module capabilities available to Hermes. It resolves tool definitions, validates request payloads, enforces availability rules, and routes calls to module-provided handlers.
@@ -863,3 +1145,41 @@ Dashboard integration rules:
 - Hermes never bypasses Secure Enclave validation.
 - Hermes never treats learned patterns as unconditional truth.
 - Hermes always produces auditable evidence for findings and actions.
+
+## Recent Directive Phases
+
+### User Unlock Operation
+
+Hermes now exposes `user_unlock` as a first-class operation. The runtime path clears account-level login failure counters and user-scoped authentication threat state through the existing auth protection and security kernel services, and it intentionally does not pretend to clear an end user's remote IP throttle state from an admin action.
+
+### Queued System Operations
+
+Hermes now also exposes additional trusted queued system operations that already existed in the core operations worker: `drive_sync`, `calendar_sync`, `queue_drain`, `integrity_baseline`, and `module_compliance_audit`. These are routed through the shared operations queue instead of running inline in the request path, which keeps Hermes aligned with the workspace performance requirement to avoid heavy synchronous work.
+
+### File-Level Backup Restore
+
+Hermes now exposes a real queued `restore_file` path instead of a placeholder. The implementation restores only a single archive entry from a specific backup run, limits restores to known backup-managed paths like `config/...` and `storage/...`, rejects traversal or unsupported destinations, and uses a deterministic pending workflow when the backup run ID or file path is missing.
+
+### Board Workspace Preparation
+
+Hermes now also surfaces `board_workspace_prepare` as a first-class queued operation over the existing trusted `board.workspace.prepare` worker path. When the meeting code or ID is missing, Hermes asks for it explicitly before approval instead of dropping into a generic execution failure.
+
+### Cron Task Queueing
+
+Hermes now constrains `create_job` to registered cron tasks instead of allowing arbitrary generic job types. The parser captures `task_slug` for direct requests, the capability layer validates that the task exists and is enabled before queueing `cron.task.run`, and the pending workflow asks for the cron task slug explicitly when it is missing.
+
+### Worker Job Follow-Ups
+
+Hermes now also treats worker job administration as a deterministic workflow family. `cancel_job` and `retry_job` ask for a missing job code before approval, and the capability layer accepts parsed `job_key` payloads directly so conversational parsing, workflow review, and execution all use the same bounded job identifier path.
+
+### People Action Follow-Ups
+
+Hermes now treats several existing subject-only people operations as deterministic workflows instead of leaving them to fail on missing input. Commands like `user_unlock`, `user_delete`, `disable_user`, `workspace_user_disable`, `workspace_user_enable`, `workspace_user_delete`, `reset_user_mfa`, and `link_drive_folder` now ask for the target person explicitly when the subject is missing, then return to the normal approval flow with the canonical operation key and captured `subject`.
+
+### Membership Follow-Ups
+
+Hermes now also treats people membership mutations as deterministic multi-step workflows. Role operations such as `assign_role` and Workspace group operations such as `manage_workspace_groups` now collect the missing user reference first, then collect the missing `roles` or `group_emails` payload before entering the approval path. This keeps role and group mutations bounded to the existing user-admin services instead of letting incomplete requests fail inside execution.
+
+Hermes now also extracts direct membership payloads more accurately when the user supplies them in one sentence. In particular, Workspace group commands now treat email addresses as `group_emails` rather than misclassifying them as the target `subject`, and role or group commands carry an explicit mutation `mode` so the execution layer does not have to infer add versus remove semantics later.
+
+Drive-folder linking now also preserves explicit folder references from the conversational layer. When a user provides a Google Drive folder URL or folder ID in a `link_drive_folder` request, Hermes now carries that `folder_id` through parsing and tool schemas instead of dropping back to the default auto-create behavior.

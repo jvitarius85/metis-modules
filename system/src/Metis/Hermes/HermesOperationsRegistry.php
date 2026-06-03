@@ -3,45 +3,50 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
-final class HermesOperationsRegistry {
-    public function __construct(
-        private readonly HermesCommandRegistry $commands,
-        private readonly HermesToolRegistry $tools,
-        private readonly HermesIntentRegistry $intents
-    ) {}
+use Metis\Operations\Contracts\OperationsRegistryInterface;
+use Metis\Operations\Registry\OperationsRegistry;
+use Metis\Operations\Services\CampaignOperationsService;
+use Metis\Operations\Services\NewsletterOperationsService;
+use Metis\Operations\Services\OperationDefinitionBuilder;
+use Metis\Operations\Services\OperationsServiceCatalog;
+use Metis\Operations\Services\SystemOperationsService;
+use Metis\Operations\Services\UserOperationsService;
+use Metis\Operations\Services\WorkspaceUserOperationsService;
 
-    public function definitions(): array {
-        $operations = [];
-        foreach ( $this->commands->definitions() as $commandKey => $command ) {
-            $toolKey = (string) ( $command['tool_key'] ?? '' );
-            $tool = $toolKey !== '' ? (array) $this->tools->definition( $toolKey ) : [];
-            $operations[ $commandKey ] = [
-                'operation_key' => $commandKey,
-                'command_key' => $commandKey,
-                'tool_key' => $toolKey,
-                'title' => (string) ( $command['title'] ?? $commandKey ),
-                'description' => (string) ( $command['description'] ?? '' ),
-                'module' => (string) ( $command['module'] ?? '' ),
-                'domain' => (string) ( $command['domain'] ?? '' ),
-                'top_level_intent' => $this->intents->classifyCommand( $commandKey ),
-                'required_permission' => (string) ( $command['permission'] ?? '' ),
-                'required_permissions' => array_values( (array) ( $tool['required_permissions'] ?? array_filter( [ (string) ( $command['permission'] ?? '' ) ] ) ) ),
-                'requires_approval' => ! empty( $command['requires_approval'] ),
-                'read_only' => ! empty( $command['read_only'] ),
-                'worker_supported' => ! empty( $command['worker_supported'] ) || ! empty( $tool['worker_supported'] ),
-                'risk_level' => (string) ( $tool['risk_level'] ?? ( ! empty( $command['read_only'] ) ? 'low' : 'medium' ) ),
-                'enclave_action' => (string) ( $tool['enclave_action'] ?? '' ),
-                'input_schema' => (array) ( $command['input_schema'] ?? [] ),
-                'output_schema' => (array) ( $tool['output_schema'] ?? $command['output_schema'] ?? [] ),
-                'dispatch' => (array) ( $tool['dispatch'] ?? [] ),
-            ];
+final class HermesOperationsRegistry {
+    private readonly OperationsRegistryInterface $registry;
+
+    public function __construct( HermesCommandRegistry|OperationsRegistryInterface $commands, ?HermesToolRegistry $tools = null, ?HermesIntentRegistry $intents = null ) {
+        if ( $commands instanceof OperationsRegistryInterface ) {
+            $this->registry = $commands;
+            return;
         }
 
-        return $operations;
+        if ( $tools === null || $intents === null ) {
+            throw new \InvalidArgumentException( 'Hermes tool and intent registries are required when constructing from Hermes command metadata.' );
+        }
+
+        $this->registry = new OperationsRegistry(
+            new OperationDefinitionBuilder(
+                $commands,
+                $tools,
+                $intents,
+                new OperationsServiceCatalog( [
+                    new UserOperationsService(),
+                    new WorkspaceUserOperationsService(),
+                    new CampaignOperationsService(),
+                    new NewsletterOperationsService(),
+                    new SystemOperationsService(),
+                ] )
+            )
+        );
+    }
+
+    public function definitions(): array {
+        return $this->registry->definitions();
     }
 
     public function definition( string $operationKey ): array {
-        $definitions = $this->definitions();
-        return $definitions[ strtolower( trim( $operationKey ) ) ] ?? [];
+        return $this->registry->definition( $operationKey );
     }
 }

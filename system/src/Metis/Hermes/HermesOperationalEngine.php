@@ -90,6 +90,7 @@ final class HermesOperationalEngine {
         $intent['payload'] = (array) ( $parsed['intents'][0]['payload'] ?? $intent['payload'] ?? [] );
         $prep = $this->prepareIntentPayload( $intent, $command );
         $intent = (array) ( $prep['intent'] ?? $intent );
+        $parsed = $this->syncExecutionPlanPayloads( $parsed, $intent );
         $payloadError = (string) ( $prep['error'] ?? '' );
         if ( $payloadError !== '' ) {
             return [
@@ -103,16 +104,23 @@ final class HermesOperationalEngine {
         }
 
         $contextPacks = $this->contextLoader->loadForCommand( $command );
-        $plan         = $this->buildPlan( $command, $contextPacks );
-        $permission   = $this->permissions->validate( $command );
+        $executionPlan = $this->resolvedExecutionPlan( $parsed, $command );
+        $permission   = $this->validateExecutionPlanPermissions( $executionPlan );
+        $executionPlan = array_values( array_filter(
+            (array) ( $permission['steps'] ?? $executionPlan ),
+            static fn ( mixed $step ): bool => is_array( $step )
+        ) );
+        $plan         = $this->buildPlan( $command, $contextPacks, $executionPlan );
 
         if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
             $response = $this->responses->denied( $intent, $plan, $contextPacks, (string) ( $permission['reason'] ?? 'Permission denied.' ) );
-        } elseif ( ! empty( $command['read_only'] ) ) {
-            $result   = $this->execution->execute( $command, (array) ( $intent['payload'] ?? [] ) );
-            $response = $this->responses->executionResult( $command, $contextPacks, $plan, $result );
-        } else {
+        } elseif ( $this->executionPlanRequiresApproval( $executionPlan ) ) {
             $response = $this->responses->awaitingApproval( $intent, $plan, $contextPacks );
+        } else {
+            $result = count( $executionPlan ) > 1
+                ? $this->executeExecutionPlan( $executionPlan )
+                : $this->execution->execute( $command, (array) ( $intent['payload'] ?? [] ) );
+            $response = $this->responses->executionResult( $command, $contextPacks, $plan, $result );
         }
 
         return [
@@ -195,8 +203,13 @@ final class HermesOperationalEngine {
             throw new \RuntimeException( 'Hermes command is not registered.' );
         }
 
+        $executionPlan = $this->resolvedExecutionPlan( [ 'execution_plan' => $executionPlan ], $command );
         $contextPacks = $this->contextLoader->loadForCommand( $command );
-        $permission   = $this->permissions->validate( $command, $actor );
+        $permission   = $this->validateExecutionPlanPermissions( $executionPlan, $actor );
+        $executionPlan = array_values( array_filter(
+            (array) ( $permission['steps'] ?? $executionPlan ),
+            static fn ( mixed $step ): bool => is_array( $step )
+        ) );
 
         return [
             'command'          => $command,
@@ -220,37 +233,8 @@ final class HermesOperationalEngine {
         $plan         = (array) ( $prepared['action_plan'] ?? [] );
         $contextPacks = (array) ( $prepared['context_packs'] ?? [] );
         $executionPlan = (array) ( $prepared['execution_plan'] ?? [] );
-        $stepResults = [];
-
         if ( count( $executionPlan ) > 1 ) {
-            foreach ( $executionPlan as $step ) {
-                $stepIntent = \metis_key_clean( (string) ( $step['intent'] ?? '' ) );
-                $stepCommand = $this->commands->definition( $stepIntent );
-                if ( $stepCommand === [] ) {
-                    throw new \RuntimeException( sprintf( 'Plan step [%s] is not registered.', $stepIntent ) );
-                }
-
-                $stepResult = $this->execution->execute( $stepCommand, (array) ( $step['payload'] ?? [] ) );
-                $stepResults[] = [
-                    'step' => (int) ( $step['step'] ?? count( $stepResults ) + 1 ),
-                    'intent' => $stepIntent,
-                    'result' => $stepResult,
-                ];
-
-                if ( in_array( (string) ( $stepResult['status'] ?? '' ), [ 'error', 'failed' ], true ) ) {
-                    return [
-                        'status' => 'error',
-                        'message' => sprintf( 'Execution stopped at step %d.', (int) ( $step['step'] ?? count( $stepResults ) ) ),
-                        'steps' => $stepResults,
-                    ];
-                }
-            }
-
-            $result = [
-                'status' => 'success',
-                'steps' => $stepResults,
-                'message' => 'Execution plan completed.',
-            ];
+            $result = $this->executeExecutionPlan( $executionPlan );
         } else {
             $result = $this->execution->execute( $command, (array) ( $prepared['command_payload'] ?? [] ) );
         }
@@ -636,20 +620,34 @@ final class HermesOperationalEngine {
     // Plan builder (extracted for reuse)
     // ------------------------------------------------------------------
 
-    private function buildPlan( array $command, array $contextPacks ): array {
+    private function buildPlan( array $command, array $contextPacks, array $executionPlan = [] ): array {
+        $steps = $executionPlan !== []
+            ? array_values( array_map( static function ( array $step ): array {
+                return [
+                    'step' => (int) ( $step['step'] ?? 0 ),
+                    'intent' => (string) ( $step['intent'] ?? '' ),
+                    'title' => (string) ( $step['command']['title'] ?? $step['intent'] ?? '' ),
+                    'tool_key' => (string) ( $step['command']['tool_key'] ?? '' ),
+                    'required_permission' => (string) ( $step['permission']['required_permission'] ?? $step['command']['permission'] ?? '' ),
+                    'requires_approval' => ! empty( $step['requires_approval'] ),
+                    'read_only' => ! empty( $step['command']['read_only'] ),
+                ];
+            }, $executionPlan ) )
+            : array_values( (array) ( $command['steps'] ?? [] ) );
+
         return [
             'operation'          => (string) ( $command['key'] ?? '' ),
             'tool_key'           => (string) ( $command['tool_key'] ?? $command['key'] ?? '' ),
             'title'              => (string) ( $command['title'] ?? '' ),
             'category'           => (string) ( $command['category'] ?? '' ),
             'description'        => (string) ( $command['description'] ?? '' ),
-            'steps'              => array_values( (array) ( $command['steps'] ?? [] ) ),
+            'steps'              => $steps,
             'required_permission'=> (string) ( $command['permission'] ?? '' ),
             'context_loaded'     => array_values( array_filter( array_map(
                 static fn ( array $pack ): string => (string) ( $pack['title'] ?? $pack['key'] ?? '' ),
                 $contextPacks
             ) ) ),
-            'approval_required'  => ! (bool) ( $command['read_only'] ?? false ),
+            'approval_required'  => $executionPlan !== [] ? $this->executionPlanRequiresApproval( $executionPlan ) : ! (bool) ( $command['read_only'] ?? false ),
             'read_only'          => (bool) ( $command['read_only'] ?? false ),
             'service'            => (array) ( $command['service'] ?? [] ),
             'capability'         => [
@@ -665,6 +663,149 @@ final class HermesOperationalEngine {
                 'input_schema'         => (array)  ( $command['input_schema'] ?? [] ),
                 'output_schema'        => (array)  ( $command['output_schema'] ?? [] ),
             ],
+        ];
+    }
+
+    private function syncExecutionPlanPayloads( array $parsed, array $intent ): array {
+        if ( ! isset( $parsed['execution_plan'] ) || ! is_array( $parsed['execution_plan'] ) ) {
+            return $parsed;
+        }
+
+        foreach ( $parsed['execution_plan'] as $index => $step ) {
+            if ( ! is_array( $step ) ) {
+                continue;
+            }
+
+            $stepIntent = \metis_key_clean( (string) ( $step['intent'] ?? '' ) );
+            if ( $stepIntent === (string) ( $intent['action'] ?? '' ) ) {
+                $parsed['execution_plan'][ $index ]['payload'] = (array) ( $intent['payload'] ?? [] );
+            }
+        }
+
+        return $parsed;
+    }
+
+    private function resolvedExecutionPlan( array $parsed, array $fallbackCommand ): array {
+        $rawPlan = array_values( array_filter(
+            (array) ( $parsed['execution_plan'] ?? [] ),
+            static fn ( mixed $step ): bool => is_array( $step )
+        ) );
+
+        if ( $rawPlan === [] ) {
+            return $fallbackCommand === []
+                ? []
+                : [ [
+                    'step' => 1,
+                    'intent' => (string) ( $fallbackCommand['key'] ?? '' ),
+                    'payload' => [],
+                    'requires_approval' => ! empty( $fallbackCommand['requires_approval'] ),
+                    'command' => $fallbackCommand,
+                    'permission' => [ 'status' => 'granted', 'required_permission' => (string) ( $fallbackCommand['permission'] ?? '' ), 'reason' => '' ],
+                ] ];
+        }
+
+        $resolved = [];
+        foreach ( $rawPlan as $index => $step ) {
+            $stepIntent = \metis_key_clean( (string) ( $step['intent'] ?? '' ) );
+            $stepCommand = $this->commands->definition( $stepIntent );
+            if ( $stepCommand === [] ) {
+                continue;
+            }
+
+            $resolved[] = [
+                'step' => (int) ( $step['step'] ?? $index + 1 ),
+                'fragment' => (string) ( $step['fragment'] ?? '' ),
+                'intent' => $stepIntent,
+                'payload' => (array) ( $step['payload'] ?? [] ),
+                'requires_approval' => ! empty( $step['requires_approval'] ) || ! empty( $stepCommand['requires_approval'] ),
+                'command' => $stepCommand,
+            ];
+        }
+
+        return $resolved;
+    }
+
+    private function executionPlanRequiresApproval( array $executionPlan ): bool {
+        foreach ( $executionPlan as $step ) {
+            if ( ! empty( $step['requires_approval'] ) || empty( $step['command']['read_only'] ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function validateExecutionPlanPermissions( array $executionPlan, array $actor = [] ): array {
+        $deniedSteps = [];
+        $requiredPermissions = [];
+
+        foreach ( $executionPlan as $index => $step ) {
+            $command = (array) ( $step['command'] ?? [] );
+            $permission = $this->permissions->validate( $command, $actor );
+            $executionPlan[ $index ]['permission'] = $permission;
+            $required = (string) ( $permission['required_permission'] ?? '' );
+            if ( $required !== '' ) {
+                $requiredPermissions[] = $required;
+            }
+
+            if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
+                $deniedSteps[] = [
+                    'step' => (int) ( $step['step'] ?? $index + 1 ),
+                    'intent' => (string) ( $step['intent'] ?? '' ),
+                    'required_permission' => $required,
+                    'reason' => (string) ( $permission['reason'] ?? 'Permission denied.' ),
+                ];
+            }
+        }
+
+        if ( $deniedSteps === [] ) {
+            return [
+                'status' => 'granted',
+                'required_permission' => implode( ', ', array_values( array_unique( array_filter( $requiredPermissions ) ) ) ),
+                'reason' => '',
+                'steps' => $executionPlan,
+            ];
+        }
+
+        return [
+            'status' => 'denied',
+            'required_permission' => implode( ', ', array_values( array_unique( array_filter( $requiredPermissions ) ) ) ),
+            'reason' => (string) ( $deniedSteps[0]['reason'] ?? 'Permission denied.' ),
+            'denied_steps' => $deniedSteps,
+            'steps' => $executionPlan,
+        ];
+    }
+
+    private function executeExecutionPlan( array $executionPlan ): array {
+        $stepResults = [];
+
+        foreach ( $executionPlan as $step ) {
+            $stepCommand = (array) ( $step['command'] ?? [] );
+            $stepIntent = \metis_key_clean( (string) ( $step['intent'] ?? '' ) );
+            if ( $stepCommand === [] || $stepIntent === '' ) {
+                throw new \RuntimeException( 'Execution plan contains an invalid step.' );
+            }
+
+            $stepResult = $this->execution->execute( $stepCommand, (array) ( $step['payload'] ?? [] ) );
+            $stepResults[] = [
+                'step' => (int) ( $step['step'] ?? count( $stepResults ) + 1 ),
+                'intent' => $stepIntent,
+                'result' => $stepResult,
+            ];
+
+            if ( in_array( (string) ( $stepResult['status'] ?? '' ), [ 'error', 'failed' ], true ) ) {
+                return [
+                    'status' => 'error',
+                    'message' => sprintf( 'Execution stopped at step %d.', (int) ( $step['step'] ?? count( $stepResults ) ) ),
+                    'steps' => $stepResults,
+                ];
+            }
+        }
+
+        return [
+            'status' => 'success',
+            'steps' => $stepResults,
+            'message' => 'Execution plan completed.',
         ];
     }
 }

@@ -36,6 +36,10 @@ function metis_backup_restore_run( string $run_uuid ): array {
     return metis_backup_service()->restoreRun( $run_uuid );
 }
 
+function metis_backup_restore_file( string $run_uuid, string $relative_path ): array {
+    return metis_backup_service()->restoreFile( $run_uuid, $relative_path );
+}
+
 metis_on(
     'init',
     static function (): void {

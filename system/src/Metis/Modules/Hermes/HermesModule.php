@@ -5,10 +5,30 @@ namespace Metis\Modules\Hermes;
 
 use Metis\Core\Application;
 use Metis\Intelligence\Registry\IntelligenceProviderRegistry;
+use Metis\Intelligence\Services\AlertIntelligenceService;
+use Metis\Intelligence\Services\CampaignIntelligenceProvider;
+use Metis\Intelligence\Services\DonorIntelligenceProvider;
+use Metis\Intelligence\Services\DiagnosticTrendIntelligenceService;
 use Metis\Intelligence\Services\DocumentationIntelligenceProvider;
+use Metis\Intelligence\Services\FinancialIntelligenceProvider;
 use Metis\Intelligence\Services\HelpTopicIntelligenceProvider;
+use Metis\Intelligence\Services\IntegrationFailureIntelligenceService;
+use Metis\Intelligence\Services\ModuleHealthIntelligenceService;
+use Metis\Intelligence\Services\NewsletterIntelligenceProvider;
+use Metis\Intelligence\Services\RecommendationIntelligenceService;
+use Metis\Intelligence\Services\SystemIntelligenceProvider;
+use Metis\Intelligence\Services\TrendIntelligenceService;
 use Metis\Intelligence\Services\WalkthroughIntelligenceProvider;
 use Metis\Intelligence\Support\IntelligenceResponseFactory;
+use Metis\Intelligence\Support\SeverityRanker;
+use Metis\Operations\Registry\OperationsRegistry;
+use Metis\Operations\Services\CampaignOperationsService;
+use Metis\Operations\Services\OperationDefinitionBuilder;
+use Metis\Operations\Services\OperationsServiceCatalog;
+use Metis\Operations\Services\NewsletterOperationsService;
+use Metis\Operations\Services\SystemOperationsService;
+use Metis\Operations\Services\UserOperationsService;
+use Metis\Operations\Services\WorkspaceUserOperationsService;
 use Metis\Hermes\Conversation\ConversationResolver;
 use Metis\Hermes\Conversation\ConversationStateManager;
 use Metis\Hermes\Conversation\ConversationStore;
@@ -141,14 +161,52 @@ final class HermesModule {
         if ( ! $registry->has( 'intelligence_response_factory' ) ) {
             $registry->singleton( 'intelligence_response_factory', static fn (): IntelligenceResponseFactory => new IntelligenceResponseFactory() );
         }
+        if ( ! $registry->has( 'intelligence_severity_ranker' ) ) {
+            $registry->singleton( 'intelligence_severity_ranker', static fn (): SeverityRanker => new SeverityRanker() );
+        }
         if ( ! $registry->has( 'intelligence_provider_registry' ) ) {
             $registry->singleton( 'intelligence_provider_registry', static fn (): IntelligenceProviderRegistry => new IntelligenceProviderRegistry(
                 [
                     new DocumentationIntelligenceProvider( Application::service( 'hermes_documentation_index' ) ),
                     new HelpTopicIntelligenceProvider( Application::service( 'hermes_help_resolver' ) ),
                     new WalkthroughIntelligenceProvider( Application::service( 'hermes_walkthrough_resolver' ) ),
+                    new DonorIntelligenceProvider(),
+                    new CampaignIntelligenceProvider(),
+                    new FinancialIntelligenceProvider(),
+                    new NewsletterIntelligenceProvider(),
+                    new SystemIntelligenceProvider(
+                        Application::service( 'hermes_diagnostic_engine' ),
+                        Application::service( 'hermes_repository' )
+                    ),
                 ],
                 Application::service( 'intelligence_response_factory' )
+            ) );
+        }
+        if ( ! $registry->has( 'intelligence_alerts' ) ) {
+            $registry->singleton( 'intelligence_alerts', static fn (): AlertIntelligenceService => new AlertIntelligenceService(
+                Application::service( 'intelligence_severity_ranker' )
+            ) );
+        }
+        if ( ! $registry->has( 'intelligence_integration_failures' ) ) {
+            $registry->singleton( 'intelligence_integration_failures', static fn (): IntegrationFailureIntelligenceService => new IntegrationFailureIntelligenceService(
+                Application::service( 'intelligence_severity_ranker' )
+            ) );
+        }
+        if ( ! $registry->has( 'intelligence_module_health' ) ) {
+            $registry->singleton( 'intelligence_module_health', static fn (): ModuleHealthIntelligenceService => new ModuleHealthIntelligenceService(
+                Application::service( 'intelligence_severity_ranker' ),
+                [ Application::service( 'permissions' ), 'can' ]
+            ) );
+        }
+        if ( ! $registry->has( 'intelligence_recommendations' ) ) {
+            $registry->singleton( 'intelligence_recommendations', static fn (): RecommendationIntelligenceService => new RecommendationIntelligenceService(
+                Application::service( 'intelligence_severity_ranker' )
+            ) );
+        }
+        if ( ! $registry->has( 'intelligence_diagnostic_trends' ) ) {
+            $registry->singleton( 'intelligence_trends', static fn (): TrendIntelligenceService => new TrendIntelligenceService() );
+            $registry->singleton( 'intelligence_diagnostic_trends', static fn (): DiagnosticTrendIntelligenceService => new DiagnosticTrendIntelligenceService(
+                Application::service( 'intelligence_trends' )
             ) );
         }
         if ( ! $registry->has( 'hermes_knowledge' ) ) {
@@ -166,11 +224,31 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_command_registry' ) ) {
             $registry->singleton( 'hermes_command_registry', static fn (): HermesCommandRegistry => new HermesCommandRegistry() );
         }
-        if ( ! $registry->has( 'hermes_operations_registry' ) ) {
-            $registry->singleton( 'hermes_operations_registry', static fn (): HermesOperationsRegistry => new HermesOperationsRegistry(
+        if ( ! $registry->has( 'operations_service_catalog' ) ) {
+            $registry->singleton( 'operations_service_catalog', static fn (): OperationsServiceCatalog => new OperationsServiceCatalog( [
+                new UserOperationsService(),
+                new WorkspaceUserOperationsService(),
+                new CampaignOperationsService(),
+                new NewsletterOperationsService(),
+                new SystemOperationsService(),
+            ] ) );
+        }
+        if ( ! $registry->has( 'operations_definition_builder' ) ) {
+            $registry->singleton( 'operations_definition_builder', static fn (): OperationDefinitionBuilder => new OperationDefinitionBuilder(
                 Application::service( 'hermes_command_registry' ),
                 Application::service( 'hermes_tool_registry' ),
-                Application::service( 'hermes_intent_registry' )
+                Application::service( 'hermes_intent_registry' ),
+                Application::service( 'operations_service_catalog' )
+            ) );
+        }
+        if ( ! $registry->has( 'operations_registry' ) ) {
+            $registry->singleton( 'operations_registry', static fn (): OperationsRegistry => new OperationsRegistry(
+                Application::service( 'operations_definition_builder' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_operations_registry' ) ) {
+            $registry->singleton( 'hermes_operations_registry', static fn (): HermesOperationsRegistry => new HermesOperationsRegistry(
+                Application::service( 'operations_registry' )
             ) );
         }
         if ( ! $registry->has( 'hermes_conversational_parser' ) ) {
@@ -278,6 +356,7 @@ final class HermesModule {
                 Application::service( 'hermes_directory' ),
                 Application::service( 'hermes_user_admin' ),
                 Application::service( 'hermes_system_ops' ),
+                Application::service( 'hermes_newsletter_admin' ),
                 function_exists( 'metis_job_queue' ) ? \metis_job_queue() : null,
                 Application::service( 'hermes_help_issue_resolver' )
             ) );
@@ -389,7 +468,13 @@ final class HermesModule {
                 Application::service( 'hermes_action_executor' ),
                 Application::service( 'hermes_workflow_continuation' ),
                 Application::service( 'hermes_pending_workflow' ),
-                Application::service( 'hermes_disambiguation' )
+                Application::service( 'hermes_disambiguation' ),
+                Application::service( 'intelligence_alerts' ),
+                Application::service( 'intelligence_integration_failures' ),
+                Application::service( 'intelligence_module_health' ),
+                Application::service( 'intelligence_recommendations' ),
+                Application::service( 'intelligence_diagnostic_trends' ),
+                Application::service( 'intelligence_severity_ranker' )
             ) );
         }
         if ( ! $registry->has( 'hermes_worker_manager' ) ) {
