@@ -234,6 +234,10 @@ final class HermesActionExecutor {
             }
         }
 
+        if ( function_exists( 'metis_runtime_create_nonce' ) ) {
+            return (string) \metis_runtime_create_nonce( 'metis_ajax:metis_hermes_execute_action' );
+        }
+
         return '';
     }
 

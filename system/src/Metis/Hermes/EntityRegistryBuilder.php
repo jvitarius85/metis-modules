@@ -14,7 +14,7 @@ final class EntityRegistryBuilder {
     public function __construct( string $modulesRoot = '' ) {
         $this->modulesRoot = $modulesRoot !== ''
             ? rtrim( $modulesRoot, '/' )
-            : rtrim( defined( 'METIS_ROOT' ) ? METIS_ROOT : dirname( __DIR__, 3 ), '/' ) . '/modules';
+            : $this->defaultModulesRoot();
     }
 
     public function registry(): array {
@@ -52,6 +52,28 @@ final class EntityRegistryBuilder {
             return;
         }
         $this->build();
+    }
+
+    private function defaultModulesRoot(): string {
+        $candidates = [];
+
+        if ( defined( 'METIS_ROOT' ) ) {
+            $root = rtrim( (string) METIS_ROOT, '/' );
+            $candidates[] = $root . '/modules';
+            $candidates[] = $root . '/system/modules';
+        }
+
+        $base = rtrim( dirname( __DIR__, 4 ), '/' );
+        $candidates[] = $base . '/modules';
+        $candidates[] = $base . '/system/modules';
+
+        foreach ( $candidates as $candidate ) {
+            if ( is_dir( $candidate ) ) {
+                return $candidate;
+            }
+        }
+
+        return $candidates[0] ?? $base . '/system/modules';
     }
 
     private function build(): void {

@@ -41,6 +41,21 @@ $lookup = $parser->parse( 'who is meg wallace' );
 $assert( (string) ( $lookup['selected_intent'] ?? '' ) === 'lookup_profile', '"who is <name>" should map to lookup_profile.' );
 $assert( empty( $lookup['requires_clarification'] ), '"who is <name>" should not require clarification.' );
 
+$lookupInitials = $parser->parse( 'who is JD?' );
+$assert( (string) ( $lookupInitials['selected_intent'] ?? '' ) === 'lookup_profile', '"who is JD?" should map to lookup_profile.' );
+$assert( empty( $lookupInitials['requires_clarification'] ), '"who is JD?" should not require clarification.' );
+$assert( (string) ( $lookupInitials['intents'][0]['payload']['profile_request']['subject'] ?? '' ) === 'jd', '"who is JD?" should capture the abbreviated subject.' );
+
+$lookupMixedCase = $parser->parse( 'who is JD Vitarius?' );
+$assert( (string) ( $lookupMixedCase['selected_intent'] ?? '' ) === 'lookup_profile', '"who is JD Vitarius?" should map to lookup_profile.' );
+$assert( empty( $lookupMixedCase['requires_clarification'] ), '"who is JD Vitarius?" should not require clarification.' );
+$assert( (string) ( $lookupMixedCase['intents'][0]['payload']['profile_request']['subject'] ?? '' ) === 'jd vitarius', '"who is JD Vitarius?" should capture the mixed-case subject.' );
+
+$showProfile = $parser->parse( "show JD's profile" );
+$assert( (string) ( $showProfile['selected_intent'] ?? '' ) === 'lookup_profile', '"show JD\'s profile" should map to lookup_profile.' );
+$assert( empty( $showProfile['requires_clarification'] ), '"show JD\'s profile" should not require clarification.' );
+$assert( (string) ( $showProfile['intents'][0]['payload']['profile_request']['subject'] ?? '' ) === 'jd', '"show JD\'s profile" should capture the abbreviated subject.' );
+
 $attribute = $parser->parse( 'what is meg wallace email' );
 $assert( (string) ( $attribute['selected_intent'] ?? '' ) === 'get_entity_attribute', '"what is <name> email" should map to get_entity_attribute.' );
 
@@ -175,6 +190,7 @@ $knownActionPrompts = [
     'show system status' => 'get_system_status',
     'check for system updates' => 'check_system_updates',
     'check updates' => 'check_system_updates',
+    'check updates and install' => 'check_system_updates',
     'scan integrity' => 'scan_integrity',
     'audit permissions' => 'audit_permissions',
     'validate routes' => 'validate_routes',
@@ -197,6 +213,17 @@ foreach ( $knownActionPrompts as $prompt => $expectedIntent ) {
         sprintf( 'Known action prompt [%s] should not require clarification.', $prompt )
     );
 }
+
+$updateInstallMulti = $parser->parse( 'check updates and install' );
+$assert( count( (array) ( $updateInstallMulti['execution_plan'] ?? [] ) ) === 2, '"check updates and install" should produce a two-step execution plan.' );
+$assert( (string) ( $updateInstallMulti['intents'][0]['intent'] ?? '' ) === 'check_system_updates', 'First step of "check updates and install" should resolve to check_system_updates.' );
+$assert( (string) ( $updateInstallMulti['intents'][1]['intent'] ?? '' ) === 'update_install', 'Second step of "check updates and install" should resolve to update_install.' );
+$assert( empty( $updateInstallMulti['requires_clarification'] ), '"check updates and install" should not require clarification.' );
+
+$singularUpdateInstallMulti = $parser->parse( 'check for an update and install' );
+$assert( count( (array) ( $singularUpdateInstallMulti['execution_plan'] ?? [] ) ) === 2, '"check for an update and install" should produce a two-step execution plan.' );
+$assert( (string) ( $singularUpdateInstallMulti['intents'][0]['intent'] ?? '' ) === 'check_system_updates', 'First step of "check for an update and install" should resolve to check_system_updates.' );
+$assert( (string) ( $singularUpdateInstallMulti['intents'][1]['intent'] ?? '' ) === 'update_install', 'Second step of "check for an update and install" should resolve to update_install.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

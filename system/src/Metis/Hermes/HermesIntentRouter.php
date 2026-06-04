@@ -31,6 +31,22 @@ final class HermesIntentRouter {
             'command' => $parsed['command'] ?? null,
         ];
 
+        if ( (string) ( $parsed['type'] ?? '' ) === 'data' ) {
+            $intent = array_merge( $intent, [
+                'entity' => (string) ( $parsed['entity'] ?? '' ),
+                'filters' => (array) ( $parsed['filters'] ?? [] ),
+                'fields_requested' => (array) ( $parsed['fields_requested'] ?? [] ),
+                'aggregate' => (array) ( $parsed['aggregate'] ?? [] ),
+                'group_by' => (array) ( $parsed['group_by'] ?? [] ),
+                'date_range' => (array) ( $parsed['date_range'] ?? [] ),
+                'sort' => $parsed['sort'] ?? null,
+                'sort_dir' => (string) ( $parsed['sort_dir'] ?? 'desc' ),
+                'limit' => (int) ( $parsed['limit'] ?? 50 ),
+                'offset' => (int) ( $parsed['offset'] ?? 0 ),
+                'top_n' => $parsed['top_n'] ?? null,
+            ] );
+        }
+
         if ( (string) ( $intent['action'] ?? '' ) === 'resolve_help_issue' ) {
             $intent['payload'] = $this->mergeHelpPayload( $intent['payload'], $runtimeContext );
             $parsed = $this->syncParsedPayload( $parsed, $intent['payload'] );

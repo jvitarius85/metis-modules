@@ -115,9 +115,9 @@ final class HermesIntentParser {
         } elseif ( $this->matchesClearCache( $normalized ) ) {
             $action = 'clear_cache';          $domain = 'system';        $confidence = 0.92;
         } elseif ( $this->matchesUpdateCheck( $normalized ) ) {
-            $action = 'aut_update_check';     $domain = 'system';        $confidence = 0.92;
+            $action = 'check_system_updates'; $domain = 'system';        $confidence = 0.92;
         } elseif ( $this->matchesUpdateInstall( $normalized ) ) {
-            $action = 'aut_update_install';   $domain = 'system';        $confidence = 0.91;
+            $action = 'update_install';       $domain = 'system';        $confidence = 0.91;
         } elseif ( $this->matchesSelfHeal( $normalized ) ) {
             $action = 'aut_self_heal';        $domain = 'system';        $confidence = 0.91;
         } elseif ( $this->matchesAnnouncement( $normalized ) ) {
@@ -193,13 +193,16 @@ final class HermesIntentParser {
                 break;
             }
         }
-        if ( $intent === null ) {
-            return null;
-        }
-
         $entityKey = $this->resolveEntityFromQuery( $normalized );
         if ( $entityKey === null ) {
             return null;
+        }
+
+        if ( $intent === null ) {
+            $intent = $this->inferImplicitDataIntent( $normalized, $entityKey );
+            if ( $intent === null ) {
+                return null;
+            }
         }
 
         // If the query contains a proper name (two+ capitalised words) after the entity
@@ -251,6 +254,11 @@ final class HermesIntentParser {
             $interpretation['limit'] = $topN;
         }
 
+        $implicitLimit = $this->implicitLatestRecordLimit( $normalized, $intent );
+        if ( $implicitLimit !== null ) {
+            $interpretation['limit'] = $implicitLimit;
+        }
+
         if ( $confidence < 0.5 ) {
             $interpretation['needs_clarification'] = true;
             $interpretation['clarification_hint']  = sprintf(
@@ -260,6 +268,18 @@ final class HermesIntentParser {
         }
 
         return $interpretation;
+    }
+
+    private function inferImplicitDataIntent( string $normalized, string $entityKey ): ?string {
+        if ( preg_match( '/\b(current|latest|last)\b/', $normalized ) !== 1 ) {
+            return null;
+        }
+
+        if ( str_contains( $normalized, $entityKey ) || str_contains( $normalized, str_replace( '_', ' ', $entityKey ) ) ) {
+            return 'list';
+        }
+
+        return 'list';
     }
 
     private function resolveEntityFromQuery( string $normalized ): ?string {
@@ -424,6 +444,25 @@ final class HermesIntentParser {
         $score += $entity    !== '' ? 0.05 : 0.0;
         $score += in_array( $intent, [ 'count', 'aggregate', 'top' ], true ) ? 0.05 : 0.0;
         return min( 1.0, round( $score, 2 ) );
+    }
+
+    private function implicitLatestRecordLimit( string $normalized, string $intent ): ?int {
+        if ( ! in_array( $intent, [ 'list', 'get', 'search' ], true ) ) {
+            return null;
+        }
+
+        if ( preg_match( '/\blast\s+(\d+)\b/', $normalized, $matches ) === 1 ) {
+            return min( 100, max( 1, (int) $matches[1] ) );
+        }
+
+        $wordNumbers = [ 'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5, 'ten' => 10 ];
+        foreach ( $wordNumbers as $word => $value ) {
+            if ( str_contains( $normalized, 'last ' . $word ) ) {
+                return $value;
+            }
+        }
+
+        return preg_match( '/\b(current|latest|last)\b/', $normalized ) === 1 ? 1 : null;
     }
 
     // ------------------------------------------------------------------

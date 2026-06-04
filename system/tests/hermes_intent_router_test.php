@@ -35,6 +35,20 @@ $data = $router->route( 'Who were the top 5 donors last month?' );
 $assert( (string) ( $data['route_type'] ?? '' ) === 'data', 'Top donors query should route to the data pipeline.' );
 $assert( (string) ( $data['intent']['action'] ?? '' ) === 'top', 'Top donors query should retain the top data intent.' );
 $assert( (string) ( $data['intent']['top_level_intent'] ?? '' ) === 'REPORT', 'Top donors query should surface REPORT as the top-level intent.' );
+$assert( (string) ( $data['intent']['entity'] ?? '' ) === 'donor', 'Top donors query should preserve the donor entity in the routed data intent.' );
+$assert( (string) ( $data['intent']['date_range']['preset'] ?? '' ) === 'last_month', 'Top donors query should preserve last-month date range metadata.' );
+
+$currentCampaign = $router->route( 'What is the current campaign?' );
+$assert( (string) ( $currentCampaign['route_type'] ?? '' ) === 'data', 'Current campaign query should route to the data pipeline.' );
+$assert( (string) ( $currentCampaign['intent']['action'] ?? '' ) === 'list', 'Current campaign query should resolve to a bounded list data intent.' );
+$assert( (string) ( $currentCampaign['intent']['entity'] ?? '' ) === 'donation_campaign', 'Current campaign query should preserve the donation campaign entity.' );
+$assert( (int) ( $currentCampaign['intent']['limit'] ?? 0 ) === 1, 'Current campaign query should constrain the result set to the latest record.' );
+
+$lastDonation = $router->route( 'What was the last donation?' );
+$assert( (string) ( $lastDonation['route_type'] ?? '' ) === 'data', 'Last donation query should route to the data pipeline.' );
+$assert( (string) ( $lastDonation['intent']['action'] ?? '' ) === 'list', 'Last donation query should resolve to a bounded list data intent.' );
+$assert( (string) ( $lastDonation['intent']['entity'] ?? '' ) === 'donation_transaction', 'Last donation query should preserve the donation transaction entity.' );
+$assert( (int) ( $lastDonation['intent']['limit'] ?? 0 ) === 1, 'Last donation query should constrain the result set to the latest record.' );
 
 $help = $router->route( 'How do I create a new user?', [ 'current_module' => 'people', 'current_route' => '/admin/people/dashboard' ] );
 $assert( (string) ( $help['route_type'] ?? '' ) === 'command', 'Instructional help should remain a routable Hermes command.' );

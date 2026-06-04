@@ -119,6 +119,7 @@ $passwordPayload = (array) ( $passwordAction['payload'] ?? [] );
 $assert( (string) ( $passwordReview['status'] ?? '' ) === 'awaiting_approval', 'Completed password reset workflow should enter approval.' );
 $assert( (string) ( $passwordReview['response_type'] ?? '' ) === 'WorkflowReview', 'Password reset workflow should return a review response.' );
 $assert( (string) ( $passwordPayload['operation'] ?? '' ) === 'workspace_user_password_reset', 'Password reset workflow should canonicalize to the workspace password reset operation.' );
+$assert( (string) ( $passwordReview['message'] ?? '' ) === 'Review: Reset the Workspace password for John Smith?', 'Password reset workflow review should present a clean, single-question approval summary.' );
 
 $passwordCancelSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfpc', true ) ), 0, 8 ) );
 $passwordCancelStart = $gateway->converse( 'Reset John Smith password.', $passwordCancelSessionCode );

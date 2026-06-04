@@ -61,6 +61,20 @@ $assert( count( $preparedPlan ) === 2, 'Prepared-action validation should keep b
 $assert( isset( $preparedPlan[0]['permission']['status'] ), 'Prepared-action validation should attach permission results to each step.' );
 $assert( count( (array) ( $prepared['permission']['steps'] ?? [] ) ) === 2, 'Prepared-action validation should validate each step independently.' );
 
+$updateInstallProcessed = $engine->process( 'check updates and install' );
+$updateInstallPlan = array_values( (array) ( $updateInstallProcessed['parsed']['execution_plan'] ?? [] ) );
+$assert( count( $updateInstallPlan ) === 2, 'Update check/install shorthand should preserve a two-step execution plan.' );
+$assert( (string) ( $updateInstallProcessed['response']['status'] ?? '' ) === 'awaiting_approval', 'Update check/install shorthand should still require approval for the mutating step.' );
+
+$updateInstallExecuted = $engine->executePreparedAction( [
+    'operation' => (string) ( $updateInstallProcessed['action_plan']['operation'] ?? '' ),
+    'command_payload' => (array) ( $updateInstallProcessed['intent']['payload'] ?? [] ),
+    'execution_plan' => $updateInstallPlan,
+    'action_plan' => (array) ( $updateInstallProcessed['action_plan'] ?? [] ),
+] );
+$assert( (string) ( $updateInstallExecuted['status'] ?? '' ) === 'error', 'Prepared update check/install execution should surface execution errors.' );
+$assert( ! str_contains( (string) ( $updateInstallExecuted['message'] ?? '' ), 'Execution stopped at step 1.' ), 'Prepared update check/install execution should preserve the real step error instead of the generic stop message.' );
+
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );
     exit( 1 );

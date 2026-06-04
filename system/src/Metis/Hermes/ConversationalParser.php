@@ -47,7 +47,7 @@ final class ConversationalParser {
      */
     public function parse( string $input, string $session_code = '' ): array {
         $normalized = $this->normalizeInput( $input );
-        $fragments = $this->detectFragments( $normalized );
+        $fragments = $this->contextualizeFragments( $this->detectFragments( $normalized ) );
         $entities = $this->preResolveEntities( $input, $session_code );
         $context = $this->resolveContext( $normalized, $session_code );
         $matches = [];
@@ -183,6 +183,39 @@ final class ConversationalParser {
         }
 
         return $fragments === [] ? [ $normalized ] : $fragments;
+    }
+
+    /**
+     * Preserve action family context across shorthand follow-up fragments like
+     * "check updates and install", where the second fragment omits the shared noun.
+     *
+     * @param array<int,string> $fragments
+     * @return array<int,string>
+     */
+    private function contextualizeFragments( array $fragments ): array {
+        if ( count( $fragments ) < 2 ) {
+            return $fragments;
+        }
+
+        $resolved = [];
+        $previous = '';
+        foreach ( $fragments as $fragment ) {
+            $candidate = trim( strtolower( $fragment ) );
+            if ( $candidate === '' ) {
+                continue;
+            }
+
+            if ( in_array( $candidate, [ 'install', 'apply install', 'apply' ], true ) && preg_match( '/\bupdate(s)?\b/', $previous ) === 1 ) {
+                $candidate = 'install update';
+            } elseif ( in_array( $candidate, [ 'install it', 'apply it' ], true ) && preg_match( '/\bupdate(s)?\b/', $previous ) === 1 ) {
+                $candidate = 'install update';
+            }
+
+            $resolved[] = $candidate;
+            $previous = $candidate;
+        }
+
+        return $resolved === [] ? $fragments : $resolved;
     }
 
     /**
@@ -432,17 +465,31 @@ final class ConversationalParser {
             $score += 0.75;
         }
 
+        if ( $commandKey === 'lookup_profile' && preg_match( '/\b(profile|record)\b/', $fragment ) === 1 ) {
+            $score += 0.35;
+            if ( preg_match( '/\b(show|who is|what is)\b/', $fragment ) === 1 ) {
+                $score += 0.15;
+            }
+            if ( preg_match( '/^(show|what is)\s+.+\s+(profile|record)$/', $fragment ) === 1 ) {
+                $score += 0.25;
+            }
+        }
+
         return $score;
     }
 
     private function isProfileLookupFragment( string $fragment ): bool {
         return (bool) preg_match(
-            '/\b(who is|look up|lookup|find person|find contact|find donor|find user|profile for|person record|contact record|donor record)\b/',
+            '/\b(who is|look up|lookup|find person|find contact|find donor|find user|profile for|show .*profile|show .*record|person record|contact record|donor record)\b/',
             $fragment
         );
     }
 
     private function isAttributeLookupFragment( string $fragment ): bool {
+        if ( str_contains( $fragment, 'profile' ) ) {
+            return false;
+        }
+
         return (bool) preg_match(
             '/\b(what is|email for|phone for|address for|email address|phone number|mailing address)\b/',
             $fragment
@@ -685,6 +732,32 @@ final class ConversationalParser {
             $payload['query'] = $fragment;
         }
 
+        if ( $command_name === 'lookup_profile' ) {
+            $subject = $this->extractLookupSubject( $fragment );
+            if ( $subject !== '' ) {
+                $payload['profile_request'] = [
+                    'subject' => $subject,
+                    'entity_hint' => $this->inferEntityHint( $fragment ),
+                ];
+                if ( ! isset( $payload['subject'] ) ) {
+                    $payload['subject'] = $subject;
+                }
+            }
+        } elseif ( $command_name === 'get_entity_attribute' ) {
+            $subject = $this->extractLookupSubject( $fragment );
+            if ( $subject !== '' ) {
+                $request = (array) ( $payload['attribute_request'] ?? [] );
+                $request['subject'] = $subject;
+                if ( trim( (string) ( $request['entity_hint'] ?? '' ) ) === '' ) {
+                    $request['entity_hint'] = $this->inferEntityHint( $fragment );
+                }
+                $payload['attribute_request'] = $request;
+                if ( ! isset( $payload['subject'] ) ) {
+                    $payload['subject'] = $subject;
+                }
+            }
+        }
+
         if ( $command_name === 'resolve_help_issue' ) {
             $payload['user_message'] = $fragment;
             $payload['current_route'] = '';
@@ -704,6 +777,53 @@ final class ConversationalParser {
         }
 
         return $this->normalizeContextualPayload( $command_name, $fragment, $payload, $context );
+    }
+
+    private function extractLookupSubject( string $fragment ): string {
+        $normalized = trim( strtolower( $fragment ) );
+        $patterns = [
+            '/^who is\s+(.+)$/i',
+            '/^what(?:\s+is|\'s)\s+(.+?)\'?s?\s+profile$/i',
+            '/^what\s+(.+?)\s+profile$/i',
+            '/^what is\s+(.+?)\s+(?:email|phone|phone number|address|contact|profile|role|status|permissions|groups)$/i',
+            '/^show\s+(.+?)\'?s?\s+profile$/i',
+            '/^show\s+profile\s+for\s+(.+)$/i',
+            '/^profile for\s+(.+)$/i',
+            '/^find\s+(?:person|contact|donor|user)\s+(.+)$/i',
+            '/^look up\s+(.+)$/i',
+            '/^lookup\s+(.+)$/i',
+        ];
+
+        foreach ( $patterns as $pattern ) {
+            if ( preg_match( $pattern, $normalized, $matches ) !== 1 ) {
+                continue;
+            }
+
+            $subject = trim( (string) ( $matches[1] ?? '' ) );
+            $subject = preg_replace( '/\'s$/i', '', $subject ) ?? $subject;
+            $subject = preg_replace( '/\s+(profile|record)$/i', '', $subject ) ?? $subject;
+            $subject = trim( $subject );
+            if ( $subject !== '' ) {
+                return $subject;
+            }
+        }
+
+        return '';
+    }
+
+    private function inferEntityHint( string $fragment ): string {
+        $normalized = strtolower( $fragment );
+        if ( str_contains( $normalized, 'donor' ) || str_contains( $normalized, 'donation' ) || str_contains( $normalized, 'donated' ) ) {
+            return 'donor';
+        }
+        if ( str_contains( $normalized, 'contact' ) || str_contains( $normalized, 'newsletter' ) || str_contains( $normalized, 'subscribed' ) ) {
+            return 'contact';
+        }
+        if ( str_contains( $normalized, 'user' ) || str_contains( $normalized, 'person' ) || str_contains( $normalized, 'profile' ) ) {
+            return 'person';
+        }
+
+        return 'auto';
     }
 
     private function commandAcceptsKeyPayload( string $command_name, string $kind, string $value ): bool {
@@ -882,6 +1002,10 @@ final class ConversationalParser {
         $runUuid = trim( (string) ( $payload['run_uuid'] ?? '' ) );
 
         return match ( true ) {
+            $intent === 'lookup_profile'
+                && trim( (string) ( $payload['subject'] ?? $payload['profile_request']['subject'] ?? '' ) ) === '' => $score * 0.45,
+            $intent === 'get_entity_attribute'
+                && trim( (string) ( $payload['subject'] ?? $payload['attribute_request']['subject'] ?? '' ) ) === '' => $score * 0.45,
             in_array( $intent, [ 'create_user', 'update_user', 'disable_user', 'offboard_user', 'enable_user', 'get_user' ], true )
                 && $subject === ''
                 && $email === '' => $score * 0.55,

@@ -943,9 +943,9 @@ final class HermesPendingWorkflowEngine {
         $response = $this->responses->awaitingApproval( $intent, $plan, [] );
         $response['response_type'] = 'WorkflowReview';
         $response['message'] = sprintf(
-            "Review:\nUser: %s\nTarget: %s password\n\nReset password?",
+            'Review: Reset the %s password for %s?',
+            $operation === 'workspace_user_password_reset' ? 'Workspace' : 'Metis',
             (string) ( $payload['subject'] ?? '' ),
-            $operation === 'workspace_user_password_reset' ? 'Workspace' : 'Metis'
         );
         $response['ui_components'][] = [
             'type' => 'WorkflowReview',

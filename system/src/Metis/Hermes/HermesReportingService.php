@@ -71,6 +71,14 @@ final class HermesReportingService {
 
     /** Returns a paginated list or search result. */
     public function list( array $interpretation, array $actor ): array {
+        $entity = strtolower( trim( (string) ( $interpretation['entity'] ?? '' ) ) );
+        if ( $entity === 'donation_transaction' ) {
+            return $this->listDonationTransactions( $interpretation, $actor );
+        }
+        if ( $entity === 'donation_campaign' ) {
+            return $this->listDonationCampaigns( $interpretation, $actor );
+        }
+
         $result = $this->queryBuilder->query( $interpretation, $actor );
         if ( ! $result['ok'] ) {
             return $this->error( $result['message'] ?? 'Query failed.' );
@@ -138,6 +146,7 @@ final class HermesReportingService {
     public function top( array $interpretation, array $actor ): array {
         $n = max( 1, min( (int) ( $interpretation['top_n'] ?? 10 ), 100 ) );
 
+        $interpretation = $this->applyDateRange( $interpretation );
         $interpretation['limit']    = $n;
         $interpretation['offset']   = 0;
         $interpretation['sort_dir'] = 'desc';
@@ -254,6 +263,177 @@ final class HermesReportingService {
                 (string) ( $dateRange['to']   ?? '' ),
             ],
         };
+    }
+
+    private function listDonationTransactions( array $interpretation, array $actor ): array {
+        $viewPermission = 'donations.view';
+        $permCheck = $this->validateViewPermission( $viewPermission, $actor );
+        if ( $permCheck !== null ) {
+            return $permCheck;
+        }
+
+        $db = \Metis\Core\Application::service( 'db' );
+        $transactionsTable = \Metis_Tables::get( 'transactions' );
+        $contactsTable = \Metis_Tables::get( 'contacts' );
+        $campaignsTable = \Metis_Tables::get( 'campaigns' );
+
+        $limit = min( max( 1, (int) ( $interpretation['limit'] ?? 50 ) ), 100 );
+        $offset = max( 0, (int) ( $interpretation['offset'] ?? 0 ) );
+
+        $whereParts = [];
+        $params = [];
+        $this->applyDonationTransactionFilters( $whereParts, $params, (array) ( $interpretation['filters'] ?? [] ) );
+        $this->applyDonationTransactionDateRange( $whereParts, $params, (array) ( $interpretation['date_range'] ?? [] ) );
+        $whereClause = $whereParts !== [] ? 'WHERE ' . implode( ' AND ', $whereParts ) : '';
+
+        $total = (int) $db->scalar(
+            "SELECT COUNT(*) FROM {$transactionsTable} t {$whereClause}",
+            $params
+        );
+
+        $rows = $db->fetchAll(
+            "SELECT
+                t.id,
+                t.tid AS transaction_uid,
+                t.tran_date AS transaction_date,
+                t.amount,
+                t.status,
+                t.payment_method,
+                t.did AS donor_code,
+                t.campaign_code,
+                COALESCE(NULLIF(TRIM(CONCAT(COALESCE(d.first_name, ''), ' ', COALESCE(d.last_name, ''))), ''), d.email, t.did, 'Unknown donor') AS donor_name,
+                COALESCE(c.cname, t.campaign_code, '') AS campaign_name
+             FROM {$transactionsTable} t
+             LEFT JOIN {$contactsTable} d ON d.did = t.did
+             LEFT JOIN {$campaignsTable} c ON c.cid = t.campaign_code
+             {$whereClause}
+             ORDER BY t.tran_date DESC, t.id DESC
+             LIMIT %d OFFSET %d",
+            array_merge( $params, [ $limit, $offset ] )
+        ) ?: [];
+
+        $data = array_map( static function ( array $row ): array {
+            return [
+                'donor_name' => (string) ( $row['donor_name'] ?? '' ),
+                'transaction_date' => (string) ( $row['transaction_date'] ?? '' ),
+                'campaign_name' => (string) ( $row['campaign_name'] ?? '' ),
+                'amount' => isset( $row['amount'] ) ? (float) $row['amount'] : 0.0,
+                'status' => (string) ( $row['status'] ?? '' ),
+                'payment_method' => (string) ( $row['payment_method'] ?? '' ),
+                'transaction_uid' => (string) ( $row['transaction_uid'] ?? '' ),
+            ];
+        }, $rows );
+
+        return $this->response( 'list', [
+            'ok' => true,
+            'entity' => 'donation_transaction',
+            'data' => $data,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+        ] );
+    }
+
+    private function listDonationCampaigns( array $interpretation, array $actor ): array {
+        $viewPermission = 'donations.view';
+        $permCheck = $this->validateViewPermission( $viewPermission, $actor );
+        if ( $permCheck !== null ) {
+            return $permCheck;
+        }
+
+        $db = \Metis\Core\Application::service( 'db' );
+        $campaignsTable = \Metis_Tables::get( 'campaigns' );
+
+        $limit = min( max( 1, (int) ( $interpretation['limit'] ?? 50 ) ), 100 );
+        $offset = max( 0, (int) ( $interpretation['offset'] ?? 0 ) );
+
+        $total = (int) $db->scalar( "SELECT COUNT(*) FROM {$campaignsTable}" );
+        $rows = $db->fetchAll(
+            "SELECT
+                cid AS campaign_uid,
+                cname AS name,
+                active,
+                goal,
+                created_at
+             FROM {$campaignsTable}
+             ORDER BY active DESC, created_at DESC, id DESC
+             LIMIT %d OFFSET %d",
+            [ $limit, $offset ]
+        ) ?: [];
+
+        $data = array_map( static function ( array $row ): array {
+            return [
+                'name' => (string) ( $row['name'] ?? '' ),
+                'campaign_uid' => (string) ( $row['campaign_uid'] ?? '' ),
+                'status' => ! empty( $row['active'] ) ? 'active' : 'inactive',
+                'goal_amount' => isset( $row['goal'] ) ? (float) $row['goal'] : 0.0,
+                'created_at' => (string) ( $row['created_at'] ?? '' ),
+            ];
+        }, $rows );
+
+        return $this->response( 'list', [
+            'ok' => true,
+            'entity' => 'donation_campaign',
+            'data' => $data,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+        ] );
+    }
+
+    private function validateViewPermission( string $viewPermission, array $actor ): ?array {
+        $permCheck = \Metis\Core\Application::service( 'hermes_permission_validator' )->validate(
+            [ 'permission' => $viewPermission ],
+            $actor
+        );
+        if ( (string) ( $permCheck['status'] ?? '' ) === 'granted' ) {
+            return null;
+        }
+
+        return $this->error( "Permission denied: {$viewPermission} required." );
+    }
+
+    private function applyDonationTransactionFilters( array &$whereParts, array &$params, array $filters ): void {
+        foreach ( $filters as $filter ) {
+            if ( ! is_array( $filter ) ) {
+                continue;
+            }
+
+            $field = (string) ( $filter['field'] ?? '' );
+            $op = strtoupper( trim( (string) ( $filter['op'] ?? '=' ) ) );
+            $value = $filter['value'] ?? null;
+
+            $column = match ( $field ) {
+                'status' => 't.status',
+                'type' => 't.payment_method',
+                'campaign_id' => 't.campaign_code',
+                'deposit_id' => 't.deposit_batch_id',
+                default => '',
+            };
+
+            if ( $column === '' || ! in_array( $op, [ '=', '!=', '>=', '<=', '>', '<' ], true ) ) {
+                continue;
+            }
+
+            $whereParts[] = "{$column} {$op} %s";
+            $params[] = $value;
+        }
+    }
+
+    private function applyDonationTransactionDateRange( array &$whereParts, array &$params, array $dateRange ): void {
+        if ( $dateRange === [] ) {
+            return;
+        }
+
+        [ $from, $to ] = $this->resolveDateRange( (string) ( $dateRange['preset'] ?? '' ), $dateRange );
+        if ( $from !== '' ) {
+            $whereParts[] = 't.tran_date >= %s';
+            $params[] = $from;
+        }
+        if ( $to !== '' ) {
+            $whereParts[] = 't.tran_date <= %s';
+            $params[] = $to;
+        }
     }
 
     // ------------------------------------------------------------------

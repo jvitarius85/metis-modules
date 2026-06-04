@@ -621,7 +621,7 @@ final class HermesOperationalEngine {
 
     private function describeResult( array $result ): string {
         $type   = (string) ( $result['report_type'] ?? 'list' );
-        $entity = (string) ( $result['entity'] ?? 'records' );
+        $entity = $this->humanizeEntityName( (string) ( $result['entity'] ?? 'records' ) );
         $total  = (int) ( $result['total'] ?? 0 );
 
         return match ( $type ) {
@@ -811,9 +811,12 @@ final class HermesOperationalEngine {
             ];
 
             if ( in_array( (string) ( $stepResult['status'] ?? '' ), [ 'error', 'failed' ], true ) ) {
+                $stepMessage = trim( (string) ( $stepResult['message'] ?? '' ) );
                 return [
                     'status' => 'error',
-                    'message' => sprintf( 'Execution stopped at step %d.', (int) ( $step['step'] ?? count( $stepResults ) ) ),
+                    'message' => $stepMessage !== ''
+                        ? $stepMessage
+                        : sprintf( 'Execution stopped at step %d.', (int) ( $step['step'] ?? count( $stepResults ) ) ),
                     'steps' => $stepResults,
                 ];
             }
@@ -824,5 +827,11 @@ final class HermesOperationalEngine {
             'steps' => $stepResults,
             'message' => 'Execution plan completed.',
         ];
+    }
+
+    private function humanizeEntityName( string $entity ): string {
+        $entity = trim( str_replace( '_', ' ', $entity ) );
+
+        return $entity !== '' ? $entity : 'records';
     }
 }
