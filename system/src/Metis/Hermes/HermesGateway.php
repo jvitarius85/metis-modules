@@ -356,6 +356,19 @@ final class HermesGateway {
         return $this->actionExecutor->executeApprovedAction( $action, $action_code );
     }
 
+    public function executeReleaseAction( string $action_code, string $progress_token ): array {
+        $action = $this->repository->getActionByCode( $action_code );
+        if ( ! is_array( $action ) ) {
+            throw new \RuntimeException( 'Hermes action not found.' );
+        }
+
+        if ( (string) ( $action['approval_status'] ?? '' ) !== 'approved' ) {
+            throw new \RuntimeException( 'Hermes action requires approval before execution.' );
+        }
+
+        return $this->actionExecutor->executeApprovedReleaseInstall( $action, $action_code, $progress_token );
+    }
+
     public function revealSecret( string $reveal_token ): array {
         return $this->actionExecutor->revealSecret( $reveal_token );
     }

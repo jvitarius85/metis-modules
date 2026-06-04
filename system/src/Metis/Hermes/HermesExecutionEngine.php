@@ -8,7 +8,7 @@ final class HermesExecutionEngine {
         private readonly HermesToolExecutor $tools
     ) {}
 
-    public function execute( array $command, array $payload = [] ): array {
+    public function execute( array $command, array $payload = [], array $options = [] ): array {
         $this->assertPayloadMatchesSchema( $payload, (array) ( $command['input_schema'] ?? [] ) );
 
         $tool_key = trim( (string) ( $command['tool_key'] ?? '' ) );
@@ -20,7 +20,7 @@ final class HermesExecutionEngine {
             ];
         }
 
-        return $this->tools->execute( $tool_key, $payload );
+        return $this->tools->execute( $tool_key, $payload, $options );
     }
 
     private function assertPayloadMatchesSchema( array $payload, array $schema, string $path = 'payload' ): void {

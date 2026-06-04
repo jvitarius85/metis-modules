@@ -29,6 +29,8 @@ final class HermesIntentRouter {
             'payload' => (array) ( $parsed['intents'][0]['payload'] ?? [] ),
             'type' => (string) ( $parsed['type'] ?? '' ),
             'command' => $parsed['command'] ?? null,
+            'query' => $query,
+            'raw_query' => $query,
         ];
 
         if ( (string) ( $parsed['type'] ?? '' ) === 'data' ) {
@@ -126,6 +128,8 @@ final class HermesIntentRouter {
             'context' => [],
             'type' => (string) ( $legacy['type'] ?? 'command' ),
             'command' => $legacy['command'] ?? null,
+            'query' => $query,
+            'raw_query' => $query,
         ] + ( (string) ( $legacy['type'] ?? '' ) === 'data' ? [
             'entity' => (string) ( $legacy['entity'] ?? '' ),
             'filters' => (array) ( $legacy['filters'] ?? [] ),

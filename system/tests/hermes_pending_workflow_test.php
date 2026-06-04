@@ -129,6 +129,16 @@ $assert( (string) ( $passwordCancelResult['status'] ?? '' ) === 'cancelled', 'No
 $assert( (string) ( $passwordCancelResult['response_type'] ?? '' ) === 'WorkflowCancellation', 'No should return a workflow cancellation response for password reset questions.' );
 $assert( $memory->recallPendingWorkflow( $passwordCancelSessionCode ) === [], 'Cancelled password reset workflows should be cleared from memory.' );
 
+$workspacePasswordSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfwp', true ) ), 0, 8 ) );
+$workspacePasswordReview = $gateway->converse( "reset Meg's workspace password.", $workspacePasswordSessionCode );
+$workspacePasswordActions = (array) ( $workspacePasswordReview['actions'] ?? [] );
+$workspacePasswordAction = (array) ( $workspacePasswordActions[0] ?? [] );
+$workspacePasswordPayload = (array) ( $workspacePasswordAction['payload'] ?? [] );
+$assert( (string) ( $workspacePasswordReview['status'] ?? '' ) === 'awaiting_approval', 'Explicit workspace password reset with a possessive subject should enter approval directly.' );
+$assert( (string) ( $workspacePasswordPayload['operation'] ?? '' ) === 'workspace_user_password_reset', 'Explicit workspace password reset with a possessive subject should preserve the workspace password reset operation.' );
+$assert( (string) ( $workspacePasswordPayload['command_payload']['subject'] ?? '' ) === 'meg', 'Explicit workspace password reset with a possessive subject should preserve the target subject.' );
+$assert( (string) ( $workspacePasswordReview['message'] ?? '' ) === 'Review: Reset the Workspace password for meg?', 'Explicit workspace password reset with a possessive subject should present the direct approval review copy.' );
+
 $backupSessionCode = 'TESTWF' . strtoupper( substr( md5( uniqid( 'wfb', true ) ), 0, 8 ) );
 $backupStart = $gateway->converse( 'Restore backup.', $backupSessionCode );
 $assert( (string) ( $backupStart['status'] ?? '' ) === 'workflow_question', 'Incomplete backup restore should start a pending workflow.' );

@@ -144,6 +144,14 @@ final class HermesReportingService {
 
     /** Returns the top N records sorted by a given field descending. */
     public function top( array $interpretation, array $actor ): array {
+        $entity = strtolower( trim( (string) ( $interpretation['entity'] ?? '' ) ) );
+        if ( $entity === 'donor' ) {
+            return $this->topDonors( $interpretation, $actor );
+        }
+        if ( $entity === 'donation_campaign' ) {
+            return $this->topCampaigns( $interpretation, $actor );
+        }
+
         $n = max( 1, min( (int) ( $interpretation['top_n'] ?? 10 ), 100 ) );
 
         $interpretation = $this->applyDateRange( $interpretation );
@@ -305,7 +313,10 @@ final class HermesReportingService {
                 COALESCE(c.cname, t.campaign_code, '') AS campaign_name
              FROM {$transactionsTable} t
              LEFT JOIN {$contactsTable} d ON d.did = t.did
-             LEFT JOIN {$campaignsTable} c ON c.cid = t.campaign_code
+             LEFT JOIN {$campaignsTable} c
+                ON c.cid = t.campaign_code
+                OR COALESCE(c.campaign_uid, '') = t.campaign_code
+                OR CAST(c.id AS CHAR) = t.campaign_code
              {$whereClause}
              ORDER BY t.tran_date DESC, t.id DESC
              LIMIT %d OFFSET %d",
@@ -346,8 +357,12 @@ final class HermesReportingService {
 
         $limit = min( max( 1, (int) ( $interpretation['limit'] ?? 50 ) ), 100 );
         $offset = max( 0, (int) ( $interpretation['offset'] ?? 0 ) );
+        $whereParts = [];
+        $params = [];
+        $this->applyDonationCampaignFilters( $whereParts, $params, (array) ( $interpretation['filters'] ?? [] ) );
+        $whereClause = $whereParts !== [] ? 'WHERE ' . implode( ' AND ', $whereParts ) : '';
 
-        $total = (int) $db->scalar( "SELECT COUNT(*) FROM {$campaignsTable}" );
+        $total = (int) $db->scalar( "SELECT COUNT(*) FROM {$campaignsTable} {$whereClause}", $params );
         $rows = $db->fetchAll(
             "SELECT
                 cid AS campaign_uid,
@@ -356,9 +371,10 @@ final class HermesReportingService {
                 goal,
                 created_at
              FROM {$campaignsTable}
+             {$whereClause}
              ORDER BY active DESC, created_at DESC, id DESC
              LIMIT %d OFFSET %d",
-            [ $limit, $offset ]
+            array_merge( $params, [ $limit, $offset ] )
         ) ?: [];
 
         $data = array_map( static function ( array $row ): array {
@@ -378,6 +394,124 @@ final class HermesReportingService {
             'total' => $total,
             'limit' => $limit,
             'offset' => $offset,
+        ] );
+    }
+
+    private function topDonors( array $interpretation, array $actor ): array {
+        $viewPermission = 'donations.view';
+        $permCheck = $this->validateViewPermission( $viewPermission, $actor );
+        if ( $permCheck !== null ) {
+            return $permCheck;
+        }
+
+        $db = \Metis\Core\Application::service( 'db' );
+        $transactionsTable = \Metis_Tables::get( 'transactions' );
+        $contactsTable = \Metis_Tables::get( 'contacts' );
+
+        $n = max( 1, min( (int) ( $interpretation['top_n'] ?? $interpretation['limit'] ?? 10 ), 100 ) );
+        $whereParts = [
+            "t.did IS NOT NULL",
+            "t.did <> ''",
+        ];
+        $params = [];
+        $this->applyDonationTransactionDateRange( $whereParts, $params, (array) ( $interpretation['date_range'] ?? [] ) );
+        $whereClause = 'WHERE ' . implode( ' AND ', $whereParts );
+
+        $rows = $db->fetchAll(
+            "SELECT
+                t.did,
+                COALESCE(NULLIF(TRIM(CONCAT(COALESCE(c.first_name, ''), ' ', COALESCE(c.last_name, ''))), ''), c.email, t.did) AS donor_name,
+                c.email,
+                COUNT(*) AS gift_count,
+                COALESCE(SUM(t.amount), 0) AS total_raised,
+                MAX(t.tran_date) AS last_gift_date
+             FROM {$transactionsTable} t
+             LEFT JOIN {$contactsTable} c ON c.did = t.did
+             {$whereClause}
+             GROUP BY t.did
+             ORDER BY total_raised DESC, last_gift_date DESC
+             LIMIT %d",
+            array_merge( $params, [ $n ] )
+        ) ?: [];
+
+        $data = array_map( static function ( array $row ): array {
+            return [
+                'did' => (string) ( $row['did'] ?? '' ),
+                'donor_name' => (string) ( $row['donor_name'] ?? '' ),
+                'email' => (string) ( $row['email'] ?? '' ),
+                'gift_count' => (int) ( $row['gift_count'] ?? 0 ),
+                'total_raised' => isset( $row['total_raised'] ) ? (float) $row['total_raised'] : 0.0,
+                'last_gift_date' => (string) ( $row['last_gift_date'] ?? '' ),
+            ];
+        }, $rows );
+
+        return $this->response( 'top', [
+            'ok' => true,
+            'entity' => 'donor',
+            'data' => $data,
+            'total' => count( $data ),
+            'limit' => $n,
+            'offset' => 0,
+            'top_n' => $n,
+        ] );
+    }
+
+    private function topCampaigns( array $interpretation, array $actor ): array {
+        $viewPermission = 'donations.view';
+        $permCheck = $this->validateViewPermission( $viewPermission, $actor );
+        if ( $permCheck !== null ) {
+            return $permCheck;
+        }
+
+        $db = \Metis\Core\Application::service( 'db' );
+        $transactionsTable = \Metis_Tables::get( 'transactions' );
+        $campaignsTable = \Metis_Tables::get( 'campaigns' );
+
+        $n = max( 1, min( (int) ( $interpretation['top_n'] ?? $interpretation['limit'] ?? 10 ), 100 ) );
+        $whereParts = [
+            "COALESCE(t.campaign_code, '') <> ''",
+        ];
+        $params = [];
+        $this->applyDonationTransactionDateRange( $whereParts, $params, (array) ( $interpretation['date_range'] ?? [] ) );
+        $whereClause = 'WHERE ' . implode( ' AND ', $whereParts );
+
+        $rows = $db->fetchAll(
+            "SELECT
+                COALESCE(c.cid, t.campaign_code) AS campaign_uid,
+                COALESCE(NULLIF(TRIM(c.cname), ''), t.campaign_code, 'Unknown campaign') AS name,
+                COUNT(*) AS gift_count,
+                COALESCE(SUM(t.amount), 0) AS total_raised,
+                MAX(t.tran_date) AS last_gift_date
+             FROM {$transactionsTable} t
+             LEFT JOIN {$campaignsTable} c
+                ON c.cid = t.campaign_code
+                OR COALESCE(c.campaign_uid, '') = t.campaign_code
+                OR CAST(c.id AS CHAR) = t.campaign_code
+             {$whereClause}
+             GROUP BY COALESCE(c.cid, t.campaign_code), COALESCE(NULLIF(TRIM(c.cname), ''), t.campaign_code, 'Unknown campaign')
+             ORDER BY total_raised DESC, last_gift_date DESC
+             LIMIT %d",
+            array_merge( $params, [ $n ] )
+        ) ?: [];
+
+        $data = array_map( static function ( array $row ): array {
+            return [
+                'campaign_uid' => (string) ( $row['campaign_uid'] ?? '' ),
+                'name' => (string) ( $row['name'] ?? '' ),
+                'gift_count' => (int) ( $row['gift_count'] ?? 0 ),
+                'total_raised' => isset( $row['total_raised'] ) ? (float) $row['total_raised'] : 0.0,
+                'last_gift_date' => (string) ( $row['last_gift_date'] ?? '' ),
+            ];
+        }, $rows );
+
+        return $this->response( 'top', [
+            'ok' => true,
+            'entity' => 'donation_campaign',
+            'data' => $data,
+            'total' => count( $data ),
+            'limit' => $n,
+            'offset' => 0,
+            'top_n' => $n,
         ] );
     }
 
@@ -433,6 +567,34 @@ final class HermesReportingService {
         if ( $to !== '' ) {
             $whereParts[] = 't.tran_date <= %s';
             $params[] = $to;
+        }
+    }
+
+    private function applyDonationCampaignFilters( array &$whereParts, array &$params, array $filters ): void {
+        foreach ( $filters as $filter ) {
+            if ( ! is_array( $filter ) ) {
+                continue;
+            }
+
+            $field = (string) ( $filter['field'] ?? '' );
+            $op = strtolower( trim( (string) ( $filter['op'] ?? '=' ) ) );
+            $value = trim( (string) ( $filter['value'] ?? '' ) );
+
+            if ( $field === 'name' && $value !== '' && in_array( $op, [ '=', 'contains' ], true ) ) {
+                if ( $op === 'contains' ) {
+                    $whereParts[] = 'cname LIKE %s';
+                    $params[] = '%' . $value . '%';
+                } else {
+                    $whereParts[] = 'cname = %s';
+                    $params[] = $value;
+                }
+                continue;
+            }
+
+            if ( $field === 'status' && $value !== '' ) {
+                $whereParts[] = 'active = %d';
+                $params[] = $value === 'active' ? 1 : 0;
+            }
         }
     }
 

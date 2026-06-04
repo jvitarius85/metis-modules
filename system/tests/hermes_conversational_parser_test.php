@@ -71,6 +71,10 @@ $instructional = $parser->parse( 'how do I create a new donation?' );
 $assert( (string) ( $instructional['selected_intent'] ?? '' ) === 'resolve_help_issue', 'Instructional help phrasing should map to resolve_help_issue.' );
 $assert( empty( $instructional['requires_clarification'] ), 'Instructional help phrasing should resolve without clarification.' );
 
+$calendarHelp = $parser->parse( 'create an event' );
+$assert( (string) ( $calendarHelp['selected_intent'] ?? '' ) === 'resolve_help_issue', '"create an event" should map to resolve_help_issue.' );
+$assert( empty( $calendarHelp['requires_clarification'] ), '"create an event" should resolve without clarification.' );
+
 $userHelp = $parser->parse( 'how do I create a new user?' );
 $assert( (string) ( $userHelp['selected_intent'] ?? '' ) === 'resolve_help_issue', 'Instructional user-management phrasing should map to resolve_help_issue.' );
 $assert( empty( $userHelp['requires_clarification'] ), 'Instructional user-management phrasing should not require clarification.' );
@@ -92,9 +96,21 @@ $userDelete = $parser->parse( 'delete user Riley' );
 $assert( (string) ( $userDelete['selected_intent'] ?? '' ) === 'user_delete', 'User delete request should map to user_delete.' );
 $assert( empty( $userDelete['requires_clarification'] ), 'User delete request should not require clarification.' );
 
+$bareUserDelete = $parser->parse( 'Delete John Smith.' );
+$bareUserDeletePayload = (array) ( $bareUserDelete['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $bareUserDelete['selected_intent'] ?? '' ) === 'user_delete', 'Bare person delete request should map to user_delete.' );
+$assert( (string) ( $bareUserDeletePayload['subject'] ?? '' ) === 'John Smith', 'Bare person delete request should preserve the target subject.' );
+$assert( empty( $bareUserDelete['requires_clarification'] ), 'Bare person delete request should not require clarification.' );
+
 $userUnlock = $parser->parse( 'unlock user Riley' );
 $assert( (string) ( $userUnlock['selected_intent'] ?? '' ) === 'user_unlock', 'User unlock request should map to user_unlock.' );
 $assert( empty( $userUnlock['requires_clarification'] ), 'User unlock request should not require clarification.' );
+
+$workspacePasswordReset = $parser->parse( "reset Meg's workspace password." );
+$workspacePasswordResetPayload = (array) ( $workspacePasswordReset['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $workspacePasswordReset['selected_intent'] ?? '' ) === 'workspace_user_password_reset', 'Possessive workspace password reset request should map to workspace_user_password_reset.' );
+$assert( (string) ( $workspacePasswordResetPayload['subject'] ?? '' ) === 'meg', 'Possessive workspace password reset request should preserve the target subject.' );
+$assert( empty( $workspacePasswordReset['requires_clarification'] ), 'Possessive workspace password reset request should not require clarification.' );
 
 $mfaReset = $parser->parse( 'reset mfa for Riley' );
 $assert( (string) ( $mfaReset['selected_intent'] ?? '' ) === 'reset_user_mfa', 'MFA reset request should map to reset_user_mfa.' );
@@ -176,6 +192,12 @@ $assert( empty( $boardWorkspace['requires_clarification'] ), 'Board workspace re
 $newsletterCancel = $parser->parse( 'cancel newsletter' );
 $assert( (string) ( $newsletterCancel['selected_intent'] ?? '' ) === 'newsletter_cancel', 'Newsletter cancel request should map to newsletter_cancel.' );
 $assert( empty( $newsletterCancel['requires_clarification'] ), 'Newsletter cancel request should not require clarification.' );
+
+$deleteCampaign = $parser->parse( 'Delete campaign Summer Giving.' );
+$deleteCampaignPayload = (array) ( $deleteCampaign['intents'][0]['payload'] ?? [] );
+$assert( (string) ( $deleteCampaign['selected_intent'] ?? '' ) === 'campaign_delete', 'Campaign delete request should map to campaign_delete.' );
+$assert( (string) ( $deleteCampaignPayload['subject'] ?? '' ) === 'Summer Giving', 'Campaign delete request should preserve the target campaign subject.' );
+$assert( empty( $deleteCampaign['requires_clarification'] ), 'Campaign delete request should not require clarification.' );
 
 $noSplit = $parser->parse( 'how do I create a GL entry with debit and credit lines?' );
 $assert( count( (array) ( $noSplit['execution_plan'] ?? [] ) ) === 1, 'Instructional GL phrasing should not split on debit and credit wording.' );

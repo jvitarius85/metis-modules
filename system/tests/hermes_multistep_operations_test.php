@@ -74,6 +74,7 @@ $updateInstallExecuted = $engine->executePreparedAction( [
 ] );
 $assert( (string) ( $updateInstallExecuted['status'] ?? '' ) === 'error', 'Prepared update check/install execution should surface execution errors.' );
 $assert( ! str_contains( (string) ( $updateInstallExecuted['message'] ?? '' ), 'Execution stopped at step 1.' ), 'Prepared update check/install execution should preserve the real step error instead of the generic stop message.' );
+$assert( ! str_contains( (string) ( $updateInstallExecuted['message'] ?? '' ), 'Nonce verification failed.' ), 'Prepared update check/install execution should not fail on a stale or missing nonce in conversational execution.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

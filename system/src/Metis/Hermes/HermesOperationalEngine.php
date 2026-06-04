@@ -250,10 +250,15 @@ final class HermesOperationalEngine {
         $plan         = (array) ( $prepared['action_plan'] ?? [] );
         $contextPacks = (array) ( $prepared['context_packs'] ?? [] );
         $executionPlan = (array) ( $prepared['execution_plan'] ?? [] );
+        $executionOptions = [
+            // Approved actions execute from the Hermes execute-action flow,
+            // even when individual steps are read-only.
+            'force_enclave_operation' => 'hermes.tool.execute',
+        ];
         if ( count( $executionPlan ) > 1 ) {
-            $result = $this->executeExecutionPlan( $executionPlan );
+            $result = $this->executeExecutionPlan( $executionPlan, $executionOptions );
         } else {
-            $result = $this->execution->execute( $command, (array) ( $prepared['command_payload'] ?? [] ) );
+            $result = $this->execution->execute( $command, (array) ( $prepared['command_payload'] ?? [] ), $executionOptions );
         }
 
         return $this->responses->executionResult( $command, $contextPacks, $plan, $result );
@@ -553,6 +558,10 @@ final class HermesOperationalEngine {
 
     private function processDataIntent( array $intent ): array {
         try {
+            if ( $this->isDirectUserCountIntent( $intent ) ) {
+                return $this->processDirectUserCountIntent( $intent );
+            }
+
             $reporting = \Metis\Core\Application::service( 'hermes_reporting' );
             $actor     = $this->resolveActor();
 
@@ -563,7 +572,7 @@ final class HermesOperationalEngine {
             $result = $reporting->handle( $interpretation, $actor );
 
             $message = $result['ok']
-                ? $this->describeResult( $result )
+                ? $this->describeResult( $result, $intent )
                 : (string) ( $result['message'] ?? 'Data query failed.' );
 
             $response = [
@@ -619,10 +628,135 @@ final class HermesOperationalEngine {
         return [ 'user_id' => 0, 'roles' => [] ];
     }
 
-    private function describeResult( array $result ): string {
+    private function isDirectUserCountIntent( array $intent ): bool {
+        $query = strtolower( trim( (string) ( $intent['query'] ?? $intent['raw_query'] ?? '' ) ) );
+
+        return (string) ( $intent['action'] ?? '' ) === 'count'
+            && (string) ( $intent['entity'] ?? '' ) === 'person'
+            && preg_match( '/\bhow many users?\b/', $query ) === 1;
+    }
+
+    private function processDirectUserCountIntent( array $intent ): array {
+        $db = \Metis\Core\Application::service( 'db' );
+        $peopleTable = \Metis_Tables::get( 'people' );
+        $count = (int) $db->scalar( "SELECT COUNT(*) FROM {$peopleTable} WHERE status <> 'deleted'" );
+        $report = [
+            'ok' => true,
+            'report_type' => 'count',
+            'status' => 'success',
+            'entity' => 'person',
+            'data' => [ [ 'total' => $count ] ],
+            'total' => $count,
+            'limit' => 1,
+            'offset' => 0,
+            'meta' => [],
+        ];
+        $message = sprintf( 'Found %d user%s.', $count, $count === 1 ? '' : 's' );
+
+        return [
+            'intent'        => $intent,
+            'command'       => null,
+            'context_packs' => [],
+            'action_plan'   => [],
+            'permission'    => [ 'status' => 'not_applicable' ],
+            'response'      => [
+                'intent'        => (string) ( $intent['action'] ?? 'count' ),
+                'status'        => 'success',
+                'message'       => $message,
+                'response_type' => 'DataResult',
+                'report'        => $report,
+                'ui_components' => [
+                    [
+                        'type'   => 'DataTable',
+                        'entity' => 'person',
+                        'data'   => $report['data'],
+                        'total'  => $count,
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function describeResult( array $result, array $intent = [] ): string {
         $type   = (string) ( $result['report_type'] ?? 'list' );
-        $entity = $this->humanizeEntityName( (string) ( $result['entity'] ?? 'records' ) );
+        $query  = strtolower( trim( (string) ( $intent['query'] ?? $intent['raw_query'] ?? '' ) ) );
+        $entity = $this->humanizeEntityName( (string) ( $result['entity'] ?? 'records' ), $query );
         $total  = (int) ( $result['total'] ?? 0 );
+        $rows   = array_values( (array) ( $result['data'] ?? [] ) );
+        $first  = (array) ( $rows[0] ?? [] );
+
+        if ( $type === 'list' && (string) ( $result['entity'] ?? '' ) === 'donation_transaction' ) {
+            if ( str_contains( $query, 'who made the last donation' ) && $first !== [] ) {
+                $donor = trim( (string) ( $first['donor_name'] ?? '' ) );
+                $amount = isset( $first['amount'] ) ? '$' . number_format( (float) $first['amount'], 2 ) : '';
+                $campaign = trim( (string) ( $first['campaign_name'] ?? '' ) );
+                $date = trim( (string) ( $first['transaction_date'] ?? '' ) );
+
+                return sprintf(
+                    '%s made the last donation%s%s%s.',
+                    $donor !== '' ? $donor : 'An unknown donor',
+                    $amount !== '' ? ' of ' . $amount : '',
+                    $campaign !== '' ? ' to ' . $campaign : '',
+                    $date !== '' ? ' on ' . $date : ''
+                );
+            }
+
+            if ( str_contains( $query, 'last donation' ) && $first !== [] ) {
+                $donor = trim( (string) ( $first['donor_name'] ?? '' ) );
+                $amount = isset( $first['amount'] ) ? '$' . number_format( (float) $first['amount'], 2 ) : '';
+                $campaign = trim( (string) ( $first['campaign_name'] ?? '' ) );
+                $date = trim( (string) ( $first['transaction_date'] ?? '' ) );
+
+                return sprintf(
+                    'The last donation was%s%s%s%s.',
+                    $amount !== '' ? ' ' . $amount : '',
+                    $donor !== '' ? ' from ' . $donor : '',
+                    $campaign !== '' ? ' to ' . $campaign : '',
+                    $date !== '' ? ' on ' . $date : ''
+                );
+            }
+
+            if ( preg_match( '/\blast\s+\d+\s+donations?\b/', $query ) === 1 ) {
+                return sprintf( 'Showing the last %d donations.', count( $rows ) );
+            }
+        }
+
+        if ( $type === 'list' && (string) ( $result['entity'] ?? '' ) === 'donation_campaign' && str_contains( $query, 'current campaign' ) && $first !== [] ) {
+            $name = trim( (string) ( $first['name'] ?? '' ) );
+            if ( $name !== '' ) {
+                return sprintf( 'The current campaign is %s.', $name );
+            }
+        }
+
+        if ( $type === 'top' && (string) ( $result['entity'] ?? '' ) === 'donor' && $rows !== [] ) {
+            $entries = [];
+            foreach ( array_slice( $rows, 0, 5 ) as $index => $row ) {
+                $row = (array) $row;
+                $name = trim( (string) ( $row['donor_name'] ?? $row['name'] ?? '' ) );
+                if ( $name === '' ) {
+                    $name = 'Unknown donor';
+                }
+                $amount = isset( $row['total_raised'] ) ? (float) $row['total_raised'] : ( isset( $row['amount'] ) ? (float) $row['amount'] : 0.0 );
+                $entries[] = sprintf( '%d. %s ($%s)', $index + 1, $name, number_format( $amount, 2 ) );
+            }
+
+            if ( $entries !== [] ) {
+                return "Top donors:\n" . implode( "\n", $entries );
+            }
+        }
+
+        if ( $type === 'top' && (string) ( $result['entity'] ?? '' ) === 'donation_campaign' && $first !== [] ) {
+            $name = trim( (string) ( $first['name'] ?? '' ) );
+            $amount = isset( $first['total_raised'] ) ? '$' . number_format( (float) $first['total_raised'], 2 ) : '';
+
+            if ( $name !== '' && preg_match( '/\b(which|what)\s+campaign\b/', $query ) === 1 ) {
+                return sprintf(
+                    'The best-performing campaign is %s%s.',
+                    $name,
+                    $amount !== '' ? ' (' . $amount . ')' : ''
+                );
+            }
+        }
 
         return match ( $type ) {
             'count'     => "Found {$total} " . $entity . ( $total === 1 ? '' : 's' ) . '.',
@@ -793,7 +927,7 @@ final class HermesOperationalEngine {
         ];
     }
 
-    private function executeExecutionPlan( array $executionPlan ): array {
+    private function executeExecutionPlan( array $executionPlan, array $options = [] ): array {
         $stepResults = [];
 
         foreach ( $executionPlan as $step ) {
@@ -803,7 +937,7 @@ final class HermesOperationalEngine {
                 throw new \RuntimeException( 'Execution plan contains an invalid step.' );
             }
 
-            $stepResult = $this->execution->execute( $stepCommand, (array) ( $step['payload'] ?? [] ) );
+            $stepResult = $this->execution->execute( $stepCommand, (array) ( $step['payload'] ?? [] ), $options );
             $stepResults[] = [
                 'step' => (int) ( $step['step'] ?? count( $stepResults ) + 1 ),
                 'intent' => $stepIntent,
@@ -829,8 +963,14 @@ final class HermesOperationalEngine {
         ];
     }
 
-    private function humanizeEntityName( string $entity ): string {
+    private function humanizeEntityName( string $entity, string $query = '' ): string {
         $entity = trim( str_replace( '_', ' ', $entity ) );
+        if ( $entity === 'person' && preg_match( '/\busers?\b/', $query ) === 1 ) {
+            return 'user';
+        }
+        if ( $entity === 'donation transaction' ) {
+            return 'donation transaction';
+        }
 
         return $entity !== '' ? $entity : 'records';
     }

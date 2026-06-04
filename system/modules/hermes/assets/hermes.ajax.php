@@ -27,6 +27,15 @@ function metis_hermes_ajax_handle( callable $callback ): void {
     }
 }
 
+function metis_hermes_release_progress_token( string $token ): string {
+    $token = preg_replace( '/[^a-z0-9_-]/i', '', strtolower( trim( $token ) ) ) ?? '';
+    return substr( $token, 0, 64 );
+}
+
+function metis_hermes_release_progress_store_file( string $token ): string {
+    return 'hermes/release-progress/' . metis_hermes_release_progress_token( $token ) . '.json';
+}
+
 function metis_hermes_register_ajax_controllers(): void {
     static $registered = false;
 
@@ -88,6 +97,23 @@ function metis_hermes_register_ajax_controllers(): void {
             'action_code' => [ 'type' => 'string', 'required' => true ],
         ],
     ] );
+    metis_ajax_register_controller( 'metis_hermes_execute_release_action', [
+        'module' => 'hermes',
+        'permission' => 'edit',
+        'nonce_action' => metis_ajax_nonce_action( 'metis_hermes_execute_action' ),
+        'schema' => [
+            'action_code' => [ 'type' => 'string', 'required' => true ],
+            'progress_token' => [ 'type' => 'string', 'required' => true ],
+        ],
+    ] );
+    metis_ajax_register_controller( 'metis_hermes_release_progress', [
+        'module' => 'hermes',
+        'permission' => 'edit',
+        'nonce_action' => metis_ajax_nonce_action( 'metis_hermes_execute_action' ),
+        'schema' => [
+            'progress_token' => [ 'type' => 'string', 'required' => true ],
+        ],
+    ] );
     metis_ajax_register_controller( 'metis_hermes_reveal_secret', [
         'module' => 'hermes',
         'permission' => 'edit',
@@ -139,6 +165,30 @@ metis_ajax_register_handler( 'metis_hermes_execute_action', function () {
     metis_hermes_ajax_verify( true );
     $action_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['action_code'] ?? '' ) );
     metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->executeAction( $action_code ) );
+} );
+
+metis_ajax_register_handler( 'metis_hermes_execute_release_action', function () {
+    metis_hermes_ajax_verify( true );
+    $action_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['action_code'] ?? '' ) );
+    $progress_token = metis_text_clean( metis_runtime_unslash( metis_request_post()['progress_token'] ?? '' ) );
+    metis_hermes_ajax_handle( static fn (): array => metis_hermes_gateway()->executeReleaseAction( $action_code, $progress_token ) );
+} );
+
+metis_ajax_register_handler( 'metis_hermes_release_progress', function () {
+    metis_hermes_ajax_verify( true );
+    $token = metis_hermes_release_progress_token( metis_text_clean( metis_runtime_unslash( metis_request_post()['progress_token'] ?? '' ) ) );
+    if ( $token === '' ) {
+        metis_runtime_send_json_error( [ 'message' => 'A progress token is required.' ], 400 );
+    }
+
+    $progress = function_exists( 'metis_runtime_json_store_read' )
+        ? metis_runtime_json_store_read( metis_hermes_release_progress_store_file( $token ) )
+        : [];
+
+    metis_runtime_send_json_success( [
+        'message' => 'Release progress loaded.',
+        'progress' => is_array( $progress ) ? $progress : [],
+    ] );
 } );
 
 metis_ajax_register_handler( 'metis_hermes_reveal_secret', function () {

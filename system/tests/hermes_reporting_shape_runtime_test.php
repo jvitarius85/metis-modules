@@ -34,6 +34,9 @@ final class HermesReportingShapeFakeDb {
         if ( str_contains( $sql, 'FROM metis_campaigns' ) ) {
             return 4;
         }
+        if ( str_contains( $sql, 'FROM metis_people' ) ) {
+            return 1;
+        }
 
         return 0;
     }
@@ -80,11 +83,64 @@ final class HermesReportingShapeFakeDb {
             ];
         }
 
+        if ( str_contains( $sql, 'GROUP BY t.did' ) && str_contains( $sql, 'total_raised' ) ) {
+            return [
+                [
+                    'did' => 'D-100',
+                    'donor_name' => 'JD Vitarius',
+                    'email' => 'jd@example.org',
+                    'gift_count' => 4,
+                    'total_raised' => 1500.00,
+                    'last_gift_date' => '2026-05-31 09:30:00',
+                ],
+                [
+                    'did' => 'D-101',
+                    'donor_name' => 'Ada Lovelace',
+                    'email' => 'ada@example.org',
+                    'gift_count' => 3,
+                    'total_raised' => 1200.00,
+                    'last_gift_date' => '2026-05-30 10:15:00',
+                ],
+            ];
+        }
+
+        if ( str_contains( $sql, 'GROUP BY COALESCE(c.cid, t.campaign_code)' ) ) {
+            return [
+                [
+                    'campaign_uid' => 'C-2026-BOARD',
+                    'name' => 'Board Campaign',
+                    'gift_count' => 6,
+                    'total_raised' => 3200.00,
+                    'last_gift_date' => '2026-05-31 09:30:00',
+                ],
+                [
+                    'campaign_uid' => 'C-2026-GENERAL',
+                    'name' => 'General Fund',
+                    'gift_count' => 3,
+                    'total_raised' => 1200.00,
+                    'last_gift_date' => '2026-05-30 10:15:00',
+                ],
+            ];
+        }
+
+        if ( str_contains( $sql, 'FROM metis_people' ) ) {
+            return [
+                [
+                    'total' => 1,
+                ],
+            ];
+        }
+
         return [];
     }
 }
 
 \Metis\Core\Application::instance( 'db', new HermesReportingShapeFakeDb() );
+\Metis\Core\Application::instance( 'authz', new class() {
+    public function allows( string $permission, int $userId = 0, array $context = [] ): bool {
+        return true;
+    }
+} );
 
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
@@ -101,6 +157,7 @@ $donationRows = array_values( (array) ( $donationsReport['data'] ?? [] ) );
 $firstDonation = (array) ( $donationRows[0] ?? [] );
 
 $assert( (string) ( $donations['response']['status'] ?? '' ) === 'success', 'Donation history prompt should execute successfully.' );
+$assert( (string) ( $donations['response']['message'] ?? '' ) === 'Showing the last 2 donations.', 'Donation history prompt should describe the bounded donation list.' );
 $assert( (int) ( $donations['intent']['limit'] ?? 0 ) === 5, 'Donation history prompt should preserve a last-5 limit instead of collapsing to one record.' );
 $assert( (string) ( $donationsReport['entity'] ?? '' ) === 'donation_transaction', 'Donation history prompt should resolve the donation transaction entity.' );
 $assert( (string) ( $firstDonation['donor_name'] ?? '' ) === 'JD Vitarius', 'Donation history rows should expose the donor name.' );
@@ -114,9 +171,46 @@ $campaignRows = array_values( (array) ( $campaignReport['data'] ?? [] ) );
 $firstCampaign = (array) ( $campaignRows[0] ?? [] );
 
 $assert( (string) ( $campaign['response']['status'] ?? '' ) === 'success', 'Current campaign prompt should execute successfully.' );
+$assert( (string) ( $campaign['response']['message'] ?? '' ) === 'The current campaign is Board Campaign.', 'Current campaign prompt should answer with the current campaign name.' );
 $assert( (string) ( $campaignReport['entity'] ?? '' ) === 'donation_campaign', 'Current campaign prompt should resolve the donation campaign entity.' );
 $assert( (string) ( $firstCampaign['name'] ?? '' ) === 'Board Campaign', 'Current campaign rows should expose the campaign name.' );
 $assert( (string) ( $firstCampaign['status'] ?? '' ) === 'active', 'Current campaign rows should expose a normalized status.' );
+
+$topDonors = $engine->process( 'who are the top 5 donors last month?' );
+$assert( (string) ( $topDonors['response']['status'] ?? '' ) === 'success', 'Top donors prompt should execute successfully.' );
+$topDonorsReport = (array) ( $topDonors['response']['report'] ?? [] );
+$topDonorsRows = array_values( (array) ( $topDonorsReport['data'] ?? [] ) );
+$topDonorsMessage = (string) ( $topDonors['response']['message'] ?? '' );
+$assert( (string) ( $topDonorsReport['entity'] ?? '' ) === 'donor', 'Top donors prompt should resolve the donor reporting entity.' );
+$assert( count( $topDonorsRows ) === 2, 'Top donors prompt should return ranked donor rows.' );
+$assert( str_starts_with( $topDonorsMessage, 'Top donors:' ), 'Top donors prompt should summarize ranked donor names and totals.' );
+$assert( str_contains( $topDonorsMessage, 'JD Vitarius' ), 'Top donors prompt should name the first ranked donor.' );
+$assert( str_contains( $topDonorsMessage, 'Ada Lovelace' ), 'Top donors prompt should name the second ranked donor.' );
+
+$bestCampaign = $engine->process( 'which campaign performed best?' );
+$bestCampaignReport = (array) ( $bestCampaign['response']['report'] ?? [] );
+$bestCampaignRows = array_values( (array) ( $bestCampaignReport['data'] ?? [] ) );
+$firstBestCampaign = (array) ( $bestCampaignRows[0] ?? [] );
+$assert( (string) ( $bestCampaign['response']['status'] ?? '' ) === 'success', 'Best campaign prompt should execute successfully.' );
+$assert( (string) ( $bestCampaign['response']['message'] ?? '' ) === 'The best-performing campaign is Board Campaign ($3,200.00).', 'Best campaign prompt should answer with the top campaign and total raised.' );
+$assert( (string) ( $bestCampaignReport['entity'] ?? '' ) === 'donation_campaign', 'Best campaign prompt should resolve the donation campaign reporting entity.' );
+$assert( (string) ( $firstBestCampaign['name'] ?? '' ) === 'Board Campaign', 'Best campaign rows should expose the ranked campaign name.' );
+$assert( (float) ( $firstBestCampaign['total_raised'] ?? 0 ) === 3200.00, 'Best campaign rows should expose the ranked campaign total.' );
+
+$highestGrossingCampaign = $engine->process( 'which campaign raised the most money?' );
+$assert( (string) ( $highestGrossingCampaign['response']['status'] ?? '' ) === 'success', 'Highest-grossing campaign prompt should execute successfully.' );
+$assert( (string) ( $highestGrossingCampaign['response']['message'] ?? '' ) === 'The best-performing campaign is Board Campaign ($3,200.00).', 'Highest-grossing campaign prompt should answer with the top campaign and total raised.' );
+
+$lastDonationPrompt = $engine->process( 'who made the last donation?' );
+$lastDonationPromptReport = (array) ( $lastDonationPrompt['response']['report'] ?? [] );
+$lastDonationPromptRows = array_values( (array) ( $lastDonationPromptReport['data'] ?? [] ) );
+$assert( (string) ( $lastDonationPrompt['response']['status'] ?? '' ) === 'success', 'Last donor prompt should execute successfully.' );
+$assert( (string) ( $lastDonationPrompt['response']['message'] ?? '' ) === 'JD Vitarius made the last donation of $250.00 to Board Campaign on 2026-06-01 09:30:00.', 'Last donor prompt should answer with donor, amount, campaign, and date.' );
+$assert( count( $lastDonationPromptRows ) >= 1, 'Last donor prompt should still return donation rows for the UI.' );
+
+$userCount = $engine->process( 'how many users are there?' );
+$assert( (string) ( $userCount['response']['status'] ?? '' ) === 'success', 'User count prompt should execute successfully.' );
+$assert( (string) ( $userCount['response']['message'] ?? '' ) === 'Found 1 user.', 'User count prompt should answer in user terms, not person terms.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

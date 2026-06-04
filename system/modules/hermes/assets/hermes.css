@@ -302,12 +302,65 @@ font-size:12px;
 background:#4f46e5;
 }
 
+.hermes-rich-list{
+margin:10px 0 0 18px;
+padding:0;
+display:flex;
+flex-direction:column;
+gap:8px;
+}
+
+.hermes-rich-list li{
+padding-left:2px;
+}
+
 .hermes-finding{
 display:flex;
 justify-content:space-between;
 gap:10px;
 align-items:flex-start;
 font-size:12px;
+}
+
+.hermes-release-progress{
+margin-top:8px;
+padding:10px;
+border-radius:10px;
+background:rgba(255,255,255,.06);
+}
+
+.hermes-release-progress-head,
+.hermes-release-progress-meta{
+display:flex;
+justify-content:space-between;
+gap:10px;
+font-size:12px;
+}
+
+.hermes-release-progress-head{
+margin-bottom:8px;
+text-transform:capitalize;
+}
+
+.hermes-release-progress-bar{
+height:10px;
+border-radius:999px;
+background:rgba(255,255,255,.08);
+overflow:hidden;
+}
+
+.hermes-release-progress-bar span{
+display:block;
+height:100%;
+width:1%;
+background:linear-gradient(90deg,#60a5fa,#4f46e5);
+transition:width .25s ease;
+}
+
+.hermes-release-progress-meta{
+margin-top:8px;
+opacity:.9;
+align-items:flex-start;
 }
 
 /* TOOLBAR */

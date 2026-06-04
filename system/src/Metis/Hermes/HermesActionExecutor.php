@@ -109,6 +109,93 @@ final class HermesActionExecutor {
         ];
     }
 
+    public function executeApprovedReleaseInstall( array $action, string $actionCode, string $progressToken ): array {
+        $progressToken = $this->normalizeReleaseProgressToken( $progressToken );
+        if ( $progressToken === '' ) {
+            throw new \RuntimeException( 'A release progress token is required.' );
+        }
+
+        $prepared = $this->operations->validatePreparedAction( (array) ( $action['payload'] ?? [] ) );
+        $permission = (array) ( $prepared['permission'] ?? [] );
+        if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
+            throw new \RuntimeException( (string) ( $permission['reason'] ?? 'Permission denied.' ) );
+        }
+
+        $tag = $this->resolveReleaseInstallTag( $prepared, $action );
+        $this->writeReleaseProgress( $progressToken, [
+            'tag' => $tag,
+            'stage' => 'start',
+            'message' => 'Starting trusted system update.',
+            'percent' => 1,
+            'done' => false,
+            'context' => [],
+        ] );
+
+        if ( function_exists( 'session_status' ) && \session_status() === PHP_SESSION_ACTIVE ) {
+            \session_write_close();
+        }
+        @ignore_user_abort( true );
+        @set_time_limit( 0 );
+
+        $lastProgress = [];
+        $writeProgress = function ( array $progress ) use ( $progressToken, $tag, &$lastProgress ): void {
+            $payload = [
+                'tag' => $tag,
+                'stage' => (string) ( $progress['stage'] ?? 'running' ),
+                'message' => (string) ( $progress['message'] ?? 'Running update.' ),
+                'percent' => (int) ( $progress['percent'] ?? 0 ),
+                'done' => false,
+                'context' => is_array( $progress['context'] ?? null ) ? $progress['context'] : [],
+            ];
+            $lastProgress = $payload;
+            $this->writeReleaseProgress( $progressToken, $payload );
+        };
+
+        try {
+            if ( ! function_exists( 'metis_release_apply_with_progress' ) ) {
+                throw new \RuntimeException( 'Release manager is not available.' );
+            }
+
+            $releaseResult = \metis_release_apply_with_progress( $tag, 'hermes', $writeProgress );
+        } catch ( \Throwable $e ) {
+            $releaseResult = [
+                'ok' => false,
+                'status' => 'exception',
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : 'Release update failed.',
+                'exception' => get_class( $e ),
+            ];
+        }
+
+        $ok = ! empty( $releaseResult['ok'] );
+        $finalProgress = [
+            'tag' => $tag,
+            'stage' => $ok ? 'complete' : 'failed',
+            'message' => (string) ( $releaseResult['message'] ?? ( $ok ? 'Release update completed.' : 'Release update failed.' ) ),
+            'percent' => $ok ? 100 : max( 1, min( 99, (int) ( $lastProgress['percent'] ?? 1 ) ) ),
+            'done' => true,
+            'context' => is_array( $lastProgress['context'] ?? null ) ? $lastProgress['context'] : [],
+            'result' => $releaseResult,
+        ];
+        $this->writeReleaseProgress( $progressToken, $finalProgress );
+
+        $result = [
+            'status' => $ok ? 'success' : 'error',
+            'message' => (string) ( $releaseResult['message'] ?? ( $ok ? 'Release update completed.' : 'Release update failed.' ) ),
+            'release_result' => $releaseResult,
+            'progress_token' => $progressToken,
+            'tag' => $tag,
+        ];
+
+        $saved = $this->repository->markActionExecuted( $actionCode, $result );
+        $this->audit->approval( 'action_executed', $actionCode, [ 'status' => 'executed' ] );
+
+        return [
+            'action' => $saved,
+            'result' => $result,
+            'progress' => $finalProgress,
+        ];
+    }
+
     public function revealSecret( string $revealToken ): array {
         $revealToken = \metis_key_clean( trim( $revealToken ) );
         if ( $revealToken === '' ) {
@@ -224,21 +311,71 @@ final class HermesActionExecutor {
     }
 
     private function requestNonce(): string {
+        $expectedAction = 'metis_ajax:metis_hermes_execute_action';
         foreach ( [ 'metis_action_nonce', 'security', 'nonce' ] as $field ) {
             $value = metis_request_post()[ $field ] ?? metis_request_get()[ $field ] ?? '';
             if ( is_string( $value ) ) {
                 $value = \trim( \metis_runtime_unslash( $value ) );
-                if ( $value !== '' ) {
+                if (
+                    $value !== ''
+                    && ( ! function_exists( 'metis_runtime_verify_nonce' ) || \metis_runtime_verify_nonce( $value, $expectedAction ) )
+                ) {
                     return $value;
                 }
             }
         }
 
         if ( function_exists( 'metis_runtime_create_nonce' ) ) {
-            return (string) \metis_runtime_create_nonce( 'metis_ajax:metis_hermes_execute_action' );
+            return (string) \metis_runtime_create_nonce( $expectedAction );
         }
 
         return '';
+    }
+
+    private function resolveReleaseInstallTag( array $prepared, array $action ): string {
+        $commandPayload = (array) ( $prepared['command_payload'] ?? [] );
+        $executionPlan = array_values( (array) ( $prepared['execution_plan'] ?? [] ) );
+
+        $tag = trim( (string) ( $commandPayload['tag'] ?? '' ) );
+        if ( $tag !== '' ) {
+            return $tag;
+        }
+
+        foreach ( $executionPlan as $step ) {
+            if ( ! is_array( $step ) || (string) ( $step['intent'] ?? '' ) !== 'update_install' ) {
+                continue;
+            }
+
+            $stepPayload = (array) ( $step['payload'] ?? [] );
+            $tag = trim( (string) ( $stepPayload['tag'] ?? '' ) );
+            if ( $tag !== '' ) {
+                return $tag;
+            }
+        }
+
+        if ( \Metis\Core\Application::has_service( 'release' ) ) {
+            $release = \Metis\Core\Application::service( 'release' )->checkForUpdates( true, 'hermes' );
+            $latest = is_array( $release['latest'] ?? null ) ? (array) $release['latest'] : [];
+            $tag = trim( (string) ( $latest['tag'] ?? '' ) );
+            if ( $tag !== '' ) {
+                return $tag;
+            }
+        }
+
+        throw new \RuntimeException( 'No trusted update is currently available to install.' );
+    }
+
+    private function normalizeReleaseProgressToken( string $token ): string {
+        $token = preg_replace( '/[^a-z0-9_-]/i', '', strtolower( trim( $token ) ) ) ?? '';
+        return substr( $token, 0, 64 );
+    }
+
+    private function writeReleaseProgress( string $token, array $payload ): void {
+        if ( ! function_exists( 'metis_runtime_json_store_write' ) ) {
+            return;
+        }
+
+        \metis_runtime_json_store_write( 'hermes/release-progress/' . $token . '.json', $payload );
     }
 
     private function redactSensitiveActionResult( array $result, array $action ): array {
@@ -273,6 +410,18 @@ final class HermesActionExecutor {
 
         if ( $reveals !== [] && ( empty( $response['message'] ) || ! is_string( $response['message'] ) ) ) {
             $response['message'] = 'Sensitive credentials were generated. Use "Reveal once" to view them securely.';
+        }
+
+        if ( $reveals !== [] ) {
+            $stored['secret_reveals'] = array_map(
+                static fn ( array $item ): array => [
+                    'label' => (string) ( $item['label'] ?? 'Secret' ),
+                    'field' => (string) ( $item['field'] ?? '' ),
+                    'revealed' => false,
+                ],
+                $reveals
+            );
+            $response['secret_reveals'] = $reveals;
         }
 
         return [

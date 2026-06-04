@@ -122,6 +122,7 @@ $newsletterCancelFollowUp = $parser->parse( 'cancel newsletter', $contentSession
 $newsletterScheduleFollowUp = $parser->parse( 'schedule newsletter', $contentSessionCode );
 $campaignPublishFollowUp = $parser->parse( 'publish campaign', $contentSessionCode );
 $campaignArchiveFollowUp = $parser->parse( 'archive campaign', $contentSessionCode );
+$campaignArchivePronounFollowUp = $parser->parse( 'archive it', $contentSessionCode );
 $newsletterCancelContextFollowUp = $parser->parse( 'cancel that newsletter', $contentSessionCode );
 $newsletterScheduleContextFollowUp = $parser->parse( 'schedule that newsletter', $contentSessionCode );
 $campaignPublishContextFollowUp = $parser->parse( 'publish that campaign', $contentSessionCode );
@@ -153,6 +154,7 @@ $newsletterCancelContextGatewayFollowUp = $gateway->converse( 'cancel that newsl
 $newsletterScheduleContextGatewayFollowUp = $gateway->converse( 'schedule that newsletter', $seedContentEntitySession( 'June Board Update', 'campaign' ) );
 $campaignPublishContextGatewayFollowUp = $gateway->converse( 'publish that campaign', $seedContentEntitySession( 'June Board Update', 'campaign' ) );
 $campaignArchiveContextGatewayFollowUp = $gateway->converse( 'archive that campaign', $seedContentEntitySession( 'June Board Update', 'campaign' ) );
+$campaignArchivePronounGatewayFollowUp = $gateway->converse( 'archive it', $seedContentEntitySession( 'June Board Update', 'donation_campaign' ) );
 $newsletterDeleteContextGatewayFollowUp = $gateway->converse( 'delete that newsletter', $seedContentEntitySession( 'June Board Update', 'campaign' ) );
 $newsletterSendContextGatewayFollowUp = $gateway->converse( 'send that newsletter', $seedContentEntitySession( 'June Board Update', 'campaign' ) );
 $passwordContinuationSessionCode = $seedRecentEntitySession( 'Show me John Smith' );
@@ -294,6 +296,9 @@ $assert( empty( $campaignPublishFollowUp['requires_clarification'] ), 'Campaign 
 $assert( (string) ( $campaignArchiveFollowUp['selected_intent'] ?? '' ) === 'campaign_archive', 'Campaign archive follow-up should resolve to campaign_archive.' );
 $assert( (string) ( $campaignArchiveFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'June Board Update', 'Campaign archive follow-up should reuse the recent campaign subject.' );
 $assert( empty( $campaignArchiveFollowUp['requires_clarification'] ), 'Campaign archive follow-up should not require clarification when recent entity memory exists.' );
+$assert( (string) ( $campaignArchivePronounFollowUp['selected_intent'] ?? '' ) === 'campaign_archive', 'Pronoun campaign archive follow-up should resolve to campaign_archive.' );
+$assert( (string) ( $campaignArchivePronounFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'June Board Update', 'Pronoun campaign archive follow-up should reuse the recent campaign subject.' );
+$assert( empty( $campaignArchivePronounFollowUp['requires_clarification'] ), 'Pronoun campaign archive follow-up should not require clarification when recent entity memory exists.' );
 $assert( (string) ( $newsletterCancelContextFollowUp['selected_intent'] ?? '' ) === 'newsletter_cancel', 'Contextual newsletter cancel follow-up should resolve to newsletter_cancel.' );
 $assert( (string) ( $newsletterCancelContextFollowUp['intents'][0]['payload']['subject'] ?? '' ) === 'June Board Update', 'Contextual newsletter cancel follow-up should reuse the recent campaign subject.' );
 $assert( empty( $newsletterCancelContextFollowUp['requires_clarification'] ), 'Contextual newsletter cancel follow-up should not require clarification when recent entity memory exists.' );
@@ -369,6 +374,8 @@ $assert( (string) ( $campaignPublishContextGatewayFollowUp['status'] ?? '' ) ===
 $assert( (string) ( $campaignPublishContextGatewayFollowUp['actions'][0]['payload']['command_payload']['subject'] ?? '' ) === 'June Board Update', 'Contextual campaign publish gateway follow-up should reuse the recent campaign subject.' );
 $assert( (string) ( $campaignArchiveContextGatewayFollowUp['status'] ?? '' ) === 'awaiting_approval', 'Contextual campaign archive gateway follow-up should enter approval when recent entity memory exists.' );
 $assert( (string) ( $campaignArchiveContextGatewayFollowUp['actions'][0]['payload']['command_payload']['subject'] ?? '' ) === 'June Board Update', 'Contextual campaign archive gateway follow-up should reuse the recent campaign subject.' );
+$assert( (string) ( $campaignArchivePronounGatewayFollowUp['status'] ?? '' ) === 'awaiting_approval', 'Pronoun campaign archive gateway follow-up should enter approval when recent entity memory exists.' );
+$assert( (string) ( $campaignArchivePronounGatewayFollowUp['actions'][0]['payload']['command_payload']['subject'] ?? '' ) === 'June Board Update', 'Pronoun campaign archive gateway follow-up should reuse the recent campaign subject.' );
 $assert( (string) ( $newsletterDeleteContextGatewayFollowUp['status'] ?? '' ) === 'awaiting_approval', 'Contextual newsletter delete gateway follow-up should enter approval when recent entity memory exists.' );
 $assert( (string) ( $newsletterDeleteContextGatewayFollowUp['actions'][0]['payload']['command_payload']['subject'] ?? '' ) === 'June Board Update', 'Contextual newsletter delete gateway follow-up should reuse the recent campaign subject.' );
 $assert( (string) ( $newsletterSendContextGatewayFollowUp['status'] ?? '' ) === 'awaiting_approval', 'Contextual newsletter send gateway follow-up should enter approval when recent entity memory exists.' );

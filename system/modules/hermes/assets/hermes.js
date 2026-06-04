@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded",function(){
 
 const ajax = window.metisHermesAjax || null
+const userName = ajax && ajax.user_name ? String(ajax.user_name) : "there"
 
 const ORB_SIZE = 50
 
@@ -115,6 +116,51 @@ return ""
 }
 }
 return String(value)
+}
+
+function renderReleaseBlockDetails(result){
+if(!result || typeof result!=="object"){
+return ""
+}
+
+if(String(result.status||"")!=="error"){
+return ""
+}
+
+const integrity=result.integrity && typeof result.integrity==="object" ? result.integrity : null
+const integrityResult=integrity && integrity.result && typeof integrity.result==="object" ? integrity.result : null
+const integrityIssues=Array.isArray(integrityResult && integrityResult.issues) ? integrityResult.issues : []
+if(integrityIssues.length){
+let html=`<div class="hermes-grounding">Integrity preflight found modified tracked files on this server.</div>`
+html+=`<div class="hermes-findings">`
+integrityIssues.slice(0,5).forEach(issue=>{
+const path=String(issue && issue.path ? issue.path : "Unknown file")
+const type=String(issue && issue.type ? issue.type : "issue")
+html+=`<div class="hermes-finding"><strong>${escapeHtml(path)}</strong><span>${escapeHtml(type)}</span></div>`
+})
+if(integrityIssues.length>5){
+html+=`<div class="hermes-finding"><strong>Additional Files</strong><span>${escapeHtml(String(integrityIssues.length-5))} more modified file(s).</span></div>`
+}
+html+=`</div>`
+html+=`<div class="hermes-grounding">If these deployed changes are expected, rebuild the integrity baseline before retrying the update. If not, restore the unexpected tracked-file changes first.</div>`
+return html
+}
+
+const compliance=result.module_compliance && typeof result.module_compliance==="object" ? result.module_compliance : null
+const failures=Array.isArray(compliance && compliance.failures) ? compliance.failures : []
+if(failures.length){
+let html=`<div class="hermes-grounding">Module compliance preflight failed.</div>`
+html+=`<div class="hermes-findings">`
+failures.slice(0,5).forEach(row=>{
+const name=String(row && (row.module_label || row.module || row.name) ? (row.module_label || row.module || row.name) : "Module")
+const detail=String(row && (row.message || row.detail || row.status) ? (row.message || row.detail || row.status) : "failed")
+html+=`<div class="hermes-finding"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(detail)}</span></div>`
+})
+html+=`</div>`
+return html
+}
+
+return ""
 }
 
 container.onclick=function(){
@@ -253,10 +299,14 @@ if(structured && isHelpIssuePayload(structured.result)){
 html+=renderHelpIssueResult(structured.result)
 }else if(structured && structured.result){
 html+=renderOperationResult(structured.result)
+}else if(structured && structured.report){
+html+=renderReportResult(structured.report)
 }else if(structured && isHelpIssuePayload(structured)){
 html+=renderHelpIssueResult(structured)
 }else if(data && data.result){
 html+=renderOperationResult(data.result)
+}else if(data && data.report){
+html+=renderReportResult(data.report)
 }
 
 if(data && Array.isArray(data.actions) && data.actions.length){
@@ -302,7 +352,7 @@ function hydrateHistory(history){
 clearMessages()
 
 if(!Array.isArray(history) || history.length < 1){
-addMessage("Submit an operational request.","hermes")
+addMessage(`How can I assist you, ${userName}?`,"hermes")
 return
 }
 
@@ -437,9 +487,19 @@ if(executeBtn){
 executeBtn.disabled=true
 executeBtn.textContent="Executing..."
 }
-request("metis_hermes_execute_action",{action_code:actionCode}).then(data=>{
-let html=`<div class="hermes-answer">Approved operation executed.</div>`
+request("metis_hermes_preview_action",{action_code:actionCode}).then(previewData=>{
+const action=previewData && previewData.action && typeof previewData.action==="object" ? previewData.action : {}
+const payload=action && action.payload && typeof action.payload==="object" ? action.payload : {}
+const executionPlan=Array.isArray(payload.execution_plan) ? payload.execution_plan : []
+const requiresReleaseProgress=executionPlan.some(step=>step && typeof step==="object" && String(step.intent||"")==="update_install")
+if(requiresReleaseProgress){
+return executeReleaseActionWithProgress(actionCode, executeBtn)
+}
+return request("metis_hermes_execute_action",{action_code:actionCode})
+}).then(data=>{
 const result=data && data.result ? data.result : {}
+const succeeded=!(result && typeof result==="object" && result.status==="error")
+let html=`<div class="hermes-answer">${escapeHtml(succeeded ? "Approved operation executed." : "Approved operation failed.")}</div>`
 
 if(result.mission){
 html+=renderMissionResult(result.mission,result.report || null)
@@ -485,6 +545,7 @@ let html=`<div class="hermes-grounding">${escapeHtml(String(result.message||"Sor
 if(result.detail){
 html+=`<div class="hermes-rich-copy">${escapeHtml(String(result.detail))}</div>`
 }
+html+=renderReleaseBlockDetails(result)
 return html
 }
 
@@ -618,6 +679,20 @@ html+=`</div>`
 return html
 }
 
+if(result.status==="success" && result.report_type==="top" && result.entity==="donor" && Array.isArray(result.data) && result.data.length){
+let html=`<ol class="hermes-rich-list">`
+result.data.slice(0,5).forEach(row=>{
+const donor=row && typeof row==="object" ? row : {}
+const name=String(donor.donor_name || donor.name || "Unknown donor")
+const amount=typeof donor.total_raised!=="undefined"
+? formatCurrency(Number(donor.total_raised || 0))
+: formatCurrency(Number(donor.amount || 0))
+html+=`<li>${escapeHtml(name)} (${escapeHtml(amount)})</li>`
+})
+html+=`</ol>`
+return html
+}
+
 if(Array.isArray(result.checks) && result.checks.length){
 let html=``
 if(result.summary && typeof result.summary==="object"){
@@ -646,23 +721,13 @@ html+=`</div>`
 return html
 }
 
-if(result.status && result.message && typeof result.message==="string"){
-let html=`<div class="hermes-grounding">${escapeHtml(result.message)}</div>`
-const hiddenKeys=new Set(["status","message","enclave_request_id","release_status"])
-const rows=Object.keys(result).filter(key=>!hiddenKeys.has(key) && result[key]!=null && typeof result[key]!=="object")
-if(rows.length){
-html+=`<div class="hermes-findings">`
-rows.slice(0,8).forEach(key=>{
-html+=`<div class="hermes-finding"><strong>${escapeHtml(humanizeKey(key))}</strong><span>${escapeHtml(formatHermesValue(result[key]))}</span></div>`
-})
-html+=`</div>`
-}
-return html
-}
-
 if(result.status==="success" && result.user){
 const user=result.user || {}
-let html=`<div class="hermes-findings">`
+let html=``
+if(result.message && typeof result.message==="string"){
+html+=`<div class="hermes-grounding">${escapeHtml(result.message)}</div>`
+}
+html+=`<div class="hermes-findings">`
 html+=`<div class="hermes-finding"><strong>User</strong><span>${escapeHtml(String(user.name||user.email||user.pid||"User"))}</span></div>`
 if(user.email){
 html+=`<div class="hermes-finding"><strong>Email</strong><span>${escapeHtml(String(user.email))}</span></div>`
@@ -713,6 +778,20 @@ html+=`<div class="hermes-action-card">
 <button type="button" class="hermes-inline-btn primary" data-hermes-reveal="${escapeHtml(token)}">Reveal once</button>
 </div>
 </div>`
+})
+html+=`</div>`
+}
+return html
+}
+
+if(result.status && result.message && typeof result.message==="string"){
+let html=`<div class="hermes-grounding">${escapeHtml(result.message)}</div>`
+const hiddenKeys=new Set(["status","message","enclave_request_id","release_status"])
+const rows=Object.keys(result).filter(key=>!hiddenKeys.has(key) && result[key]!=null && typeof result[key]!=="object")
+if(rows.length){
+html+=`<div class="hermes-findings">`
+rows.slice(0,8).forEach(key=>{
+html+=`<div class="hermes-finding"><strong>${escapeHtml(humanizeKey(key))}</strong><span>${escapeHtml(formatHermesValue(result[key]))}</span></div>`
 })
 html+=`</div>`
 }
@@ -861,6 +940,148 @@ html+=`<div class="hermes-finding"><strong>Duplicate</strong><span>${queued.dupl
 }
 html+=`</div>`
 return html
+}
+
+function renderReportResult(report){
+if(!report || typeof report!=="object"){
+return ""
+}
+
+if(String(report.report_type||"")==="top" && String(report.entity||"")==="donor" && Array.isArray(report.data) && report.data.length){
+let html=`<ol class="hermes-rich-list">`
+report.data.slice(0,5).forEach(row=>{
+const donor=row && typeof row==="object" ? row : {}
+const name=String(donor.donor_name || donor.name || "Unknown donor")
+const amount=typeof donor.total_raised!=="undefined"
+? formatCurrency(Number(donor.total_raised || 0))
+: formatCurrency(Number(donor.amount || 0))
+html+=`<li>${escapeHtml(name)} (${escapeHtml(amount)})</li>`
+})
+html+=`</ol>`
+return html
+}
+
+return ""
+}
+
+function releaseProgressToken(){
+return `hermes-release-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`
+}
+
+function renderReleaseProgressPanel(progress){
+const state=progress && typeof progress==="object" ? progress : {}
+const percent=Math.max(1,Math.min(100,Number(state.percent||1)))
+const stage=String(state.stage||"running")
+const message=String(state.message||"Running update...")
+return `<div class="hermes-release-progress" data-hermes-release-progress>
+<div class="hermes-release-progress-head"><strong>System update in progress</strong><span>${escapeHtml(stage)}</span></div>
+<div class="hermes-release-progress-bar"><span style="width:${percent}%"></span></div>
+<div class="hermes-release-progress-meta"><span data-hermes-release-progress-percent>${percent}%</span><span data-hermes-release-progress-message>${escapeHtml(message)}</span></div>
+</div>`
+}
+
+function updateReleaseProgressBubble(bubble, progress){
+if(!bubble){
+return
+}
+const panel=bubble.querySelector("[data-hermes-release-progress]")
+if(!panel){
+return
+}
+const state=progress && typeof progress==="object" ? progress : {}
+const percent=Math.max(1,Math.min(100,Number(state.percent||1)))
+const stage=String(state.stage||"running")
+const message=String(state.message||"Running update...")
+const bar=panel.querySelector(".hermes-release-progress-bar span")
+const percentEl=panel.querySelector("[data-hermes-release-progress-percent]")
+const messageEl=panel.querySelector("[data-hermes-release-progress-message]")
+const stageEl=panel.querySelector(".hermes-release-progress-head span")
+if(bar){
+bar.style.width=`${percent}%`
+}
+if(percentEl){
+percentEl.textContent=`${percent}%`
+}
+if(messageEl){
+messageEl.textContent=message
+}
+if(stageEl){
+stageEl.textContent=stage
+}
+panel.classList.toggle("is-complete", !!state.done && stage==="complete")
+panel.classList.toggle("is-failed", !!state.done && stage==="failed")
+}
+
+function releaseProgressRequest(action,payload){
+const form=new FormData()
+form.set("action",action)
+Object.keys(payload || {}).forEach(key=>{
+form.set(key,payload[key])
+})
+return Metis.request.postForm(window.metisAjax || null,action,form,"Release progress is not configured.")
+}
+
+function pollHermesReleaseProgress(progressToken,bubble){
+let active=true
+let timer=null
+const run=function(delay){
+if(!active){
+return
+}
+window.clearTimeout(timer)
+timer=window.setTimeout(()=>{
+releaseProgressRequest("metis_hermes_release_progress",{progress_token:progressToken}).then(data=>{
+const progress=data && data.progress ? data.progress : {}
+updateReleaseProgressBubble(bubble,progress)
+if(progress && progress.done){
+active=false
+return
+}
+run(1250)
+}).catch(()=>{
+run(2500)
+})
+},delay)
+}
+run(250)
+return function(){
+active=false
+window.clearTimeout(timer)
+}
+}
+
+function executeReleaseActionWithProgress(actionCode,executeBtn){
+const progressToken=releaseProgressToken()
+const row=document.createElement("div")
+row.className="msg-row hermes"
+const avatar=document.createElement("div")
+avatar.className="msg-avatar"
+avatar.style.backgroundImage=`url(${HERMES_AVATAR})`
+const bubble=document.createElement("div")
+bubble.className="msg hermes"
+bubble.innerHTML=window.Metis && Metis.util && typeof Metis.util.sanitizeHtmlFragment==="function"
+? Metis.util.sanitizeHtmlFragment(renderReleaseProgressPanel({percent:1,stage:"starting",message:"Starting trusted system update..."}))
+: renderReleaseProgressPanel({percent:1,stage:"starting",message:"Starting trusted system update..."})
+row.appendChild(avatar)
+row.appendChild(bubble)
+messages.appendChild(row)
+messages.scrollTop=messages.scrollHeight
+
+const stopPolling=pollHermesReleaseProgress(progressToken,bubble)
+return releaseProgressRequest("metis_hermes_execute_release_action",{
+action_code:actionCode,
+progress_token:progressToken
+}).then(data=>{
+const progress=data && data.progress ? data.progress : {percent:100,stage:"complete",message:String((data && data.result && data.result.message) || "Release update completed."),done:true}
+updateReleaseProgressBubble(bubble,progress)
+return data
+}).finally(()=>{
+stopPolling()
+if(executeBtn){
+executeBtn.disabled=false
+executeBtn.textContent="Execute"
+}
+})
 }
 
 function renderDiagnosticExecutionResult(diagnostics,report){
@@ -1177,7 +1398,7 @@ sessionCode=String(data.chat_session.session_code)
 hydrateHistory(data && Array.isArray(data.chat_history) ? data.chat_history : [])
 }).catch(()=>{
 if(messages.children.length < 1){
-addMessage("Submit an operational request.","hermes")
+addMessage(`How can I assist you, ${userName}?`,"hermes")
 }
 })
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Metis\Hermes;
 
 final class HermesIntentParser {
+    private const MUTATING_DATA_GUARD_PATTERN = '/^(?:create|add|update|edit|change|delete|remove|archive|publish|send|launch|disable|deactivate|enable|reactivate|offboard|reset|restore|rollback|install|apply|cancel|retry|assign|grant|revoke|link|attach)\b/';
 
     private const DATA_INTENT_MAP = [
         'how many'   => 'count',
@@ -114,6 +115,9 @@ final class HermesIntentParser {
             $action = 'sync_calendar';        $domain = 'system';        $confidence = 0.92;
         } elseif ( $this->matchesClearCache( $normalized ) ) {
             $action = 'clear_cache';          $domain = 'system';        $confidence = 0.92;
+        } elseif ( $this->matchesUpdateHistoryQuery( $normalized ) ) {
+            $action = 'get_system_status';   $domain = 'system';        $confidence = 0.93;
+            $payload = [ 'query' => $query ];
         } elseif ( $this->matchesUpdateCheck( $normalized ) ) {
             $action = 'check_system_updates'; $domain = 'system';        $confidence = 0.92;
         } elseif ( $this->matchesUpdateInstall( $normalized ) ) {
@@ -184,10 +188,14 @@ final class HermesIntentParser {
     // ------------------------------------------------------------------
 
     private function detectDataIntent( string $normalized, string $raw ): ?array {
+        if ( $this->shouldPreferCommandPathOverDataIntent( $normalized ) ) {
+            return null;
+        }
+
         $intent     = null;
         $intentVerb = '';
         foreach ( self::DATA_INTENT_MAP as $phrase => $intentKey ) {
-            if ( str_contains( $normalized, $phrase ) ) {
+            if ( $this->matchesIntentPhrase( $normalized, $phrase ) ) {
                 $intent     = $intentKey;
                 $intentVerb = $phrase;
                 break;
@@ -208,7 +216,7 @@ final class HermesIntentParser {
         // If the query contains a proper name (two+ capitalised words) after the entity
         // keyword, it is a person-specific lookup — not a list/search. Let the command
         // path handle it via lookup_profile instead.
-        if ( in_array( $intent, [ 'list', 'search', 'get' ], true )
+        if ( $this->isPersonScopedLookupIntent( $entityKey, $intent )
             && preg_match( '/\b[A-Z][a-z]{1,}\s+[A-Z][a-z]{1,}/', $raw ) ) {
             return null;
         }
@@ -219,6 +227,10 @@ final class HermesIntentParser {
         }
 
         $filters   = $this->extractDataFilters( $normalized, $definition );
+        $entitySpecific = $this->extractEntitySpecificFilters( $normalized, $raw, $entityKey );
+        if ( ! empty( $entitySpecific['filters'] ) ) {
+            $filters = array_values( array_merge( $filters, (array) $entitySpecific['filters'] ) );
+        }
         $dateRange = $this->extractDateRange( $normalized );
         $aggregate = ( $intent === 'aggregate' || $intent === 'count' )
             ? $this->extractAggregates( $normalized, $definition )
@@ -237,7 +249,7 @@ final class HermesIntentParser {
             'entity'            => $entityKey,
             'confidence'        => $confidence,
             'command'           => null,
-            'payload'           => [],
+            'payload'           => (array) ( $entitySpecific['payload'] ?? [] ),
             'filters'           => $filters,
             'fields_requested'  => $fields,
             'aggregate'         => $aggregate,
@@ -271,6 +283,13 @@ final class HermesIntentParser {
     }
 
     private function inferImplicitDataIntent( string $normalized, string $entityKey ): ?string {
+        if (
+            in_array( $entityKey, [ 'donation_campaign', 'newsletter_campaign' ], true )
+            && preg_match( '/\b(best|performed best|performing the best|performing best|raised the most|most money|highest performing|highest grossing)\b/', $normalized ) === 1
+        ) {
+            return 'top';
+        }
+
         if ( preg_match( '/\b(current|latest|last)\b/', $normalized ) !== 1 ) {
             return null;
         }
@@ -280,6 +299,70 @@ final class HermesIntentParser {
         }
 
         return 'list';
+    }
+
+    private function matchesIntentPhrase( string $normalized, string $phrase ): bool {
+        $phrase = strtolower( trim( $phrase ) );
+        if ( $phrase === '' ) {
+            return false;
+        }
+
+        return preg_match( '/\b' . preg_quote( $phrase, '/' ) . '\b/', $normalized ) === 1;
+    }
+
+    private function shouldPreferCommandPathOverDataIntent( string $normalized ): bool {
+        return preg_match( self::MUTATING_DATA_GUARD_PATTERN, $normalized ) === 1;
+    }
+
+    private function isPersonScopedLookupIntent( string $entityKey, string $intent ): bool {
+        if ( ! in_array( $intent, [ 'list', 'search', 'get' ], true ) ) {
+            return false;
+        }
+
+        return in_array( $entityKey, [ 'person', 'user', 'workspace_user', 'contact', 'donor' ], true );
+    }
+
+    /**
+     * @return array{filters?: array<int,array<string,mixed>>, payload?: array<string,mixed>}
+     */
+    private function extractEntitySpecificFilters( string $normalized, string $raw, string $entityKey ): array {
+        if ( ! in_array( $entityKey, [ 'donation_campaign', 'newsletter_campaign' ], true ) ) {
+            return [];
+        }
+
+        if ( preg_match( '/\b(?:show|find|get|lookup|view|open)\s+(?:the\s+)?(?:campaign|fundraiser|appeal|newsletter|newsletter campaign|email campaign)\s+(.+)$/i', $raw, $matches ) !== 1 ) {
+            return [];
+        }
+
+        $subject = trim( (string) ( $matches[1] ?? '' ) );
+        $subject = preg_replace( '/[?.!]+$/', '', $subject ) ?? $subject;
+        $subject = preg_replace( '/\s+(?:from|for|with|in)\b.*$/i', '', $subject ) ?? $subject;
+        $subject = trim( $subject );
+        if ( $subject === '' ) {
+            return [];
+        }
+
+        return [
+            'filters' => [
+                [
+                    'field' => 'name',
+                    'op' => 'contains',
+                    'value' => $subject,
+                    'type' => 'string',
+                ],
+            ],
+            'payload' => [
+                'subject' => $subject,
+                'entity_hint' => $entityKey,
+            ],
+        ];
+    }
+
+    private function matchesUpdateHistoryQuery( string $normalized ): bool {
+        return preg_match(
+            '/\b(when was|what was|show)\s+(?:the\s+)?(?:last|latest|current)\s+update\b.*\b(installed|applied)\b/',
+            $normalized
+        ) === 1;
     }
 
     private function resolveEntityFromQuery( string $normalized ): ?string {
@@ -838,6 +921,14 @@ final class HermesIntentParser {
     }
 
     private function matchesProfileLookup( string $normalized, string $raw = '' ): bool {
+        if ( preg_match( self::MUTATING_DATA_GUARD_PATTERN, $normalized ) === 1 ) {
+            return false;
+        }
+
+        if ( str_contains( $normalized, 'campaign' ) || str_contains( $normalized, 'newsletter' ) ) {
+            return false;
+        }
+
         foreach ( [ 'email', 'phone', 'donated', 'donation', 'contact info', 'profile', 'who is', 'show me', 'lookup', 'newsletter', 'registered for', 'subscribed' ] as $keyword ) {
             if ( str_contains( $normalized, $keyword ) ) {
                 return true;

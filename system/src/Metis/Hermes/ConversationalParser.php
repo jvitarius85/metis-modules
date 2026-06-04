@@ -418,6 +418,15 @@ final class ConversationalParser {
         if ( $commandKey === 'get_entity_attribute' && ! $this->isAttributeLookupFragment( $fragment ) ) {
             return 0.0;
         }
+        if ( $this->isCampaignScopedFragment( $fragment ) && in_array( $commandKey, [ 'get_user', 'lookup_profile', 'update_user', 'disable_user', 'offboard_user', 'enable_user', 'user_delete' ], true ) ) {
+            return 0.0;
+        }
+        if ( $this->isWorkspaceGroupFragment( $fragment ) && in_array( $commandKey, [ 'assign_role', 'remove_role', 'manage_user_roles' ], true ) ) {
+            return 0.0;
+        }
+        if ( $this->isWorkspaceGroupFragment( $fragment ) && in_array( $commandKey, [ 'user_delete', 'workspace_user_delete' ], true ) ) {
+            return 0.0;
+        }
         $patterns = array_values( array_filter( array_map( 'strval', (array) ( $command['phrases'] ?? [] ) ) ) );
 
         foreach ( $patterns as $pattern ) {
@@ -461,7 +470,19 @@ final class ConversationalParser {
             $score += 0.15;
         }
 
-        if ( $commandKey === 'resolve_help_issue' && $this->isHelpStyleFragment( $fragment ) ) {
+        if ( $this->isWorkspaceGroupFragment( $fragment ) && $commandKey === 'manage_workspace_groups' ) {
+            $score += 0.45;
+        }
+
+        $recentEntityHint = strtolower( trim( (string) ( $context['recent_entity']['entity_hint'] ?? '' ) ) );
+        if (
+            in_array( $recentEntityHint, [ 'donation_campaign', 'campaign' ], true )
+            && $this->matchesCampaignContinuationVerb( $fragment, $commandKey )
+        ) {
+            $score += 0.75;
+        }
+
+        if ( $commandKey === 'resolve_help_issue' && ( $this->isHelpStyleFragment( $fragment ) || $this->isCalendarHelpFragment( $fragment ) ) ) {
             $score += 0.75;
         }
 
@@ -472,6 +493,14 @@ final class ConversationalParser {
             }
             if ( preg_match( '/^(show|what is)\s+.+\s+(profile|record)$/', $fragment ) === 1 ) {
                 $score += 0.25;
+            }
+        }
+
+        if ( $this->isUpdateHistoryFragment( $fragment ) ) {
+            if ( $commandKey === 'get_system_status' ) {
+                $score += 0.8;
+            } elseif ( in_array( $commandKey, [ 'check_system_updates', 'update_check', 'update_install', 'aut_update_check', 'aut_update_install' ], true ) ) {
+                $score *= 0.35;
             }
         }
 
@@ -655,7 +684,7 @@ final class ConversationalParser {
         $payload = [];
         $entity_subject = (string) ( $entities[0]['subject'] ?? '' );
         if ( $entity_subject !== '' ) {
-            $payload['subject'] = $entity_subject;
+            $payload['subject'] = $this->normalizeEntitySubject( $entity_subject );
         } elseif ( ! empty( $context['recent_entity']['subject'] ) ) {
             $payload['subject'] = (string) $context['recent_entity']['subject'];
         }
@@ -724,8 +753,31 @@ final class ConversationalParser {
             $payload['roles'] = array_values( array_filter( array_map( static fn ( string $role ): string => trim( $role ), $roles ) ) );
         }
 
+        if ( ! isset( $payload['subject'] ) && in_array( $command_name, [ 'user_password_reset', 'workspace_user_password_reset' ], true ) ) {
+            $passwordSubject = $this->extractPasswordResetSubject( $fragment );
+            if ( $passwordSubject !== '' ) {
+                $payload['subject'] = $passwordSubject;
+            }
+        }
+
         if ( ! isset( $payload['subject'] ) && preg_match( '/\b(?:for|to|from)\s+([a-z][a-z0-9._-]*(?:\s+[a-z][a-z0-9._-]*){0,2})\b(?=(?:\s+(?:with|using|via|in)\b|$))/i', $fragment, $match ) ) {
             $payload['subject'] = trim( $match[1] );
+        }
+
+        if ( ! isset( $payload['subject'] ) && str_starts_with( $command_name, 'campaign_' ) ) {
+            $campaignSubject = $this->extractDomainSubject( $fragment, [ 'campaign', 'fundraiser', 'appeal' ] );
+            if ( $campaignSubject !== '' ) {
+                $payload['subject'] = $campaignSubject;
+                $payload['entity_hint'] = 'donation_campaign';
+            }
+        }
+
+        if ( ! isset( $payload['subject'] ) && str_starts_with( $command_name, 'newsletter_' ) ) {
+            $newsletterSubject = $this->extractDomainSubject( $fragment, [ 'newsletter', 'newsletter campaign', 'email campaign' ] );
+            if ( $newsletterSubject !== '' ) {
+                $payload['subject'] = $newsletterSubject;
+                $payload['entity_hint'] = 'newsletter_campaign';
+            }
         }
 
         if ( str_starts_with( $command_name, 'list_' ) || str_starts_with( $command_name, 'get_' ) ) {
@@ -777,6 +829,27 @@ final class ConversationalParser {
         }
 
         return $this->normalizeContextualPayload( $command_name, $fragment, $payload, $context );
+    }
+
+    private function extractPasswordResetSubject( string $fragment ): string {
+        $subject = '';
+
+        if ( preg_match( '/\b(?:metis|workspace|google|local|internal)\s+password\s+for\s+(.+)$/i', $fragment, $matches ) ) {
+            $subject = trim( (string) ( $matches[1] ?? '' ) );
+        } elseif ( preg_match( '/\bpassword\s+for\s+(.+)$/i', $fragment, $matches ) ) {
+            $subject = trim( (string) ( $matches[1] ?? '' ) );
+        } elseif ( preg_match( '/\b(?:reset|change|set)\s+(.+?)\s+(?:metis|workspace|google|local|internal)?\s*password\b/i', $fragment, $matches ) ) {
+            $subject = trim( (string) ( $matches[1] ?? '' ) );
+        }
+
+        if ( $subject === '' ) {
+            return '';
+        }
+
+        $subject = preg_replace( '/\s+(?:to|as)\s+.+$/i', '', $subject ) ?? $subject;
+        $subject = preg_replace( '/\'s$/i', '', $subject ) ?? $subject;
+        $subject = preg_replace( '/[?.!]+$/', '', $subject ) ?? $subject;
+        return trim( $subject );
     }
 
     private function extractLookupSubject( string $fragment ): string {
@@ -849,13 +922,16 @@ final class ConversationalParser {
         $payload = (array) ( $candidate['payload'] ?? [] );
         $score = (float) ( $candidate['confidence'] ?? 0.0 );
         $helpStyle = $this->isHelpStyleFragment( $fragment );
+        $calendarHelp = $this->isCalendarHelpFragment( $fragment );
         $instructional = $this->isInstructionalFragment( $fragment );
 
         if ( $intent === 'resolve_help_issue' ) {
             if ( $helpStyle ) {
                 $score = max( $score, $instructional ? 0.98 : 0.92 );
+            } elseif ( $calendarHelp ) {
+                $score = max( $score, 0.95 );
             }
-        } elseif ( $helpStyle ) {
+        } elseif ( $helpStyle || $calendarHelp ) {
             $score *= ( ! empty( $command['requires_approval'] ) || empty( $command['read_only'] ) )
                 ? ( $instructional ? 0.25 : 0.4 )
                 : 0.6;
@@ -876,7 +952,7 @@ final class ConversationalParser {
      * @return array<int,array<string,mixed>>
      */
     private function prioritizeHelpCandidate( string $fragment, array $candidates ): array {
-        if ( ! $this->isHelpStyleFragment( $fragment ) || $candidates === [] ) {
+        if ( ! $this->isHelpStyleFragment( $fragment ) && ! $this->isCalendarHelpFragment( $fragment ) || $candidates === [] ) {
             return $candidates;
         }
 
@@ -1045,6 +1121,68 @@ final class ConversationalParser {
 
     private function isHelpStyleFragment( string $fragment ): bool {
         return preg_match( self::HELP_STYLE_PATTERN, $fragment ) === 1;
+    }
+
+    private function isCalendarHelpFragment( string $fragment ): bool {
+        return preg_match(
+            '/\b(create|add|schedule)\s+(?:an?\s+)?(?:calendar\s+)?event\b|\bnew\s+(?:calendar\s+)?event\b/',
+            $fragment
+        ) === 1;
+    }
+
+    private function isUpdateHistoryFragment( string $fragment ): bool {
+        return preg_match(
+            '/\b(when was|what was|show)\s+(?:the\s+)?(?:last|latest|current)\s+update\b.*\b(installed|applied)\b/',
+            $fragment
+        ) === 1;
+    }
+
+    private function isCampaignScopedFragment( string $fragment ): bool {
+        return str_contains( $fragment, 'campaign' )
+            || str_contains( $fragment, 'fundraiser' )
+            || str_contains( $fragment, 'appeal' );
+    }
+
+    private function isWorkspaceGroupFragment( string $fragment ): bool {
+        return str_contains( $fragment, 'workspace group' ) || str_contains( $fragment, 'workspace groups' );
+    }
+
+    private function matchesCampaignContinuationVerb( string $fragment, string $commandKey ): bool {
+        return match ( $commandKey ) {
+            'campaign_archive' => preg_match( '/^(?:archive)\b/', $fragment ) === 1,
+            'campaign_delete' => preg_match( '/^(?:delete|remove)\b/', $fragment ) === 1,
+            'campaign_publish' => preg_match( '/^(?:publish|send|launch)\b/', $fragment ) === 1,
+            'campaign_update' => preg_match( '/^(?:update|edit|change)\b/', $fragment ) === 1,
+            default => false,
+        };
+    }
+
+    /**
+     * @param array<int,string> $domainTerms
+     */
+    private function extractDomainSubject( string $fragment, array $domainTerms ): string {
+        foreach ( $domainTerms as $term ) {
+            $pattern = '/\b' . preg_quote( $term, '/' ) . '\s+(.+)$/i';
+            if ( preg_match( $pattern, $fragment, $matches ) !== 1 ) {
+                continue;
+            }
+
+            $subject = trim( (string) ( $matches[1] ?? '' ) );
+            $subject = preg_replace( '/[?.!]+$/', '', $subject ) ?? $subject;
+            $subject = preg_replace( '/\s+(?:to|from|for|with|in)\b.*$/i', '', $subject ) ?? $subject;
+            $subject = trim( $subject );
+            if ( $subject !== '' && ! in_array( strtolower( $subject ), [ 'it', 'that', 'this' ], true ) ) {
+                return $subject;
+            }
+        }
+
+        return '';
+    }
+
+    private function normalizeEntitySubject( string $subject ): string {
+        $subject = trim( $subject );
+        $subject = preg_replace( '/^(?:delete|remove|disable|deactivate|enable|reactivate|offboard|update|edit|change|reset|unlock|show|lookup|look up)\s+/i', '', $subject ) ?? $subject;
+        return trim( $subject );
     }
 
     private function isInstructionalFragment( string $fragment ): bool {

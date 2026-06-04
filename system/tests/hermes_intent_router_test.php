@@ -50,6 +50,38 @@ $assert( (string) ( $lastDonation['intent']['action'] ?? '' ) === 'list', 'Last 
 $assert( (string) ( $lastDonation['intent']['entity'] ?? '' ) === 'donation_transaction', 'Last donation query should preserve the donation transaction entity.' );
 $assert( (int) ( $lastDonation['intent']['limit'] ?? 0 ) === 1, 'Last donation query should constrain the result set to the latest record.' );
 
+$bestCampaign = $router->route( 'Which campaign performed best?' );
+$assert( (string) ( $bestCampaign['route_type'] ?? '' ) === 'data', 'Best campaign query should route to the data pipeline.' );
+$assert( (string) ( $bestCampaign['intent']['action'] ?? '' ) === 'top', 'Best campaign query should resolve to the top report intent.' );
+$assert( (string) ( $bestCampaign['intent']['entity'] ?? '' ) === 'donation_campaign', 'Best campaign query should preserve the donation campaign entity.' );
+$assert( (string) ( $bestCampaign['intent']['top_level_intent'] ?? '' ) === 'REPORT', 'Best campaign query should surface REPORT as the top-level intent.' );
+
+$highestCampaign = $router->route( 'Which campaign raised the most money?' );
+$assert( (string) ( $highestCampaign['route_type'] ?? '' ) === 'data', 'Highest-grossing campaign query should route to the data pipeline.' );
+$assert( (string) ( $highestCampaign['intent']['action'] ?? '' ) === 'top', 'Highest-grossing campaign query should resolve to the top report intent.' );
+$assert( (string) ( $highestCampaign['intent']['entity'] ?? '' ) === 'donation_campaign', 'Highest-grossing campaign query should preserve the donation campaign entity.' );
+
+$showCampaign = $router->route( 'Show campaign Summer Giving.' );
+$assert( (string) ( $showCampaign['route_type'] ?? '' ) === 'data', 'Specific campaign lookup should route to the data pipeline.' );
+$assert( (string) ( $showCampaign['intent']['action'] ?? '' ) === 'list', 'Specific campaign lookup should resolve to a bounded list intent.' );
+$assert( (string) ( $showCampaign['intent']['entity'] ?? '' ) === 'donation_campaign', 'Specific campaign lookup should preserve the donation campaign entity.' );
+$assert( (string) ( $showCampaign['intent']['payload']['subject'] ?? '' ) === 'Summer Giving', 'Specific campaign lookup should preserve the campaign subject for conversation memory.' );
+
+$deleteCampaign = $router->route( 'Delete campaign Summer Giving.' );
+$assert( (string) ( $deleteCampaign['route_type'] ?? '' ) === 'command', 'Campaign deletion should route to a command path.' );
+$assert( (string) ( $deleteCampaign['intent']['action'] ?? '' ) === 'campaign_delete', 'Campaign deletion should resolve to campaign_delete.' );
+$assert( (string) ( $deleteCampaign['intent']['top_level_intent'] ?? '' ) === 'DELETE', 'Campaign deletion should surface DELETE as the top-level intent.' );
+
+$deletePerson = $router->route( 'Delete John Smith.' );
+$assert( (string) ( $deletePerson['route_type'] ?? '' ) === 'command', 'Bare person deletion should route to a command path.' );
+$assert( (string) ( $deletePerson['intent']['action'] ?? '' ) === 'user_delete', 'Bare person deletion should resolve to user_delete.' );
+$assert( (string) ( $deletePerson['intent']['payload']['subject'] ?? '' ) === 'John Smith', 'Bare person deletion should preserve the target subject.' );
+
+$lastUpdateInstalled = $router->route( 'when was the last update installed' );
+$assert( (string) ( $lastUpdateInstalled['route_type'] ?? '' ) === 'command', 'Last installed update query should route to a read-only command.' );
+$assert( (string) ( $lastUpdateInstalled['intent']['action'] ?? '' ) === 'get_system_status', 'Last installed update query should resolve to get_system_status.' );
+$assert( empty( $lastUpdateInstalled['command']['requires_approval'] ), 'Last installed update query should not require approval.' );
+
 $help = $router->route( 'How do I create a new user?', [ 'current_module' => 'people', 'current_route' => '/admin/people/dashboard' ] );
 $assert( (string) ( $help['route_type'] ?? '' ) === 'command', 'Instructional help should remain a routable Hermes command.' );
 $assert( (string) ( $help['intent']['action'] ?? '' ) === 'resolve_help_issue', 'Instructional help should route to resolve_help_issue.' );

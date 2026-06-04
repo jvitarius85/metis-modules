@@ -334,6 +334,7 @@ metis_on('metis_assets_enqueue', function () {
             'dashboard_url' => function_exists( 'metis_portal_url' ) ? metis_portal_url( 'hermes', 'dashboard' ) : '',
             'avatar_url' => metis_module_asset_url( 'hermes', 'hermes.png' ),
             'user_avatar_url' => $user_avatar_url,
+            'user_name' => $user_name,
         ] );
     }
     $asset_mark( 'ASSETS_HERMES_DONE' );

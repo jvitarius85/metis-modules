@@ -17,7 +17,12 @@ use Metis\Core\Application;
  * @param array<string,mixed> $options
  * @return array<string,mixed>
  */
-function metis_core_enclave_operation_for_tool( array $tool ): string {
+function metis_core_enclave_operation_for_tool( array $tool, array $options = [] ): string {
+    $forcedOperation = trim( (string) ( $options['force_enclave_operation'] ?? '' ) );
+    if ( $forcedOperation !== '' ) {
+        return $forcedOperation;
+    }
+
     $operation = trim( (string) ( $tool['enclave_action'] ?? '' ) );
     if ( $operation === '' || $operation === 'hermes.tool.execute' ) {
         return ! empty( $tool['requires_approval'] )
@@ -46,15 +51,24 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
         ];
     }
 
-    $operation = metis_core_enclave_operation_for_tool( $tool );
+    $operation = metis_core_enclave_operation_for_tool( $tool, $options );
 
     $requestNonce = '';
+    $expectedNonceAction = 'metis_ajax:metis_hermes_execute_action';
     foreach ( [ 'metis_action_nonce', '_wpnonce', 'security', '_ajax_nonce', 'nonce' ] as $field ) {
         $candidate = metis_request_post()[ $field ] ?? metis_request_get()[ $field ] ?? '';
-        if ( is_string( $candidate ) && trim( $candidate ) !== '' ) {
+        if (
+            is_string( $candidate )
+            && trim( $candidate ) !== ''
+            && ( ! function_exists( 'metis_runtime_verify_nonce' ) || metis_runtime_verify_nonce( trim( $candidate ), $expectedNonceAction ) )
+        ) {
             $requestNonce = trim( $candidate );
             break;
         }
+    }
+
+    if ( $requestNonce === '' && function_exists( 'metis_runtime_create_nonce' ) ) {
+        $requestNonce = (string) metis_runtime_create_nonce( $expectedNonceAction );
     }
 
     $request = function_exists( 'metis_security_runtime_request_context' )

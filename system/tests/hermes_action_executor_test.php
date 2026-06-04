@@ -53,6 +53,32 @@ $assert( is_array( $executed['result'] ?? null ), 'Action executor should return
 $assert( (string) ( $executed['action']['approval_status'] ?? '' ) === 'executed', 'Action executor should persist executed approval state.' );
 $assert( isset( $executed['result']['status'] ), 'Action executor should normalize a result status even when enclave authentication blocks execution.' );
 
+$reflection = new ReflectionClass( $executor );
+$redaction = $reflection->getMethod( 'redactSensitiveActionResult' );
+$redaction->setAccessible( true );
+$redacted = (array) $redaction->invoke(
+    $executor,
+    [
+        'status' => 'success',
+        'message' => 'Updated the Workspace password for Meg Wallace.',
+        'credential_package' => [
+            'password' => 'TempSecret123!',
+            'delivery_note' => 'Provide this password securely to the user.',
+        ],
+    ],
+    [
+        'action_code' => 'TESTSECRET001',
+        'approved_by' => 1,
+    ]
+);
+$topLevelStored = (array) ( $redacted['stored'] ?? [] );
+$topLevelResponse = (array) ( $redacted['response'] ?? [] );
+$assert( (string) ( $topLevelResponse['credential_package']['password'] ?? '' ) === '', 'Top-level credential packages should redact the password from the response payload.' );
+$assert( ! empty( $topLevelResponse['credential_package']['reveal_once'] ), 'Top-level credential packages should expose reveal-once metadata.' );
+$assert( is_array( $topLevelResponse['secret_reveals'] ?? null ) && count( (array) ( $topLevelResponse['secret_reveals'] ?? [] ) ) === 1, 'Top-level credential packages should expose a reveal token list to the UI.' );
+$assert( (string) ( $topLevelStored['credential_package']['password'] ?? '' ) === '', 'Top-level credential packages should redact the stored password.' );
+$assert( is_array( $topLevelStored['secret_reveals'] ?? null ) && count( (array) ( $topLevelStored['secret_reveals'] ?? [] ) ) === 1, 'Top-level credential packages should retain masked reveal metadata for persistence.' );
+
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );
     exit( 1 );

@@ -9,7 +9,7 @@ final class HermesToolExecutor {
         private readonly HermesPermissionValidator $permissions
     ) {}
 
-    public function execute( string $tool_key, array $payload = [] ): array {
+    public function execute( string $tool_key, array $payload = [], array $options = [] ): array {
         $tool = $this->tools->definition( $tool_key );
         if ( $tool === [] ) {
             return [
@@ -48,7 +48,7 @@ final class HermesToolExecutor {
 
         require_once METIS_SRC_PATH . 'Metis/Core/Security/EnclaveToolRuntime.php';
 
-        return \metis_core_enclave_execute_tool( $tool, $payload );
+        return \metis_core_enclave_execute_tool( $tool, $payload, $options );
     }
 
     private function assertPayloadMatchesSchema( array $payload, array $schema, string $path = 'payload' ): void {
