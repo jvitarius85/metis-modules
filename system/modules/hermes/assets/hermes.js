@@ -268,6 +268,9 @@ function responseAnswerText(data,structured,helpResult){
 if(helpResult && helpResult.summary){
 return String(helpResult.summary)
 }
+if(structured && String(structured.response_type||"")==="Disambiguation"){
+return "I found multiple matches."
+}
 if(structured && structured.result && typeof structured.result==="object" && structured.result.message){
 return String(structured.result.message)
 }
@@ -297,6 +300,8 @@ html+=`<div class="hermes-grounding">Grounded in ${escapeHtml(data.reasoning.gro
 
 if(structured && isHelpIssuePayload(structured.result)){
 html+=renderHelpIssueResult(structured.result)
+}else if(structured && String(structured.response_type||"")==="Disambiguation"){
+html+=renderDisambiguationResult(structured)
 }else if(structured && structured.result){
 html+=renderOperationResult(structured.result)
 }else if(structured && structured.report){
@@ -317,6 +322,31 @@ html+=actionCard(action)
 html+=`</div>`
 }
 
+return html
+}
+
+function renderDisambiguationResult(result){
+const candidates=Array.isArray(result && result.candidates) ? result.candidates : []
+if(!candidates.length){
+return ""
+}
+let html=`<ol class="hermes-rich-list hermes-rich-list--numbered">`
+candidates.forEach(candidate=>{
+const item=candidate && typeof candidate==="object" ? candidate : {}
+const name=String(item.name || "Unknown")
+const type=String(item.entity_type || "").replaceAll("/", ", ")
+const email=String(item.email || "")
+const detailParts=[]
+if(type){
+detailParts.push(type.charAt(0).toUpperCase()+type.slice(1))
+}
+if(email){
+detailParts.push(email)
+}
+const detail=detailParts.length ? ` — ${detailParts.join(" — ")}` : ""
+html+=`<li><strong>${escapeHtml(name)}</strong>${escapeHtml(detail)}</li>`
+})
+html+=`</ol>`
 return html
 }
 

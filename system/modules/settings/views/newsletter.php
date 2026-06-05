@@ -120,7 +120,7 @@ extract( $ctx, EXTR_SKIP );
                             <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['event_at'] ?? '' ) ); ?></td>
                             <td class="metis-premium-cell"><?php echo metis_escape_html( ucwords( str_replace( '_', ' ', (string) ( $row['module_slug'] ?? 'core' ) ) ) ); ?></td>
                             <td class="metis-premium-cell"><?php echo metis_escape_html( strtoupper( (string) ( $row['status'] ?? '' ) ) ); ?></td>
-                            <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['provider'] ?? '' ) ); ?></td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html( metis_settings_email_provider_label( (string) ( $row['provider'] ?? '' ) ) ); ?></td>
                             <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['to_email'] ?? '' ) ); ?></td>
                             <td class="metis-premium-cell">
                                 <?php echo metis_escape_html( (string) ( $row['subject'] ?? '' ) ); ?>

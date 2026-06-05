@@ -93,6 +93,38 @@ $invalid = $engine->continueIfApplicable( 'someone else', $invalidSession );
 $assert( (string) ( $invalid['response']['status'] ?? '' ) === 'disambiguation_required', 'Invalid replies should keep the disambiguation prompt active.' );
 $assert( str_contains( (string) ( $invalid['response']['message'] ?? '' ), 'Which person would you like?' ), 'Invalid disambiguation replies should repeat the candidate prompt.' );
 
+$profileSessionCode = 'TESTDIS' . strtoupper( substr( md5( uniqid( 'pro', true ) ), 0, 8 ) );
+$profileSession = [ 'session_code' => $profileSessionCode ];
+$engine->rememberIfApplicable(
+    $profileSession,
+    [
+        'intent' => [
+            'payload' => [
+                'profile_request' => [
+                    'subject' => 'Brittany',
+                    'entity_hint' => 'auto',
+                ],
+            ],
+        ],
+        'parsed' => [
+            'normalized_input' => 'who is brittany',
+        ],
+    ],
+    [
+        'response_type' => 'Disambiguation',
+        'candidates' => [
+            [ 'entity_type' => 'donor', 'name' => 'Brittany Attwood', 'email' => 'brittany@example.org' ],
+            [ 'entity_type' => 'contact', 'name' => 'Brittany Wallace', 'email' => 'brittany.wallace@example.org' ],
+        ],
+    ]
+);
+
+$profileSelected = $engine->continueIfApplicable( '2', $profileSession );
+$assert( (string) ( $profileSelected['kind'] ?? '' ) === 'lookup_profile', 'Numeric reply should continue the profile lookup disambiguation flow.' );
+$assert( (string) ( $profileSelected['profile_request']['subject'] ?? '' ) === 'Brittany Wallace', 'Profile disambiguation should map the reply to the selected candidate subject.' );
+$assert( (string) ( $profileSelected['profile_request']['entity_hint'] ?? '' ) === 'contact', 'Profile disambiguation should preserve the selected entity type.' );
+$assert( $memory->recallPendingDisambiguation( $profileSessionCode ) === [], 'Successful profile disambiguation should clear pending state.' );
+
 $expiredSessionCode = 'TESTDIS' . strtoupper( substr( md5( uniqid( 'exp', true ) ), 0, 8 ) );
 $expiredSession = [ 'session_code' => $expiredSessionCode ];
 $memory->rememberPendingDisambiguation( $expiredSessionCode, [

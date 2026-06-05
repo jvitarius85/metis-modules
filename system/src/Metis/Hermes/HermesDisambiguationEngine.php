@@ -65,19 +65,42 @@ final class HermesDisambiguationEngine {
         }
 
         $request = (array) ( $contents['attribute_request'] ?? [] );
-        $request['subject'] = $this->choiceSubject( $choice );
-        if ( trim( (string) ( $request['entity_hint'] ?? '' ) ) === '' ) {
-            $request['entity_hint'] = (string) ( $choice['entity_type'] ?? 'auto' );
+        if ( $request !== [] ) {
+            $request['subject'] = $this->choiceSubject( $choice );
+            if ( trim( (string) ( $request['entity_hint'] ?? '' ) ) === '' ) {
+                $request['entity_hint'] = (string) ( $choice['entity_type'] ?? 'auto' );
+            }
+
+            $this->memory->clearPendingDisambiguation( $sessionCode );
+
+            return [
+                'kind' => 'entity_attribute',
+                'attribute_request' => $request,
+                'query' => (string) ( $contents['query'] ?? '' ),
+                'selected_candidate' => $choice,
+            ];
+        }
+
+        $profileRequest = (array) ( $contents['profile_request'] ?? [] );
+        if ( $profileRequest !== [] ) {
+            $profileRequest['subject'] = $this->choiceSubject( $choice );
+            $existingEntityHint = trim( (string) ( $profileRequest['entity_hint'] ?? '' ) );
+            if ( $existingEntityHint === '' || strtolower( $existingEntityHint ) === 'auto' ) {
+                $profileRequest['entity_hint'] = (string) ( $choice['entity_type'] ?? 'auto' );
+            }
+
+            $this->memory->clearPendingDisambiguation( $sessionCode );
+
+            return [
+                'kind' => 'lookup_profile',
+                'profile_request' => $profileRequest,
+                'query' => (string) ( $contents['query'] ?? '' ),
+                'selected_candidate' => $choice,
+            ];
         }
 
         $this->memory->clearPendingDisambiguation( $sessionCode );
-
-        return [
-            'kind' => 'entity_attribute',
-            'attribute_request' => $request,
-            'query' => (string) ( $contents['query'] ?? '' ),
-            'selected_candidate' => $choice,
-        ];
+        return null;
     }
 
     public function rememberIfApplicable( array $session, array $processed, array $response ): void {
@@ -91,20 +114,33 @@ final class HermesDisambiguationEngine {
         }
 
         $attributeRequest = (array) ( $processed['intent']['payload']['attribute_request'] ?? [] );
+        $profileRequest = (array) ( $processed['intent']['payload']['profile_request'] ?? [] );
         $candidates = array_values( array_filter(
             (array) ( $response['candidates'] ?? [] ),
             static fn ( mixed $candidate ): bool => is_array( $candidate )
         ) );
-        if ( $attributeRequest === [] || $candidates === [] ) {
+        if ( $candidates === [] ) {
             return;
         }
 
-        $this->memory->rememberPendingDisambiguation( $sessionCode, [
-            'kind' => 'entity_attribute',
-            'query' => (string) ( $processed['parsed']['normalized_input'] ?? '' ),
-            'attribute_request' => $attributeRequest,
-            'candidates' => $candidates,
-        ] );
+        if ( $attributeRequest !== [] ) {
+            $this->memory->rememberPendingDisambiguation( $sessionCode, [
+                'kind' => 'entity_attribute',
+                'query' => (string) ( $processed['parsed']['normalized_input'] ?? '' ),
+                'attribute_request' => $attributeRequest,
+                'candidates' => $candidates,
+            ] );
+            return;
+        }
+
+        if ( $profileRequest !== [] ) {
+            $this->memory->rememberPendingDisambiguation( $sessionCode, [
+                'kind' => 'lookup_profile',
+                'query' => (string) ( $processed['parsed']['normalized_input'] ?? '' ),
+                'profile_request' => $profileRequest,
+                'candidates' => $candidates,
+            ] );
+        }
     }
 
     /**
@@ -151,7 +187,15 @@ final class HermesDisambiguationEngine {
         foreach ( $candidates as $index => $candidate ) {
             $name = trim( (string) ( $candidate['name'] ?? '' ) );
             $email = trim( (string) ( $candidate['email'] ?? '' ) );
-            $suffix = $email !== '' ? ' (' . $email . ')' : '';
+            $entityType = trim( str_replace( '/', ', ', (string) ( $candidate['entity_type'] ?? '' ) ) );
+            $parts = [];
+            if ( $entityType !== '' ) {
+                $parts[] = ucfirst( $entityType );
+            }
+            if ( $email !== '' ) {
+                $parts[] = $email;
+            }
+            $suffix = $parts !== [] ? ' — ' . implode( ' — ', $parts ) : '';
             $lines[] = sprintf( '%d. %s%s', $index + 1, $name !== '' ? $name : 'Unknown', $suffix );
         }
         $lines[] = 'Which person would you like?';

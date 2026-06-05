@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
+use Metis\Core\Cache\CacheService;
 use Metis\Intelligence\Services\AlertIntelligenceService;
 use Metis\Intelligence\Services\DiagnosticTrendIntelligenceService;
 use Metis\Intelligence\Services\IntegrationFailureIntelligenceService;
@@ -143,6 +144,14 @@ final class HermesGateway {
                     $processed = $this->operations->processEntityAttributeRequest(
                         (array) ( $disambiguated['attribute_request'] ?? [] ),
                         (string) ( $disambiguated['query'] ?? $query )
+                    );
+
+                    return $this->finalizeWorkflowResponse( $session, $user_message, $query, $processed );
+                }
+
+                if ( (string) ( $disambiguated['kind'] ?? '' ) === 'lookup_profile' ) {
+                    $processed = $this->operations->processLookupProfileRequest(
+                        (array) ( $disambiguated['profile_request'] ?? [] )
                     );
 
                     return $this->finalizeWorkflowResponse( $session, $user_message, $query, $processed );

@@ -18,8 +18,6 @@ final class GrandyStashDailySummary {
 
         $subject = "Grandy's Stash Daily Summary — " . \metis_runtime_format_date( \metis_current_time( 'mysql' ) );
         $body    = self::buildBody( $data );
-        $fromEmail = 'noreply@' . ( $_SERVER['SERVER_NAME'] ?? 'vitarius.org' );
-
         $sent = 0;
         foreach ( $recipients as $email ) {
             $result = \Metis\Core\Services\EmailService::sendHtml(
@@ -29,7 +27,6 @@ final class GrandyStashDailySummary {
                 [
                     'module' => 'grandys_stash',
                     'from_name' => 'Metis',
-                    'from_email' => $fromEmail,
                 ]
             );
             if ( ! empty( $result['ok'] ) ) {

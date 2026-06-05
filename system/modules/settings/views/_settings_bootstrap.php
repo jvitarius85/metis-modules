@@ -4136,3 +4136,18 @@ if ( ! function_exists( 'metis_settings_build_email_usage_snapshot' ) ) {
         return \Metis\Modules\Settings\SettingsTelemetryService::emailUsageSnapshot();
     }
 }
+
+if ( ! function_exists( 'metis_settings_email_provider_label' ) ) {
+    function metis_settings_email_provider_label( string $provider ): string {
+        $normalized = strtolower( trim( $provider ) );
+        if ( $normalized === '' ) {
+            return '';
+        }
+
+        if ( in_array( $normalized, [ 'newslettergmail', 'newsletter.gmail', 'gmail', 'gmail_api', 'google_workspace', 'workspace' ], true ) ) {
+            return 'Google Workspace';
+        }
+
+        return $provider;
+    }
+}

@@ -3466,6 +3466,7 @@ Metis.nav = (function() {
                 var open = sidebar.classList.toggle('is-open');
                 if (overlay) overlay.classList.toggle('is-open', open);
                 toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                document.body.classList.toggle('metis-nav-open', open);
             });
         }
 
@@ -3474,6 +3475,10 @@ Metis.nav = (function() {
             overlay.addEventListener('click', function() {
                 sidebar.classList.remove('is-open');
                 overlay.classList.remove('is-open');
+                document.body.classList.remove('metis-nav-open');
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
             });
         }
 
@@ -3670,7 +3675,17 @@ Metis.nav = (function() {
 
             if (groupLink) {
                 groupLink.addEventListener('click', function(event) {
-                    if (window.innerWidth > 900 && String(groupLink.getAttribute('href') || '') === '#') {
+                    if (window.innerWidth <= 900) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (group.classList.contains('is-open')) {
+                            closeGroup(group);
+                        } else {
+                            openGroup(group);
+                        }
+                        return;
+                    }
+                    if (String(groupLink.getAttribute('href') || '') === '#') {
                         event.preventDefault();
                         if (group.classList.contains('is-open')) {
                             closeGroup(group);
@@ -3828,6 +3843,13 @@ Metis.nav = (function() {
                 if (subLink) {
                     subLink.addEventListener('click', function(event) {
                         if (window.innerWidth <= 900) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (subGroup.classList.contains('is-open')) {
+                                closeSubGroup();
+                            } else {
+                                openSubGroup();
+                            }
                             return;
                         }
                         event.preventDefault();
@@ -3901,6 +3923,31 @@ Metis.nav = (function() {
                 sidebar.querySelectorAll('.metis-sidebar-group.is-open').forEach(function(g) {
                     closeGroup(g);
                 });
+                sidebar.classList.remove('is-open');
+                if (overlay) overlay.classList.remove('is-open');
+                document.body.classList.remove('metis-nav-open');
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
+            }
+        });
+
+        sidebar.addEventListener('click', function(event) {
+            if (window.innerWidth > 900) {
+                return;
+            }
+            var directLink = event.target.closest('.metis-sidebar-item[href], .metis-sidebar-subitem[href]');
+            if (!directLink) {
+                return;
+            }
+            if (directLink.classList.contains('metis-sidebar-has-submenu') || directLink.classList.contains('metis-sidebar-subitem-link')) {
+                return;
+            }
+            sidebar.classList.remove('is-open');
+            if (overlay) overlay.classList.remove('is-open');
+            document.body.classList.remove('metis-nav-open');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'false');
             }
         });
     }

@@ -33,6 +33,15 @@ function metis_core_enclave_operation_for_tool( array $tool, array $options = []
     return $operation;
 }
 
+function metis_core_enclave_nonce_action_for_operation( string $operation ): string {
+    $normalized = trim( $operation );
+    if ( $normalized === 'hermes.tool.query' ) {
+        return 'metis_ajax:metis_hermes_query';
+    }
+
+    return 'metis_ajax:metis_hermes_execute_action';
+}
+
 function metis_core_enclave_execute_tool( array $tool, array $payload = [], array $options = [] ): array {
     $tool_key = trim( (string) ( $tool['tool_key'] ?? '' ) );
     if ( $tool_key === '' ) {
@@ -54,7 +63,7 @@ function metis_core_enclave_execute_tool( array $tool, array $payload = [], arra
     $operation = metis_core_enclave_operation_for_tool( $tool, $options );
 
     $requestNonce = '';
-    $expectedNonceAction = 'metis_ajax:metis_hermes_execute_action';
+    $expectedNonceAction = metis_core_enclave_nonce_action_for_operation( $operation );
     foreach ( [ 'metis_action_nonce', '_wpnonce', 'security', '_ajax_nonce', 'nonce' ] as $field ) {
         $candidate = metis_request_post()[ $field ] ?? metis_request_get()[ $field ] ?? '';
         if (

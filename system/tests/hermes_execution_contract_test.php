@@ -53,10 +53,18 @@ $assert(
     ] ) === 'hermes.tool.execute',
     'Approval-gated Hermes tools should continue routing through the execute enclave operation.'
 );
+$assert(
+    metis_core_enclave_nonce_action_for_operation( 'hermes.tool.query' ) === 'metis_ajax:metis_hermes_query',
+    'Read-only Hermes tools should use the query nonce action.'
+);
+$assert(
+    metis_core_enclave_nonce_action_for_operation( 'hermes.tool.execute' ) === 'metis_ajax:metis_hermes_execute_action',
+    'Mutating Hermes tools should use the execute-action nonce action.'
+);
 
-$assert( (string) ( $result['intent']['action'] ?? '' ) === 'list_users', 'Execution contract should resolve list_users intent.' );
-$assert( (string) ( $result['command']['tool_key'] ?? '' ) === 'hermes.user.list_users', 'Execution contract should map list_users to the expected tool.' );
-$assert( (string) ( $result['response']['result']['error_code'] ?? '' ) === 'PERMISSION_DENIED', 'Unauthenticated standalone execution should be denied by enclave with standardized permission code.' );
+$assert( (string) ( $result['intent']['action'] ?? '' ) === 'list', 'Execution contract should resolve list users as a list intent.' );
+$assert( (string) ( $result['intent']['entity'] ?? '' ) === 'person', 'Execution contract should resolve list users against the person entity.' );
+$assert( (string) ( $result['response']['status'] ?? '' ) === 'success', 'Read-only standalone execution should return a data result successfully.' );
 
 $clarify = $engine->process( 'do it again' );
 $assert( (string) ( $clarify['response']['status'] ?? '' ) === 'clarification_required', 'Context-only shorthand should require clarification.' );

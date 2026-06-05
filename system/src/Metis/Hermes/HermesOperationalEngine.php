@@ -275,6 +275,57 @@ final class HermesOperationalEngine {
         ] );
     }
 
+    public function processLookupProfileRequest( array $request ): array {
+        $command = $this->commands->definition( 'lookup_profile' );
+        if ( ! is_array( $command ) ) {
+            return [
+                'intent' => [
+                    'action' => 'lookup_profile',
+                    'top_level_intent' => 'LOOKUP',
+                    'payload' => [ 'profile_request' => $request ],
+                ],
+                'command' => null,
+                'context_packs' => [],
+                'action_plan' => [],
+                'permission' => [ 'status' => 'not_applicable', 'required_permission' => '', 'reason' => '' ],
+                'response' => $this->responses->error( [ 'action' => 'lookup_profile' ], 'Lookup Profile is not registered.' ),
+            ];
+        }
+
+        $intent = [
+            'action' => 'lookup_profile',
+            'top_level_intent' => 'LOOKUP',
+            'payload' => [
+                'profile_request' => $request,
+            ],
+        ];
+
+        $contextPacks = $this->contextLoader->loadForCommand( $command );
+        $permission = $this->permissions->validate( $command );
+        $plan = $this->buildPlan( $command, $contextPacks, [] );
+
+        if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
+            $response = $this->responses->denied( $intent, $plan, $contextPacks, (string) ( $permission['reason'] ?? 'Permission denied.' ) );
+        } else {
+            $result = $this->execution->execute( $command, $request );
+            $response = $this->responses->executionResult( $command, $contextPacks, $plan, $result );
+        }
+
+        return [
+            'intent' => $intent,
+            'command' => $command,
+            'context_packs' => $contextPacks,
+            'action_plan' => $plan,
+            'permission' => $permission,
+            'response' => $response,
+            'parsed' => [
+                'selected_intent' => 'lookup_profile',
+                'top_level_intent' => 'LOOKUP',
+                'normalized_input' => strtolower( trim( (string) ( $request['subject'] ?? '' ) ) ),
+            ],
+        ];
+    }
+
     // ------------------------------------------------------------------
     // Entity attribute intent handler
     // ------------------------------------------------------------------
@@ -337,9 +388,6 @@ final class HermesOperationalEngine {
             if ( $this->debugLogger ) {
                 $this->debugLogger->entityNotFound( $query, $subject, (string) ( $resolved['error'] ?? '' ) );
             }
-            $candidates = array_map( static function ( array $c ): string {
-                return sprintf( '%s %s (%s)', $c['name'], $c['entity_type'] ? '[' . $c['entity_type'] . ']' : '', $c['email'] );
-            }, (array) ( $resolved['candidates'] ?? [] ) );
             return [
                 'intent'      => $intent,
                 'command'     => null,

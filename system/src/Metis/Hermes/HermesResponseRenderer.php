@@ -71,6 +71,30 @@ final class HermesResponseRenderer {
 
         // Propagate inner result status — never claim success when the service returned an error
         $innerStatus = (string) ( $result['status'] ?? '' );
+        if ( $innerStatus === 'disambiguation_required' ) {
+            return [
+                'intent' => (string) ( $command['key'] ?? $plan['operation'] ?? 'unknown' ),
+                'status' => 'disambiguation_required',
+                'context_packs' => [],
+                'action_plan' => [],
+                'response_type' => 'Disambiguation',
+                'candidates' => array_values( array_filter(
+                    (array) ( $result['candidates'] ?? [] ),
+                    static fn ( mixed $candidate ): bool => is_array( $candidate )
+                ) ),
+                'ui_components' => [
+                    [
+                        'type' => 'Disambiguation',
+                        'message' => (string) ( $result['message'] ?? 'I found multiple matches.' ),
+                        'candidates' => array_values( array_filter(
+                            (array) ( $result['candidates'] ?? [] ),
+                            static fn ( mixed $candidate ): bool => is_array( $candidate )
+                        ) ),
+                    ],
+                ],
+                'message' => (string) ( $result['message'] ?? 'I found multiple matches.' ),
+            ];
+        }
         $topStatus   = ( $innerStatus === 'error' || $innerStatus === 'failed' ) ? 'error' : 'success';
         if ( $innerStatus === 'warning' ) {
             $topStatus = 'warning';

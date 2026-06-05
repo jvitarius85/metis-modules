@@ -2658,6 +2658,10 @@ a.metis-chip:hover,
 }
 
 @media (max-width: 900px) {
+    body.metis-nav-open {
+        overflow: hidden;
+    }
+
     .metis-main {
         margin-left: 0;
         padding-left: 18px;
@@ -2668,8 +2672,11 @@ a.metis-chip:hover,
     .metis-topbar { left: 0; }
 
     .metis-sidebar {
+        width: min(86vw, 320px);
+        max-width: 320px;
         transform: translateX(-100%);
         transition: transform 0.25s ease;
+        overflow-x: hidden;
     }
 
     .metis-sidebar.is-open {
@@ -2683,6 +2690,7 @@ a.metis-chip:hover,
 
     .metis-sidebar-nav-scroll {
         padding-top: 20px;
+        overflow-x: hidden;
     }
 
     .metis-sidebar-nav-scroll,
@@ -2714,7 +2722,8 @@ a.metis-chip:hover,
     }
 
     .metis-sidebar-item {
-        width: calc(100% - 20px);
+        width: 100%;
+        min-height: 48px;
         justify-content: flex-start;
         padding: 0 12px;
         gap: 12px;
@@ -2738,13 +2747,17 @@ a.metis-chip:hover,
         left: auto;
         top: auto;
         min-width: 0;
-        width: calc(100% - 16px);
-        margin: 8px auto 10px;
+        width: 100%;
+        margin: 8px 0 10px;
         opacity: 1;
         pointer-events: auto;
         transform: none;
-        display: block;
+        display: none;
         box-shadow: none;
+    }
+
+    .metis-sidebar-group.is-open > .metis-sidebar-submenu {
+        display: block;
     }
 
     .metis-sidebar-submenu-title {
@@ -2756,10 +2769,14 @@ a.metis-chip:hover,
         left: auto;
         top: auto;
         min-width: 0;
-        width: calc(100% - 12px);
-        margin: 4px 6px 8px;
-        display: block;
+        width: 100%;
+        margin: 4px 0 8px;
+        display: none;
         box-shadow: none;
+    }
+
+    .metis-sidebar-subitem-group.is-open > .metis-sidebar-subsubmenu {
+        display: block;
     }
 
     .metis-detail-layout,

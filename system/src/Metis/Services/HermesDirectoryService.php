@@ -27,6 +27,15 @@ final class HermesDirectoryService {
                 ];
             }
 
+            $disambiguationCandidates = $this->profileDisambiguationCandidates( $subject, $entityHint );
+            if ( count( $disambiguationCandidates ) > 1 ) {
+                return [
+                    'status' => 'disambiguation_required',
+                    'message' => $this->profileDisambiguationPrompt( $disambiguationCandidates ),
+                    'candidates' => $disambiguationCandidates,
+                ];
+            }
+
             $person = null;
             $contact = null;
 
@@ -320,6 +329,110 @@ final class HermesDirectoryService {
 
         $result = $this->entityResolver()->resolve( $subject, 'user' )->toArray();
         return $this->recordFromResult( $result );
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function profileDisambiguationCandidates( string $subject, string $entityHint ): array {
+        $subject = trim( $subject );
+        if ( $subject === '' ) {
+            return [];
+        }
+
+        $types = match ( $entityHint ) {
+            'person', 'people' => [ 'user' ],
+            'contact' => [ 'contact' ],
+            'donor' => [ 'donor' ],
+            default => [ 'user', 'contact', 'donor' ],
+        };
+
+        $candidates = [];
+        foreach ( $types as $type ) {
+            $result = $this->entityResolver()->resolve( $subject, $type )->toArray();
+            $status = (string) ( $result['status'] ?? '' );
+
+            if ( $status === 'resolved' ) {
+                $match = (array) ( $result['match'] ?? [] );
+                if ( $match !== [] ) {
+                    $candidates[] = $this->profileCandidateFromMatch( $match, $type );
+                }
+                continue;
+            }
+
+            if ( $status !== 'ambiguous' ) {
+                continue;
+            }
+
+            foreach ( (array) ( $result['candidates'] ?? [] ) as $candidate ) {
+                if ( ! is_array( $candidate ) ) {
+                    continue;
+                }
+                $candidates[] = $this->profileCandidateFromMatch( $candidate, $type );
+            }
+        }
+
+        $deduped = [];
+        foreach ( $candidates as $candidate ) {
+            $entityType = (string) ( $candidate['entity_type'] ?? '' );
+            $name = strtolower( trim( (string) ( $candidate['name'] ?? '' ) ) );
+            $email = strtolower( trim( (string) ( $candidate['email'] ?? '' ) ) );
+            $key = $email !== ''
+                ? $name . '|' . $email
+                : $entityType . '|' . (int) ( $candidate['id'] ?? 0 ) . '|' . $name;
+
+            if ( isset( $deduped[ $key ] ) ) {
+                $existingType = trim( (string) ( $deduped[ $key ]['entity_type'] ?? '' ) );
+                if ( $existingType !== '' && ! str_contains( $existingType, $entityType ) && $entityType !== '' ) {
+                    $deduped[ $key ]['entity_type'] = $existingType . '/' . $entityType;
+                }
+                continue;
+            }
+
+            $deduped[ $key ] = $candidate;
+        }
+
+        return array_values( $deduped );
+    }
+
+    /**
+     * @param array<string,mixed> $match
+     * @return array<string,mixed>
+     */
+    private function profileCandidateFromMatch( array $match, string $type ): array {
+        $metadata = (array) ( $match['metadata'] ?? [] );
+        $record = (array) ( $metadata['record'] ?? [] );
+
+        return [
+            'entity_type' => $type === 'user' ? 'person' : $type,
+            'id' => (int) ( $match['id'] ?? 0 ),
+            'name' => (string) ( $match['name'] ?? $record['display_name'] ?? $record['name'] ?? '' ),
+            'email' => (string) ( $match['email'] ?? $record['email'] ?? '' ),
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $candidates
+     */
+    private function profileDisambiguationPrompt( array $candidates ): string {
+        $lines = [ 'I found multiple matches:' ];
+        foreach ( $candidates as $index => $candidate ) {
+            $name = trim( (string) ( $candidate['name'] ?? '' ) );
+            $email = trim( (string) ( $candidate['email'] ?? '' ) );
+            $entityType = trim( str_replace( '/', ', ', (string) ( $candidate['entity_type'] ?? '' ) ) );
+            $parts = [];
+            if ( $entityType !== '' ) {
+                $parts[] = ucfirst( $entityType );
+            }
+            if ( $email !== '' ) {
+                $parts[] = $email;
+            }
+            $suffix = $parts !== [] ? ' — ' . implode( ' — ', $parts ) : '';
+            $lines[] = sprintf( '%d. %s%s', $index + 1, $name !== '' ? $name : 'Unknown', $suffix );
+        }
+        $lines[] = 'Which person would you like?';
+
+        return implode( "\n", $lines );
     }
 
     private function resolveContact( string $subject ): ?array {
