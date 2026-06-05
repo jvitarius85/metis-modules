@@ -341,9 +341,9 @@
         var label = s(value || '').trim() || s(state.entity && state.entity.title || '').trim() || (isPostContext() ? 'Post Name' : 'Page Name');
         el.textContent = label;
     }
-    function categoryChipField(fieldId, selectedIds, emptyText) {
+    function categoryChipField(fieldId, selectedIds, emptyText, optionsOverride) {
         var ids = normalizeIdList(selectedIds);
-        var options = categoryOptions();
+        var options = Array.isArray(optionsOverride) ? optionsOverride : categoryOptions();
         var chips = options.map(function (row) {
             var rowId = parseInt(s(row && row.value || '0'), 10) || 0;
             var active = ids.indexOf(rowId) !== -1;
@@ -484,6 +484,7 @@
             categories: [],
             forms: [],
             donationCampaigns: [],
+            testimonyCategories: [],
             calendarSources: [],
             media: [],
             templates: [],
@@ -538,6 +539,7 @@
             categories: Array.isArray(initialOptions.categories) ? initialOptions.categories : [],
             forms: Array.isArray(initialOptions.forms) ? initialOptions.forms : [],
             donationCampaigns: Array.isArray(initialOptions.donation_campaigns) ? initialOptions.donation_campaigns : [],
+            testimonyCategories: Array.isArray(initialOptions.testimony_categories) ? initialOptions.testimony_categories : [],
             calendarSources: Array.isArray(initialOptions.calendar_sources) ? initialOptions.calendar_sources : [],
             media: Array.isArray(initialOptions.media) ? initialOptions.media : [],
             templates: Array.isArray(initialOptions.templates) ? initialOptions.templates : [],
@@ -2222,8 +2224,8 @@
     }
 
     function bootStructuredEditorV2() {
-        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list'];
-        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list'];
+        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list'];
+        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list'];
         var HERO_STYLES = ['split', 'centered', 'overlay'];
 
         state.sections = [];
@@ -2658,6 +2660,7 @@
             if (type === 'donation_form') return 'Donation Form';
             if (type === 'donation_progress') return 'Donation Progress';
             if (type === 'campaign_summary') return 'Campaign Summary';
+            if (type === 'testimonials') return 'Testimonies';
             return s(type || 'text').replace('_', ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); });
         }
 
@@ -2679,6 +2682,7 @@
                 donation_form: 'Donation form for a campaign',
                 donation_progress: 'Campaign progress bar',
                 campaign_summary: 'Campaign content panel',
+                testimonials: 'Dynamic testimony listing',
                 divider: 'Horizontal rule',
                 spacer: 'Vertical spacing',
                 posts_list: 'Post listing',
@@ -2755,6 +2759,7 @@
             else if (t === 'donation_form') base.content = { campaign_id: '', preset_amounts: [25, 50, 100], allow_custom_amount: true, mode: 'both', show_name: true, show_email: true, show_phone: false };
             else if (t === 'donation_progress') base.content = { campaign_id: '', goal_amount: '', raised_amount: '', percent: '' };
             else if (t === 'campaign_summary') base.content = { campaign_id: '', title: '', content: '<p></p>', image: '' };
+            else if (t === 'testimonials') base.content = { category_ids: [], limit: 6, layout: 'grid', featured_only: false, show_category: true, empty_message: '' };
             else if (t === 'divider') base.content = { label: '', style: 'solid' };
             else if (t === 'spacer') base.content = { height: 'medium' };
             else if (t === 'posts_list') base.content = { source: 'this_page', specific_page: 0, category_ids: [], limit: 5, sort: 'latest' };
@@ -3432,8 +3437,8 @@
         function blockLibraryTypes() {
             var allowed = availableSectionTypes();
             var preferred = isPostContext()
-                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary']
-                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary'];
+                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials']
+                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials'];
             return preferred.filter(function (type) {
                 if (type === 'section_header') return allowed.indexOf('heading') !== -1;
                 return allowed.indexOf(type) !== -1;
@@ -3444,7 +3449,7 @@
             if (type === 'section_header' || type === 'heading' || type === 'text' || type === 'button' || type === 'html' || type === 'transcript') return 'Content';
             if (type === 'image' || type === 'hero') return 'Media';
             if (type === 'columns' || type === 'card_grid' || type === 'feature_grid' || type === 'cta' || type === 'divider' || type === 'spacer') return 'Layout';
-            if (type === 'posts_list' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary') return 'Dynamic';
+            if (type === 'posts_list' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary' || type === 'testimonials') return 'Dynamic';
             return 'Blocks';
         }
 
@@ -3469,7 +3474,8 @@
                 form: 'document',
                 donation_form: 'hand-donation',
                 donation_progress: 'progress-bar',
-                campaign_summary: 'report'
+                campaign_summary: 'report',
+                testimonials: 'quote'
             };
             return map[s(type || '')] || 'box';
         }
@@ -3687,6 +3693,11 @@
                     (content.image ? '<div class="metis-builder-campaign-media"><img src="' + esc(s(content.image || '')) + '" alt=""></div>' : '') +
                     '<div><strong' + editableAttr(index, 'campaign_title') + '>' + esc(s(content.title || optionLabel(state.options.donationCampaigns, content.campaign_id, 'Campaign summary'))) + '</strong><p>' + esc(plainTextFromHtml(s(content.content || '')).slice(0, 180) || 'Campaign content appears here.') + '</p></div>' +
                 '</div>';
+            } else if (type === 'testimonials') {
+                var testimonyLabels = normalizeIdList(content.category_ids || []).map(function (id) {
+                    return optionLabel(state.options.testimonyCategories, id, '');
+                }).filter(Boolean);
+                body = '<div class="metis-builder-dynamic-card"><strong>Testimonies</strong><span>' + esc(testimonyLabels.length ? testimonyLabels.join(', ') : 'All categories') + '</span><small>' + esc(String(parseInt(s(content.limit || '6'), 10) || 6)) + ' items • ' + esc(s(content.layout || 'grid')) + (content.featured_only ? ' • featured only' : '') + '</small></div>';
             } else if (type === 'divider') {
                 body = '<div class="metis-builder-divider"><hr class="is-' + esc(s(content.style || 'solid')) + '"><span' + editableAttr(index, 'divider_label') + '>' + esc(s(content.label || '')) + '</span></div>';
             } else if (type === 'spacer') {
@@ -4025,6 +4036,14 @@
                 html += '<div class="metis-se-field-row"><label>Content</label><textarea id="metis-v2-campaign-summary-content" class="metis-se-textarea" rows="6">' + esc(s(sec.content.content || '')) + '</textarea></div>';
                 html += '<div class="metis-se-field-row"><label>Image</label><div class="metis-featured-image-actions"><button type="button" class="metis-se-nav-btn" data-open-block-media="image">Choose from Media</button></div></div>';
                 html += '<div class="metis-se-field-row"><label>Image URL</label><input id="metis-v2-campaign-summary-image" class="metis-se-input" value="' + esc(s(sec.content.image || '')) + '" placeholder="https://"></div>';
+            } else if (sec.type === 'testimonials') {
+                var selectedTestimonyCategoryIds = normalizeIdList(sec.content.category_ids || []);
+                html += '<div class="metis-se-field-row"><label>Categories</label>' + categoryChipField('metis-v2-testimony-category-ids', selectedTestimonyCategoryIds, 'No testimony categories available.', state.options.testimonyCategories) + '</div>';
+                html += '<div class="metis-se-field-row"><label>Item Limit</label><input id="metis-v2-testimony-limit" class="metis-se-input" type="number" min="1" max="24" value="' + esc(String(parseInt(s(sec.content.limit || '6'), 10) || 6)) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Layout</label><select id="metis-v2-testimony-layout" class="metis-se-select"><option value="grid"' + (s(sec.content.layout || 'grid') === 'grid' ? ' selected' : '') + '>Grid</option><option value="list"' + (s(sec.content.layout || '') === 'list' ? ' selected' : '') + '>List</option><option value="rotator"' + (s(sec.content.layout || '') === 'rotator' ? ' selected' : '') + '>Rotator</option></select></div>';
+                html += '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-testimony-featured-only"><input id="metis-v2-testimony-featured-only" type="checkbox"' + (sec.content.featured_only ? ' checked' : '') + '> Featured only</label></div>';
+                html += '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-testimony-show-category"><input id="metis-v2-testimony-show-category" type="checkbox"' + (sec.content.show_category !== false ? ' checked' : '') + '> Show category labels</label></div>';
+                html += '<div class="metis-se-field-row"><label>Empty Message</label><input id="metis-v2-testimony-empty-message" class="metis-se-input" value="' + esc(s(sec.content.empty_message || '')) + '" placeholder="No testimonies available yet."></div>';
             } else if (sec.type === 'divider') {
                 html += '<div class="metis-se-field-row"><label>Label</label><input id="metis-v2-divider-label" class="metis-se-input" value="' + esc(s(sec.content.label || '')) + '"></div>';
                 html += '<div class="metis-se-field-row"><label>Line Style</label><select id="metis-v2-divider-style" class="metis-se-select"><option value="solid"' + (s(sec.content.style || 'solid') === 'solid' ? ' selected' : '') + '>Solid</option><option value="dashed"' + (s(sec.content.style || '') === 'dashed' ? ' selected' : '') + '>Dashed</option><option value="dotted"' + (s(sec.content.style || '') === 'dotted' ? ' selected' : '') + '>Dotted</option></select></div>';
@@ -4309,7 +4328,8 @@
                 donation_form_block: 'donation_form',
                 progress_bar_block: 'donation_progress',
                 donation_goal_summary_block: 'donation_progress',
-                campaign_description_block: 'campaign_summary'
+                campaign_description_block: 'campaign_summary',
+                testimonies_block: 'testimonials'
             };
             return map[t] || t;
         }
@@ -4336,6 +4356,7 @@
                 donation_form: 'donation_form_block',
                 donation_progress: 'progress_bar_block',
                 campaign_summary: 'campaign_description_block',
+                testimonials: 'testimonies_block',
                 posts_list: 'post_list',
                 events: 'events_block'
             };
@@ -4995,6 +5016,7 @@
             state.options.categories = Array.isArray(resp.categories) ? resp.categories : [];
             state.options.forms = Array.isArray(resp.forms) ? resp.forms : [];
             state.options.donationCampaigns = Array.isArray(resp.donation_campaigns) ? resp.donation_campaigns : [];
+            state.options.testimonyCategories = Array.isArray(resp.testimony_categories) ? resp.testimony_categories : [];
             state.options.calendarSources = Array.isArray(resp.calendar_sources) ? resp.calendar_sources : [];
             state.options.media = Array.isArray(resp.media) ? resp.media : [];
             state.options.templates = Array.isArray(resp.templates) ? resp.templates : [];
@@ -5897,9 +5919,12 @@
                 if (target.id === 'metis-v2-divider-label') { sec.content.label = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-spacer-height') { sec.content.height = ['small', 'medium', 'large'].indexOf(s(target.value || 'medium')) !== -1 ? s(target.value) : 'medium'; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-limit') { sec.content.limit = Math.max(1, Math.min(50, parseInt(s(target.value || '5'), 10) || 5)); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-testimony-limit') { sec.content.limit = Math.max(1, Math.min(24, parseInt(s(target.value || '6'), 10) || 6)); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-specific-page') { sec.content.specific_page = Math.max(0, parseInt(s(target.value || '0'), 10) || 0); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-category-ids') { setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-category-ids') { sec.content.category_ids = selectedCategoryIds('metis-v2-posts-category-ids'); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-testimony-category-ids') { sec.content.category_ids = selectedCategoryIds('metis-v2-testimony-category-ids'); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-testimony-empty-message') { sec.content.empty_message = s(target.value || ''); setDirtyAutosave(); return; }
             });
             root.addEventListener('change', function (e) {
                 var target = e.target;
@@ -5994,6 +6019,9 @@
                 }
                 if (target.id === 'metis-v2-progress-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-campaign-summary-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-testimony-layout') { sec.content.layout = ['grid', 'list', 'rotator'].indexOf(s(target.value || 'grid')) === -1 ? 'grid' : s(target.value || 'grid'); renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-testimony-featured-only') { sec.content.featured_only = !!target.checked; renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-testimony-show-category') { sec.content.show_category = !!target.checked; renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-divider-style') { sec.content.style = ['solid', 'dashed', 'dotted'].indexOf(s(target.value || 'solid')) === -1 ? 'solid' : s(target.value || 'solid'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-source') {
                     sec.content.source = s(target.value || 'this_page') === 'specific_page' ? 'specific_page' : 'this_page';

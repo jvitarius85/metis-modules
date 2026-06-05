@@ -458,6 +458,13 @@ function metis_website_ajax_media_options(): array {
 }
 
 /**
+ * @return array<int,array{value:string,label:string,slug:string}>
+ */
+function metis_website_ajax_testimony_category_options(): array {
+    return EditorOptionsService::testimonyCategoryOptions();
+}
+
+/**
  * @return array<string,mixed>
  */
 function metis_website_ajax_decode_json_array( $raw ): array {
@@ -1775,6 +1782,7 @@ metis_ajax_register_handler( 'metis_website_editor_properties_options', function
         'forms' => metis_website_ajax_form_options(),
         'donation_campaigns' => metis_website_ajax_donation_campaign_options(),
         'calendar_sources' => metis_website_ajax_calendar_source_options(),
+        'testimony_categories' => metis_website_ajax_testimony_category_options(),
         'media' => metis_website_ajax_media_options(),
         'templates' => StructuredWebsiteBuilderService::templateOptions(),
         'default_template_key' => StructuredWebsiteBuilderService::defaultTemplateForPageType( $default_page_type ),

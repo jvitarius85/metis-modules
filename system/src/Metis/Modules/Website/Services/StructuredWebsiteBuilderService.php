@@ -11,10 +11,10 @@ final class StructuredWebsiteBuilderService {
     private const PAGE_TYPES = [ 'homepage', 'page' ];
 
     /** @var array<int,string> */
-    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list', 'html' ];
+    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list', 'html' ];
 
     /** @var array<int,string> */
-    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
+    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
 
     /** @var array<int,string> */
     private const TEMPLATE_KEYS = [
@@ -488,6 +488,24 @@ final class StructuredWebsiteBuilderService {
             ];
         }
 
+        if ( $type === 'testimonials' ) {
+            $layout = metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) );
+            if ( ! in_array( $layout, [ 'grid', 'list' ], true ) ) {
+                $layout = 'grid';
+            }
+            $limit = (int) ( $content['limit'] ?? 6 );
+            $limit = max( 1, min( 24, $limit ) );
+            $category_ids = array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) );
+            return [
+                'category_ids' => $category_ids,
+                'limit' => $limit,
+                'layout' => $layout,
+                'featured_only' => self::sanitizeBoolean( $content['featured_only'] ?? false ),
+                'show_category' => self::sanitizeBoolean( $content['show_category'] ?? true ),
+                'empty_message' => self::sanitizeText( (string) ( $content['empty_message'] ?? '' ) ),
+            ];
+        }
+
         if ( $type === 'divider' ) {
             $style = metis_key_clean( (string) ( $content['style'] ?? 'solid' ) );
             if ( ! in_array( $style, [ 'solid', 'dashed', 'dotted' ], true ) ) {
@@ -638,6 +656,22 @@ final class StructuredWebsiteBuilderService {
                     'title' => (string) ( $content['title'] ?? '' ),
                     'content' => (string) ( $content['content'] ?? '' ),
                     'image' => (string) ( $content['image'] ?? '' ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'testimonials' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'testimonies_block',
+                'data' => [
+                    'category_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'limit' => max( 1, min( 24, (int) ( $content['limit'] ?? 6 ) ) ),
+                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list' ], true ) ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ) : 'grid',
+                    'featured_only' => self::sanitizeBoolean( $content['featured_only'] ?? false ),
+                    'show_category' => self::sanitizeBoolean( $content['show_category'] ?? true ),
+                    'empty_message' => self::sanitizeText( (string) ( $content['empty_message'] ?? '' ) ),
                 ],
                 'style' => [],
             ]];
@@ -1157,6 +1191,23 @@ final class StructuredWebsiteBuilderService {
                     'goal_amount' => self::sanitizeDecimalString( $content['goal_amount'] ?? '' ),
                     'raised_amount' => self::sanitizeDecimalString( $content['raised_amount'] ?? '' ),
                     'percent' => self::sanitizePercentString( $content['percent'] ?? '' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'testimonials' ) {
+            $modules[] = [
+                'id' => $section_id . '_testimonials',
+                'type' => 'testimonies_block',
+                'data' => [
+                    'category_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'limit' => max( 1, min( 24, (int) ( $content['limit'] ?? 6 ) ) ),
+                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list' ], true ) ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ) : 'grid',
+                    'featured_only' => self::sanitizeBoolean( $content['featured_only'] ?? false ),
+                    'show_category' => self::sanitizeBoolean( $content['show_category'] ?? true ),
+                    'empty_message' => self::sanitizeText( (string) ( $content['empty_message'] ?? '' ) ),
                 ],
                 'style' => [],
             ];

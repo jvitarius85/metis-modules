@@ -64,6 +64,22 @@ final class BlockRegistry {
                     ],
                 ],
             ],
+            'testimonies_block' => [
+                'label' => 'Testimonies',
+                'category' => 'dynamic',
+                'icon' => 'quote',
+                'schema_raw' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'category_ids' => [ 'type' => 'array', 'default' => [] ],
+                        'limit' => [ 'type' => 'integer', 'default' => 6 ],
+                        'layout' => [ 'type' => 'string', 'default' => 'grid' ],
+                        'featured_only' => [ 'type' => 'boolean', 'default' => false ],
+                        'show_category' => [ 'type' => 'boolean', 'default' => true ],
+                        'empty_message' => [ 'type' => 'string', 'default' => '' ],
+                    ],
+                ],
+            ],
         ];
 
         foreach ( $definitions as $type => $definition ) {

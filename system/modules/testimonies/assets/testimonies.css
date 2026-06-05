@@ -1,0 +1,128 @@
+.metis-testimonies {
+    display: block;
+}
+
+.metis-testimonies-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.metis-testimonies-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.metis-testimonies-stat-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--metis-text-muted, #6b7280);
+}
+
+.metis-testimonies-stat-value {
+    font-size: 32px;
+    line-height: 1;
+    color: var(--metis-text, #1a1f2b);
+}
+
+.metis-testimonies-stat-copy {
+    font-size: 13px;
+    color: var(--metis-text-muted, #6b7280);
+}
+
+.metis-testimonies-sidebar-copy p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--metis-text-muted, #6b7280);
+}
+
+.metis-testimonies-card {
+    margin-bottom: 18px;
+}
+
+.metis-testimonies-table,
+.metis-testimonies-categories-table {
+    width: 100%;
+}
+
+.metis-testimonies-table .metis-premium-header,
+.metis-testimonies-table .metis-premium-row {
+    align-items: center;
+}
+
+.metis-testimonies-table--manageable .metis-premium-header,
+.metis-testimonies-table--manageable .metis-premium-row {
+    grid-template-columns: minmax(220px, 1.2fr) minmax(260px, 2fr) minmax(180px, 1.1fr) minmax(150px, 0.9fr) minmax(140px, auto);
+}
+
+.metis-testimonies-table--readonly .metis-premium-header,
+.metis-testimonies-table--readonly .metis-premium-row {
+    grid-template-columns: minmax(220px, 1.2fr) minmax(260px, 2fr) minmax(180px, 1.1fr) minmax(150px, 0.9fr);
+}
+
+.metis-testimonies-categories-table .metis-premium-header,
+.metis-testimonies-categories-table .metis-premium-row {
+    align-items: center;
+}
+
+.metis-testimonies-categories-table--manageable .metis-premium-header,
+.metis-testimonies-categories-table--manageable .metis-premium-row {
+    grid-template-columns: minmax(240px, 1.6fr) minmax(180px, 1fr) minmax(100px, auto) minmax(140px, auto);
+}
+
+.metis-testimonies-categories-table--readonly .metis-premium-header,
+.metis-testimonies-categories-table--readonly .metis-premium-row {
+    grid-template-columns: minmax(240px, 1.6fr) minmax(180px, 1fr) minmax(100px, auto);
+}
+
+.metis-testimonies-table .metis-premium-cell,
+.metis-testimonies-categories-table .metis-premium-cell {
+    padding: 10px 14px;
+    min-width: 0;
+}
+
+.metis-testimonies-empty-state {
+    padding: 56px 24px;
+}
+
+.metis-testimony-quote {
+    max-width: 48ch;
+}
+
+.metis-testimonies-modal {
+    width: min(760px, calc(100vw - 32px));
+}
+
+.metis-testimony-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .metis-testimonies-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .metis-testimonies-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-testimonies-table--manageable .metis-premium-header,
+    .metis-testimonies-table--manageable .metis-premium-row,
+    .metis-testimonies-table--readonly .metis-premium-header,
+    .metis-testimonies-table--readonly .metis-premium-row,
+    .metis-testimonies-categories-table--manageable .metis-premium-header,
+    .metis-testimonies-categories-table--manageable .metis-premium-row,
+    .metis-testimonies-categories-table--readonly .metis-premium-header,
+    .metis-testimonies-categories-table--readonly .metis-premium-row {
+        grid-template-columns: 1fr;
+    }
+}

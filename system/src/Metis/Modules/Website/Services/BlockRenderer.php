@@ -15,6 +15,7 @@ use Metis\Modules\Website\Services\EditorContextPolicy;
  * All blocks render through this centralized service.
  */
 final class BlockRenderer {
+    private static int $testimonyRotatorSequence = 0;
 
     public static function render( array $block, array $context = [] ): string {
         $block = self::normalizeIncomingBlock( $block );
@@ -1453,6 +1454,111 @@ final class BlockRenderer {
 
     private static function renderDonationGoalSummaryBlock( array $data, array $style, array $context ): string {
         return self::renderProgressBarBlock( $data, $style, $context );
+    }
+
+    private static function renderTestimoniesBlock( array $data, array $style, array $context ): string {
+        if ( ! class_exists( '\Metis\Modules\Testimonies\Repository' ) ) {
+            return '';
+        }
+
+        $categoryIds = array_values( array_unique( array_filter( array_map( 'intval', is_array( $data['category_ids'] ?? null ) ? $data['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) );
+        $limit = max( 1, min( 24, (int) ( $data['limit'] ?? 6 ) ) );
+        $layout = metis_key_clean( (string) ( $data['layout'] ?? 'grid' ) );
+        if ( ! in_array( $layout, [ 'grid', 'list', 'rotator' ], true ) ) {
+            $layout = 'grid';
+        }
+        $showCategory = ! array_key_exists( 'show_category', $data ) || ! empty( $data['show_category'] );
+        $rows = \Metis\Modules\Testimonies\Repository::publicTestimonials(
+            [
+                'category_ids' => $categoryIds,
+                'limit' => $limit,
+                'featured_only' => ! empty( $data['featured_only'] ),
+            ]
+        );
+
+        if ( $rows === [] ) {
+            $emptyMessage = trim( (string) ( $data['empty_message'] ?? '' ) );
+            if ( $emptyMessage === '' ) {
+                $emptyMessage = 'No testimonies available yet.';
+            }
+            return sprintf(
+                '<section class="%s"%s><p class="metis-block-testimonies-empty">%s</p></section>',
+                metis_escape_attr( self::buildClasses( 'metis-block-testimonies metis-block-testimonies--' . $layout, $style ) ),
+                self::buildInlineStyle( $style ),
+                metis_escape_html( $emptyMessage )
+            );
+        }
+
+        $cards = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $speakerLine = trim( (string) ( $row['speaker_name'] ?? '' ) );
+            $titleParts = array_values( array_filter( [
+                trim( (string) ( $row['speaker_title'] ?? '' ) ),
+                trim( (string) ( $row['speaker_company'] ?? '' ) ),
+            ] ) );
+            $categoryLine = $showCategory ? implode( ', ', array_map( 'strval', (array) ( $row['categories'] ?? [] ) ) ) : '';
+            $cards[] = '<article class="metis-testimony-card">'
+                . '<blockquote class="metis-testimony-card-quote">“' . metis_escape_html( (string) ( $row['quote_text'] ?? '' ) ) . '”</blockquote>'
+                . '<div class="metis-testimony-card-speaker"><strong>' . metis_escape_html( $speakerLine ) . '</strong>'
+                . ( $titleParts !== [] ? '<span>' . metis_escape_html( implode( ' • ', $titleParts ) ) . '</span>' : '' )
+                . ( $categoryLine !== '' ? '<small>' . metis_escape_html( $categoryLine ) . '</small>' : '' )
+                . '</div>'
+                . '</article>';
+        }
+
+        if ( $layout === 'rotator' ) {
+            self::$testimonyRotatorSequence++;
+            $rotatorId = 'metis-testimonies-rotator-' . self::$testimonyRotatorSequence;
+            $styleTag = '<style>#' . $rotatorId . '{display:block;}#' . $rotatorId . ' .metis-testimonies-rotator{position:relative;min-height:14rem;}#' . $rotatorId . ' .metis-testimony-slide{display:block;}#' . $rotatorId . ' .metis-testimony-card{max-width:52rem;margin:0 auto;padding:1.75rem;border:1px solid rgba(15,23,42,.12);border-radius:1.25rem;background:#fff;box-shadow:0 18px 34px rgba(15,23,42,.08);}#' . $rotatorId . ' .metis-testimony-card-quote{margin:0 0 1rem;font-size:1.125rem;line-height:1.7;}#' . $rotatorId . ' .metis-testimony-card-speaker{display:flex;flex-direction:column;gap:.35rem;}#' . $rotatorId . ' .metis-testimony-card-speaker strong{font-size:1rem;}#' . $rotatorId . ' .metis-testimony-card-speaker span,#' . $rotatorId . ' .metis-testimony-card-speaker small{color:#5a6475;}#' . $rotatorId . ' .metis-testimonies-rotator-controls{display:flex;align-items:center;justify-content:center;gap:.75rem;margin-top:1rem;flex-wrap:wrap;}#' . $rotatorId . ' .metis-testimonies-rotator-nav{appearance:none;border:1px solid rgba(15,23,42,.14);background:#fff;color:#1a1f2b;border-radius:999px;padding:.65rem 1rem;font:inherit;font-weight:700;cursor:pointer;}#' . $rotatorId . ' .metis-testimonies-rotator-dots{display:flex;align-items:center;gap:.5rem;}#' . $rotatorId . ' .metis-testimonies-rotator-dot{appearance:none;width:.8rem;height:.8rem;border:0;border-radius:999px;background:rgba(72,91,199,.22);cursor:pointer;padding:0;}#' . $rotatorId . ' .metis-testimonies-rotator-dot.is-active{background:#485bc7;}@media (max-width:640px){#' . $rotatorId . ' .metis-testimony-card{padding:1.25rem;}#' . $rotatorId . ' .metis-testimonies-rotator-nav{width:100%;}} </style>';
+            $slides = '';
+            foreach ( $cards as $index => $cardHtml ) {
+                $slides .= sprintf(
+                    '<div class="metis-testimony-slide"%s data-rotator-slide="%d">%s</div>',
+                    $index === 0 ? '' : ' hidden',
+                    $index,
+                    $cardHtml
+                );
+            }
+            $controls = '';
+            $script = '';
+            if ( count( $cards ) > 1 ) {
+                $dots = '';
+                foreach ( array_keys( $cards ) as $index ) {
+                    $dots .= sprintf(
+                        '<button type="button" class="metis-testimonies-rotator-dot%s" data-rotator-dot="%d" aria-label="Show testimony %d"></button>',
+                        $index === 0 ? ' is-active' : '',
+                        $index,
+                        $index + 1
+                    );
+                }
+                $controls = '<div class="metis-testimonies-rotator-controls">'
+                    . '<button type="button" class="metis-testimonies-rotator-nav" data-rotator-prev aria-label="Previous testimony">Previous</button>'
+                    . '<div class="metis-testimonies-rotator-dots" role="tablist" aria-label="Testimony rotation">' . $dots . '</div>'
+                    . '<button type="button" class="metis-testimonies-rotator-nav" data-rotator-next aria-label="Next testimony">Next</button>'
+                    . '</div>';
+                $script = '<script>(function(){var root=document.getElementById(' . json_encode( $rotatorId ) . ');if(!root){return;}var slides=[].slice.call(root.querySelectorAll("[data-rotator-slide]"));var dots=[].slice.call(root.querySelectorAll("[data-rotator-dot]"));var prev=root.querySelector("[data-rotator-prev]");var next=root.querySelector("[data-rotator-next]");if(!slides.length){return;}var index=0;var timer=0;function show(i){index=((i%slides.length)+slides.length)%slides.length;slides.forEach(function(slide,slideIndex){var active=slideIndex===index;slide.hidden=!active;slide.setAttribute("aria-hidden",active?"false":"true");});dots.forEach(function(dot,dotIndex){var active=dotIndex===index;dot.classList.toggle("is-active",active);dot.setAttribute("aria-selected",active?"true":"false");});}function stop(){if(timer){window.clearInterval(timer);timer=0;}}function start(){if(slides.length<2){return;}stop();timer=window.setInterval(function(){show(index+1);},5000);}if(prev){prev.addEventListener("click",function(){stop();show(index-1);start();});}if(next){next.addEventListener("click",function(){stop();show(index+1);start();});}dots.forEach(function(dot){dot.addEventListener("click",function(){var target=parseInt(dot.getAttribute("data-rotator-dot")||"0",10)||0;stop();show(target);start();});});root.addEventListener("mouseenter",stop);root.addEventListener("mouseleave",start);root.addEventListener("focusin",stop);root.addEventListener("focusout",function(event){if(root.contains(event.relatedTarget)){return;}start();});show(0);start();}());</script>';
+            }
+            return sprintf(
+                '%s<section id="%s" class="%s"%s><div class="metis-testimonies-rotator">%s</div>%s%s</section>',
+                $styleTag,
+                metis_escape_attr( $rotatorId ),
+                metis_escape_attr( self::buildClasses( 'metis-block-testimonies metis-block-testimonies--rotator', $style ) ),
+                self::buildInlineStyle( $style ),
+                $slides,
+                $controls,
+                $script
+            );
+        }
+
+        return sprintf(
+            '<section class="%s"%s><div class="metis-testimonies-grid">%s</div></section>',
+            metis_escape_attr( self::buildClasses( 'metis-block-testimonies metis-block-testimonies--' . $layout, $style ) ),
+            self::buildInlineStyle( $style ),
+            implode( '', $cards )
+        );
     }
 
     private static function renderDonorWallBlock( array $data, array $style, array $context ): string {

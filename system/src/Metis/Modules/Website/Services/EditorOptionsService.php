@@ -169,6 +169,17 @@ final class EditorOptionsService {
         return $options;
     }
 
+    /**
+     * @return array<int,array{value:string,label:string,slug:string}>
+     */
+    public static function testimonyCategoryOptions(): array {
+        if ( ! class_exists( '\Metis\Modules\Testimonies\Repository' ) ) {
+            return [];
+        }
+
+        return \Metis\Modules\Testimonies\Repository::categoryOptions( true );
+    }
+
     private static function usersTable(): string {
         $db = \metis_db();
         $prefix = $db->prefix();
