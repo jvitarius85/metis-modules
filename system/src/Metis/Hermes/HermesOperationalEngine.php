@@ -307,7 +307,7 @@ final class HermesOperationalEngine {
         if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
             $response = $this->responses->denied( $intent, $plan, $contextPacks, (string) ( $permission['reason'] ?? 'Permission denied.' ) );
         } else {
-            $result = $this->execution->execute( $command, $request );
+            $result = $this->execution->execute( $command, [ 'profile_request' => $request ] );
             $response = $this->responses->executionResult( $command, $contextPacks, $plan, $result );
         }
 

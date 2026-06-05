@@ -36,7 +36,11 @@ function metis_newsletter_clean_html(string $value): string {
     $value = str_replace("\0", '', $value);
     $value = str_replace(["\xC2\xA0", "\u{00A0}"], ' ', $value);
     $value = preg_replace('/\x{00A0}/u', ' ', $value) ?? $value;
-    return trim($value);
+    $value = trim($value);
+    if ($value !== '' && stripos($value, '<img') !== false) {
+        $value = metis_newsletter_normalize_html_media_sources($value);
+    }
+    return $value;
 }
 
 function metis_newsletter_clean_url(string $value, string $fallback = '#'): string {
@@ -44,10 +48,92 @@ function metis_newsletter_clean_url(string $value, string $fallback = '#'): stri
     if ($value === '') {
         return $fallback;
     }
-    if (preg_match('#^(https?://|/|mailto:|tel:)#i', $value) === 1) {
+    $resolved = metis_newsletter_resolve_media_reference_url($value);
+    if ($resolved !== '') {
+        return $resolved;
+    }
+    if (preg_match('#^(https?://|/|mailto:|tel:|data:image/)#i', $value) === 1) {
         return $value;
     }
     return $fallback;
+}
+
+function metis_newsletter_resolve_media_reference_url(string $value): string {
+    $value = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('#^(https?://|/|mailto:|tel:|data:image/)#i', $value) === 1) {
+        return $value;
+    }
+
+    $tokenMatch = \Metis\Modules\Media\MediaLibraryService::findByToken($value);
+    if (is_array($tokenMatch)) {
+        return metis_home_url('/media/' . $value);
+    }
+
+    $path = (string) (parse_url($value, PHP_URL_PATH) ?? '');
+    $basename = basename($path !== '' ? $path : $value);
+    $filenameCandidates = array_values(array_unique(array_filter([
+        metis_filename_clean($value),
+        metis_filename_clean(rawurldecode($value)),
+        metis_filename_clean($basename),
+        metis_filename_clean(rawurldecode($basename)),
+    ])));
+
+    foreach ($filenameCandidates as $candidate) {
+        if ($candidate === '') {
+            continue;
+        }
+        $media = \Metis\Modules\Media\MediaLibraryService::findByFilename($candidate);
+        if (is_array($media) && trim((string) ($media['url'] ?? '')) !== '') {
+            return (string) $media['url'];
+        }
+    }
+
+    return '';
+}
+
+function metis_newsletter_normalize_html_media_sources(string $html): string {
+    $html = trim($html);
+    if ($html === '' || stripos($html, '<img') === false || !class_exists('DOMDocument')) {
+        return $html;
+    }
+
+    $internalErrors = libxml_use_internal_errors(true);
+    $doc = new DOMDocument('1.0', 'UTF-8');
+    $wrapper = '<!DOCTYPE html><html><body><metis-root>' . $html . '</metis-root></body></html>';
+    $loaded = $doc->loadHTML($wrapper, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($internalErrors);
+    if ($loaded === false) {
+        return $html;
+    }
+
+    $roots = $doc->getElementsByTagName('metis-root');
+    $root = $roots->length > 0 ? $roots->item(0) : null;
+    if (!$root) {
+        return $html;
+    }
+
+    foreach ($root->getElementsByTagName('img') as $img) {
+        $src = trim((string) $img->getAttribute('src'));
+        if ($src === '') {
+            continue;
+        }
+        $resolved = metis_newsletter_resolve_media_reference_url($src);
+        if ($resolved !== '') {
+            $img->setAttribute('src', $resolved);
+        }
+    }
+
+    $output = '';
+    foreach ($root->childNodes as $child) {
+        $output .= $doc->saveHTML($child);
+    }
+
+    return trim($output);
 }
 
 

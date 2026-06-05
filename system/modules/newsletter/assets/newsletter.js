@@ -411,6 +411,10 @@
     var themeImageSettingsModal = null;
     var themePreviewBooted = false;
 
+    function sharedRichText() {
+        return window.Metis && Metis.ui && Metis.ui.richText ? Metis.ui.richText : null;
+    }
+
     function appBasePath() {
         var ajax = String(window.metisNewsletterAjax || '').trim();
         if (ajax) {
@@ -427,14 +431,27 @@
     }
 
     function iconUrl(slug) {
+        var richText = sharedRichText();
+        if (richText && typeof richText.iconUrl === 'function') {
+            return richText.iconUrl(slug);
+        }
         return appBasePath() + '/svg/' + encodeURIComponent(String(slug || '').replace(/_/g, '-'));
     }
 
     function iconFallbackUrl(slug) {
+        var richText = sharedRichText();
+        if (richText && typeof richText.iconFallbackUrl === 'function') {
+            return richText.iconFallbackUrl(slug);
+        }
         return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
     }
 
     function bindIconFallbacks(scope) {
+        var richText = sharedRichText();
+        if (richText && typeof richText.bindIconFallbacks === 'function') {
+            richText.bindIconFallbacks(scope || document);
+            return;
+        }
         var rootNode = scope && scope.querySelectorAll ? scope : document;
         rootNode.querySelectorAll('img[data-icon-fallback]').forEach(function (img) {
             if (img.getAttribute('data-fallback-bound') === '1') return;
@@ -444,6 +461,39 @@
                 if (!fallback || img.getAttribute('src') === fallback) return;
                 img.setAttribute('src', fallback);
             });
+        });
+    }
+
+    function normalizeNewsletterMediaUrl(raw) {
+        var value = String(raw || '').trim();
+        if (!value) return '';
+        if (/^(https?:\/\/|\/|data:image\/)/i.test(value)) return value;
+        var media = Array.isArray(pageData.media) ? pageData.media : [];
+        var direct = value.toLowerCase();
+        var basename = decodeURIComponent(String((value.split('/').pop() || value)).split('?')[0].split('#')[0]).toLowerCase();
+        for (var i = 0; i < media.length; i += 1) {
+            var row = media[i] && typeof media[i] === 'object' ? media[i] : {};
+            var url = String(row.url || '').trim();
+            if (!url) continue;
+            var token = String(row.value || '').trim().toLowerCase();
+            var label = String(row.label || '').trim().toLowerCase();
+            var fileName = String(row.file_name || row.label || '').trim().toLowerCase();
+            var urlBase = decodeURIComponent(String((url.split('/').pop() || '')).split('?')[0].split('#')[0]).toLowerCase();
+            if (direct === token || direct === label || direct === fileName || direct === urlBase || basename === label || basename === fileName || basename === urlBase) {
+                return url;
+            }
+        }
+        return value;
+    }
+
+    function normalizeNewsletterMediaSources(scope) {
+        if (!scope || !scope.querySelectorAll) return;
+        scope.querySelectorAll('img[src]').forEach(function (img) {
+            var current = String(img.getAttribute('src') || '').trim();
+            var normalized = normalizeNewsletterMediaUrl(current);
+            if (normalized && normalized !== current) {
+                img.setAttribute('src', normalized);
+            }
         });
     }
 
@@ -628,6 +678,7 @@
             var key = String(node.getAttribute('data-theme-toolbar') || '').trim();
             if (!key) return;
             node.innerHTML = buildThemeToolbar(key);
+            normalizeNewsletterMediaSources(node);
             bindIconFallbacks(node);
         });
     }
@@ -1039,6 +1090,7 @@
             if (!node) return;
             var html = renderThemeMergeTags($('#metis-newsletter-theme-' + key + '-html').val() || '');
             node.innerHTML = html;
+            normalizeNewsletterMediaSources(node);
             node.style.background = '';
             node.style.color = '';
             node.style.padding = '';
@@ -1053,6 +1105,7 @@
                 sampleBody = String(pageData.theme_preview_doc.blocks[0].data.body || '');
             }
             bodyNode.innerHTML = renderThemeMergeTags(sampleBody);
+            normalizeNewsletterMediaSources(bodyNode);
             bodyNode.style.color = textColor;
             bodyNode.style.fontSize = String(fontSize) + 'px';
         }
@@ -1095,6 +1148,9 @@
         }
         refreshThemeSelects($card[0]);
         mountThemeToolbars();
+        $card[0].querySelectorAll('[data-theme-editor-surface]').forEach(function (surface) {
+            normalizeNewsletterMediaSources(surface);
+        });
         hydratePaddingBoxes();
         function syncRanges() {
             var widthMode = activeThemeWidthMode();

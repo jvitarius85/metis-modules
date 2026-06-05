@@ -99,10 +99,10 @@ foreach ($active_theme_colors as $color_key => $color_value) {
 }
 $newsletter_color_map['border'] = '#dfe6f3';
 $newsletter_theme_defaults = [
-    'header_html' => (string) Core_Settings_Service::get('newsletter_theme_header_html', ''),
-    'personalized_html' => (string) Core_Settings_Service::get('newsletter_theme_personalized_html', ''),
-    'closing_html' => (string) Core_Settings_Service::get('newsletter_theme_closing_html', ''),
-    'footer_html' => (string) Core_Settings_Service::get('newsletter_theme_footer_html', ''),
+    'header_html' => metis_newsletter_clean_html((string) Core_Settings_Service::get('newsletter_theme_header_html', '')),
+    'personalized_html' => metis_newsletter_clean_html((string) Core_Settings_Service::get('newsletter_theme_personalized_html', '')),
+    'closing_html' => metis_newsletter_clean_html((string) Core_Settings_Service::get('newsletter_theme_closing_html', '')),
+    'footer_html' => metis_newsletter_clean_html((string) Core_Settings_Service::get('newsletter_theme_footer_html', '')),
     'canvas_bg' => (string) Core_Settings_Service::get('newsletter_theme_canvas_bg', 'transparent'),
     'text_color' => (string) Core_Settings_Service::get('newsletter_theme_text_color', 'text'),
     'font_size' => (int) Core_Settings_Service::get('newsletter_theme_font_size', 16),

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Media;
 
+use Metis\Core\Cache\CacheService;
+
 final class MediaLibraryService {
     public static function listItems( string $search, string $type, string $folder, string $category, string $sort, int $limit ): array {
         if ( function_exists( 'metis_media_ensure_schema' ) ) {
@@ -139,5 +141,45 @@ final class MediaLibraryService {
         );
 
         return is_array( $row ) ? $row : null;
+    }
+
+    public static function findByFilename( string $filename ): ?array {
+        $filename = trim( $filename );
+        if ( $filename === '' ) {
+            return null;
+        }
+
+        return CacheService::remember(
+            'media.filename.' . md5( strtolower( $filename ) ),
+            600,
+            static function () use ( $filename ): ?array {
+                if ( function_exists( 'metis_media_ensure_schema' ) ) {
+                    \metis_media_ensure_schema();
+                }
+
+                $table = function_exists( 'metis_media_table_name' ) ? \metis_media_table_name() : 'metis_media_files';
+                $row = \metis_db()->fetchOne(
+                    "SELECT id, public_token, file_name, mime_type
+                     FROM {$table}
+                     WHERE file_name = %s
+                     ORDER BY id DESC
+                     LIMIT 1",
+                    [ $filename ]
+                );
+
+                if ( ! is_array( $row ) ) {
+                    return null;
+                }
+
+                $token = trim( (string) ( $row['public_token'] ?? '' ) );
+                return [
+                    'id' => (int) ( $row['id'] ?? 0 ),
+                    'token' => $token,
+                    'url' => $token !== '' ? \metis_home_url( '/media/' . $token ) : '',
+                    'file_name' => (string) ( $row['file_name'] ?? '' ),
+                    'mime_type' => (string) ( $row['mime_type'] ?? '' ),
+                ];
+            }
+        );
     }
 }

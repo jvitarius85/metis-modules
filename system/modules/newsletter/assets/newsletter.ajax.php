@@ -203,6 +203,13 @@ function metis_newsletter_sanitize_theme_html(string $html): string {
                 $remove[] = $attr->name;
                 continue;
             }
+            if ($name === 'src') {
+                $resolved = metis_newsletter_resolve_media_reference_url($value);
+                if ($resolved !== '') {
+                    $node->setAttribute($attr->name, $resolved);
+                    $value = $resolved;
+                }
+            }
             if (in_array($name, ['href', 'src'], true) && function_exists('metis_runtime_is_safe_url') && !metis_runtime_is_safe_url($value)) {
                 $remove[] = $attr->name;
                 continue;

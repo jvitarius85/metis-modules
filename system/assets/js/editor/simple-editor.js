@@ -621,10 +621,16 @@
     }
 
     function iconUrl(slug) {
+        if (window.Metis && Metis.ui && Metis.ui.richText && typeof Metis.ui.richText.iconUrl === 'function') {
+            return Metis.ui.richText.iconUrl(slug);
+        }
         return appBasePath() + '/svg/' + encodeURIComponent(s(slug || '').replace(/_/g, '-'));
     }
 
     function iconFallbackUrl(slug) {
+        if (window.Metis && Metis.ui && Metis.ui.richText && typeof Metis.ui.richText.iconFallbackUrl === 'function') {
+            return Metis.ui.richText.iconFallbackUrl(slug);
+        }
         return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(s(slug || '')) + '.svg';
     }
 

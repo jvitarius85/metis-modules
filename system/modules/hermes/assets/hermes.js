@@ -326,7 +326,7 @@ return html
 }
 
 function renderDisambiguationResult(result){
-const candidates=Array.isArray(result && result.candidates) ? result.candidates : []
+const candidates=consolidateDisambiguationCandidates(Array.isArray(result && result.candidates) ? result.candidates : [])
 if(!candidates.length){
 return ""
 }
@@ -348,6 +348,34 @@ html+=`<li><strong>${escapeHtml(name)}</strong>${escapeHtml(detail)}</li>`
 })
 html+=`</ol>`
 return html
+}
+
+function consolidateDisambiguationCandidates(candidates){
+if(!Array.isArray(candidates) || !candidates.length){
+return []
+}
+const merged=new Map()
+candidates.forEach(candidate=>{
+const item=candidate && typeof candidate==="object" ? candidate : {}
+const name=String(item.name || "").trim()
+const email=String(item.email || "").trim()
+const entityType=String(item.entity_type || "").trim()
+const key=(name.toLowerCase())+`|`+(email.toLowerCase() || String(item.id || ""))
+if(!merged.has(key)){
+merged.set(key,{
+id:item.id || null,
+name:name,
+email:email,
+entity_type:entityType
+})
+return
+}
+const existing=merged.get(key)
+const types=new Set(String(existing.entity_type || "").split("/").map(part=>String(part || "").trim()).filter(Boolean))
+String(entityType || "").split("/").map(part=>String(part || "").trim()).filter(Boolean).forEach(type=>types.add(type))
+existing.entity_type=Array.from(types).join("/")
+})
+return Array.from(merged.values())
 }
 
 function restoreHistoryItem(item){

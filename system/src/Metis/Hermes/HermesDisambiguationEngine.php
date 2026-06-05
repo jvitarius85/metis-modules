@@ -43,14 +43,15 @@ final class HermesDisambiguationEngine {
             ];
         }
 
-        $choice = $this->resolveChoice( $query, array_values( (array) ( $contents['candidates'] ?? [] ) ) );
+        $storedCandidates = $this->normalizeCandidates( array_values( (array) ( $contents['candidates'] ?? [] ) ) );
+        $choice = $this->resolveChoice( $query, $storedCandidates );
         if ( $choice === [] ) {
             return [
                 'response' => [
                     'status' => 'disambiguation_required',
-                    'message' => $this->promptForCandidates( array_values( (array) ( $contents['candidates'] ?? [] ) ) ),
+                    'message' => $this->promptForCandidates( $storedCandidates ),
                     'response_type' => 'Disambiguation',
-                    'candidates' => array_values( (array) ( $contents['candidates'] ?? [] ) ),
+                    'candidates' => $storedCandidates,
                 ],
                 'intent' => [
                     'action' => 'entity_disambiguation',
@@ -115,10 +116,10 @@ final class HermesDisambiguationEngine {
 
         $attributeRequest = (array) ( $processed['intent']['payload']['attribute_request'] ?? [] );
         $profileRequest = (array) ( $processed['intent']['payload']['profile_request'] ?? [] );
-        $candidates = array_values( array_filter(
+        $candidates = $this->normalizeCandidates( array_values( array_filter(
             (array) ( $response['candidates'] ?? [] ),
             static fn ( mixed $candidate ): bool => is_array( $candidate )
-        ) );
+        ) ) );
         if ( $candidates === [] ) {
             return;
         }
@@ -141,6 +142,40 @@ final class HermesDisambiguationEngine {
                 'candidates' => $candidates,
             ] );
         }
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $candidates
+     * @return array<int,array<string,mixed>>
+     */
+    private function normalizeCandidates( array $candidates ): array {
+        if ( $candidates === [] ) {
+            return [];
+        }
+
+        $merged = [];
+        foreach ( $candidates as $candidate ) {
+            $name = strtolower( trim( (string) ( $candidate['name'] ?? '' ) ) );
+            $email = strtolower( trim( (string) ( $candidate['email'] ?? '' ) ) );
+            $entityType = trim( (string) ( $candidate['entity_type'] ?? '' ) );
+            $key = $name . '|' . ( $email !== '' ? $email : (string) ( $candidate['id'] ?? '' ) );
+            if ( isset( $merged[ $key ] ) ) {
+                $existingType = trim( (string) ( $merged[ $key ]['entity_type'] ?? '' ) );
+                $types = array_values( array_unique( array_filter( array_map(
+                    static fn ( string $part ): string => trim( $part ),
+                    array_merge(
+                        $existingType !== '' ? explode( '/', $existingType ) : [],
+                        $entityType !== '' ? explode( '/', $entityType ) : []
+                    )
+                ) ) ) );
+                $merged[ $key ]['entity_type'] = implode( '/', $types );
+                continue;
+            }
+
+            $merged[ $key ] = $candidate;
+        }
+
+        return array_values( $merged );
     }
 
     /**
