@@ -720,6 +720,16 @@ final class ReleaseManager {
             ];
         }
 
+        if ( $this->isArchiveReleaseAlreadyInstalled( $tag, $this->readState() ) ) {
+            $this->progress( 'complete', 'Requested release is already installed.', 100 );
+            return [
+                'ok' => true,
+                'status' => 'already_installed',
+                'message' => 'The requested release is already installed.',
+                'release' => $release,
+            ];
+        }
+
         $this->progress( 'integrity', 'Running integrity preflight.', 15 );
         $integrity = $this->preflightIntegrityCheck( 'pre_update_archive' );
         if ( ! empty( $integrity['blocked'] ) ) {
@@ -818,6 +828,23 @@ final class ReleaseManager {
                 'applied' => $applied,
             ]
         );
+    }
+
+    private function isArchiveReleaseAlreadyInstalled( string $tag, array $state ): bool {
+        $normalizedTag = $this->normalizeTag( $tag );
+        if ( $normalizedTag === '' ) {
+            return false;
+        }
+
+        $installedTag = $this->normalizeTag( (string) ( $state['installed_tag'] ?? '' ) );
+        if ( $installedTag !== '' && hash_equals( $installedTag, $normalizedTag ) ) {
+            return true;
+        }
+
+        $installedVersion = trim( (string) ( $state['installed_version'] ?? Version::current() ) );
+        $targetVersion = $this->versionFromTag( $normalizedTag );
+
+        return $installedVersion !== '' && $targetVersion !== '' && $installedVersion === $targetVersion;
     }
 
     private function downloadReleaseArchive( string $tag ): array {

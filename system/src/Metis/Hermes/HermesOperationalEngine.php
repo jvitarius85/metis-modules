@@ -91,6 +91,7 @@ final class HermesOperationalEngine {
         $prep = $this->prepareIntentPayload( $intent, $command );
         $intent = (array) ( $prep['intent'] ?? $intent );
         $parsed = $this->syncExecutionPlanPayloads( $parsed, $intent );
+        $parsed = $this->injectReleaseExecutionMetadata( $parsed );
         $payloadError = (string) ( $prep['error'] ?? '' );
         if ( $payloadError !== '' ) {
             return [
@@ -834,6 +835,51 @@ final class HermesOperationalEngine {
         }
 
         return $parsed;
+    }
+
+    private function injectReleaseExecutionMetadata( array $parsed ): array {
+        if ( ! isset( $parsed['execution_plan'] ) || ! is_array( $parsed['execution_plan'] ) ) {
+            return $parsed;
+        }
+
+        $latestTag = $this->latestTrustedReleaseTag();
+        if ( $latestTag === '' ) {
+            return $parsed;
+        }
+
+        foreach ( $parsed['execution_plan'] as $index => $step ) {
+            if ( ! is_array( $step ) ) {
+                continue;
+            }
+
+            $stepIntent = \metis_key_clean( (string) ( $step['intent'] ?? '' ) );
+            if ( ! in_array( $stepIntent, [ 'update_install', 'aut_update_install' ], true ) ) {
+                continue;
+            }
+
+            $payload = (array) ( $step['payload'] ?? [] );
+            if ( trim( (string) ( $payload['tag'] ?? '' ) ) === '' ) {
+                $payload['tag'] = $latestTag;
+            }
+            $parsed['execution_plan'][ $index ]['payload'] = $payload;
+        }
+
+        return $parsed;
+    }
+
+    private function latestTrustedReleaseTag(): string {
+        if ( ! \class_exists( '\Metis\Core\Application' ) || ! \Metis\Core\Application::has_service( 'release' ) ) {
+            return '';
+        }
+
+        try {
+            $release = \Metis\Core\Application::service( 'release' )->status( true );
+        } catch ( \Throwable ) {
+            return '';
+        }
+
+        $latest = is_array( $release['latest'] ?? null ) ? (array) $release['latest'] : [];
+        return trim( (string) ( $latest['tag'] ?? '' ) );
     }
 
     private function resolvedExecutionPlan( array $parsed, array $fallbackCommand ): array {

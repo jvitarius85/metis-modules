@@ -4228,21 +4228,35 @@ Metis.breadcrumb = {
 Metis.page = (function() {
     var registry = {};
 
+    function guardedRun(name, callback) {
+        if (typeof callback !== 'function') return;
+        try {
+            return callback();
+        } catch (error) {
+            if (window.console && typeof window.console.error === 'function') {
+                window.console.error('Metis init failed for "' + String(name || 'unknown') + '".', error);
+            }
+        }
+        return undefined;
+    }
+
     function normalizeRoot(root) {
         return root && root.querySelectorAll ? root : document;
     }
 
     function runCore(root) {
         var scope = normalizeRoot(root);
-        if (Metis.a11y) {
-            Metis.a11y.enhance(scope);
-        }
-        Metis.tooltip.init(scope);
-        Metis.ui.select.init(scope);
-        Metis.tabs.init(scope);
-        Metis.modal.init(scope);
-        Metis.inlineEdit.init(scope);
-        metisInitClickableRows(scope);
+        guardedRun('a11y.enhance', function() {
+            if (Metis.a11y) {
+                Metis.a11y.enhance(scope);
+            }
+        });
+        guardedRun('tooltip.init', function() { Metis.tooltip.init(scope); });
+        guardedRun('ui.select.init', function() { Metis.ui.select.init(scope); });
+        guardedRun('tabs.init', function() { Metis.tabs.init(scope); });
+        guardedRun('modal.init', function() { Metis.modal.init(scope); });
+        guardedRun('inlineEdit.init', function() { Metis.inlineEdit.init(scope); });
+        guardedRun('clickableRows.init', function() { metisInitClickableRows(scope); });
     }
 
     function register(name, initFn) {
@@ -4262,17 +4276,14 @@ Metis.page = (function() {
         runCore(scope);
 
         Object.keys(registry).forEach(function(key) {
-            try {
+            guardedRun('page:' + key, function() {
                 registry[key](ctx);
-            } catch (error) {
-                if (window.console && typeof window.console.error === 'function') {
-                    window.console.error('Metis.page init failed for "' + key + '".', error);
-                }
-            }
+            });
         });
     }
 
     return {
+        guardedRun: guardedRun,
         register: register,
         init: init
     };
@@ -4327,17 +4338,34 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (Metis.a11y) {
-        Metis.a11y.enhance(document);
-    }
-    Metis.accessibility.init();
-    Metis.session.init();
-    Metis.navigation.init();
-    Metis.quickActions.init();
-    Metis.nav.init();
-    Metis.codeSearch.init();
-    Metis.page.init(document, {
-        reason: 'dom-ready',
-        url: window.location.href
+    var run = (window.Metis && Metis.page && typeof Metis.page.guardedRun === 'function')
+        ? Metis.page.guardedRun
+        : function(_name, callback) {
+            if (typeof callback !== 'function') return;
+            try {
+                callback();
+            } catch (error) {
+                if (window.console && typeof window.console.error === 'function') {
+                    window.console.error('Metis bootstrap failed.', error);
+                }
+            }
+        };
+
+    run('dom-ready.a11y', function() {
+        if (Metis.a11y) {
+            Metis.a11y.enhance(document);
+        }
+    });
+    run('dom-ready.accessibility', function() { Metis.accessibility.init(); });
+    run('dom-ready.session', function() { Metis.session.init(); });
+    run('dom-ready.navigation', function() { Metis.navigation.init(); });
+    run('dom-ready.quickActions', function() { Metis.quickActions.init(); });
+    run('dom-ready.nav', function() { Metis.nav.init(); });
+    run('dom-ready.codeSearch', function() { Metis.codeSearch.init(); });
+    run('dom-ready.page', function() {
+        Metis.page.init(document, {
+            reason: 'dom-ready',
+            url: window.location.href
+        });
     });
 });

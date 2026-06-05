@@ -1067,6 +1067,7 @@ row.appendChild(bubble)
 messages.appendChild(row)
 messages.scrollTop=messages.scrollHeight
 
+startThinking(16)
 const stopPolling=pollHermesReleaseProgress(progressToken,bubble)
 return releaseProgressRequest("metis_hermes_execute_release_action",{
 action_code:actionCode,
@@ -1077,6 +1078,7 @@ updateReleaseProgressBubble(bubble,progress)
 return data
 }).finally(()=>{
 stopPolling()
+stopThinking(10)
 if(executeBtn){
 executeBtn.disabled=false
 executeBtn.textContent="Execute"
@@ -1349,18 +1351,26 @@ replace:false
 })
 }
 
-function request(action,data){
+function startThinking(boost=14){
 pendingRequests+=1
 thinking=true
-pulse=Math.max(pulse,14)
+pulse=Math.max(pulse,boost)
+}
 
-return Metis.request.post(ajax,action,data||{},"Hermes AJAX config missing.")
-.finally(()=>{
+function stopThinking(idlePulse=8){
 pendingRequests=Math.max(0,pendingRequests-1)
 thinking=pendingRequests>0
 if(!thinking){
-pulse=Math.max(pulse,8)
+pulse=Math.max(pulse,idlePulse)
 }
+}
+
+function request(action,data){
+startThinking(14)
+
+return Metis.request.post(ajax,action,data||{},"Hermes AJAX config missing.")
+.finally(()=>{
+stopThinking(8)
 })
 }
 

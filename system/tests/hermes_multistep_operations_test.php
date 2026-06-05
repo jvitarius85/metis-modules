@@ -65,6 +65,8 @@ $updateInstallProcessed = $engine->process( 'check updates and install' );
 $updateInstallPlan = array_values( (array) ( $updateInstallProcessed['parsed']['execution_plan'] ?? [] ) );
 $assert( count( $updateInstallPlan ) === 2, 'Update check/install shorthand should preserve a two-step execution plan.' );
 $assert( (string) ( $updateInstallProcessed['response']['status'] ?? '' ) === 'awaiting_approval', 'Update check/install shorthand should still require approval for the mutating step.' );
+$updateInstallPayload = (array) ( $updateInstallPlan[1]['payload'] ?? [] );
+$assert( trim( (string) ( $updateInstallPayload['tag'] ?? '' ) ) !== '', 'Update install step should preserve an explicit trusted release tag.' );
 
 $updateInstallExecuted = $engine->executePreparedAction( [
     'operation' => (string) ( $updateInstallProcessed['action_plan']['operation'] ?? '' ),

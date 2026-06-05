@@ -1,18 +1,35 @@
 function initMetisPeopleProfileShell(context) {
     const scope = context && context.root ? context.root : document;
+    const initRoot = scope === document ? document.documentElement : scope;
     const hasPeopleUi = scope.querySelector('.metis-people-detail, .metis-people-role-detail, .metis-people-activity-log, .metis-people-profile-card, .metis-people-workspace');
     if (!hasPeopleUi) return;
-    if (scope !== document && scope.getAttribute('data-metis-people-shell-initialized') === '1') return;
-    if (scope !== document) scope.setAttribute('data-metis-people-shell-initialized', '1');
+    if (initRoot && initRoot.getAttribute('data-metis-people-shell-initialized') === '1') return;
+    if (initRoot) initRoot.setAttribute('data-metis-people-shell-initialized', '1');
 
     const ajax = window.metisPeopleAjax || null;
 
     function normalize(v) { return Metis.util.normalize(v); }
 
     const showAlert = Metis.util.notify;
+    let initFailureNotified = false;
 
     function post(action, data) {
         return Metis.request.post(ajax, action, data || {}, 'People AJAX not configured.');
+    }
+
+    function safeInit(name, callback) {
+        if (typeof callback !== 'function') return;
+        try {
+            callback();
+        } catch (error) {
+            if (window.console && typeof window.console.error === 'function') {
+                window.console.error('Metis people profile init failed for "' + String(name || 'unknown') + '".', error);
+            }
+            if (!initFailureNotified && typeof showAlert === 'function') {
+                initFailureNotified = true;
+                showAlert('Part of this page failed to load. The rest of the page is still available.', 'warn');
+            }
+        }
     }
 
     const openModal = Metis.modal.open;
@@ -185,12 +202,16 @@ function initMetisPeopleProfileShell(context) {
         applyZebraRows: applyZebraRows
     };
 
-    if (typeof modules.initOverview === 'function') {
-        modules.initOverview(moduleContext);
-    }
-    if (typeof modules.initWorkspace === 'function') {
-        modules.initWorkspace(moduleContext);
-    }
+    safeInit('overview', function () {
+        if (typeof modules.initOverview === 'function') {
+            modules.initOverview(moduleContext);
+        }
+    });
+    safeInit('workspace', function () {
+        if (typeof modules.initWorkspace === 'function') {
+            modules.initWorkspace(moduleContext);
+        }
+    });
     // Person detail behavior.
     const personDetailRoot = document.querySelector('.metis-people-detail');
     if (personDetailRoot) {
@@ -577,18 +598,26 @@ function initMetisPeopleProfileShell(context) {
             syncPersonHeaderFromForm: syncPersonHeaderFromForm
         };
 
-        if (typeof detailModules.initPersonDetail === 'function') {
-            detailModules.initPersonDetail(detailContext);
-        }
-        if (typeof detailModules.initSecurity === 'function') {
-            detailModules.initSecurity(detailContext);
-        }
-        if (typeof detailModules.initPasskeys === 'function') {
-            detailModules.initPasskeys(detailContext);
-        }
-        if (typeof detailModules.initRoles === 'function') {
-            detailModules.initRoles(detailContext);
-        }
+        safeInit('person-detail', function () {
+            if (typeof detailModules.initPersonDetail === 'function') {
+                detailModules.initPersonDetail(detailContext);
+            }
+        });
+        safeInit('security', function () {
+            if (typeof detailModules.initSecurity === 'function') {
+                detailModules.initSecurity(detailContext);
+            }
+        });
+        safeInit('passkeys', function () {
+            if (typeof detailModules.initPasskeys === 'function') {
+                detailModules.initPasskeys(detailContext);
+            }
+        });
+        safeInit('roles', function () {
+            if (typeof detailModules.initRoles === 'function') {
+                detailModules.initRoles(detailContext);
+            }
+        });
     }
 
     // Role detail behavior.
@@ -1074,10 +1103,16 @@ function initMetisPeopleProfileShell(context) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    initMetisPeopleProfileShell({ root: document, reason: 'dom-ready', url: window.location.href });
-});
-
 if (window.Metis && Metis.page && typeof Metis.page.register === 'function') {
     Metis.page.register('people-profile-shell', initMetisPeopleProfileShell);
+} else {
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            initMetisPeopleProfileShell({ root: document, reason: 'dom-ready', url: window.location.href });
+        } catch (error) {
+            if (window.console && typeof window.console.error === 'function') {
+                window.console.error('Metis people profile shell fallback init failed.', error);
+            }
+        }
+    });
 }

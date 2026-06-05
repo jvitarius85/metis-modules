@@ -126,6 +126,7 @@ $assert( str_contains( $recurringDonationsService, "\\metis_textarea_clean( \$me
 $assert( str_contains( $websiteAjax, "metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )" ), 'Website revision notes must preserve multiline Unicode via textarea cleaner at the AJAX boundary.' );
 $assert( str_contains( $revisionTimelineService, "'revision_note' => metis_textarea_clean( \$note )" ), 'Website revision timeline persistence must preserve multiline Unicode via textarea cleaner.' );
 $assert( str_contains( $peopleReadService, 'public static function workspaceSnapshot' ) && str_contains( $peopleReadService, 'public static function personSnapshot' ), 'People read service must expose workspace and person snapshots.' );
+$assert( str_contains( $peopleReadService, "'current_workspace_role' => \$current_workspace_role" ) && str_contains( $peopleReadService, "'current_stripe_role' => \$current_stripe_role" ), 'People person snapshot must expose the current workspace and Stripe role values explicitly for view rendering.' );
 $assert( str_contains( $newsletterReadService, 'public static function campaignsSnapshot' ) && str_contains( $newsletterReadService, 'public static function dashboardSnapshot' ), 'Newsletter read service must expose canonical campaign/dashboard snapshots.' );
 
 $viewExpectations = [
