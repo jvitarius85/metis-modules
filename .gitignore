@@ -29,6 +29,8 @@ system/config/database.php
 
 /grandys_stash/
 
+/system/tests/*
+
 /storage/runtime/
 
 /storage/runtime/*
