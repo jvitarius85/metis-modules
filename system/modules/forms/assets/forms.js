@@ -886,10 +886,10 @@
   function initPublic(root, boot) {
     const form = boot.form || {};
     const schema = Array.isArray(form.schema) ? form.schema : [];
-    const formEl = root.querySelector('#metis-forms-public-form');
-    const alertEl = root.querySelector('#metis-forms-public-alert');
-    const submitButton = root.querySelector('#metis-forms-submit-button');
-    const successOverlay = root.querySelector('#metis-forms-success-overlay');
+    const formEl = root.querySelector('[data-metis-forms-public-form]');
+    const alertEl = root.querySelector('[data-metis-forms-alert]');
+    const submitButton = root.querySelector('[data-metis-forms-submit-button]');
+    const successOverlay = root.querySelector('[data-metis-forms-success-overlay]');
     if (!formEl) return;
 
     const paymentField = schema.find((field) => field && field.type === 'payment') || null;
@@ -2690,7 +2690,7 @@
   }
 
   function showSuccessOverlay(root, message) {
-    const overlay = root.querySelector('#metis-forms-success-overlay');
+    const overlay = root.querySelector('[data-metis-forms-success-overlay]');
     if (!(overlay instanceof HTMLElement)) return;
     const messageNode = overlay.querySelector('[data-success-message]');
     if (messageNode) {

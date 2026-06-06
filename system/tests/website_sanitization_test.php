@@ -88,6 +88,22 @@ $assert( ( $structured['sections'][2]['content']['percent'] ?? '' ) === '100', '
 $assert( ! str_contains( strtolower( (string) ( $structured['sections'][3]['content']['content'] ?? '' ) ), '<script' ), 'Campaign summary content must be sanitized.' );
 $assert( str_contains( (string) ( $structured['sections'][5]['content']['body'] ?? '' ), 'metis-text-align-right' ), 'Structured content must preserve safe alignment classes.' );
 $assert( str_contains( (string) ( $structured['sections'][6]['content']['body'] ?? '' ), 'be amazing' ), 'Structured content must repair common mojibake before save/render.' );
+$structuredEmoji = \Metis\Modules\Website\Services\StructuredWebsiteBuilderService::normalizeLayout(
+    json_encode(
+        [
+            'editor_meta' => [
+                'structured_builder' => [
+                    'sections' => [
+                        [ 'id' => 'emoji', 'type' => 'text', 'content' => [ 'body' => '<p>💖🛠️</p>' ] ],
+                    ],
+                ],
+            ],
+        ],
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    )
+);
+$emojiBody = (string) ( $structuredEmoji['sections'][0]['content']['body'] ?? '' );
+$assert( str_contains( $emojiBody, '💖' ) && str_contains( $emojiBody, '🛠️' ), 'Structured website content must preserve emoji through Website normalization.' );
 
 if ( $failures !== [] ) {
     fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

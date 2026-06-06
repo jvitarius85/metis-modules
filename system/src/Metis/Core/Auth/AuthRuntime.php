@@ -1950,9 +1950,9 @@ function metis_auth_handle_request( Metis_Http_Request $request ): bool {
         $body .= '<div class="auth-actions">';
         $body .= '<button type="submit" id="metis-auth-resolve-button">Continue</button>';
         $body .= '<span class="auth-or">OR</span>';
-        $body .= '<button type="submit" id="metis-google-sso-button" class="metis-btn-secondary" form="metis-google-sso-form">Sign in with Google</button>';
+        $body .= '<button type="button" id="metis-google-sso-button" class="metis-btn-secondary">Sign in with Google</button>';
         $body .= '</div></form>';
-        $body .= '<form method="post" id="metis-google-sso-form" hidden><input type="hidden" name="mode" value="google_workspace_start">' . \Metis\Core\Application::service( 'csrf' )->hiddenFields( metis_auth_form_nonce_action( 'google_workspace_start' ) ) . '</form>';
+        $body .= '<form method="post" id="metis-google-sso-form" hidden><input type="hidden" name="mode" value="google_workspace_start"><input type="hidden" name="redirect_to" value="' . metis_escape_attr( $redirect ) . '">' . \Metis\Core\Application::service( 'csrf' )->hiddenFields( metis_auth_form_nonce_action( 'google_workspace_start' ) ) . '</form>';
         $body .= '<p id="metis-auth-status" class="muted" aria-live="polite"></p>';
         $body .= '<p id="metis-passkey-unsupported" class="muted" hidden>Your browser does not support passkey sign-in.</p></div>';
         $body .= '<div class="card" id="metis-password-card" hidden><h2>Password</h2><form method="post" id="metis-password-form"><input type="hidden" name="mode" value="login">' . \Metis\Core\Application::service( 'csrf' )->hiddenFields( metis_auth_form_nonce_action( 'login' ) );

@@ -171,6 +171,68 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
     border-top: 1px solid color-mix(in srgb, var(--metis-border, #e0e2ea) 88%, transparent);
     margin: 18px 0;
 }
+.metis-inline-emoji {
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    vertical-align: -0.2em;
+}
+.metis-emoji-picker-backdrop {
+    display: none;
+}
+.metis-emoji-picker-backdrop.is-open {
+    display: flex;
+}
+.metis-emoji-picker-modal {
+    width: min(760px, calc(100vw - 32px));
+}
+.metis-emoji-picker-body {
+    display: grid;
+    gap: 12px;
+}
+.metis-emoji-picker-help {
+    color: var(--metis-text-muted, #6d7485);
+    font-size: 0.92rem;
+}
+.metis-emoji-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    gap: 8px;
+    max-height: min(52vh, 420px);
+    overflow: auto;
+}
+.metis-emoji-picker-item {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--metis-border, #e0e2ea);
+    border-radius: 14px;
+    background: var(--metis-surface, #fff);
+    padding: 0;
+    text-align: center;
+    cursor: pointer;
+}
+.metis-emoji-picker-item:hover {
+    border-color: var(--metis-primary, #485bc7);
+    box-shadow: 0 6px 18px rgba(31, 35, 48, 0.08);
+}
+.metis-emoji-picker-item:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--metis-primary, #485bc7) 72%, white);
+    outline-offset: 2px;
+}
+.metis-emoji-picker-icon {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+.metis-emoji-picker-empty {
+    padding: 18px;
+    border: 1px dashed var(--metis-border, #e0e2ea);
+    border-radius: 12px;
+    color: var(--metis-text-muted, #6d7485);
+    background: color-mix(in srgb, var(--metis-surface, #fff) 94%, var(--metis-bg, #f5f6fa));
+}
 .metis-nl-preview-error {
     width: 680px;
     min-width: 680px;
@@ -2065,6 +2127,9 @@ body.metis-shell-editor .metis-main { margin-left: 0; padding: 0; min-height: 10
 .metis-se-rich-editor .metis-text-size-sm { font-size: .92rem; }
 .metis-se-rich-editor .metis-text-size-lg { font-size: 1.12rem; }
 .metis-se-rich-editor .metis-text-size-xl { font-size: 1.28rem; }
+.metis-se-rich-editor .metis-text-size-sm .metis-inline-emoji { width: 1.05em; height: 1.05em; }
+.metis-se-rich-editor .metis-text-size-lg .metis-inline-emoji { width: 1.28em; height: 1.28em; }
+.metis-se-rich-editor .metis-text-size-xl .metis-inline-emoji { width: 1.42em; height: 1.42em; }
 .metis-se-rich-editor .metis-text-color-metis_primary { color: var(--metis-primary, #485bc7); }
 .metis-se-rich-editor .metis-text-color-metis_primary_dark { color: var(--metis-primary-dark, #3246a7); }
 .metis-se-rich-editor .metis-text-color-metis_accent { color: var(--metis-accent, #ff7542); }

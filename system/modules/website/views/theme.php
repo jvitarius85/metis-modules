@@ -403,7 +403,7 @@ foreach ( $local_font_dirs as $local_font_dir ) {
             default => 'woff2',
         };
         $font_face_family = 'metis-theme-preview-' . substr( sha1( $family ), 0, 12 );
-        $font_face_rules[] = '@font-face{font-family:"' . $font_face_family . '";src:url("' . str_replace( [ '"', '\\' ], '', $font_url ) . '") format("' . $font_format . '");font-weight:100 900;font-style:normal;font-display:swap;}';
+        $font_face_rules[] = '@font-face{font-family:"' . $font_face_family . '";src:url("' . str_replace( [ '"', '\\' ], '', $font_url ) . '") format("' . $font_format . '");font-weight:100 900;font-style:normal;font-display:fallback;}';
         $family_key = strtolower( $family );
         $font_preview_urls[ $family ] = [
             'face'   => $font_face_family,
@@ -1738,7 +1738,7 @@ function ensureCustomFontsLoaded() {
         var item = fonts[key] || {};
         if (!item.name || !item.data) return;
         var format = String(item.format || 'woff2').toLowerCase() === 'woff' ? 'woff' : 'woff2';
-        css += '@font-face{font-family:"' + item.name.replace(/"/g, '') + '";src:url("' + item.data + '") format("' + format + '");font-weight:100 900;font-style:normal;font-display:swap;}\n';
+        css += '@font-face{font-family:"' + item.name.replace(/"/g, '') + '";src:url("' + item.data + '") format("' + format + '");font-weight:100 900;font-style:normal;font-display:fallback;}\n';
     });
     var id = 'metis-theme-custom-font-face';
     var node = document.getElementById(id);

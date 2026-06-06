@@ -63,6 +63,7 @@
         ':wave:': '👋',
         ':sparkles:': '✨',
         ':heart:': '❤️',
+        ':sparkling_heart:': '💖',
         ':star:': '⭐',
         ':fire:': '🔥',
         ':check:': '✔️',
@@ -72,12 +73,432 @@
         ':microphone:': '🎤',
         ':calendar:': '📅',
         ':tada:': '🎉',
-        ':smile:': '😊'
+        ':smile:': '😊',
+        ':hammer_and_wrench:': '🛠️'
     };
+    var SHARED_EMOJI_PICKER_ITEMS = [
+        { emoji: '❤️', shortcode: ':heart:', label: 'Red Heart' },
+        { emoji: '💖', shortcode: ':sparkling_heart:', label: 'Sparkling Heart' },
+        { emoji: '🩷', shortcode: ':pink_heart:', label: 'Pink Heart' },
+        { emoji: '🧡', shortcode: ':orange_heart:', label: 'Orange Heart' },
+        { emoji: '💛', shortcode: ':yellow_heart:', label: 'Yellow Heart' },
+        { emoji: '💚', shortcode: ':green_heart:', label: 'Green Heart' },
+        { emoji: '💙', shortcode: ':blue_heart:', label: 'Blue Heart' },
+        { emoji: '💜', shortcode: ':purple_heart:', label: 'Purple Heart' },
+        { emoji: '🤎', shortcode: ':brown_heart:', label: 'Brown Heart' },
+        { emoji: '🖤', shortcode: ':black_heart:', label: 'Black Heart' },
+        { emoji: '🤍', shortcode: ':white_heart:', label: 'White Heart' },
+        { emoji: '💔', shortcode: ':broken_heart:', label: 'Broken Heart' },
+        { emoji: '❣️', shortcode: ':heart_exclamation:', label: 'Heart Exclamation' },
+        { emoji: '💕', shortcode: ':two_hearts:', label: 'Two Hearts' },
+        { emoji: '💓', shortcode: ':beating_heart:', label: 'Beating Heart' },
+        { emoji: '💗', shortcode: ':growing_heart:', label: 'Growing Heart' },
+        { emoji: '💘', shortcode: ':heart_with_arrow:', label: 'Heart with Arrow' },
+        { emoji: '💝', shortcode: ':heart_with_ribbon:', label: 'Heart with Ribbon' },
+        { emoji: '💞', shortcode: ':revolving_hearts:', label: 'Revolving Hearts' },
+        { emoji: '🫶', shortcode: ':heart_hands:', label: 'Heart Hands' },
+        { emoji: '🫰', shortcode: ':hand_with_index_finger_and_thumb_crossed:', label: 'Finger Heart' },
+        { emoji: '🛠️', shortcode: ':hammer_and_wrench:', label: 'Hammer and Wrench' },
+        { emoji: '✨', shortcode: ':sparkles:', label: 'Sparkles' },
+        { emoji: '⭐', shortcode: ':star:', label: 'Star' },
+        { emoji: '🔥', shortcode: ':fire:', label: 'Fire' },
+        { emoji: '✔️', shortcode: ':check:', label: 'Check' },
+        { emoji: '👋', shortcode: ':wave:', label: 'Wave' },
+        { emoji: '🎉', shortcode: ':tada:', label: 'Party Popper' },
+        { emoji: '😊', shortcode: ':smile:', label: 'Smile' },
+        { emoji: '📅', shortcode: ':calendar:', label: 'Calendar' },
+        { emoji: '🎤', shortcode: ':microphone:', label: 'Microphone' }
+    ];
+    var SHARED_EMOJI_SEGMENTER = (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function')
+        ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+        : null;
+    var SHARED_EMOJI_PATTERN = /^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:[\u{1F3FB}-\u{1F3FF}])?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:[\u{1F3FB}-\u{1F3FF}])?)*)+)$/u;
+    var sharedEmojiPicker = null;
+    var sharedEmojiCatalog = null;
+    var sharedEmojiCatalogPromise = null;
     function emojiValueFromInput(value) {
         var raw = s(value || '').trim();
         if (!raw) return '';
         return SHARED_EMOJI_SHORTCODES[raw.toLowerCase()] || raw;
+    }
+    function emojiSegmentsFromText(value) {
+        var raw = s(value || '');
+        if (!raw) return [];
+        if (SHARED_EMOJI_SEGMENTER) {
+            return Array.from(SHARED_EMOJI_SEGMENTER.segment(raw)).map(function (part) {
+                return s(part && part.segment || '');
+            }).filter(Boolean);
+        }
+        return Array.from(raw);
+    }
+    function isEmojiSegment(value) {
+        var raw = s(value || '');
+        return !!raw && SHARED_EMOJI_PATTERN.test(raw);
+    }
+    function emojiCodepointsFromValue(value) {
+        return Array.from(s(value || '')).map(function (char) {
+            return s(char.codePointAt(0).toString(16).toUpperCase()).padStart(4, '0');
+        }).filter(Boolean);
+    }
+    function normalizeEmojiAssetCodepoints(codepoints) {
+        var direct = Array.isArray(codepoints) ? codepoints.slice() : [];
+        var stripped = direct.filter(function (codepoint) {
+            return codepoint !== 'FE0F' && codepoint !== 'FE0E';
+        });
+        var variants = [];
+        if (direct.length) variants.push(direct);
+        if (stripped.length && stripped.join('-') !== direct.join('-')) variants.push(stripped);
+        return variants;
+    }
+    function emojiAssetBaseUrls() {
+        var siteUrl = s((window.metisAjax && window.metisAjax.site_url) || '');
+        if (siteUrl) {
+            siteUrl = siteUrl.replace(/\/+$/, '');
+            return [
+                siteUrl + '/assets/Images/emojis/',
+                siteUrl + '/assets/images/emojis/'
+            ];
+        }
+        var ajaxUrl = (window.Metis && Metis.ajax && Metis.ajax.url) ? Metis.ajax.url : ((window.metisAjax && window.metisAjax.ajax_url) ? window.metisAjax.ajax_url : '');
+        try {
+            var url = new URL(String(ajaxUrl || '/api/ajax'), window.location.href);
+            var basePath = url.pathname.replace(/\/api\/ajax\/?$/, '').replace(/\/+$/, '');
+            return [
+                url.origin + basePath + '/assets/Images/emojis/',
+                url.origin + basePath + '/assets/images/emojis/'
+            ];
+        } catch (_err) {
+            return [
+                '/assets/Images/emojis/',
+                '/assets/images/emojis/'
+            ];
+        }
+    }
+    function emojiIndexUrlCandidates() {
+        return emojiAssetBaseUrls().map(function (baseUrl) {
+            return baseUrl + 'emoji-index.json';
+        });
+    }
+    function emojiAssetUrlCandidatesFromFile(fileName) {
+        var raw = s(fileName || '').trim().replace(/^\/+/, '');
+        if (!raw) return [];
+        var urls = [];
+        emojiAssetBaseUrls().forEach(function (baseUrl) {
+            var candidate = baseUrl + raw;
+            if (urls.indexOf(candidate) === -1) urls.push(candidate);
+        });
+        return urls;
+    }
+    function emojiAssetUrlCandidatesFromValue(value) {
+        var codepoints = emojiCodepointsFromValue(value);
+        if (!codepoints.length) return [];
+        var urls = [];
+        emojiAssetBaseUrls().forEach(function (baseUrl) {
+            normalizeEmojiAssetCodepoints(codepoints).forEach(function (variant) {
+                var candidate = baseUrl + variant.join('-') + '.svg';
+                if (urls.indexOf(candidate) === -1) urls.push(candidate);
+            });
+        });
+        return urls;
+    }
+    function emojiAssetUrlFromValue(value) {
+        var candidates = emojiAssetUrlCandidatesFromValue(value);
+        return candidates.length ? candidates[0] : '';
+    }
+    function emojiAssetUrlCandidatesForItem(item) {
+        if (item && typeof item === 'object' && s(item.file || '')) {
+            return emojiAssetUrlCandidatesFromFile(item.file);
+        }
+        return emojiAssetUrlCandidatesFromValue(item && item.emoji ? item.emoji : item);
+    }
+    function emojiAssetUrlFromItem(item) {
+        var candidates = emojiAssetUrlCandidatesForItem(item);
+        return candidates.length ? candidates[0] : '';
+    }
+    function emojiAssetCandidatesAttr(value) {
+        return emojiAssetUrlCandidatesFromValue(value).join('|');
+    }
+    function emojiAssetCandidatesAttrForItem(item) {
+        return emojiAssetUrlCandidatesForItem(item).join('|');
+    }
+    function normalizeEmojiCatalogItems(items) {
+        if (!Array.isArray(items)) return [];
+        return items.map(function (item) {
+            var emoji = emojiValueFromInput(item && item.emoji ? item.emoji : '');
+            if (!emoji || !isEmojiSegment(emoji)) return null;
+            var file = s(item && item.file || '').trim();
+            var label = s(item && item.label || '').trim();
+            var shortcode = s(item && item.shortcode || '').trim();
+            var search = s(item && item.search || '').trim().toLowerCase();
+            return {
+                key: file || (emoji + '|' + shortcode),
+                emoji: emoji,
+                file: file,
+                label: label,
+                shortcode: shortcode,
+                search: search
+            };
+        }).filter(Boolean);
+    }
+    function sharedEmojiStarterItems() {
+        return normalizeEmojiCatalogItems(SHARED_EMOJI_PICKER_ITEMS.map(function (item) {
+            return {
+                emoji: item.emoji,
+                label: item.label,
+                shortcode: item.shortcode,
+                search: [item.label, item.shortcode, item.emoji].join(' ').toLowerCase()
+            };
+        }));
+    }
+    function loadEmojiCatalog() {
+        if (Array.isArray(sharedEmojiCatalog)) return Promise.resolve(sharedEmojiCatalog);
+        if (sharedEmojiCatalogPromise) return sharedEmojiCatalogPromise;
+        var urls = emojiIndexUrlCandidates();
+        var attempt = function (index) {
+            if (index >= urls.length) {
+                sharedEmojiCatalog = sharedEmojiStarterItems();
+                return Promise.resolve(sharedEmojiCatalog);
+            }
+            return fetch(urls[index], { credentials: 'same-origin' }).then(function (response) {
+                if (!response || !response.ok) throw new Error('emoji index unavailable');
+                return response.json();
+            }).then(function (payload) {
+                var normalized = normalizeEmojiCatalogItems(payload);
+                if (!normalized.length) throw new Error('emoji index empty');
+                sharedEmojiCatalog = normalized;
+                return sharedEmojiCatalog;
+            }).catch(function () {
+                return attempt(index + 1);
+            });
+        };
+        sharedEmojiCatalogPromise = attempt(0).finally(function () {
+            if (!Array.isArray(sharedEmojiCatalog)) {
+                sharedEmojiCatalog = sharedEmojiStarterItems();
+            }
+        });
+        return sharedEmojiCatalogPromise;
+    }
+    function bindEmojiAssetFallback(img) {
+        if (!img || img.__metisEmojiFallbackBound) return;
+        img.__metisEmojiFallbackBound = true;
+        img.addEventListener('error', function () {
+            var candidates = s(img.getAttribute('data-emoji-src-candidates') || '').split('|').filter(Boolean);
+            var currentSrc = s(img.getAttribute('src') || '');
+            var next = candidates.filter(function (candidate) { return candidate !== currentSrc; })[0];
+            if (next) {
+                img.setAttribute('src', next);
+                img.setAttribute('data-emoji-src-candidates', candidates.filter(function (candidate) {
+                    return candidate !== currentSrc;
+                }).join('|'));
+                return;
+            }
+            img.classList.add('is-broken');
+        });
+    }
+    function bindEmojiAssetFallbacks(root) {
+        if (!root || !root.querySelectorAll) return;
+        Array.prototype.slice.call(root.querySelectorAll('.metis-inline-emoji,.metis-emoji-picker-icon')).forEach(bindEmojiAssetFallback);
+    }
+    function normalizeInlineEmojiImages(root) {
+        if (!root || !root.querySelectorAll) return false;
+        var changed = false;
+        Array.prototype.slice.call(root.querySelectorAll('img')).forEach(function (img) {
+            var src = s(img.getAttribute('src') || '');
+            if (!/\/assets\/images\/emojis\/|\/assets\/Images\/emojis\//.test(src)) return;
+            if (!img.classList.contains('metis-inline-emoji')) {
+                img.classList.add('metis-inline-emoji');
+                changed = true;
+            }
+            if (/\/assets\/images\/emojis\//.test(src)) {
+                img.setAttribute('src', src.replace('/assets/images/emojis/', '/assets/Images/emojis/'));
+                changed = true;
+            }
+            var alt = s(img.getAttribute('alt') || img.getAttribute('title') || '');
+            var emojiValue = emojiValueFromInput(alt);
+            var candidates = emojiValue ? emojiAssetCandidatesAttr(emojiValue) : '';
+            if (candidates) {
+                img.setAttribute('data-emoji-src-candidates', candidates);
+            }
+            bindEmojiAssetFallback(img);
+        });
+        return changed;
+    }
+    function emojiImageHtml(value) {
+        var emojiValue = emojiValueFromInput(value);
+        if (!isEmojiSegment(emojiValue)) return '';
+        var src = emojiAssetUrlFromValue(emojiValue);
+        if (!src) return '';
+        return '<img class="metis-inline-emoji" src="' + esc(src) + '" alt="' + esc(emojiValue) + '" title="' + esc(emojiValue) + '" loading="lazy" decoding="async" data-emoji-src-candidates="' + esc(emojiAssetCandidatesAttr(emojiValue)) + '">';
+    }
+    function replaceEmojiTextNodesWithImages(root) {
+        if (!root || !root.ownerDocument) return false;
+        var doc = root.ownerDocument;
+        var changed = false;
+        var nodes = [];
+        var walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+                if (!node || !node.nodeValue || !s(node.nodeValue).trim()) return NodeFilter.FILTER_REJECT;
+                var parent = node.parentNode;
+                if (!parent || parent.nodeType !== 1) return NodeFilter.FILTER_REJECT;
+                var tag = s(parent.nodeName || '').toLowerCase();
+                if (tag === 'script' || tag === 'style' || tag === 'textarea') return NodeFilter.FILTER_REJECT;
+                if (parent.closest && parent.closest('.metis-inline-emoji')) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        var current = walker.nextNode();
+        while (current) {
+            nodes.push(current);
+            current = walker.nextNode();
+        }
+        nodes.forEach(function (node) {
+            var segments = emojiSegmentsFromText(node.nodeValue || '');
+            if (!segments.some(isEmojiSegment)) return;
+            var fragment = doc.createDocumentFragment();
+            segments.forEach(function (segment) {
+                if (isEmojiSegment(segment)) {
+                    var wrapper = doc.createElement('span');
+                    var html = emojiImageHtml(segment);
+                    if (html) {
+                        wrapper.innerHTML = html;
+                        while (wrapper.firstChild) fragment.appendChild(wrapper.firstChild);
+                        changed = true;
+                        return;
+                    }
+                }
+                fragment.appendChild(doc.createTextNode(segment));
+            });
+            node.parentNode.replaceChild(fragment, node);
+        });
+        return changed;
+    }
+    function ensureEmojiPicker() {
+        if (sharedEmojiPicker) return sharedEmojiPicker;
+        var backdrop = document.createElement('div');
+        backdrop.className = 'metis-modal-backdrop metis-emoji-picker-backdrop';
+        backdrop.setAttribute('aria-hidden', 'true');
+        backdrop.innerHTML =
+            '<div class="metis-modal metis-emoji-picker-modal" role="dialog" aria-modal="true" aria-labelledby="metis-emoji-picker-title">' +
+                '<div class="metis-modal-header">' +
+                    '<h2 class="metis-modal-title" id="metis-emoji-picker-title">Insert Emoji</h2>' +
+                    '<button type="button" class="metis-modal-close" data-emoji-picker-close="1" aria-label="Close">&times;</button>' +
+                '</div>' +
+                '<div class="metis-modal-body metis-emoji-picker-body">' +
+                    '<label class="metis-label" for="metis-emoji-picker-search">Emoji or shortcode</label>' +
+                    '<input type="text" id="metis-emoji-picker-search" class="metis-input" placeholder="Type 💖, 🛠️, or :sparkles:">' +
+                    '<div class="metis-emoji-picker-help">Search by emoji, name, or shortcode. Hover to preview the match.</div>' +
+                    '<div class="metis-emoji-picker-grid" data-emoji-picker-grid="1"></div>' +
+                '</div>' +
+                '<div class="metis-modal-footer">' +
+                    '<button type="button" class="metis-btn metis-btn-ghost" data-emoji-picker-close="1">Cancel</button>' +
+                    '<button type="button" class="metis-btn" data-emoji-picker-insert="1">Insert</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(backdrop);
+        var search = backdrop.querySelector('#metis-emoji-picker-search');
+        var grid = backdrop.querySelector('[data-emoji-picker-grid="1"]');
+        var insert = backdrop.querySelector('[data-emoji-picker-insert="1"]');
+        var renderToken = 0;
+        var nodeCache = {};
+        function buttonForItem(item) {
+            var key = s(item && item.key || item && item.file || item && item.emoji || '');
+            if (key && nodeCache[key]) return nodeCache[key];
+            var button = document.createElement('button');
+            var label = s(item && item.label || '').trim();
+            var shortcode = s(item && item.shortcode || '').trim();
+            var accessible = label + (shortcode ? ' ' + shortcode : '');
+            button.type = 'button';
+            button.className = 'metis-emoji-picker-item';
+            button.setAttribute('data-emoji-value', s(item && item.emoji || ''));
+            button.setAttribute('title', accessible || s(item && item.emoji || ''));
+            button.setAttribute('aria-label', accessible || s(item && item.emoji || ''));
+            var img = document.createElement('img');
+            img.className = 'metis-emoji-picker-icon';
+            img.setAttribute('src', emojiAssetUrlFromItem(item));
+            img.setAttribute('alt', s(item && item.emoji || ''));
+            img.setAttribute('loading', 'lazy');
+            img.setAttribute('data-emoji-src-candidates', emojiAssetCandidatesAttrForItem(item));
+            button.appendChild(img);
+            bindEmojiAssetFallback(img);
+            if (key) nodeCache[key] = button;
+            return button;
+        }
+        function renderItems(items, emptyMessage) {
+            grid.replaceChildren();
+            if (!items.length) {
+                grid.innerHTML = '<div class="metis-emoji-picker-empty">' + esc(emptyMessage || 'No matching emoji found.') + '</div>';
+                return;
+            }
+            var fragment = document.createDocumentFragment();
+            items.forEach(function (item) {
+                fragment.appendChild(buttonForItem(item));
+            });
+            grid.appendChild(fragment);
+        }
+        function filterItems(items, filter) {
+            var query = s(filter || '').trim().toLowerCase();
+            if (!query) return sharedEmojiStarterItems();
+            return items.filter(function (item) {
+                return s(item.emoji || '').toLowerCase().indexOf(query) !== -1
+                    || s(item.shortcode || '').toLowerCase().indexOf(query) !== -1
+                    || s(item.label || '').toLowerCase().indexOf(query) !== -1
+                    || s(item.search || '').indexOf(query) !== -1;
+            }).slice(0, 240);
+        }
+        function render(filterValue) {
+            var token = ++renderToken;
+            var filter = s(filterValue || '').trim().toLowerCase();
+            if (!filter) {
+                renderItems(sharedEmojiStarterItems(), 'No emoji available.');
+                return;
+            }
+            renderItems([], 'Loading emoji library...');
+            loadEmojiCatalog().then(function (items) {
+                if (token !== renderToken) return;
+                renderItems(filterItems(items, filter), 'No matching emoji found. You can still insert a typed emoji or shortcode.');
+            }).catch(function () {
+                if (token !== renderToken) return;
+                renderItems(filterItems(sharedEmojiStarterItems(), filter), 'No matching emoji found. You can still insert a typed emoji or shortcode.');
+            });
+        }
+        render('');
+        loadEmojiCatalog();
+        function close(result) {
+            backdrop.setAttribute('aria-hidden', 'true');
+            backdrop.classList.remove('is-open');
+            var resolver = sharedEmojiPicker && sharedEmojiPicker.resolve;
+            sharedEmojiPicker.resolve = null;
+            if (resolver) resolver(result || null);
+        }
+        backdrop.addEventListener('click', function (event) {
+            var item = event.target.closest('.metis-emoji-picker-item');
+            if (item) {
+                event.preventDefault();
+                close(s(item.getAttribute('data-emoji-value') || ''));
+                return;
+            }
+            if (event.target === backdrop || event.target.closest('[data-emoji-picker-close="1"]')) {
+                event.preventDefault();
+                close(null);
+            }
+        });
+        insert.addEventListener('click', function () {
+            close(emojiValueFromInput(search && search.value || ''));
+        });
+        search.addEventListener('input', function () {
+            render(search.value || '');
+        });
+        search.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                close(emojiValueFromInput(search.value || ''));
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                close(null);
+            }
+        });
+        sharedEmojiPicker = { backdrop: backdrop, search: search, render: render, resolve: null };
+        return sharedEmojiPicker;
     }
     function requestPrompt(options) {
         if (typeof window.metis_prompt === 'function') {
@@ -102,16 +523,18 @@
         });
     }
     function requestEmoji() {
-        return requestPrompt({
-            title: 'Insert Emoji',
-            label: 'Emoji or shortcode',
-            message: 'Enter an emoji or shortcode like :sparkles:.',
-            defaultValue: ':sparkles:',
-            placeholder: '✨ or :sparkles:',
-            required: true,
-            confirmLabel: 'Insert'
-        }).then(function(value) {
-            return emojiValueFromInput(value);
+        var picker = ensureEmojiPicker();
+        picker.render('');
+        picker.search.value = '';
+        picker.backdrop.setAttribute('aria-hidden', 'false');
+        picker.backdrop.classList.add('is-open');
+        window.setTimeout(function () {
+            if (picker.search && typeof picker.search.focus === 'function') picker.search.focus();
+        }, 0);
+        return new Promise(function(resolve) {
+            picker.resolve = function (value) {
+                resolve(emojiValueFromInput(value));
+            };
         });
     }
     function requestInlineImageSize() {
@@ -179,6 +602,22 @@
             document.execCommand('insertHTML', false, html);
             saveRichSelection(target);
         }
+    }
+    function insertEmojiAtSelection(target, emojiValue) {
+        var html = emojiImageHtml(emojiValue);
+        if (target && html) {
+            insertHtmlAtSelection(target, html);
+            bindEmojiAssetFallbacks(target);
+            return true;
+        }
+        if (target && emojiValue) {
+            target.focus();
+            restoreRichSelection(target);
+            document.execCommand('insertText', false, emojiValue);
+            saveRichSelection(target);
+            return true;
+        }
+        return false;
     }
     function applySpanPreset(target, prefix, value) {
         if (!target) return;
@@ -999,8 +1438,10 @@
             template.innerHTML = raw;
             var frag = template.content;
             Array.prototype.slice.call(frag.querySelectorAll('script,style')).forEach(function (node) { node.remove(); });
+            normalizeInlineEmojiImages(frag);
+            replaceEmojiTextNodesWithImages(frag);
             var text = s(frag.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-            var hasVisibleContent = !!frag.querySelector('img,hr,.metis-inline-divider,.metis-inline-image,iframe,video,table,ul,ol,blockquote,pre');
+            var hasVisibleContent = !!frag.querySelector('img,hr,.metis-inline-divider,.metis-inline-image,.metis-inline-emoji,iframe,video,table,ul,ol,blockquote,pre');
             if (!text && !hasVisibleContent) return '';
             return template.innerHTML;
         }
@@ -2031,10 +2472,10 @@
                             openInlineImageModal(target.id);
                         }
                     } else if (cmd === 'insertEmojiPrompt') {
+                        if (target) saveRichSelection(target);
                         requestEmoji().then(function(emojiValue) {
                             if (emojiValue && target) {
-                                target.focus();
-                                document.execCommand('insertText', false, emojiValue);
+                                insertEmojiAtSelection(target, emojiValue);
                             }
                             if (target) saveRichSelection(target);
                             hydrateNewsletterFromInputs();
@@ -2331,7 +2772,7 @@
                 var inlineSection = inlineIndex >= 0 && state.sections[inlineIndex] ? state.sections[inlineIndex] : null;
                 if (!inlineSection) return;
                 inlineSection.content = inlineSection.content && typeof inlineSection.content === 'object' ? inlineSection.content : {};
-                if (inlineField === 'text_body') inlineSection.content.body = inlineBlock.innerHTML;
+                if (inlineField === 'text_body') inlineSection.content.body = repairMojibakeHtml(inlineBlock.innerHTML || '') || '<p></p>';
                 return;
             }
             var inlineCol = target.closest('[data-v2-inline-col]');
@@ -2340,7 +2781,7 @@
                 var colIndex = parseInt(s(inlineCol.getAttribute('data-v2-inline-col') || '-1'), 10);
                 var colSection = blockIndex >= 0 && state.sections[blockIndex] ? state.sections[blockIndex] : null;
                 if (colSection && Array.isArray(colSection.content && colSection.content.columns) && colSection.content.columns[colIndex]) {
-                    colSection.content.columns[colIndex].body = inlineCol.innerHTML;
+                    colSection.content.columns[colIndex].body = repairMojibakeHtml(inlineCol.innerHTML || '') || '<p></p>';
                 }
             }
         }
@@ -2768,15 +3209,37 @@
         }
 
         function columnModuleTypes() {
-            return ['text', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'button', 'image'];
+            return ['text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'button', 'image'];
+        }
+
+        function normalizeFormTabs(tabs) {
+            var rows = Array.isArray(tabs) ? tabs : [];
+            var out = rows.map(function (row) {
+                var src = row && typeof row === 'object' ? row : {};
+                return {
+                    label: repairMojibakeText(src.label || '') || '',
+                    form_id: s(src.form_id || '')
+                };
+            }).filter(function (row) {
+                return row.label || row.form_id;
+            }).slice(0, 6);
+            if (!out.length) {
+                out = [
+                    { label: 'Form 1', form_id: '' },
+                    { label: 'Form 2', form_id: '' }
+                ];
+            }
+            return out;
         }
 
         function defaultColumnModule(type) {
             var moduleType = columnModuleTypes().indexOf(s(type || 'text')) === -1 ? 'text' : s(type || 'text');
             if (moduleType === 'form') return { type: 'form', content: { form_id: '', submit_label: 'Submit' } };
+            if (moduleType === 'form_tabs') return { type: 'form_tabs', content: { tabs: normalizeFormTabs([]) } };
             if (moduleType === 'donation_form') return { type: 'donation_form', content: { campaign_id: '', preset_amounts: [25, 50, 100], allow_custom_amount: true, mode: 'both', show_name: true, show_email: true, show_phone: false } };
             if (moduleType === 'donation_progress') return { type: 'donation_progress', content: { campaign_id: '', goal_amount: '', raised_amount: '', percent: '' } };
             if (moduleType === 'campaign_summary') return { type: 'campaign_summary', content: { campaign_id: '', title: '', content: '<p></p>', image: '' } };
+            if (moduleType === 'testimonials') return { type: 'testimonials', content: { category_ids: [], limit: 6, layout: 'grid', featured_only: false, show_category: true, empty_message: '' } };
             if (moduleType === 'button') return { type: 'button', content: { label: 'Learn more', url: '#', align: 'left' } };
             if (moduleType === 'image') return { type: 'image', content: { src: '', alt: '', caption: '', width: '', height: '' } };
             return { type: 'text', content: { body: '<p></p>' } };
@@ -2791,6 +3254,8 @@
             } else if (next.type === 'form') {
                 next.content.form_id = s(content.form_id || '');
                 next.content.submit_label = repairMojibakeText(content.submit_label || 'Submit') || 'Submit';
+            } else if (next.type === 'form_tabs') {
+                next.content.tabs = normalizeFormTabs(content.tabs || []);
             } else if (next.type === 'donation_form') {
                 var mode = s(content.mode || 'both');
                 next.content.campaign_id = s(content.campaign_id || '');
@@ -2811,6 +3276,14 @@
                 next.content.title = repairMojibakeText(content.title || '');
                 next.content.content = repairMojibakeHtml(content.content || '<p></p>') || '<p></p>';
                 next.content.image = s(content.image || '');
+            } else if (next.type === 'testimonials') {
+                var testimonyLayout = s(content.layout || 'grid');
+                next.content.category_ids = normalizeIdList(content.category_ids || []);
+                next.content.limit = Math.max(1, Math.min(24, parseInt(s(content.limit || '6'), 10) || 6));
+                next.content.layout = ['grid', 'list', 'rotator'].indexOf(testimonyLayout) === -1 ? 'grid' : testimonyLayout;
+                next.content.featured_only = !!content.featured_only;
+                next.content.show_category = content.show_category !== false;
+                next.content.empty_message = repairMojibakeText(content.empty_message || '');
             } else if (next.type === 'button') {
                 next.content.label = repairMojibakeText(content.label || 'Learn more');
                 next.content.url = s(content.url || '#') || '#';
@@ -2960,6 +3433,8 @@
                     if (child.nodeType === 3) child.nodeValue = repairMojibakeText(child.nodeValue || '');
                 });
             });
+            normalizeInlineEmojiImages(template.content);
+            replaceEmojiTextNodesWithImages(template.content);
             return template.innerHTML;
         }
 
@@ -3188,6 +3663,8 @@
             } else if (out.type === 'form') {
                 out.content.form_id = s(content.form_id || '');
                 out.content.submit_label = repairMojibakeText(content.submit_label || 'Submit') || 'Submit';
+            } else if (out.type === 'form_tabs') {
+                out.content.tabs = normalizeFormTabs(content.tabs || []);
             } else if (out.type === 'donation_form') {
                 var mode = s(content.mode || 'both');
                 out.content.campaign_id = s(content.campaign_id || '');
@@ -3208,6 +3685,14 @@
                 out.content.title = repairMojibakeText(content.title || '');
                 out.content.content = repairMojibakeHtml(content.content || '<p></p>') || '<p></p>';
                 out.content.image = s(content.image || '');
+            } else if (out.type === 'testimonials') {
+                var testimonyLayout = s(content.layout || 'grid');
+                out.content.category_ids = normalizeIdList(content.category_ids || []);
+                out.content.limit = Math.max(1, Math.min(24, parseInt(s(content.limit || '6'), 10) || 6));
+                out.content.layout = ['grid', 'list', 'rotator'].indexOf(testimonyLayout) === -1 ? 'grid' : testimonyLayout;
+                out.content.featured_only = !!content.featured_only;
+                out.content.show_category = content.show_category !== false;
+                out.content.empty_message = repairMojibakeText(content.empty_message || '');
             } else if (out.type === 'divider') {
                 var dividerStyle = s(content.style || 'solid');
                 out.content.label = repairMojibakeText(content.label || '');
@@ -3600,6 +4085,10 @@
                 if (module.type === 'form') {
                     return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Form</strong><span>' + esc(optionLabel(state.options.forms, moduleContent.form_id, 'Select a form in settings.')) + '</span><small>Submit button: ' + esc(s(moduleContent.submit_label || 'Submit')) + '</small></div></div>';
                 }
+                if (module.type === 'form_tabs') {
+                    var formTabs = normalizeFormTabs(moduleContent.tabs || []);
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Form tabs</strong><span>' + esc(String(formTabs.length)) + ' tabs configured</span><small>' + esc(formTabs.map(function (row) { return s(row.label || 'Form'); }).join(' • ')) + '</small></div></div>';
+                }
                 if (module.type === 'donation_form') {
                     return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Donation form</strong><span>' + esc(optionLabel(state.options.donationCampaigns, moduleContent.campaign_id, 'Select a campaign in settings.')) + '</span><small>Amounts: ' + esc(presetAmountsInputValue(moduleContent.preset_amounts || [25, 50, 100])) + '</small></div></div>';
                 }
@@ -3614,6 +4103,12 @@
                         (moduleContent.image ? '<div class="metis-builder-campaign-media"><img src="' + esc(s(moduleContent.image || '')) + '" alt=""></div>' : '') +
                         '<div><strong>' + esc(s(moduleContent.title || optionLabel(state.options.donationCampaigns, moduleContent.campaign_id, 'Campaign summary'))) + '</strong><p>' + esc(plainTextFromHtml(s(moduleContent.content || '')).slice(0, 180) || 'Campaign content appears here.') + '</p></div>' +
                     '</div></div>';
+                }
+                if (module.type === 'testimonials') {
+                    var testimonyLabels = normalizeIdList(moduleContent.category_ids || []).map(function (id) {
+                        return optionLabel(state.options.testimonyCategories, id, '');
+                    }).filter(Boolean);
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Testimonies</strong><span>' + esc(testimonyLabels.length ? testimonyLabels.join(', ') : 'All categories') + '</span><small>' + esc(String(parseInt(s(moduleContent.limit || '6'), 10) || 6)) + ' items • ' + esc(s(moduleContent.layout || 'grid')) + (moduleContent.featured_only ? ' • featured only' : '') + '</small></div></div>';
                 }
                 if (module.type === 'button') {
                     return '<div class="metis-builder-column"><div class="metis-builder-button-row is-' + esc(s(moduleContent.align || 'left')) + '"><a class="metis-builder-button" href="' + esc(s(moduleContent.url || '#')) + '" data-builder-link="1">' + esc(s(moduleContent.label || 'Learn more')) + '</a></div></div>';
@@ -3681,6 +4176,9 @@
                 body = '<div class="metis-builder-posts-list"><div><strong>Events</strong><span>' + esc(String(parseInt(s(content.limit || '5'), 10) || 5)) + ' upcoming items</span></div></div>';
             } else if (type === 'form') {
                 body = '<div class="metis-builder-dynamic-card"><strong>Form</strong><span>' + esc(optionLabel(state.options.forms, content.form_id, 'Select a form in settings.')) + '</span><small>Submit button: ' + esc(s(content.submit_label || 'Submit')) + '</small></div>';
+            } else if (type === 'form_tabs') {
+                var topLevelFormTabs = normalizeFormTabs(content.tabs || []);
+                body = '<div class="metis-builder-dynamic-card"><strong>Form tabs</strong><span>' + esc(String(topLevelFormTabs.length)) + ' tabs configured</span><small>' + esc(topLevelFormTabs.map(function (row) { return s(row.label || 'Form'); }).join(' • ')) + '</small></div>';
             } else if (type === 'donation_form') {
                 body = '<div class="metis-builder-dynamic-card"><strong>Donation form</strong><span>' + esc(optionLabel(state.options.donationCampaigns, content.campaign_id, 'Select a campaign in settings.')) + '</span><small>Amounts: ' + esc(presetAmountsInputValue(content.preset_amounts || [25, 50, 100])) + '</small></div>';
             } else if (type === 'donation_progress') {
@@ -3876,7 +4374,7 @@
                 if (state.canPublish && selectedStatus === 'scheduled') {
                     publishBtn.textContent = 'Schedule';
                 } else {
-                    publishBtn.textContent = state.canPublish ? (hasPublishedVersion() ? 'Update' : 'Publish') : 'Save Draft';
+                    publishBtn.textContent = state.canPublish ? 'Publish' : 'Save Draft';
                 }
             }
             updateTopTitle(s(titleEl && titleEl.value || state.entity && state.entity.title || ''));
@@ -3943,9 +4441,11 @@
                     html += '<div class="metis-se-field-row"><label>Column ' + esc(String(columnIndex + 1)) + ' Content</label><select class="metis-se-select" data-v2-column-type="' + esc(String(columnIndex)) + '">' +
                         '<option value="text"' + (module.type === 'text' ? ' selected' : '') + '>Text</option>' +
                         '<option value="form"' + (module.type === 'form' ? ' selected' : '') + '>Form</option>' +
+                        '<option value="form_tabs"' + (module.type === 'form_tabs' ? ' selected' : '') + '>Form Tabs</option>' +
                         '<option value="donation_form"' + (module.type === 'donation_form' ? ' selected' : '') + '>Donation Form</option>' +
                         '<option value="donation_progress"' + (module.type === 'donation_progress' ? ' selected' : '') + '>Donation Progress</option>' +
                         '<option value="campaign_summary"' + (module.type === 'campaign_summary' ? ' selected' : '') + '>Campaign Summary</option>' +
+                        '<option value="testimonials"' + (module.type === 'testimonials' ? ' selected' : '') + '>Testimonies</option>' +
                         '<option value="button"' + (module.type === 'button' ? ' selected' : '') + '>Button</option>' +
                         '<option value="image"' + (module.type === 'image' ? ' selected' : '') + '>Image</option>' +
                     '</select></div>';
@@ -3954,6 +4454,18 @@
                     } else if (module.type === 'form') {
                         html += '<div class="metis-se-field-row"><label>Form</label><select class="metis-se-select" data-v2-column-field="form_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.forms, moduleContent.form_id, 'Select form') + '</select></div>';
                         html += '<div class="metis-se-field-row"><label>Submit Label</label><input class="metis-se-input" data-v2-column-field="submit_label" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.submit_label || 'Submit')) + '"></div>';
+                    } else if (module.type === 'form_tabs') {
+                        var columnFormTabs = normalizeFormTabs(moduleContent.tabs || []);
+                        columnFormTabs.forEach(function (tab, tabIndex) {
+                            html += '<div class="metis-se-field-row"><label>Tab ' + esc(String(tabIndex + 1)) + ' Label</label><input class="metis-se-input" data-v2-column-tab-field="label" data-column-idx="' + esc(String(columnIndex)) + '" data-tab-idx="' + esc(String(tabIndex)) + '" value="' + esc(s(tab.label || '')) + '"></div>';
+                            html += '<div class="metis-se-field-row"><label>Tab ' + esc(String(tabIndex + 1)) + ' Form</label><select class="metis-se-select" data-v2-column-tab-field="form_id" data-column-idx="' + esc(String(columnIndex)) + '" data-tab-idx="' + esc(String(tabIndex)) + '">' + optionList(state.options.forms, tab.form_id, 'Select form') + '</select></div>';
+                            if (columnFormTabs.length > 1) {
+                                html += '<div class="metis-se-field-row"><button type="button" class="metis-se-nav-btn" data-v2-column-form-tab-remove="' + esc(String(columnIndex)) + '" data-tab-idx="' + esc(String(tabIndex)) + '">Remove Tab</button></div>';
+                            }
+                        });
+                        if (columnFormTabs.length < 6) {
+                            html += '<div class="metis-se-field-row"><button type="button" class="metis-se-nav-btn" data-v2-column-form-tab-add="' + esc(String(columnIndex)) + '">Add Tab</button></div>';
+                        }
                     } else if (module.type === 'donation_form') {
                         html += '<div class="metis-se-field-row"><label>Campaign</label><select class="metis-se-select" data-v2-column-field="campaign_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.donationCampaigns, moduleContent.campaign_id, 'Select campaign') + '</select></div>';
                         html += '<div class="metis-se-field-row"><label>Preset Amounts</label><input class="metis-se-input" data-v2-column-field="preset_amounts" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(presetAmountsInputValue(moduleContent.preset_amounts || [25, 50, 100])) + '"></div>';
@@ -3967,6 +4479,14 @@
                     } else if (module.type === 'campaign_summary') {
                         html += '<div class="metis-se-field-row"><label>Campaign</label><select class="metis-se-select" data-v2-column-field="campaign_id" data-column-idx="' + esc(String(columnIndex)) + '">' + optionList(state.options.donationCampaigns, moduleContent.campaign_id, 'Use custom content') + '</select></div>';
                         html += '<div class="metis-se-field-row"><label>Title</label><input class="metis-se-input" data-v2-column-field="title" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.title || '')) + '"></div>';
+                    } else if (module.type === 'testimonials') {
+                        var selectedColumnTestimonyCategoryIds = normalizeIdList(moduleContent.category_ids || []);
+                        html += '<div class="metis-se-field-row"><label>Categories</label>' + categoryChipField('metis-v2-column-testimony-category-ids-' + columnIndex, selectedColumnTestimonyCategoryIds, 'No testimony categories available.', state.options.testimonyCategories) + '</div>';
+                        html += '<div class="metis-se-field-row"><label>Item Limit</label><input class="metis-se-input" type="number" min="1" max="24" data-v2-column-field="limit" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(String(parseInt(s(moduleContent.limit || '6'), 10) || 6)) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Layout</label><select class="metis-se-select" data-v2-column-field="layout" data-column-idx="' + esc(String(columnIndex)) + '"><option value="grid"' + (s(moduleContent.layout || 'grid') === 'grid' ? ' selected' : '') + '>Grid</option><option value="list"' + (s(moduleContent.layout || '') === 'list' ? ' selected' : '') + '>List</option><option value="rotator"' + (s(moduleContent.layout || '') === 'rotator' ? ' selected' : '') + '>Rotator</option></select></div>';
+                        html += '<div class="metis-se-field-row"><label class="metis-se-check-label"><input type="checkbox" data-v2-column-check="featured_only" data-column-idx="' + esc(String(columnIndex)) + '"' + (moduleContent.featured_only ? ' checked' : '') + '> Featured only</label></div>';
+                        html += '<div class="metis-se-field-row"><label class="metis-se-check-label"><input type="checkbox" data-v2-column-check="show_category" data-column-idx="' + esc(String(columnIndex)) + '"' + (moduleContent.show_category !== false ? ' checked' : '') + '> Show category labels</label></div>';
+                        html += '<div class="metis-se-field-row"><label>Empty Message</label><input class="metis-se-input" data-v2-column-field="empty_message" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.empty_message || '')) + '" placeholder="No testimonies available yet."></div>';
                     } else if (module.type === 'button') {
                         html += '<div class="metis-se-field-row"><label>Label</label><input class="metis-se-input" data-v2-column-field="label" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.label || 'Learn more')) + '"></div>';
                         html += '<div class="metis-se-field-row"><label>URL</label><input class="metis-se-input" data-v2-column-field="url" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.url || '#')) + '"></div>';
@@ -4796,7 +5316,19 @@
             });
         }
 
-        function saveEntity(autosave) {
+        function resolveSaveStatus(autosave, publishRequested) {
+            var statusEl = document.getElementById('metis-v2-status');
+            var selectedStatus = s(statusEl && statusEl.value || 'draft') || 'draft';
+            if (publishRequested) {
+                return selectedStatus === 'scheduled' ? 'scheduled' : 'published';
+            }
+            if (selectedStatus === 'scheduled' && !autosave) {
+                return 'scheduled';
+            }
+            return hasPublishedVersion() ? 'draft' : selectedStatus;
+        }
+
+        function saveEntity(autosave, publishRequested) {
             if (!state.canEdit && !(state.id < 1 && state.canCreate)) {
                 setStatus('You do not have permission to save this item.', 'error');
                 return;
@@ -4822,7 +5354,7 @@
                 autosave: autosave ? 1 : 0,
                 title: title,
                 slug: slug,
-                status: hasPublishedVersion() ? 'published' : (s(statusEl && statusEl.value || 'draft') || 'draft'),
+                status: resolveSaveStatus(!!autosave, !!publishRequested),
                 page_type: pageType,
                 template_key: selectedTemplateKey(pageType)
             };
@@ -5197,7 +5729,42 @@
                         publishStatusEl.value = 'published';
                         syncBuilderChrome();
                     }
-                    saveEntity(false);
+                    saveEntity(false, true);
+                    return;
+                }
+                var addFormTabBtn = e.target.closest('[data-v2-column-form-tab-add]');
+                if (addFormTabBtn) {
+                    var addColumnIdx = parseInt(s(addFormTabBtn.getAttribute('data-v2-column-form-tab-add') || '-1'), 10);
+                    var addSection = activeSection();
+                    if (addSection && Array.isArray(addSection.content.columns) && addColumnIdx >= 0 && addSection.content.columns[addColumnIdx]) {
+                        var addColumn = addSection.content.columns[addColumnIdx];
+                        addColumn.module = normalizeColumnModule(addColumn.module, addColumn.body);
+                        addColumn.module.content.tabs = normalizeFormTabs(addColumn.module.content.tabs || []);
+                        if (addColumn.module.content.tabs.length < 6) {
+                            addColumn.module.content.tabs.push({ label: 'Form ' + String(addColumn.module.content.tabs.length + 1), form_id: '' });
+                            renderStep2Editor();
+                            renderBuilderCanvas();
+                            setDirtyAutosave();
+                        }
+                    }
+                    return;
+                }
+                var removeFormTabBtn = e.target.closest('[data-v2-column-form-tab-remove]');
+                if (removeFormTabBtn) {
+                    var removeColumnIdx = parseInt(s(removeFormTabBtn.getAttribute('data-v2-column-form-tab-remove') || '-1'), 10);
+                    var removeTabIdx = parseInt(s(removeFormTabBtn.getAttribute('data-tab-idx') || '-1'), 10);
+                    var removeSection = activeSection();
+                    if (removeSection && Array.isArray(removeSection.content.columns) && removeColumnIdx >= 0 && removeSection.content.columns[removeColumnIdx]) {
+                        var removeColumn = removeSection.content.columns[removeColumnIdx];
+                        removeColumn.module = normalizeColumnModule(removeColumn.module, removeColumn.body);
+                        removeColumn.module.content.tabs = normalizeFormTabs(removeColumn.module.content.tabs || []);
+                        if (removeTabIdx >= 0 && removeTabIdx < removeColumn.module.content.tabs.length && removeColumn.module.content.tabs.length > 1) {
+                            removeColumn.module.content.tabs.splice(removeTabIdx, 1);
+                            renderStep2Editor();
+                            renderBuilderCanvas();
+                            setDirtyAutosave();
+                        }
+                    }
                     return;
                 }
                 var previewToggle = e.target.closest('[data-preview-toggle]');
@@ -5400,8 +5967,18 @@
                         if (exists) selectedIds = selectedIds.filter(function (id) { return id !== categoryId; });
                         else selectedIds.push(categoryId);
                         setSelectedCategoryIds(fieldId, selectedIds);
-                        if (fieldId === 'metis-v2-posts-category-ids') {
+                        if (fieldId === 'metis-v2-posts-category-ids' || fieldId === 'metis-v2-testimony-category-ids') {
                             activeSection().content.category_ids = selectedIds;
+                            renderBuilderCanvas();
+                        } else if (fieldId.indexOf('metis-v2-column-testimony-category-ids-') === 0) {
+                            var categorySection = activeSection();
+                            var columnCategoryIdx = parseInt(fieldId.replace('metis-v2-column-testimony-category-ids-', ''), 10);
+                            if (columnCategoryIdx >= 0 && Array.isArray(categorySection.content.columns) && categorySection.content.columns[columnCategoryIdx]) {
+                                var categoryColumn = categorySection.content.columns[columnCategoryIdx];
+                                categoryColumn.module = normalizeColumnModule(categoryColumn.module, categoryColumn.body);
+                                categoryColumn.module.content.category_ids = selectedIds;
+                                renderBuilderCanvas();
+                            }
                         }
                         setDirtyAutosave();
                     }
@@ -5615,11 +6192,10 @@
                             openInlineImageModal(target.id);
                         }
                     } else if (cmd === 'insertEmojiPrompt') {
+                        if (target) saveRichSelection(target);
                         requestEmoji().then(function(emojiValue) {
                             if (emojiValue && target) {
-                                target.focus();
-                                restoreRichSelection(target);
-                                document.execCommand('insertText', false, emojiValue);
+                                insertEmojiAtSelection(target, emojiValue);
                             }
                             if (target) {
                                 saveRichSelection(target);
@@ -5810,7 +6386,7 @@
                 if (target.id === 'metis-v2-block-hero-cta-url') { sec.content.cta_url = s(target.value || '#') || '#'; renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-block-hero-image') { sec.content.image_src = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-html-code') { sec.content.html = s(target.value || ''); setDirtyAutosave(); return; }
-                if (target.id === 'metis-v2-rich-text') { sec.content.body = target.innerHTML; setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-rich-text') { sec.content.body = repairMojibakeHtml(target.innerHTML || '') || '<p></p>'; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-transcript-source') {
                     sec.content.source = sanitizeTranscriptSource(target.value || '');
                     sec.content.rows = parseTranscriptSource(sec.content.source);
@@ -5833,8 +6409,9 @@
                 if (target.matches('[data-v2-rich=\"col_body\"]')) {
                     var colIdx = parseInt(s(target.getAttribute('data-col-idx') || '-1'), 10);
                     if (colIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[colIdx]) {
-                        sec.content.columns[colIdx].body = target.innerHTML;
-                        sec.content.columns[colIdx].module = normalizeColumnModule({ type: 'text', content: { body: target.innerHTML } }, target.innerHTML);
+                        var normalizedColBody = repairMojibakeHtml(target.innerHTML || '') || '<p></p>';
+                        sec.content.columns[colIdx].body = normalizedColBody;
+                        sec.content.columns[colIdx].module = normalizeColumnModule({ type: 'text', content: { body: normalizedColBody } }, normalizedColBody);
                     }
                     setDirtyAutosave();
                     return;
@@ -5851,12 +6428,17 @@
                             fieldColumn.body = fieldContent.body;
                         } else if (fieldName === 'preset_amounts') {
                             fieldContent.preset_amounts = normalizePresetAmounts(target.value || '');
+                        } else if (fieldName === 'limit') {
+                            fieldContent.limit = Math.max(1, Math.min(24, parseInt(s(target.value || '6'), 10) || 6));
+                            target.value = String(fieldContent.limit);
                         } else if (fieldName === 'goal_amount' || fieldName === 'raised_amount') {
                             fieldContent[fieldName] = normalizeDecimalString(target.value || '', 1000000000);
                             target.value = fieldContent[fieldName];
                         } else if (fieldName === 'percent') {
                             fieldContent.percent = normalizePercentString(target.value || '');
                             target.value = fieldContent.percent;
+                        } else if (fieldName === 'layout') {
+                            fieldContent.layout = ['grid', 'list', 'rotator'].indexOf(s(target.value || 'grid')) === -1 ? 'grid' : s(target.value || 'grid');
                         } else {
                             fieldContent[fieldName] = s(target.value || '');
                         }
@@ -5925,6 +6507,21 @@
                 if (target.id === 'metis-v2-posts-category-ids') { sec.content.category_ids = selectedCategoryIds('metis-v2-posts-category-ids'); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-category-ids') { sec.content.category_ids = selectedCategoryIds('metis-v2-testimony-category-ids'); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-empty-message') { sec.content.empty_message = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.matches('[data-v2-column-tab-field="label"]')) {
+                    var labelColumnIdx = parseInt(s(target.getAttribute('data-column-idx') || '-1'), 10);
+                    var labelTabIdx = parseInt(s(target.getAttribute('data-tab-idx') || '-1'), 10);
+                    if (labelColumnIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[labelColumnIdx]) {
+                        var labelColumn = sec.content.columns[labelColumnIdx];
+                        labelColumn.module = normalizeColumnModule(labelColumn.module, labelColumn.body);
+                        labelColumn.module.content.tabs = normalizeFormTabs(labelColumn.module.content.tabs || []);
+                        if (labelTabIdx >= 0 && labelTabIdx < labelColumn.module.content.tabs.length) {
+                            labelColumn.module.content.tabs[labelTabIdx].label = s(target.value || '');
+                            renderBuilderCanvas();
+                            setDirtyAutosave();
+                        }
+                    }
+                    return;
+                }
             });
             root.addEventListener('change', function (e) {
                 var target = e.target;
@@ -6005,6 +6602,21 @@
                 if (target.id === 'metis-v2-donation-show-name') { sec.content.show_name = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-donation-show-email') { sec.content.show_email = !!target.checked; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-donation-show-phone') { sec.content.show_phone = !!target.checked; setDirtyAutosave(); return; }
+                if (target.matches('[data-v2-column-tab-field="form_id"]')) {
+                    var formTabColumnIdx = parseInt(s(target.getAttribute('data-column-idx') || '-1'), 10);
+                    var formTabIdx = parseInt(s(target.getAttribute('data-tab-idx') || '-1'), 10);
+                    if (formTabColumnIdx >= 0 && Array.isArray(sec.content.columns) && sec.content.columns[formTabColumnIdx]) {
+                        var formTabColumn = sec.content.columns[formTabColumnIdx];
+                        formTabColumn.module = normalizeColumnModule(formTabColumn.module, formTabColumn.body);
+                        formTabColumn.module.content.tabs = normalizeFormTabs(formTabColumn.module.content.tabs || []);
+                        if (formTabIdx >= 0 && formTabIdx < formTabColumn.module.content.tabs.length) {
+                            formTabColumn.module.content.tabs[formTabIdx].form_id = s(target.value || '');
+                            renderBuilderCanvas();
+                            setDirtyAutosave();
+                        }
+                    }
+                    return;
+                }
                 if (target.matches('[data-v2-column-check]')) {
                     var checkColIdx = parseInt(s(target.getAttribute('data-column-idx') || '-1'), 10);
                     var checkField = s(target.getAttribute('data-v2-column-check') || '');

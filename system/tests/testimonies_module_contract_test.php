@@ -40,6 +40,7 @@ $ajaxSource = (string) @file_get_contents( $root . '/modules/testimonies/assets/
 $jsSource = (string) @file_get_contents( $root . '/modules/testimonies/assets/testimonies.js' );
 $editorJsSource = (string) @file_get_contents( $root . '/assets/js/editor/simple-editor.js' );
 $viewSource = (string) @file_get_contents( $root . '/modules/testimonies/views/dashboard.php' );
+$websiteRendererSource = (string) @file_get_contents( $root . '/src/Metis/Modules/Website/Services/WebsiteRenderer.php' );
 
 $assert( is_array( $manifest ), 'Testimonies module.json must decode as valid JSON.' );
 $assert( (string) ( $manifest['slug'] ?? '' ) === 'testimonies', 'Testimonies manifest slug must be testimonies.' );
@@ -49,6 +50,21 @@ $assert( str_contains( $ajaxSource, "metis_testimonies_ajax_verify_nonce" ), 'Te
 $assert( str_contains( $jsSource, 'Metis.request.post(' ), 'Testimonies UI must use the shared request service.' );
 $assert( str_contains( $jsSource, 'Metis.confirm.open' ), 'Testimonies UI must use the shared confirm service.' );
 $assert( str_contains( $editorJsSource, 'state.options.testimonyCategories' ) && str_contains( $editorJsSource, "categoryChipField('metis-v2-testimony-category-ids'" ), 'Website testimony block editor must use testimonyCategories, not generic Website categories.' );
+$assert( str_contains( $editorJsSource, "} else if (out.type === 'testimonials') {"
+    ) && str_contains( $editorJsSource, 'out.content.category_ids = normalizeIdList(content.category_ids || []);'
+    ) && str_contains( $editorJsSource, "out.content.layout = ['grid', 'list', 'rotator'].indexOf(testimonyLayout) === -1 ? 'grid' : testimonyLayout;"
+    ), 'Website testimony block editor must rehydrate saved category_ids and layout values.' );
+$assert( str_contains( $editorJsSource, "if (fieldId === 'metis-v2-posts-category-ids' || fieldId === 'metis-v2-testimony-category-ids') {" )
+    && str_contains( $editorJsSource, 'activeSection().content.category_ids = selectedIds;'
+    ) && str_contains( $editorJsSource, 'renderBuilderCanvas();' ),
+    'Website testimony block editor must sync testimony category chip clicks back into section state and rerender the block summary.'
+);
+$assert( str_contains( $websiteRendererSource, "'campaign_summary', 'testimonials', 'divider'" )
+    && str_contains( $websiteRendererSource, "if ( \$type === 'testimonials' ) {" )
+    && str_contains( $websiteRendererSource, "return self::renderStructuredBlockModule(" )
+    && str_contains( $websiteRendererSource, "'testimonies_block'" ),
+    'Website public renderer must recognize testimonials sections and route them to testimonies_block rendering.'
+);
 $assert( ! str_contains( $viewSource, 'metis-testimonies-alert' ), 'Testimonies dashboard must not render inline error containers.' );
 
 $loader = new \Metis\Core\ModuleLoader();

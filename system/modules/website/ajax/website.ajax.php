@@ -428,6 +428,9 @@ function metis_website_ajax_form_options(): array {
         if ( $id < 1 ) {
             continue;
         }
+        if ( strtolower( trim( (string) ( $row['status'] ?? 'draft' ) ) ) !== 'published' ) {
+            continue;
+        }
         $name = trim( (string) ( $row['name'] ?? '' ) );
         $slug = trim( (string) ( $row['slug'] ?? '' ) );
         $label = $name !== '' ? $name : ( $slug !== '' ? $slug : ( 'Form #' . $id ) );

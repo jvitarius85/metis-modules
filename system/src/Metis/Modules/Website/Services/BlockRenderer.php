@@ -1201,16 +1201,11 @@ final class BlockRenderer {
     private static function renderForm( array $data, array $style, array $context ): string {
         $form_id = trim( (string) ( $data['form_id'] ?? '' ) );
         $submit = trim( (string) ( $data['submit_label'] ?? 'Submit' ) );
-        if ( $form_id !== '' && function_exists( 'metis_forms_render_embed' ) ) {
-            $html = (string) metis_forms_render_embed( $form_id, $data );
-            if ( $html !== '' ) {
-                return sprintf( '<div class="metis-block-form">%s</div>', self::stripInlineStyleAttributes( $html ) );
-            }
-        }
-        return sprintf(
+        $fallback = sprintf(
             '<form class="metis-block-form metis-block-form-placeholder"><input type="text" placeholder="Your name"><input type="email" placeholder="Email"><button type="button">%s</button></form>',
             metis_escape_html( $submit )
         );
+        return self::renderCanonicalFormEmbed( $form_id, $data, 'metis-block-form', $fallback );
     }
 
     private static function renderInlineForm( array $data, array $style, array $context ): string {
@@ -1219,6 +1214,65 @@ final class BlockRenderer {
 
     private static function renderMultiStepForm( array $data, array $style, array $context ): string {
         return self::renderForm( $data, $style, $context );
+    }
+
+    private static function renderFormTabsBlock( array $data, array $style, array $context ): string {
+        $tabs = is_array( $data['tabs'] ?? null ) ? $data['tabs'] : [];
+        $group = 'metis-form-tabs-' . substr( sha1( (string) json_encode( $tabs ) ), 0, 8 );
+        $buttons = '';
+        $panels = '';
+        $rendered = 0;
+
+        foreach ( $tabs as $index => $tab ) {
+            if ( ! is_array( $tab ) ) {
+                continue;
+            }
+
+            $label = trim( (string) ( $tab['label'] ?? '' ) );
+            $form_id = trim( (string) ( $tab['form_id'] ?? '' ) );
+            if ( $form_id === '' ) {
+                continue;
+            }
+
+            $form_html = self::renderCanonicalFormEmbed( $form_id, [ 'form_id' => $form_id ], 'metis-block-form-tabs__form', '' );
+            if ( $form_html === '' ) {
+                continue;
+            }
+
+            $panel_id = $group . '-panel-' . $rendered;
+            $active = $rendered === 0;
+            $buttons .= '<button type="button" class="metis-tab' . ( $active ? ' is-active' : '' ) . '" data-tab-group="' . metis_escape_attr( $group ) . '" data-tab="' . metis_escape_attr( $panel_id ) . '" role="tab" aria-selected="' . ( $active ? 'true' : 'false' ) . '" aria-controls="' . metis_escape_attr( $panel_id ) . '">' . metis_escape_html( $label !== '' ? $label : ( 'Form ' . (string) ( $rendered + 1 ) ) ) . '</button>';
+            $panels .= '<div id="' . metis_escape_attr( $panel_id ) . '" class="metis-tab-panel' . ( $active ? ' is-active' : '' ) . '" data-tab-group="' . metis_escape_attr( $group ) . '" role="tabpanel"' . ( $active ? '' : ' hidden' ) . '>' . $form_html . '</div>';
+            $rendered++;
+            if ( $rendered >= 6 ) {
+                break;
+            }
+        }
+
+        if ( $rendered === 0 ) {
+            return '';
+        }
+
+        $style_tag = '<style>'
+            . '#' . $group . '{display:grid;gap:1rem;}'
+            . '#' . $group . ' .metis-tabs{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;}'
+            . '#' . $group . ' .metis-tab{appearance:none;border:1px solid rgba(72,91,199,.18);background:#eef2fb;color:#485bc7;border-radius:.85rem;padding:.8rem 1rem;font:inherit;font-weight:700;cursor:pointer;line-height:1.2;}'
+            . '#' . $group . ' .metis-tab.is-active{background:#485bc7;color:#fff;border-color:#485bc7;}'
+            . '#' . $group . ' .metis-tab-panel[hidden]{display:none !important;}'
+            . '</style>';
+        $script = '<script>(function(){var root=document.getElementById(' . json_encode( $group ) . ');if(!root){return;}var tabs=[].slice.call(root.querySelectorAll("[data-tab]"));var panels=[].slice.call(root.querySelectorAll(".metis-tab-panel"));function activate(btn){if(!btn){return;}var target=btn.getAttribute("data-tab")||"";tabs.forEach(function(tab){var active=tab===btn;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",active?"true":"false");});panels.forEach(function(panel){var active=panel.id===target;panel.classList.toggle("is-active",active);panel.hidden=!active;});}tabs.forEach(function(tab){tab.addEventListener("click",function(){activate(tab);});});if(tabs.length){activate(tabs[0]);}}());</script>';
+        return $style_tag . '<div id="' . metis_escape_attr( $group ) . '" class="metis-block-form-tabs metis-tab-scope"><div class="metis-tabs" data-tab-group="' . metis_escape_attr( $group ) . '" role="tablist" aria-label="Form tabs">' . $buttons . '</div>' . $panels . '</div>' . $script;
+    }
+
+    private static function renderCanonicalFormEmbed( string $form_ref, array $options, string $wrapper_class, string $fallback_html = '' ): string {
+        if ( $form_ref !== '' && function_exists( 'metis_forms_render_embed' ) ) {
+            $html = (string) metis_forms_render_embed( $form_ref, $options );
+            if ( $html !== '' ) {
+                return sprintf( '<div class="%s">%s</div>', metis_escape_attr( $wrapper_class ), self::stripInlineStyleAttributes( $html ) );
+            }
+        }
+
+        return $fallback_html;
     }
 
     private static function renderDonationFormBlock( array $data, array $style, array $context ): string {

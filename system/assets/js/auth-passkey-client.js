@@ -116,7 +116,19 @@
         }
 
         setStatus("Opening Google Workspace sign-in...", false);
-        googleForm.submit();
+        if (googleButton) {
+            googleButton.disabled = true;
+        }
+        if (typeof googleForm.requestSubmit === "function") {
+            googleForm.requestSubmit();
+        } else {
+            googleForm.submit();
+        }
+        window.setTimeout(function () {
+            if (googleButton) {
+                googleButton.disabled = false;
+            }
+        }, 2500);
     }
 
     function startPasskey(data) {
@@ -210,8 +222,15 @@
     if (googleButton && googleForm) {
         googleButton.addEventListener("click", function (event) {
             event.preventDefault();
-            googleButton.disabled = true;
-            googleForm.submit();
+            event.stopPropagation();
+            try {
+                startGoogleWorkspace();
+            } catch (error) {
+                if (googleButton) {
+                    googleButton.disabled = false;
+                }
+                setStatus(error && error.message ? error.message : "Google sign-in could not be started.", true);
+            }
         });
     }
 

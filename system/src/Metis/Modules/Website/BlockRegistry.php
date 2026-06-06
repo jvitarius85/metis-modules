@@ -80,6 +80,17 @@ final class BlockRegistry {
                     ],
                 ],
             ],
+            'form_tabs_block' => [
+                'label' => 'Form Tabs',
+                'category' => 'dynamic',
+                'icon' => 'tabs-streamline-rounded-material-symbols',
+                'schema_raw' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'tabs' => [ 'type' => 'array', 'default' => [] ],
+                    ],
+                ],
+            ],
         ];
 
         foreach ( $definitions as $type => $definition ) {

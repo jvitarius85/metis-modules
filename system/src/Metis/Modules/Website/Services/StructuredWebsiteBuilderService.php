@@ -490,7 +490,7 @@ final class StructuredWebsiteBuilderService {
 
         if ( $type === 'testimonials' ) {
             $layout = metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) );
-            if ( ! in_array( $layout, [ 'grid', 'list' ], true ) ) {
+            if ( ! in_array( $layout, [ 'grid', 'list', 'rotator' ], true ) ) {
                 $layout = 'grid';
             }
             $limit = (int) ( $content['limit'] ?? 6 );
@@ -562,7 +562,7 @@ final class StructuredWebsiteBuilderService {
      */
     private static function normalizeColumnModule( array $module, string $fallback_body ): array {
         $type = metis_key_clean( (string) ( $module['type'] ?? 'text' ) );
-        $allowed = [ 'text', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'button', 'image' ];
+        $allowed = [ 'text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'button', 'image' ];
         if ( ! in_array( $type, $allowed, true ) ) {
             $type = 'text';
         }
@@ -581,8 +581,45 @@ final class StructuredWebsiteBuilderService {
 
         return [
             'type' => $type,
-            'content' => self::normalizeSectionContent( $type, $content ),
+            'content' => $type === 'form_tabs'
+                ? [ 'tabs' => self::sanitizeFormTabs( $content['tabs'] ?? [] ) ]
+                : self::normalizeSectionContent( $type, $content ),
         ];
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array{label:string,form_id:string}>
+     */
+    private static function sanitizeFormTabs( mixed $raw ): array {
+        $tabs = [];
+        $rows = is_array( $raw ) ? $raw : [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $label = self::sanitizeText( (string) ( $row['label'] ?? '' ) );
+            $form_id = self::sanitizeText( (string) ( $row['form_id'] ?? '' ) );
+            if ( $label === '' && $form_id === '' ) {
+                continue;
+            }
+            $tabs[] = [
+                'label' => $label !== '' ? $label : 'Form',
+                'form_id' => $form_id,
+            ];
+            if ( count( $tabs ) >= 6 ) {
+                break;
+            }
+        }
+
+        if ( $tabs === [] ) {
+            return [
+                [ 'label' => 'Form 1', 'form_id' => '' ],
+                [ 'label' => 'Form 2', 'form_id' => '' ],
+            ];
+        }
+
+        return $tabs;
     }
 
     private static function normalizeColumnWidth( mixed $raw ): string {
@@ -611,6 +648,17 @@ final class StructuredWebsiteBuilderService {
                 'data' => [
                     'form_id' => (string) ( $content['form_id'] ?? '' ),
                     'submit_label' => (string) ( $content['submit_label'] ?? 'Submit' ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'form_tabs' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'form_tabs_block',
+                'data' => [
+                    'tabs' => self::sanitizeFormTabs( $content['tabs'] ?? [] ),
                 ],
                 'style' => [],
             ]];
@@ -668,7 +716,7 @@ final class StructuredWebsiteBuilderService {
                 'data' => [
                     'category_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
                     'limit' => max( 1, min( 24, (int) ( $content['limit'] ?? 6 ) ) ),
-                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list' ], true ) ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ) : 'grid',
+                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list', 'rotator' ], true ) ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ) : 'grid',
                     'featured_only' => self::sanitizeBoolean( $content['featured_only'] ?? false ),
                     'show_category' => self::sanitizeBoolean( $content['show_category'] ?? true ),
                     'empty_message' => self::sanitizeText( (string) ( $content['empty_message'] ?? '' ) ),
@@ -1204,7 +1252,7 @@ final class StructuredWebsiteBuilderService {
                 'data' => [
                     'category_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
                     'limit' => max( 1, min( 24, (int) ( $content['limit'] ?? 6 ) ) ),
-                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list' ], true ) ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ) : 'grid',
+                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list', 'rotator' ], true ) ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ) : 'grid',
                     'featured_only' => self::sanitizeBoolean( $content['featured_only'] ?? false ),
                     'show_category' => self::sanitizeBoolean( $content['show_category'] ?? true ),
                     'empty_message' => self::sanitizeText( (string) ( $content['empty_message'] ?? '' ) ),
@@ -1707,18 +1755,9 @@ final class StructuredWebsiteBuilderService {
         $current = preg_replace( '/(^|[\s(\[{])\x{FFFD}\?\?([A-Za-z0-9])/u', '$1“$2', $current ) ?? $current;
         $current = preg_replace( '/([A-Za-z0-9?!.,])\x{FFFD}\?\?($|[\s)\]}.,;!?])/u', '$1”$2', $current ) ?? $current;
 
-	        for ( $i = 0; $i < 3; $i++ ) {
-            $candidate = function_exists( 'mb_convert_encoding' )
-                ? @mb_convert_encoding( $current, 'UTF-8', 'Windows-1252' )
-                : @iconv( 'Windows-1252', 'UTF-8//IGNORE', $current );
-            if ( ! is_string( $candidate ) || $candidate === '' || $candidate === $current ) {
-                break;
-            }
-            if ( substr_count( $candidate, 'Ã' ) + substr_count( $candidate, 'Â' ) + substr_count( $candidate, 'â' ) >= substr_count( $current, 'Ã' ) + substr_count( $current, 'Â' ) + substr_count( $current, 'â' ) ) {
-                break;
-            }
-            $current = $candidate;
-	        }
+        if ( function_exists( 'metis_runtime_normalize_text_encoding' ) ) {
+            return metis_runtime_normalize_text_encoding( $current );
+        }
 
 	        $current = str_replace( [ "\xc2\xa0", "\xa0" ], ' ', $current );
 	        $current = preg_replace( '/Ã+(?=\s|$)/u', '', $current ) ?? $current;

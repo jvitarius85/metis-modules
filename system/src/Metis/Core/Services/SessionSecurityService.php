@@ -25,6 +25,10 @@ final class SessionSecurityService {
             @\ini_set( 'session.cookie_httponly', '1' );
             @\ini_set( 'session.cookie_samesite', 'Lax' );
             @\ini_set( 'session.cookie_secure', $this->isHttps() ? '1' : '0' );
+            @\ini_set( 'session.cache_limiter', '' );
+        }
+        if ( \function_exists( 'session_cache_limiter' ) ) {
+            @\session_cache_limiter( '' );
         }
 
         if ( \session_status() !== \PHP_SESSION_ACTIVE ) {

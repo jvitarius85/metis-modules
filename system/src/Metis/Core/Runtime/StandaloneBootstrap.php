@@ -161,6 +161,12 @@ function metis_runtime_require_app_key( string $purpose = 'security' ): string {
 
     if ( metis_runtime_is_installer_context() ) {
         if ( session_status() !== PHP_SESSION_ACTIVE ) {
+            if ( function_exists( 'ini_set' ) ) {
+                @ini_set( 'session.cache_limiter', '' );
+            }
+            if ( function_exists( 'session_cache_limiter' ) ) {
+                @session_cache_limiter( '' );
+            }
             @session_start();
         }
         if ( empty( $_SESSION['metis_installer_app_key'] ) || ! is_string( $_SESSION['metis_installer_app_key'] ) ) {

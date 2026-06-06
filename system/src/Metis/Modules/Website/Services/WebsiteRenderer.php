@@ -17,7 +17,7 @@ use Metis\Modules\Website\Services\TemplateService;
  */
 final class WebsiteRenderer {
     /** @var array<int,string> */
-    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
+    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
 
     /**
      * Structured page/post preview that matches the production rendering pipeline.
@@ -967,8 +967,12 @@ final class WebsiteRenderer {
 
         // Load CSS/JS
         // Keep preview and live rendering on the same CSS pipeline.
-        $style_href = self::stylesheetHref( $context, $template_structure, $template_preview_mode );
+        $shared_style_href = self::stylesheetHref( $context, $template_structure, $template_preview_mode, 'shared' );
+        $layout_style_href = $layout_settings !== []
+            ? self::stylesheetHref( $context, $template_structure, $template_preview_mode, 'layout' )
+            : '';
         $font_stylesheets = ThemeService::fontStylesheetHrefs( $theme );
+        $font_preloads = ThemeService::fontPreloadAssets( $theme );
         $menu_config = is_array( $theme['components']['menu_config'] ?? null ) ? $theme['components']['menu_config'] : [];
 
         return self::buildPageHtml( [
@@ -980,8 +984,10 @@ final class WebsiteRenderer {
             'banners' => $web_parts['banners'],
             'popups' => $web_parts['popups'],
             'web_part_slots' => $web_parts['slots'],
-            'style_href' => $style_href,
+            'shared_style_href' => $shared_style_href,
+            'layout_style_href' => $layout_style_href,
             'font_stylesheets' => $font_stylesheets,
+            'font_preloads' => $font_preloads,
             'context' => $context,
             'site_layout_profile' => $site_layout_profile,
             'site_layout_profile_key' => $site_layout_profile_key,
@@ -1011,7 +1017,7 @@ final class WebsiteRenderer {
         ];
     }
 
-    private static function loadPipelineStyles( array $theme, array $layout_settings, array $context = [] ): array {
+    private static function loadSharedPipelineStyles( array $theme, array $context = [] ): array {
         $font_css = ThemeService::renderFontCss( $theme );
         $theme_css = ThemeService::renderGlobalCss( $theme );
         $custom_css = self::sanitizeCustomCss( (string) ( $theme['custom_css'] ?? '' ) );
@@ -1030,6 +1036,16 @@ final class WebsiteRenderer {
                     $menu_variant_css,
                     self::templateBaseCss(),
                     trim( $theme_css ),
+                ],
+                static fn ( mixed $value ): bool => is_string( $value ) && trim( $value ) !== ''
+            )
+        );
+    }
+
+    private static function loadLayoutPipelineStyles( array $layout_settings ): array {
+        return array_values(
+            array_filter(
+                [
                     self::layoutCss( $layout_settings ),
                 ],
                 static fn ( mixed $value ): bool => is_string( $value ) && trim( $value ) !== ''
@@ -1052,8 +1068,10 @@ final class WebsiteRenderer {
         $popups      = $data['popups'] ?? '';
         $web_part_slots = is_array( $data['web_part_slots'] ?? null ) ? $data['web_part_slots'] : [];
         $template_structure = is_array( $data['template_structure'] ?? null ) ? $data['template_structure'] : TemplateService::resolveForArchive();
-        $style_href = trim( (string) ( $data['style_href'] ?? '' ) );
+        $shared_style_href = trim( (string) ( $data['shared_style_href'] ?? '' ) );
+        $layout_style_href = trim( (string) ( $data['layout_style_href'] ?? '' ) );
         $font_stylesheets = is_array( $data['font_stylesheets'] ?? null ) ? $data['font_stylesheets'] : [];
+        $font_preloads = is_array( $data['font_preloads'] ?? null ) ? $data['font_preloads'] : [];
         $context = is_array( $data['context'] ?? null ) ? $data['context'] : [];
         $layout_data = is_array( $data['layout_data'] ?? null ) ? $data['layout_data'] : [];
         $hero = is_array( $data['hero'] ?? null ) ? $data['hero'] : [];
@@ -1082,6 +1100,10 @@ final class WebsiteRenderer {
             '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
             '  <title>' . metis_escape_html( self::documentTitle( $title, $context ) ) . '</title>',
         ];
+        $critical_typography_css = trim( ThemeService::renderCriticalTypographyCss( ThemeService::getActiveNormalized() ) );
+        if ( $critical_typography_css !== '' ) {
+            $head[] = '  <style data-metis-critical-typography="1">' . $critical_typography_css . '</style>';
+        }
 
         if ( $description !== '' ) {
             $head[] = '  <meta name="description" content="' . metis_escape_attr( $description ) . '">';
@@ -1105,6 +1127,17 @@ final class WebsiteRenderer {
         if ( $og_image !== '' ) {
             $head[] = '  <meta property="og:image" content="' . metis_escape_attr( $og_image ) . '">';
         }
+        foreach ( $font_preloads as $font_preload ) {
+            if ( ! is_array( $font_preload ) ) {
+                continue;
+            }
+            $font_href = trim( (string) ( $font_preload['href'] ?? '' ) );
+            if ( $font_href === '' ) {
+                continue;
+            }
+            $font_type = trim( (string) ( $font_preload['type'] ?? 'font/woff2' ) );
+            $head[] = '  <link rel="preload" href="' . metis_escape_attr( $font_href ) . '" as="font" type="' . metis_escape_attr( $font_type ) . '" crossorigin>';
+        }
         foreach ( $font_stylesheets as $font_href ) {
             $font_href = trim( (string) $font_href );
             if ( $font_href === '' ) {
@@ -1113,8 +1146,12 @@ final class WebsiteRenderer {
             $head[] = '  <link rel="stylesheet" href="' . metis_escape_attr( $font_href ) . '">';
         }
 
-        if ( $style_href !== '' ) {
-            $head[] = '  <link rel="stylesheet" href="' . metis_escape_attr( $style_href ) . '">';
+        if ( $shared_style_href !== '' ) {
+            $head[] = '  <link rel="preload" href="' . metis_escape_attr( $shared_style_href ) . '" as="style">';
+            $head[] = '  <link rel="stylesheet" href="' . metis_escape_attr( $shared_style_href ) . '">';
+        }
+        if ( $layout_style_href !== '' ) {
+            $head[] = '  <link rel="stylesheet" href="' . metis_escape_attr( $layout_style_href ) . '">';
         }
         // Keep preview/live on one CSS pipeline via generated stylesheet route.
         $favicon_url = self::portalAssetUrl( 'portal_favicon', 'metis_portal_favicon_url' );
@@ -1526,28 +1563,32 @@ final class WebsiteRenderer {
         };
     }
 
-    private static function stylesheetHref( array $context, array $template_structure = [], bool $template_preview_mode = false ): string {
+    private static function stylesheetHref( array $context, array $template_structure = [], bool $template_preview_mode = false, string $scope = 'shared' ): string {
         $base = function_exists( 'metis_home_url' )
             ? (string) metis_home_url( '/v1/website/theme.css' )
             : '/metis/v1/website/theme.css';
 
         $params = [];
+        $scope = in_array( $scope, [ 'shared', 'layout', 'full' ], true ) ? $scope : 'shared';
+        $params['scope'] = $scope;
         $content_type = metis_key_clean( (string) ( $context['content_type'] ?? '' ) );
         if ( in_array( $content_type, [ 'page', 'post', 'error' ], true ) ) {
             $params['content_type'] = $content_type;
         }
         $content_id = isset( $context['content_id'] ) ? (int) $context['content_id'] : 0;
-        if ( $content_id > 0 ) {
+        if ( $content_id > 0 && in_array( $scope, [ 'layout', 'full' ], true ) ) {
             $params['content_id'] = (string) $content_id;
         }
         $template_slug = self::templateVariantSlug( $template_structure );
-        if ( $template_slug !== '' ) {
+        if ( $template_slug !== '' && in_array( $scope, [ 'shared', 'full' ], true ) ) {
             $params['template_slug'] = $template_slug;
         }
         if ( $template_preview_mode ) {
             $params['template_preview'] = '1';
         }
-        $params['v'] = self::assetVersionToken( $template_structure, true );
+        $params['v'] = $scope === 'layout'
+            ? self::contentStyleVersionToken( $content_type, $content_id )
+            : self::assetVersionToken( $template_structure, true );
 
         if ( function_exists( 'metis_add_query_arg' ) ) {
             return (string) metis_add_query_arg( $params, $base );
@@ -1558,6 +1599,32 @@ final class WebsiteRenderer {
         }
 
         return $base . '?' . http_build_query( $params );
+    }
+
+    private static function contentStyleVersionToken( string $content_type, int $content_id ): string {
+        if ( $content_id <= 0 ) {
+            return self::assetVersionToken();
+        }
+
+        if ( $content_type === 'page' ) {
+            $page = PageService::getById( $content_id );
+            if ( $page !== null ) {
+                $json = (string) ( $page->published_layout_json ?? $page->draft_layout_json ?? $page->layout_json ?? '' );
+                $updated = trim( (string) ( $page->updated_at ?? '' ) );
+                $stamp = $updated !== '' ? (string) ( (int) strtotime( $updated ) ) : '';
+                return sha1( $content_type . '|' . $content_id . '|' . $stamp . '|' . $json );
+            }
+        } elseif ( $content_type === 'post' ) {
+            $post = PostService::getById( $content_id );
+            if ( $post !== null ) {
+                $json = (string) ( $post->published_content_json ?? $post->draft_content_json ?? $post->content_json ?? '' );
+                $updated = trim( (string) ( $post->updated_at ?? '' ) );
+                $stamp = $updated !== '' ? (string) ( (int) strtotime( $updated ) ) : '';
+                return sha1( $content_type . '|' . $content_id . '|' . $stamp . '|' . $json );
+            }
+        }
+
+        return self::assetVersionToken();
     }
 
     private static function publicAssetUrl( string $asset ): string {
@@ -1611,6 +1678,10 @@ final class WebsiteRenderer {
     }
 
     public static function renderGeneratedCss( array $query = [] ): string {
+        $scope = metis_key_clean( (string) ( $query['scope'] ?? 'full' ) );
+        if ( ! in_array( $scope, [ 'shared', 'layout', 'full' ], true ) ) {
+            $scope = 'full';
+        }
         $content_type = metis_key_clean( (string) ( $query['content_type'] ?? '' ) );
         $content_id = (int) ( $query['content_id'] ?? 0 );
         $template_slug = metis_key_clean( (string) ( $query['template_slug'] ?? '' ) );
@@ -1638,24 +1709,29 @@ final class WebsiteRenderer {
         }
 
         $theme = ThemeService::getActiveNormalized();
-        $style_parts = self::loadPipelineStyles(
-            $theme,
-            $layout_settings,
-            [
-                'content_type' => $content_type,
-                'content_id' => $content_id,
-            ]
-        );
-        $template_structure = $template_slug !== ''
-            ? TemplateService::resolveStructureForSlug( $template_slug )
-            : TemplateService::resolveForArchive();
-        $template_structure_css = self::loadTemplateStructureCss( $template_structure );
-        if ( $template_structure_css !== '' ) {
-            $style_parts[] = $template_structure_css;
+        $style_parts = [];
+        if ( in_array( $scope, [ 'shared', 'full' ], true ) ) {
+            $style_parts = self::loadSharedPipelineStyles(
+                $theme,
+                [
+                    'content_type' => $content_type,
+                    'content_id' => $content_id,
+                ]
+            );
+            $template_structure = $template_slug !== ''
+                ? TemplateService::resolveStructureForSlug( $template_slug )
+                : TemplateService::resolveForArchive();
+            $template_structure_css = self::loadTemplateStructureCss( $template_structure );
+            if ( $template_structure_css !== '' ) {
+                $style_parts[] = $template_structure_css;
+            }
+            $style_parts[] = self::themeTemplateMenuCss();
+            if ( $template_preview_mode ) {
+                $style_parts[] = self::templatePreviewIsolationCss();
+            }
         }
-        $style_parts[] = self::themeTemplateMenuCss();
-        if ( $template_preview_mode ) {
-            $style_parts[] = self::templatePreviewIsolationCss();
+        if ( in_array( $scope, [ 'layout', 'full' ], true ) ) {
+            $style_parts = array_merge( $style_parts, self::loadLayoutPipelineStyles( $layout_settings ) );
         }
         return implode( "\n\n", $style_parts );
     }
@@ -3125,6 +3201,9 @@ final class WebsiteRenderer {
         if ( $type === 'form' ) {
             return self::renderStructuredFormSection( $content, $context );
         }
+        if ( $type === 'form_tabs' ) {
+            return self::renderStructuredFormTabsSection( $content, $context );
+        }
         if ( $type === 'donation_form' ) {
             return self::renderStructuredDonationFormSection( $content, $context );
         }
@@ -3133,6 +3212,32 @@ final class WebsiteRenderer {
         }
         if ( $type === 'campaign_summary' ) {
             return self::renderStructuredCampaignSummarySection( $content, $context );
+        }
+        if ( $type === 'testimonials' ) {
+            return self::renderStructuredBlockModule(
+                'testimonies_block',
+                [
+                    'category_ids' => array_values(
+                        array_unique(
+                            array_filter(
+                                array_map(
+                                    'intval',
+                                    is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : []
+                                ),
+                                static fn( int $id ): bool => $id > 0
+                            )
+                        )
+                    ),
+                    'limit' => max( 1, min( 24, (int) ( $content['limit'] ?? 6 ) ) ),
+                    'layout' => in_array( metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) ), [ 'grid', 'list', 'rotator' ], true )
+                        ? metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) )
+                        : 'grid',
+                    'featured_only' => ! empty( $content['featured_only'] ),
+                    'show_category' => ! array_key_exists( 'show_category', $content ) || ! empty( $content['show_category'] ),
+                    'empty_message' => trim( (string) ( $content['empty_message'] ?? '' ) ),
+                ],
+                $context
+            );
         }
         if ( $type === 'divider' ) {
             return self::renderStructuredDividerSection( $content, $context );
@@ -3243,6 +3348,7 @@ final class WebsiteRenderer {
     }
 
     private static function sanitizeRichTextAttributes( \DOMElement $element, string $tag ): void {
+        $normalized_img_src = '';
         foreach ( iterator_to_array( $element->attributes ) as $attribute ) {
             $name = strtolower( $attribute->name );
             $value = trim( (string) $attribute->value );
@@ -3262,6 +3368,8 @@ final class WebsiteRenderer {
                 $value = preg_replace( '/[^a-z\s_-]/i', '', $value ) ?: '';
                 $keep = $value !== '';
             } elseif ( $tag === 'img' && $name === 'src' ) {
+                $value = preg_replace( '#/assets/images/emojis/#i', '/assets/Images/emojis/', $value ) ?? $value;
+                $normalized_img_src = $value;
                 $keep = self::isSafeRichTextUrl( $value );
             } elseif ( in_array( $name, [ 'alt', 'title' ], true ) && in_array( $tag, [ 'a', 'img', 'figure', 'figcaption' ], true ) ) {
                 $value = trim( strip_tags( $value ) );
@@ -3282,6 +3390,14 @@ final class WebsiteRenderer {
                 $element->removeAttribute( $attribute->name );
             }
         }
+
+        if ( $tag === 'img' && preg_match( '#(?:^|/)assets/Images/emojis/[A-Z0-9-]+\.svg$#', $normalized_img_src ) === 1 ) {
+            $class_list = trim( (string) $element->getAttribute( 'class' ) );
+            $classes = preg_split( '/\s+/', $class_list ) ?: [];
+            $classes[] = 'metis-inline-emoji';
+            $classes = array_values( array_unique( array_filter( array_map( 'trim', $classes ) ) ) );
+            $element->setAttribute( 'class', implode( ' ', $classes ) );
+        }
     }
 
     private static function sanitizeRichTextClassList( string $classes ): string {
@@ -3291,7 +3407,7 @@ final class WebsiteRenderer {
             if ( $class === '' ) {
                 continue;
             }
-            if ( preg_match( '/^metis-text-(size|color|weight|align)-[a-z0-9_-]+$/i', $class ) === 1 || preg_match( '/^metis-inline-(image|divider)$/i', $class ) === 1 || in_array( $class, [ 'is-small', 'is-medium', 'is-large', 'is-full' ], true ) ) {
+            if ( preg_match( '/^metis-text-(size|color|weight|align)-[a-z0-9_-]+$/i', $class ) === 1 || preg_match( '/^metis-inline-(image|divider|emoji)$/i', $class ) === 1 || in_array( $class, [ 'is-small', 'is-medium', 'is-large', 'is-full' ], true ) ) {
                 $safe[] = $class;
             }
         }
@@ -3497,6 +3613,20 @@ final class WebsiteRenderer {
             return '';
         }
 
+        $html = str_ireplace(
+            [
+                '/assets/images/emojis/',
+                'src="assets/images/emojis/',
+                "src='assets/images/emojis/",
+            ],
+            [
+                '/assets/Images/emojis/',
+                'src="assets/Images/emojis/',
+                "src='assets/Images/emojis/",
+            ],
+            $html
+        );
+
         $parts = preg_split( '/(<[^>]+>)/u', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
         if ( ! is_array( $parts ) ) {
             return self::repairMojibakeText( $html );
@@ -3549,6 +3679,25 @@ final class WebsiteRenderer {
             ':wave:' => '👋',
             ':sparkles:' => '✨',
             ':heart:' => '❤️',
+            ':sparkling_heart:' => '💖',
+            ':pink_heart:' => '🩷',
+            ':orange_heart:' => '🧡',
+            ':yellow_heart:' => '💛',
+            ':green_heart:' => '💚',
+            ':blue_heart:' => '💙',
+            ':purple_heart:' => '💜',
+            ':brown_heart:' => '🤎',
+            ':black_heart:' => '🖤',
+            ':white_heart:' => '🤍',
+            ':broken_heart:' => '💔',
+            ':heart_exclamation:' => '❣️',
+            ':two_hearts:' => '💕',
+            ':beating_heart:' => '💓',
+            ':growing_heart:' => '💗',
+            ':heart_with_arrow:' => '💘',
+            ':heart_with_ribbon:' => '💝',
+            ':revolving_hearts:' => '💞',
+            ':heart_hands:' => '🫶',
             ':star:' => '⭐',
             ':fire:' => '🔥',
             ':check:' => '✔️',
@@ -4108,7 +4257,7 @@ final class WebsiteRenderer {
             $module = is_array( $column['module'] ?? null ) ? $column['module'] : [];
             $module_type = metis_key_clean( (string) ( $module['type'] ?? 'text' ) );
             $safe_body = '';
-            if ( in_array( $module_type, [ 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'button', 'image' ], true ) ) {
+            if ( in_array( $module_type, [ 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'button', 'image' ], true ) ) {
                 $module_content = is_array( $module['content'] ?? null ) ? $module['content'] : [];
                 $safe_body = self::renderStructuredSectionBody( $module_type, $module_content, $context );
             } else {
@@ -4455,6 +4604,37 @@ final class WebsiteRenderer {
                 'form_id' => trim( (string) ( $content['form_id'] ?? '' ) ),
                 'submit_label' => trim( (string) ( $content['submit_label'] ?? 'Submit' ) ),
             ],
+            $context
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredFormTabsSection( array $content, array $context = [] ): string {
+        $tabs = [];
+        foreach ( is_array( $content['tabs'] ?? null ) ? $content['tabs'] : [] as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $label = trim( (string) ( $row['label'] ?? '' ) );
+            $form_id = trim( (string) ( $row['form_id'] ?? '' ) );
+            if ( $label === '' && $form_id === '' ) {
+                continue;
+            }
+            $tabs[] = [
+                'label' => $label !== '' ? $label : 'Form',
+                'form_id' => $form_id,
+            ];
+            if ( count( $tabs ) >= 6 ) {
+                break;
+            }
+        }
+
+        return self::renderStructuredBlockModule(
+            'form_tabs_block',
+            [ 'tabs' => $tabs ],
             $context
         );
     }
@@ -4870,6 +5050,7 @@ final class WebsiteRenderer {
             '.metis-public-content a{color:var(--metis-color-link,var(--metis-color-primary,#485bc7));text-underline-offset:2px;}',
             '.metis-public-content a:hover{color:var(--metis-color-link_hover,#3246a8);}',
             '.metis-public-content img,.metis-public-content svg,.metis-public-content video,.metis-public-content iframe{max-width:100%;height:auto;}',
+            '.metis-public-content .metis-inline-emoji,.metis-structured-text .metis-inline-emoji,.metis-structured-section__content .metis-inline-emoji{display:inline-block;width:1.2em;max-width:none;height:1.2em;max-height:none;vertical-align:-0.2em;border:0;border-radius:0;box-shadow:none;background:transparent;}',
             '.metis-public-content iframe{width:100%;min-height:360px;border:0;}',
             '.metis-public-content figure{margin:1em 0;}',
             '.metis-public-content figcaption{font-size:.9em;color:var(--metis-color-muted,#64748b);margin-top:.45em;}',
@@ -5074,6 +5255,9 @@ final class WebsiteRenderer {
             '.metis-structured-text .metis-text-size-sm{font-size:.92rem;}',
             '.metis-structured-text .metis-text-size-lg{font-size:1.12rem;}',
             '.metis-structured-text .metis-text-size-xl{font-size:1.28rem;}',
+            '.metis-structured-text .metis-text-size-sm .metis-inline-emoji,.metis-structured-section__content .metis-text-size-sm .metis-inline-emoji{width:1.05em;height:1.05em;}',
+            '.metis-structured-text .metis-text-size-lg .metis-inline-emoji,.metis-structured-section__content .metis-text-size-lg .metis-inline-emoji{width:1.28em;height:1.28em;}',
+            '.metis-structured-text .metis-text-size-xl .metis-inline-emoji,.metis-structured-section__content .metis-text-size-xl .metis-inline-emoji{width:1.42em;height:1.42em;}',
             '.metis-structured-text .metis-text-color-metis_primary{color:var(--metis-primary,#485bc7)!important;}',
             '.metis-structured-text .metis-text-color-metis_primary_dark{color:var(--metis-primary-dark,#3246a7)!important;}',
             '.metis-structured-text .metis-text-color-metis_accent{color:var(--metis-accent,#ff7542)!important;}',

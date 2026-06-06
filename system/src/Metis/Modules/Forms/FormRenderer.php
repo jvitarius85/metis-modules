@@ -115,21 +115,21 @@ final class FormRenderer {
             </header>
             <?php endif; ?>
 
-            <div id="metis-forms-public-alert" class="metis-alert <?php echo metis_escape_attr( $alert_class ); ?>"<?php echo empty( $result['message'] ) ? ' hidden' : ''; ?>>
+            <div id="<?php echo metis_escape_attr( $instance_id . '-alert' ); ?>" class="metis-alert <?php echo metis_escape_attr( $alert_class ); ?>" data-metis-forms-alert<?php echo empty( $result['message'] ) ? ' hidden' : ''; ?>>
                 <?php echo ! empty( $result['message'] ) ? \metis_runtime_kses_post( (string) $result['message'] ) : ''; ?>
             </div>
 
-            <div id="metis-forms-success-overlay" class="metis-forms-success-overlay" hidden>
+            <div id="<?php echo metis_escape_attr( $instance_id . '-success-overlay' ); ?>" class="metis-forms-success-overlay" data-metis-forms-success-overlay hidden>
                 <div class="metis-forms-success-overlay__backdrop" data-success-close></div>
-                <div class="metis-forms-success-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="metis-forms-success-title">
-                    <h2 id="metis-forms-success-title">Submission received</h2>
+                <div class="metis-forms-success-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="<?php echo metis_escape_attr( $instance_id . '-success-title' ); ?>">
+                    <h2 id="<?php echo metis_escape_attr( $instance_id . '-success-title' ); ?>">Submission received</h2>
                     <p data-success-message>Thanks, your submission has been received.</p>
                     <button type="button" class="metis-btn" data-success-close>Close</button>
                 </div>
             </div>
 
             <?php if ( ! $blocked ) : ?>
-                <form id="metis-forms-public-form" class="metis-forms-public-form" action="<?php echo metis_escape_url( Support::publicUrl( (string) ( $form['slug'] ?? '' ) ) ); ?>" method="post" novalidate>
+                <form id="<?php echo metis_escape_attr( $instance_id . '-form' ); ?>" class="metis-forms-public-form" data-metis-forms-public-form action="<?php echo metis_escape_url( Support::publicUrl( (string) ( $form['slug'] ?? '' ) ) ); ?>" method="post" novalidate>
                     <?php foreach ( $schema as $field ) : ?>
                         <?php if ( is_array( $field ) ) : ?>
                             <?php self::renderField( $field, '', $instance_id ); ?>
@@ -144,7 +144,7 @@ final class FormRenderer {
                     <?php endif; ?>
 
                     <div class="metis-forms-public-actions">
-                        <button id="metis-forms-submit-button" class="metis-btn" type="submit">
+                        <button id="<?php echo metis_escape_attr( $instance_id . '-submit-button' ); ?>" class="metis-btn" data-metis-forms-submit-button type="submit">
                             <?php echo $payment_field !== null ? 'Continue to payment' : 'Submit'; ?>
                         </button>
                     </div>

@@ -794,6 +794,7 @@ function metis_module_asset_content_type( string $path ): string {
     return match ( strtolower( pathinfo( $path, PATHINFO_EXTENSION ) ) ) {
         'css'  => 'text/css; charset=UTF-8',
         'js'   => 'application/javascript; charset=UTF-8',
+        'json' => 'application/json; charset=UTF-8',
         'svg'  => 'image/svg+xml',
         'png'  => 'image/png',
         'jpg', 'jpeg' => 'image/jpeg',
@@ -816,6 +817,85 @@ function metis_router_suppress_session_cookie_headers(): void {
     header_remove( 'Set-Cookie' );
 }
 
+function metis_router_asset_cache_control_header(): string {
+    return 'public, max-age=604800, stale-while-revalidate=86400';
+}
+
+/**
+ * @param list<string> $files
+ * @return array{etag:string,last_modified:string,last_modified_unix:int}
+ */
+function metis_router_asset_cache_metadata( array $files ): array {
+    $parts = [];
+    $latest = 0;
+
+    foreach ( $files as $file ) {
+        $mtime = is_file( $file ) ? (int) @filemtime( $file ) : 0;
+        $size  = is_file( $file ) ? (int) @filesize( $file ) : 0;
+        $parts[] = $file . ':' . $mtime . ':' . $size;
+        if ( $mtime > $latest ) {
+            $latest = $mtime;
+        }
+    }
+
+    return [
+        'etag' => '"' . sha1( implode( '|', $parts ) ) . '"',
+        'last_modified' => gmdate( 'D, d M Y H:i:s', $latest > 0 ? $latest : time() ) . ' GMT',
+        'last_modified_unix' => $latest,
+    ];
+}
+
+function metis_router_request_matches_asset_cache( Metis_Http_Request $request, string $etag, int $last_modified_unix ): bool {
+    $if_none_match = trim( (string) $request->header( 'if-none-match', '' ) );
+    if ( $if_none_match !== '' ) {
+        foreach ( array_map( 'trim', explode( ',', $if_none_match ) ) as $candidate ) {
+            if ( $candidate === '*' || $candidate === $etag ) {
+                return true;
+            }
+        }
+    }
+
+    $if_modified_since = trim( (string) $request->header( 'if-modified-since', '' ) );
+    if ( $if_modified_since !== '' ) {
+        $since = strtotime( $if_modified_since );
+        if ( $since !== false && $last_modified_unix > 0 && $since >= $last_modified_unix ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @param list<string> $files
+ * @param callable():string|false $body_loader
+ */
+function metis_router_build_cacheable_asset_response( Metis_Http_Request $request, string $content_type, array $files, callable $body_loader ): Metis_Http_Response {
+    $cache = metis_router_asset_cache_metadata( $files );
+    $headers = [
+        'Content-Type' => $content_type,
+        'Cache-Control' => metis_router_asset_cache_control_header(),
+        'ETag' => $cache['etag'],
+        'Last-Modified' => $cache['last_modified'],
+        'X-Content-Type-Options' => 'nosniff',
+    ];
+
+    if ( metis_router_request_matches_asset_cache( $request, $cache['etag'], $cache['last_modified_unix'] ) ) {
+        return new Metis_Http_Response( 304, $headers, '' );
+    }
+
+    $body = $body_loader();
+    if ( $body === false ) {
+        return Metis_Http_Response::html( 'Asset unreadable.', 500 );
+    }
+
+    return new Metis_Http_Response(
+        200,
+        $headers,
+        $request->method() === 'HEAD' ? '' : $body
+    );
+}
+
 function metis_router_handle_core_asset_request( Metis_Http_Request $request ): Metis_Http_Response {
     metis_router_suppress_session_cookie_headers();
 
@@ -824,6 +904,7 @@ function metis_router_handle_core_asset_request( Metis_Http_Request $request ): 
     $allowed = [
         'css',
         'js',
+        'json',
         'svg',
         'png',
         'jpg',
@@ -851,18 +932,13 @@ function metis_router_handle_core_asset_request( Metis_Http_Request $request ): 
         return Metis_Http_Response::html( 'Asset not found.', 404 );
     }
 
-    $body = file_get_contents( $real );
-    if ( $body === false ) {
-        return Metis_Http_Response::html( 'Asset unreadable.', 500 );
-    }
-
-    return new Metis_Http_Response(
-        200,
-        [
-            'Content-Type'  => metis_module_asset_content_type( $real ),
-            'Cache-Control' => 'public, max-age=300',
-        ],
-        $request->method() === 'HEAD' ? '' : $body
+    return metis_router_build_cacheable_asset_response(
+        $request,
+        metis_module_asset_content_type( $real ),
+        [ $real ],
+        static function () use ( $real ) {
+            return file_get_contents( $real );
+        }
     );
 }
 
@@ -879,23 +955,23 @@ function metis_router_handle_module_asset_request( Metis_Http_Request $request )
 
     $bundle_files = metis_module_asset_bundle_files( $module, $asset, $registered );
     if ( $bundle_files !== [] ) {
-        $body = '';
-        foreach ( $bundle_files as $file ) {
-            $chunk = file_get_contents( $file );
-            if ( $chunk === false ) {
-                return Metis_Http_Response::html( 'Asset unreadable.', 500 );
+        return metis_router_build_cacheable_asset_response(
+            $request,
+            metis_module_asset_content_type( $asset ),
+            $bundle_files,
+            static function () use ( $bundle_files ) {
+                $body = '';
+                foreach ( $bundle_files as $file ) {
+                    $chunk = file_get_contents( $file );
+                    if ( $chunk === false ) {
+                        return false;
+                    }
+
+                    $body .= "\n/* " . basename( $file ) . " */\n" . $chunk . "\n";
+                }
+
+                return $body;
             }
-
-            $body .= "\n/* " . basename( $file ) . " */\n" . $chunk . "\n";
-        }
-
-        return new Metis_Http_Response(
-            200,
-            [
-                'Content-Type'  => metis_module_asset_content_type( $asset ),
-                'Cache-Control' => 'public, max-age=300',
-            ],
-            $request->method() === 'HEAD' ? '' : $body
         );
     }
 
@@ -907,18 +983,13 @@ function metis_router_handle_module_asset_request( Metis_Http_Request $request )
         return Metis_Http_Response::html( 'Asset not found.', 404 );
     }
 
-    $body = file_get_contents( $real );
-    if ( $body === false ) {
-        return Metis_Http_Response::html( 'Asset unreadable.', 500 );
-    }
-
-    return new Metis_Http_Response(
-        200,
-        [
-            'Content-Type'  => metis_module_asset_content_type( $real ),
-            'Cache-Control' => 'public, max-age=300',
-        ],
-        $request->method() === 'HEAD' ? '' : $body
+    return metis_router_build_cacheable_asset_response(
+        $request,
+        metis_module_asset_content_type( $real ),
+        [ $real ],
+        static function () use ( $real ) {
+            return file_get_contents( $real );
+        }
     );
 }
 

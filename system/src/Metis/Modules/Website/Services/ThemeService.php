@@ -157,8 +157,27 @@ final class ThemeService {
                 continue;
             }
             $format = self::sanitizeFontFormat( (string) ( $font['format'] ?? 'woff2' ) );
-            $lines[] = '@font-face{font-family:"' . str_replace( '"', '', $name ) . '";src:url("' . $data . '") format("' . $format . '");font-weight:100 900;font-style:normal;font-display:swap;}';
+            $lines[] = '@font-face{font-family:"' . str_replace( '"', '', $name ) . '";src:url("' . $data . '") format("' . $format . '");font-weight:100 900;font-style:normal;font-display:fallback;}';
         }
+
+        return implode( "\n", $lines );
+    }
+
+    public static function renderCriticalTypographyCss( array $theme ): string {
+        $typography = is_array( $theme['typography'] ?? null ) ? $theme['typography'] : [];
+        $body_font = self::sanitizeCssValue( (string) ( $typography['body_font'] ?? 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif' ) );
+        $heading_font = self::sanitizeCssValue( (string) ( $typography['heading_font'] ?? $body_font ) );
+        $body_size = self::sanitizeCssValue( (string) ( $typography['base_size'] ?? '16px' ) );
+        $line_height = self::sanitizeCssValue( (string) ( $typography['line_height'] ?? '1.6' ) );
+        $heading_weight = self::sanitizeCssValue( (string) ( $typography['heading_weight'] ?? '700' ) );
+
+        $lines = [];
+        $font_css = trim( self::renderFontCss( $theme ) );
+        if ( $font_css !== '' ) {
+            $lines[] = $font_css;
+        }
+        $lines[] = 'body.metis-public-site{font-family:' . $body_font . ';font-size:' . $body_size . ';line-height:' . $line_height . ';}';
+        $lines[] = 'body.metis-public-site h1,body.metis-public-site h2,body.metis-public-site h3,body.metis-public-site h4,body.metis-public-site h5,body.metis-public-site h6{font-family:' . $heading_font . ';font-weight:' . $heading_weight . ';}';
 
         return implode( "\n", $lines );
     }
@@ -421,6 +440,19 @@ final class ThemeService {
      */
     public static function fontStylesheetHrefs( array $theme ): array {
         return [];
+    }
+
+    /**
+     * @return array<int,array{href:string,type:string}>
+     */
+    public static function fontPreloadAssets( array $theme ): array {
+        $typography = is_array( $theme['typography'] ?? null ) ? $theme['typography'] : [];
+        $selected_families = self::selectedThemeFontFamilies( $typography );
+        if ( $selected_families === [] ) {
+            return [];
+        }
+
+        return self::localFontPreloadAssets( $selected_families );
     }
 
     public static function normalizeStoragePayload( array $data ): array {
@@ -1234,6 +1266,11 @@ final class ThemeService {
 
     private static function sanitizeFontFormat( string $value ): string {
         $value = strtolower( trim( $value ) );
+        if ( $value === 'ttf' ) {
+            $value = 'truetype';
+        } elseif ( $value === 'otf' ) {
+            $value = 'opentype';
+        }
         if ( ! in_array( $value, [ 'woff2', 'woff', 'truetype', 'opentype' ], true ) ) {
             return 'woff2';
         }
@@ -1281,7 +1318,7 @@ final class ThemeService {
             [ 'dir' => METIS_MODULES_PATH . 'website/assets/fonts', 'source' => 'module' ],
         ];
         $faces = [];
-        $seen_files = [];
+        $variants = [];
         $style_keywords = [ 'thin', 'extralight', 'ultralight', 'light', 'regular', 'normal', 'book', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy', 'italic', 'oblique' ];
         $selected_families = array_change_key_case( $selected_families, CASE_LOWER );
         foreach ( $roots as $root_meta ) {
@@ -1303,12 +1340,6 @@ final class ThemeService {
                 }
                 $full_path = (string) $file_info->getPathname();
                 $relative = ltrim( str_replace( '\\', '/', substr( $full_path, strlen( $root ) ) ), '/' );
-                $entry_key = strtolower( $relative );
-                if ( isset( $seen_files[ $entry_key ] ) ) {
-                    continue;
-                }
-                $seen_files[ $entry_key ] = true;
-
                 $meta = self::parseLocalFontFilename( pathinfo( $entry, PATHINFO_FILENAME ) );
                 $family = self::sanitizeFontFamilyName( (string) ( $meta['family'] ?? '' ) );
                 if ( $family === '' ) {
@@ -1332,6 +1363,18 @@ final class ThemeService {
                 $format = self::sanitizeFontFormat( (string) pathinfo( $entry, PATHINFO_EXTENSION ) );
                 $weight = (string) ( $meta['weight'] ?? '400' );
                 $style = (string) ( $meta['style'] ?? 'normal' );
+                $source_key = $family_key . '|' . $weight . '|' . $style;
+                if ( ! isset( $variants[ $source_key ] ) ) {
+                    $variants[ $source_key ] = [
+                        'family' => $family,
+                        'weight' => $weight,
+                        'style' => $style,
+                        'sources' => [],
+                    ];
+                }
+                if ( isset( $variants[ $source_key ]['sources'][ $format ] ) ) {
+                    continue;
+                }
                 if ( $source === 'runtime' ) {
                     $url = function_exists( 'metis_home_url' )
                         ? (string) metis_home_url( '/assets/fonts/' . self::encodeAssetPath( $relative ) )
@@ -1344,8 +1387,25 @@ final class ThemeService {
                             : '/assets/modules/website/fonts/' . self::encodeAssetPath( $relative )
                         );
                 }
-                $faces[] = '@font-face{font-family:"' . str_replace( '"', '', $family ) . '";src:url("' . self::sanitizeCssValue( $url ) . '") format("' . $format . '");font-weight:' . $weight . ';font-style:' . $style . ';font-display:swap;}';
+                $variants[ $source_key ]['sources'][ $format ] = self::sanitizeCssValue( $url );
             }
+        }
+
+        $format_order = [ 'woff2', 'woff', 'truetype', 'opentype' ];
+        foreach ( $variants as $variant ) {
+            $src = [];
+            $sources = is_array( $variant['sources'] ?? null ) ? $variant['sources'] : [];
+            foreach ( $format_order as $format ) {
+                $url = (string) ( $sources[ $format ] ?? '' );
+                if ( $url === '' ) {
+                    continue;
+                }
+                $src[] = 'url("' . $url . '") format("' . $format . '")';
+            }
+            if ( $src === [] ) {
+                continue;
+            }
+            $faces[] = '@font-face{font-family:"' . str_replace( '"', '', (string) $variant['family'] ) . '";src:' . implode( ',', $src ) . ';font-weight:' . (string) $variant['weight'] . ';font-style:' . (string) $variant['style'] . ';font-display:fallback;}';
         }
         return $faces;
     }
@@ -1368,6 +1428,112 @@ final class ThemeService {
             $selected[ $family_key ] = true;
         }
         return $selected;
+    }
+
+    /**
+     * @param array<string,true> $selected_families
+     * @return array<int,array{href:string,type:string}>
+     */
+    private static function localFontPreloadAssets( array $selected_families ): array {
+        $preloads = [];
+        $best_rank = [];
+        $sources = [
+            [
+                'dir' => defined( 'METIS_ROOT' ) ? METIS_ROOT . '/system/assets/fonts' : '',
+                'source' => 'runtime',
+            ],
+            [
+                'dir' => defined( 'METIS_ROOT' ) ? METIS_ROOT . '/system/modules/website/assets/fonts' : '',
+                'source' => 'module',
+            ],
+        ];
+
+        foreach ( $sources as $source_config ) {
+            $dir = (string) ( $source_config['dir'] ?? '' );
+            $source = (string) ( $source_config['source'] ?? 'runtime' );
+            if ( $dir === '' || ! is_dir( $dir ) ) {
+                continue;
+            }
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS )
+            );
+
+            foreach ( $iterator as $file ) {
+                if ( ! $file instanceof \SplFileInfo || ! $file->isFile() ) {
+                    continue;
+                }
+
+                $extension = strtolower( $file->getExtension() );
+                if ( ! in_array( $extension, [ 'woff2', 'woff', 'ttf', 'otf' ], true ) ) {
+                    continue;
+                }
+
+                $relative = str_replace( '\\', '/', ltrim( substr( $file->getPathname(), strlen( $dir ) ), DIRECTORY_SEPARATOR ) );
+                $meta = self::parseLocalFontFilename( pathinfo( $file->getFilename(), PATHINFO_FILENAME ) );
+                $dir_hint = basename( dirname( $relative ) );
+                $family = self::sanitizeFontFamilyName( (string) ( $meta['family'] ?? '' ) );
+                if ( $dir_hint !== '' && strtolower( $dir_hint ) !== 'fonts' ) {
+                    $family = self::sanitizeFontFamilyName( $dir_hint );
+                }
+                if ( $family === '' ) {
+                    continue;
+                }
+
+                $family_key = strtolower( $family );
+                if ( ! isset( $selected_families[ $family_key ] ) ) {
+                    continue;
+                }
+
+                $weight = (string) ( $meta['weight'] ?? '400' );
+                $style = (string) ( $meta['style'] ?? 'normal' );
+                $rank = self::localFontPreloadRank( $extension, $weight, $style );
+                if ( isset( $best_rank[ $family_key ] ) && $rank >= $best_rank[ $family_key ] ) {
+                    continue;
+                }
+
+                $url = $source === 'runtime'
+                    ? ( function_exists( 'metis_home_url' )
+                        ? (string) metis_home_url( '/assets/fonts/' . self::encodeAssetPath( $relative ) )
+                        : '/assets/fonts/' . self::encodeAssetPath( $relative ) )
+                    : ( function_exists( 'metis_module_asset_url' )
+                        ? (string) metis_module_asset_url( 'website', 'fonts/' . $relative )
+                        : ( function_exists( 'metis_home_url' )
+                            ? (string) metis_home_url( '/assets/modules/website/fonts/' . self::encodeAssetPath( $relative ) )
+                            : '/assets/modules/website/fonts/' . self::encodeAssetPath( $relative ) ) );
+
+                $preloads[ $family_key ] = [
+                    'href' => $url,
+                    'type' => self::fontMimeTypeForExtension( $extension ),
+                ];
+                $best_rank[ $family_key ] = $rank;
+            }
+        }
+
+        return array_values( $preloads );
+    }
+
+    private static function localFontPreloadRank( string $extension, string $weight, string $style ): int {
+        $format_rank = match ( strtolower( $extension ) ) {
+            'woff2' => 0,
+            'woff' => 1,
+            'ttf' => 2,
+            'otf' => 3,
+            default => 4,
+        };
+        $weight_rank = abs( (int) $weight - 400 );
+        $style_rank = strtolower( $style ) === 'normal' ? 0 : 1;
+        return ( $format_rank * 1000 ) + ( $style_rank * 100 ) + $weight_rank;
+    }
+
+    private static function fontMimeTypeForExtension( string $extension ): string {
+        return match ( strtolower( $extension ) ) {
+            'woff2' => 'font/woff2',
+            'woff' => 'font/woff',
+            'ttf' => 'font/ttf',
+            'otf' => 'font/otf',
+            default => 'font/woff2',
+        };
     }
 
     /**

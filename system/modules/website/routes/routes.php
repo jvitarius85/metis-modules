@@ -178,11 +178,38 @@ function metis_website_handle_theme_css_route( Metis_Http_Request $request ): Me
         return new Metis_Http_Response( 500, [ 'Content-Type' => 'text/css; charset=utf-8' ], '/* Metis theme stylesheet failed to render */' );
     }
 
+    $etag = '"' . sha1( $css ) . '"';
+    $if_none_match = trim( (string) $request->header( 'if-none-match', '' ) );
+    if ( $if_none_match !== '' ) {
+        foreach ( array_map( 'trim', explode( ',', $if_none_match ) ) as $candidate ) {
+            if ( $candidate === '*' || $candidate === $etag ) {
+                return new Metis_Http_Response(
+                    304,
+                    [
+                        'Content-Type' => 'text/css; charset=utf-8',
+                        'Cache-Control' => trim( (string) ( $request->query()['v'] ?? '' ) ) !== ''
+                            ? 'public, max-age=31536000, immutable'
+                            : 'public, max-age=300',
+                        'ETag' => $etag,
+                        'X-Content-Type-Options' => 'nosniff',
+                    ],
+                    ''
+                );
+            }
+        }
+    }
+
+    $cache_control = trim( (string) ( $request->query()['v'] ?? '' ) ) !== ''
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=300';
+
     return new Metis_Http_Response(
         200,
         [
             'Content-Type' => 'text/css; charset=utf-8',
-            'Cache-Control' => 'public, max-age=300',
+            'Cache-Control' => $cache_control,
+            'ETag' => $etag,
+            'X-Content-Type-Options' => 'nosniff',
         ],
         $css
     );
