@@ -1,7 +1,10 @@
 <?php if (!defined('METIS_ROOT')) exit;
 
 if (!metis_user_logged_in()) {
-    echo '<div class="metis-alert metis-alert-error">You must be logged in to view your profile.</div>';
+    metis_render_error_state([
+        'title' => 'Sign-in required',
+        'message' => 'You must be logged in to view your profile.',
+    ]);
     return;
 }
 
@@ -21,7 +24,10 @@ if (function_exists('metis_people_get_current_person_id')) {
 }
 
 if (!$person || empty($person['id'])) {
-    echo '<div class="metis-alert metis-alert-error">Unable to load profile record.</div>';
+    metis_render_error_state([
+        'title' => 'Profile unavailable',
+        'message' => 'Metis could not load your profile record right now.',
+    ]);
     return;
 }
 

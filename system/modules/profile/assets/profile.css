@@ -179,6 +179,32 @@
 }
 
 @media (max-width: 900px) {
+    .metis-profile-layout-sidebar-inner {
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+    .metis-profile-tabs {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: thin;
+    }
+    .metis-profile-tab-btn {
+        width: auto;
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+    .metis-contact-card {
+        padding: 14px;
+    }
+    .metis-profile-notification-row {
+        grid-template-columns: 1fr;
+        justify-items: start;
+    }
     .metis-field-half,
     .metis-field-third { grid-column: span 12; }
     .metis-avatar-cropper {

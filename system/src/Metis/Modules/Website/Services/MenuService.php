@@ -9,6 +9,8 @@ use Metis\Core\Application;
  * Menu Service — manages website navigation menus.
  */
 final class MenuService {
+    /** @var array<string,string> */
+    private static array $canonicalUrlCache = [];
 
     public static function getAll(): array {
         $rows = self::db()->fetchAll( "SELECT * FROM " . \Metis_Tables::get( 'website_menus' ) . " ORDER BY name ASC" );
@@ -33,7 +35,143 @@ final class MenuService {
             return [];
         }
         $decoded = json_decode( $menu['items_json'], true );
-        return is_array( $decoded ) ? $decoded : [];
+        return is_array( $decoded ) ? self::normalizeItemsForPersistence( $decoded ) : [];
+    }
+
+    /**
+     * @param string|array<int,mixed> $items
+     * @return array<int,array<string,mixed>>
+     */
+    public static function normalizeItemsForPersistence( string|array $items ): array {
+        if ( is_string( $items ) ) {
+            $decoded = json_decode( $items, true );
+            $items = is_array( $decoded ) ? $decoded : [];
+        }
+
+        $normalized = [];
+        $id_map = [];
+        $index = 0;
+        foreach ( $items as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+
+            $label = \metis_text_clean( (string) ( $item['label'] ?? $item['title'] ?? '' ) );
+            $url = self::normalizePublicItemUrl( (string) ( $item['url'] ?? '' ) );
+            if ( $label === '' || $url === '' ) {
+                continue;
+            }
+
+            $candidate_id = \metis_key_clean( (string) ( $item['id'] ?? '' ) );
+            if ( $candidate_id === '' || isset( $id_map[ $candidate_id ] ) ) {
+                $candidate_id = 'menu_item_' . (string) $index;
+            }
+            $id_map[ $candidate_id ] = true;
+
+            $normalized[] = [
+                'id' => $candidate_id,
+                'parent_id' => \metis_key_clean( (string) ( $item['parent_id'] ?? '' ) ),
+                'label' => $label,
+                'url' => $url,
+                'target' => (string) ( $item['target'] ?? '' ) === '_blank' ? '_blank' : '',
+                'external' => (string) ( $item['target'] ?? '' ) === '_blank' || ! empty( $item['external'] ),
+                'as_button' => ! empty( $item['as_button'] ),
+                'button_color_key' => self::normalizeButtonColorKey( (string) ( $item['button_color_key'] ?? 'metis_primary' ) ),
+            ];
+            $index++;
+        }
+
+        foreach ( $normalized as &$item ) {
+            $parent_id = (string) ( $item['parent_id'] ?? '' );
+            if ( $parent_id === '' || ! isset( $id_map[ $parent_id ] ) || $parent_id === (string) $item['id'] ) {
+                $item['parent_id'] = '';
+            }
+        }
+        unset( $item );
+
+        return $normalized;
+    }
+
+    public static function normalizePublicItemUrl( string $url ): string {
+        $url = trim( $url );
+        if ( $url === '' ) {
+            return '';
+        }
+
+        if ( isset( self::$canonicalUrlCache[ $url ] ) ) {
+            return self::$canonicalUrlCache[ $url ];
+        }
+
+        if ( $url === '#' ) {
+            self::$canonicalUrlCache[ $url ] = '#';
+            return '#';
+        }
+
+        if ( function_exists( 'metis_runtime_is_safe_url_value' ) && ! \metis_runtime_is_safe_url_value( $url ) ) {
+            self::$canonicalUrlCache[ $url ] = '';
+            return '';
+        }
+
+        if ( preg_match( '#^(mailto|tel):#i', $url ) === 1 ) {
+            self::$canonicalUrlCache[ $url ] = $url;
+            return $url;
+        }
+
+        if ( preg_match( '#^(https?:)?//#i', $url ) === 1 ) {
+            self::$canonicalUrlCache[ $url ] = $url;
+            return $url;
+        }
+
+        $normalized_path = '/' . ltrim( trim( $url ), '/' );
+        if ( $normalized_path === '//' ) {
+            $normalized_path = '/';
+        }
+
+        $canonical = self::canonicalPublishedPathFromInternalUrl( $normalized_path );
+        if ( $canonical !== '' ) {
+            self::$canonicalUrlCache[ $url ] = $canonical;
+            return $canonical;
+        }
+
+        self::$canonicalUrlCache[ $url ] = $normalized_path;
+        return $normalized_path;
+    }
+
+    private static function normalizeButtonColorKey( string $key ): string {
+        $key = \metis_key_clean( $key );
+        if ( ! in_array( $key, [ 'metis_primary', 'metis_accent', 'metis_text', 'metis_surface' ], true ) ) {
+            return 'metis_primary';
+        }
+        return $key;
+    }
+
+    private static function canonicalPublishedPathFromInternalUrl( string $path ): string {
+        $path = trim( $path );
+        if ( $path === '' || $path === '/' ) {
+            return $path === '/' ? '/' : '';
+        }
+
+        $page = PageService::getPublishedByPath( $path );
+        if ( $page instanceof \Metis\Modules\Website\Entities\Page ) {
+            return PageService::publishedPathForPage( $page );
+        }
+
+        $slug = \metis_slug_clean( (string) basename( $path ) );
+        if ( $slug === '' ) {
+            return '';
+        }
+
+        $page = PageService::getBySlug( $slug );
+        if ( $page instanceof \Metis\Modules\Website\Entities\Page && (string) ( $page->status ?? '' ) === 'published' ) {
+            return PageService::publishedPathForPage( $page );
+        }
+
+        $post = PostService::getBySlug( $slug );
+        if ( $post instanceof \Metis\Modules\Website\Entities\Post && (string) ( $post->status ?? '' ) === 'published' && PostService::isPubliclyRoutable( $post ) ) {
+            return PostService::publicPath( $post );
+        }
+
+        return '';
     }
 
     public static function create( array $data ): int|false {

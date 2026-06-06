@@ -1,7 +1,10 @@
 <?php if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 if ( ! metis_people_can_view() ) {
-    echo '<div class="metis-alert metis-alert-error">You do not have permission to view People.</div>';
+    metis_render_error_state( [
+        'title' => 'People access required',
+        'message' => 'You do not have permission to view this person record.',
+    ] );
     return;
 }
 
@@ -16,7 +19,10 @@ $snapshot = \Metis\Modules\People\ReadService::personSnapshot( $pid, $is_new );
 $person = $snapshot['person'] ?? null;
 if ( ! $is_new && $pid !== '' ) {
     if ( ! $person ) {
-        echo '<div class="metis-alert metis-alert-error">Person not found.</div>';
+        metis_render_error_state( [
+            'title' => 'Person not found',
+            'message' => 'The requested person record could not be found.',
+        ] );
         return;
     }
     $person_full_name = trim( ( $person['first_name'] ?? '' ) . ' ' . ( $person['last_name'] ?? '' ) );

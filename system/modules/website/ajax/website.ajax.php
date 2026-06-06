@@ -2937,10 +2937,13 @@ metis_ajax_register_handler( 'metis_website_menu_save', function (): void {
         metis_runtime_send_json_error( 'Menu name is required.', 400 );
     }
 
+    $items_json = isset( metis_request_post()['items_json'] ) ? metis_runtime_unslash( metis_request_post()['items_json'] ) : '[]';
+    $normalized_items = MenuService::normalizeItemsForPersistence( (string) $items_json );
+
     $data = [
         'name'       => $name,
         'location'   => isset( metis_request_post()['location'] ) ? metis_key_clean( metis_request_post()['location'] ) : null,
-        'items_json' => isset( metis_request_post()['items_json'] ) ? metis_runtime_unslash( metis_request_post()['items_json'] ) : '[]',
+        'items_json' => wp_json_encode( $normalized_items ),
     ];
 
     if ( $id > 0 ) {

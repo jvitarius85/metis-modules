@@ -333,10 +333,6 @@ final class ThemeService {
         } elseif ( $menu_chevron_type === 'arrow' ) {
             $lines[] = '.metis-shell-menu-sub-indicator{width:8px;height:8px;border-right:2px solid currentColor;border-top:2px solid currentColor;border-bottom:0;border-left:0;transform:rotate(135deg) translateY(-1px);}';
         }
-        $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-primary{position:fixed;top:0;right:-110%;width:min(320px,90vw);height:100vh;overflow:auto;background:var(--metis-color-surface,#fff);z-index:1400;padding:24px 18px;box-shadow:-10px 0 24px rgba(2,8,23,.16);transition:right .22s ease;}';
-        $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-primary .metis-shell-menu-list{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:12px;}';
-        $lines[] = 'body.metis-nav-mobile-viewport.metis-nav-open .metis-shell-nav-primary{right:0;}';
-        $lines[] = 'body.metis-nav-mobile-viewport .metis-shell-nav-toggle{display:inline-flex !important;}';
         $lines[] = '.metis-shell-nav-toggle{border-radius:999px !important;}';
         if ( $menu_dropdown_behavior === 'click' ) {
             $lines[] = '.metis-shell-menu-item.has-children:hover>.metis-shell-menu-sub,.metis-shell-menu-item.has-children:focus-within>.metis-shell-menu-sub{opacity:0 !important;visibility:hidden !important;pointer-events:none !important;transform:translateY(var(--metis-menu-sub-open-y,-8px)) scale(var(--metis-menu-sub-open-scale,1)) !important;}';
