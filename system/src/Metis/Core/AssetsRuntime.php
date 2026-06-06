@@ -36,29 +36,6 @@ metis_on('metis_assets_enqueue', function () {
     // Core CSS/JS (NOTE: no /css/ subfolder)
     $asset_mark( 'ASSETS_REGISTER_CORE' );
     metis_runtime_register_style_alias(
-        'metis-runtime-theme',
-        metis_runtime_asset_url(
-            'theme.css',
-            metis_key_clean( (string) metis_get_query_var( 'metis_domain' ) ),
-            metis_key_clean( (string) metis_get_query_var( 'metis_view' ) )
-        ),
-        [ 'metis-core' ],
-        $asset_version
-    );
-
-    metis_runtime_register_script_alias(
-        'metis-runtime-bootstrap',
-        metis_runtime_asset_url(
-            'bootstrap.js',
-            metis_key_clean( (string) metis_get_query_var( 'metis_domain' ) ),
-            metis_key_clean( (string) metis_get_query_var( 'metis_view' ) )
-        ),
-        ['jquery'],
-        $asset_version,
-        false
-    );
-
-    metis_runtime_register_style_alias(
         'metis-core',
         $asset_base_url . 'assets/core.css',
         [],
@@ -68,7 +45,7 @@ metis_on('metis_assets_enqueue', function () {
     metis_runtime_register_script_alias(
         'metis-core',
         $asset_base_url . 'assets/core.js',
-        ['jquery', 'metis-runtime-bootstrap'],
+        ['jquery'],
         $asset_version,
         true
     );
@@ -147,8 +124,6 @@ metis_on('metis_assets_enqueue', function () {
     $asset_mark( 'ASSETS_ENQUEUE_CORE' );
     metis_runtime_enqueue_script( 'jquery' );
     metis_runtime_enqueue_style('metis-core');
-    metis_runtime_enqueue_style( 'metis-runtime-theme' );
-    metis_runtime_enqueue_script( 'metis-runtime-bootstrap' );
     metis_runtime_enqueue_script('metis-core');
     if ( $is_dashboard_view ) {
         metis_runtime_enqueue_style( 'metis-kpi-cards' );

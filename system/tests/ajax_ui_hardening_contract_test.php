@@ -25,8 +25,11 @@ $read = static function ( string $relative ) use ( $system ): string {
 $responseRuntime = $read( 'src/Metis/Core/Runtime/ResponseRuntime.php' );
 $coreJs = $read( 'assets/core.js' );
 $coreCss = $read( 'assets/core.css' );
+$coreHelpers = $read( 'src/Metis/Core/CoreHelpers.php' );
+$uiComponentsRuntime = $read( 'src/Metis/Core/Runtime/UiComponentsRuntime.php' );
 $authRuntime = $read( 'src/Metis/Core/Auth/AuthRuntime.php' );
 $authPasskeyClient = $read( 'assets/js/auth-passkey-client.js' );
+$assetsRuntime = $read( 'src/Metis/Core/AssetsRuntime.php' );
 $formsJs = $read( 'modules/forms/assets/forms.js' );
 $formsRenderer = $read( 'src/Metis/Modules/Forms/FormRenderer.php' );
 $websiteThemeView = $read( 'modules/website/views/theme.php' );
@@ -70,6 +73,7 @@ $contactsAjax = $read( 'modules/contacts/ajax/contacts.ajax.php' );
 $recurringDonationsService = $read( 'src/Metis/Modules/Donations/RecurringDonationsService.php' );
 $websiteAjax = $read( 'modules/website/ajax/website.ajax.php' );
 $websiteRenderer = $read( 'src/Metis/Modules/Website/Services/WebsiteRenderer.php' );
+$publicNavigationJs = $read( 'modules/website/assets/public-navigation.js' );
 $revisionTimelineService = $read( 'src/Metis/Modules/Website/Services/RevisionTimelineService.php' );
 $testimoniesAjax = $read( 'modules/testimonies/assets/testimonies.ajax.php' );
 $websiteBlockRegistry = $read( 'src/Metis/Modules/Website/BlockRegistry.php' );
@@ -78,7 +82,9 @@ $assert( str_contains( $responseRuntime, 'function metis_runtime_send_json_succe
 $assert( str_contains( $sanitizationRuntime, 'function metis_text_raw_clean' ) && str_contains( $sanitizationRuntime, 'metis_runtime_normalize_text_encoding' ), 'Sanitization runtime must expose canonical Unicode-preserving text normalization helpers.' );
 $assert( str_contains( $authRuntime, 'type="button" id="metis-google-sso-button"' ) && str_contains( $authRuntime, 'name="redirect_to"' ), 'Google sign-in must use a dedicated standalone start form instead of piggybacking on the resolve form submit path.' );
 $assert( str_contains( $authPasskeyClient, 'requestSubmit' ) && str_contains( $authPasskeyClient, 'stopPropagation' ) && str_contains( $authPasskeyClient, 'Opening Google Workspace sign-in...' ), 'Google sign-in client runtime must submit the dedicated SSO form without letting the resolve form consume the first click.' );
+$assert( ! str_contains( $assetsRuntime, 'metis-runtime-theme' ) && ! str_contains( $assetsRuntime, 'metis-runtime-bootstrap' ) && str_contains( $assetsRuntime, "'metis-core'" ) && str_contains( $assetsRuntime, "['jquery']" ), 'Portal asset delivery must keep reusable JS and CSS in cacheable external files and keep request-specific bootstrap payload inline instead of routing it through uncached fake asset wrappers.' );
 $assert( str_contains( $sessionSecurityService, "session.cache_limiter', ''" ) && str_contains( $sessionSecurityService, "session_cache_limiter( '' )" ) && str_contains( $standaloneBootstrap, "session.cache_limiter', ''" ) && str_contains( $standaloneBootstrap, "session_cache_limiter( '' )" ), 'Session bootstrap paths must disable PHP session cache limiter so legacy nocache headers do not leak into cacheable website assets.' );
+$assert( str_contains( $coreHelpers, "Runtime/UiComponentsRuntime.php" ) && str_contains( $uiComponentsRuntime, 'function metis_render_responsive_table' ) && str_contains( $uiComponentsRuntime, 'function metis_render_empty_state' ) && str_contains( $uiComponentsRuntime, 'function metis_render_error_state' ) && str_contains( $uiComponentsRuntime, 'function metis_render_loading_state' ) && str_contains( $uiComponentsRuntime, 'function metis_render_mobile_section' ), 'Core helpers must expose the shared responsive table, state, and collapsible mobile section primitives.' );
 $assert( str_contains( $responseRuntime, "'message' => \$message" ), 'Structured JSON responses must include message.' );
 $assert( str_contains( $responseRuntime, "'data'    => \$data" ) || str_contains( $responseRuntime, "'data'    => \$payload" ), 'Structured JSON responses must include data.' );
 $assert( str_contains( $responseRuntime, "'errors'  => []" ) && str_contains( $responseRuntime, "'success' => true" ), 'Structured JSON success responses must include errors and success fields.' );
@@ -86,9 +92,11 @@ $assert( str_contains( $responseRuntime, "'request_id' => \$request_id !== '' ? 
 
 $assert( str_contains( $coreJs, 'Metis.ui.ajax = Metis.ajax;' ), 'Core UI runtime must expose Metis.ui.ajax alias.' );
 $assert( ! str_contains( $coreCss, '@import url(\'https://fonts.googleapis.com/' ) && str_contains( $coreCss, 'font-family: "Figtree"' ) && str_contains( $coreCss, "Figtree-VariableFont_wght.woff2" ) && str_contains( $coreCss, 'font-display: fallback;' ), 'Core CSS must use the local shared webfont assets and balance stable first paint with actual custom font loading.' );
+$assert( str_contains( $coreCss, '.metis-table-wrap' ) && str_contains( $coreCss, '.metis-state' ) && str_contains( $coreCss, '.metis-mobile-section' ) && str_contains( $coreCss, '.metis-btn-utility' ), 'Core CSS must provide shared responsive table, state, collapsible section, and utility button primitives.' );
 $assert( str_contains( $coreJs, 'Metis.ui.toast = Metis.toast;' ), 'Core UI runtime must expose Metis.ui.toast alias.' );
 $assert( str_contains( $coreJs, 'Metis.ui.modal = Metis.modal;' ), 'Core UI runtime must expose Metis.ui.modal alias.' );
 $assert( str_contains( $coreJs, 'Metis.ui.confirm = Metis.confirm;' ), 'Core UI runtime must expose Metis.ui.confirm alias.' );
+$assert( str_contains( $coreJs, 'clickedToggle' ) && str_contains( $coreJs, "document.body.classList.toggle('metis-nav-open', isOpen);" ) && str_contains( $coreJs, "toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');" ), 'Admin mobile navigation must use the shared toggle state and must not immediately close when the opener click reaches the outside-click listener.' );
 $assert( str_contains( $coreJs, 'Metis.ui.loading = (function() {' ), 'Core UI runtime must expose Metis.ui.loading helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.form = (function() {' ), 'Core UI runtime must expose Metis.ui.form helper.' );
 $assert( str_contains( $coreJs, 'Metis.ui.select = (function() {' ), 'Core UI runtime must expose Metis.ui.select helper.' );
@@ -126,6 +134,7 @@ $assert( is_file( $system . '/assets/Images/emojis/emoji-index.json' ) && str_co
 $assert( str_contains( $routerRuntime, 'function metis_router_build_cacheable_asset_response' ) && str_contains( $routerRuntime, "'ETag' => \$cache['etag']" ) && str_contains( $routerRuntime, "'Last-Modified' => \$cache['last_modified']" ) && str_contains( $routerRuntime, 'public, max-age=604800, stale-while-revalidate=86400' ), 'Core routed asset delivery must expose strong cache validators for shared images, fonts, and other static assets.' );
 $assert( str_contains( $websiteRoutes, 'max-age=31536000, immutable' ) && str_contains( $websiteRoutes, "'ETag' => \$etag" ), 'Versioned website theme stylesheets must be cacheable as immutable assets with strong validators.' );
 $assert( str_contains( $websiteRenderer, "rel=\"preload\" href=\"" ) && str_contains( $websiteRenderer, "as=\"font\"" ) && str_contains( $websiteRenderer, "font_preloads" ), 'Public website rendering must preload the active local theme font assets before the generated stylesheet applies them.' );
+$assert( str_contains( $publicNavigationJs, 'event.stopPropagation();' ) && str_contains( $publicNavigationJs, 'nav.setAttribute("aria-hidden", active ? "false" : "true")' ) && str_contains( $websiteRenderer, 'body.metis-nav-mobile-viewport .metis-shell-nav-primary .metis-shell-menu-item.is-open > .metis-shell-menu-sub{max-height:32rem !important;}' ) && ! str_contains( $websiteRenderer, 'body.metis-nav-mobile-viewport .metis-shell-nav-primary .metis-shell-menu-item:hover > .metis-shell-menu-sub' ), 'Public mobile navigation must expand submenus from explicit toggle state instead of hover-driven mobile CSS.' );
 $assert( str_contains( $websiteRenderer, "stylesheetHref( \$context, \$template_structure, \$template_preview_mode, 'shared' )" ) && str_contains( $websiteRenderer, "stylesheetHref( \$context, \$template_structure, \$template_preview_mode, 'layout' )" ) && str_contains( $websiteRenderer, 'contentStyleVersionToken' ), 'Website rendering must split shared theme CSS from page layout CSS so fonts and global styles cache across pages without making page CSS stale.' );
 $assert( str_contains( $websiteRenderer, 'shared_style_href' ) && str_contains( $websiteRenderer, 'layout_style_href' ) && str_contains( $websiteRenderer, 'as="style"' ), 'Public website rendering must discover the shared stylesheet early and load page-specific layout CSS separately.' );
 $assert( str_contains( $themeService, 'public static function renderCriticalTypographyCss' ) && str_contains( $websiteRenderer, 'data-metis-critical-typography="1"' ) && str_contains( $websiteRenderer, 'renderCriticalTypographyCss' ), 'Public website rendering must inline critical typography CSS so fresh installs do not wait on generated stylesheets before knowing the active theme fonts.' );

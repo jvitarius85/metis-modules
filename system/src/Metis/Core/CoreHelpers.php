@@ -3,6 +3,7 @@ if ( ! defined( 'METIS_ROOT' ) ) exit;
 
 require_once __DIR__ . '/Runtime/SidebarLayout.php';
 require_once __DIR__ . '/Runtime/SidebarModuleLayout.php';
+require_once __DIR__ . '/Runtime/UiComponentsRuntime.php';
 
 /**
  * Metis Core Helpers

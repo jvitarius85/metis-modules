@@ -92,12 +92,17 @@
       body.classList.add("metis-nav-open");
     } else {
       body.classList.remove("metis-nav-open");
+      closeOpenSubmenus(null);
     }
     var btns = document.querySelectorAll("[data-metis-nav-toggle]");
     for (var i = 0; i < btns.length; i++) {
       btns[i].setAttribute("aria-expanded", active ? "true" : "false");
+      btns[i].setAttribute("aria-label", active ? "Close primary menu" : "Open primary menu");
     }
     var nav = document.querySelector(".metis-shell-nav-primary");
+    if (nav) {
+      nav.setAttribute("aria-hidden", active ? "false" : "true");
+    }
     if (active) {
       if (triggerSource && typeof triggerSource.focus === "function") {
         lastNavToggle = triggerSource;
@@ -116,6 +121,8 @@
   var btns = document.querySelectorAll("[data-metis-nav-toggle]");
   for (var i = 0; i < btns.length; i++) {
     btns[i].addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
       setOpen(!body.classList.contains("metis-nav-open"), event.currentTarget || this);
     });
   }

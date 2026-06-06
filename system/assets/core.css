@@ -1238,6 +1238,145 @@ html[data-metis-nav-labels="true"] .metis-sidebar-submenu {
     border-radius: var(--metis-radius);
 }
 
+.metis-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid var(--metis-border);
+    border-radius: var(--metis-radius-lg);
+    background: var(--metis-surface);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable both-edges;
+}
+
+.metis-table-wrap__hint {
+    padding: 10px 14px 0;
+    font-size: 12px;
+    color: var(--metis-text-muted);
+}
+
+.metis-table-wrap > table,
+.metis-table-wrap .metis-table {
+    min-width: 640px;
+    width: 100%;
+    margin: 0;
+}
+
+.metis-state {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: center;
+    padding: 20px;
+    border: 1px solid var(--metis-border);
+    border-radius: var(--metis-radius-lg);
+    background: var(--metis-surface);
+    box-shadow: var(--metis-shadow-sm);
+}
+
+.metis-state__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--metis-primary) 10%, #fff);
+    color: var(--metis-primary);
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.metis-state__body {
+    min-width: 0;
+}
+
+.metis-state__title {
+    margin: 0 0 6px;
+    font-size: 18px;
+    line-height: 1.2;
+}
+
+.metis-state__message {
+    margin: 0;
+    color: var(--metis-text-muted);
+    line-height: 1.55;
+}
+
+.metis-state__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.metis-state-error {
+    border-color: #fecaca;
+    background: #fff7f7;
+}
+
+.metis-state-error .metis-state__icon {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.metis-loading-spinner {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 2px solid color-mix(in srgb, var(--metis-primary) 18%, #fff);
+    border-top-color: var(--metis-primary);
+    animation: metis-spin 0.8s linear infinite;
+}
+
+.metis-mobile-section {
+    width: 100%;
+    border: 1px solid var(--metis-border);
+    border-radius: var(--metis-radius-lg);
+    background: var(--metis-surface);
+    overflow: clip;
+}
+
+.metis-mobile-section__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    font-weight: 700;
+    list-style: none;
+}
+
+.metis-mobile-section__summary::-webkit-details-marker {
+    display: none;
+}
+
+.metis-mobile-section__summary::after {
+    content: "+";
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--metis-primary) 22%, var(--metis-border));
+    color: var(--metis-primary);
+    font-size: 18px;
+    line-height: 1;
+}
+
+.metis-mobile-section[open] > .metis-mobile-section__summary::after {
+    content: "−";
+}
+
+.metis-mobile-section__body {
+    padding: 0 16px 16px;
+}
+
 @media (max-width: 900px) {
     .metis-list-layout,
     .metis-sidebar-layout { grid-template-columns: 1fr; }
@@ -1808,6 +1947,14 @@ a.metis-btn {
     outline: none;
 }
 
+.metis-btn-primary,
+a.metis-btn-primary,
+button.metis-btn-primary {
+    background: var(--metis-primary);
+    color: #fff;
+    border-color: var(--metis-primary);
+}
+
 .metis-btn:hover {
     background: var(--metis-primary-dark);
     text-decoration: none;
@@ -1863,6 +2010,25 @@ button.metis-btn.metis-btn-secondary:hover {
     border-color: var(--metis-primary);
 }
 
+.metis-btn.metis-btn-utility,
+.metis-btn-utility,
+a.metis-btn-utility,
+button.metis-btn-utility {
+    background: var(--metis-surface);
+    color: var(--metis-text);
+    border-color: var(--metis-border);
+    box-shadow: none;
+}
+
+.metis-btn.metis-btn-utility:hover,
+.metis-btn-utility:hover,
+a.metis-btn-utility:hover,
+button.metis-btn-utility:hover {
+    background: var(--metis-bg);
+    color: var(--metis-text);
+    border-color: #b0b5c8;
+}
+
 .metis-btn.metis-btn-ghost,
 a.metis-btn.metis-btn-ghost,
 button.metis-btn.metis-btn-ghost {
@@ -1891,6 +2057,12 @@ button[disabled],
 .metis-btn.is-disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 
 .metis-btn-icon { padding: 6px; width: 32px; height: 32px; border-radius: var(--metis-radius); }
+
+.metis-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
 
 /* ============================================================
    BADGES
