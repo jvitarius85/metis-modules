@@ -1,0 +1,14 @@
+[
+  { "phrase": "who donated", "action": "search", "entity": "donor", "weight": 0.94 },
+  { "phrase": "who gave", "action": "search", "entity": "donor", "weight": 0.94 },
+  { "phrase": "everyone who gave", "action": "search", "entity": "donor", "weight": 0.97 },
+  { "phrase": "people who donated", "action": "search", "entity": "donor", "weight": 0.97 },
+  { "phrase": "supporters from", "action": "search", "entity": "donor", "weight": 0.9 },
+  { "phrase": "donors from", "action": "search", "entity": "donor", "weight": 0.9 },
+  { "phrase": "top donors", "action": "count", "entity": "donor", "weight": 0.92 },
+  { "phrase": "current campaign", "action": "search", "entity": "donation", "weight": 0.88 },
+  { "phrase": "last donation", "action": "search", "entity": "donation", "weight": 0.9 },
+  { "phrase": "best campaign", "action": "count", "entity": "donation", "weight": 0.88 },
+  { "phrase": "highest grossing campaign", "action": "count", "entity": "donation", "weight": 0.93 },
+  { "phrase": "raised the most money", "action": "count", "entity": "donation", "weight": 0.91 }
+]

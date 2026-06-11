@@ -16,7 +16,7 @@ final class HermesIntentRouter {
     public function route( string $query, array $runtimeContext = [] ): array {
         $sessionCode = trim( (string) ( $runtimeContext['session_code'] ?? '' ) );
         $parsed = $this->parser->parse( $query, $sessionCode );
-        $legacy = $this->legacyParser->parse( $query );
+        $legacy = $this->legacyParser->parse( $query, $sessionCode );
 
         if ( $this->shouldPreferLegacy( $parsed, $legacy, $query ) ) {
             $parsed = $this->buildParsedFromLegacy( $legacy, $query );
@@ -121,10 +121,10 @@ final class HermesIntentRouter {
             'entities' => [],
             'confidence_score' => $confidence,
             'confidence_label' => $this->confidenceLabel( $confidence ),
-            'requires_clarification' => false,
-            'clarification_prompt' => '',
+            'requires_clarification' => ! empty( $legacy['requires_clarification'] ),
+            'clarification_prompt' => (string) ( $legacy['clarification_prompt'] ?? '' ),
             'execution_plan' => [],
-            'alternative_intents' => [],
+            'alternative_intents' => (array) ( $legacy['alternative_intents'] ?? [] ),
             'context' => [],
             'type' => (string) ( $legacy['type'] ?? 'command' ),
             'command' => $legacy['command'] ?? null,

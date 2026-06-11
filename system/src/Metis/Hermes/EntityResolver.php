@@ -25,7 +25,6 @@ final class EntityResolver {
         }
 
         $types = $this->typesToSearch( $entity_hint );
-        $resolved = [];
         $ambiguousCandidates = [];
         $errors = [];
 
@@ -50,15 +49,7 @@ final class EntityResolver {
                 $match = (array) ( $payload['match'] ?? [] );
 
                 if ( count( $candidates ) === 1 && ! empty( $match ) ) {
-                    $record = (array) ( $match['metadata']['record'] ?? [] );
-                    return [
-                        'ok' => true,
-                        'entity_type' => $legacyType,
-                        'id' => (int) ( $match['id'] ?? 0 ),
-                        'record' => $record,
-                        'confidence' => (string) ( $payload['confidence'] ?? 'medium' ),
-                        'requires_confirmation' => true,
-                    ];
+                    $ambiguousCandidates[] = $this->candidateFromMatch( $legacyType, $match );
                 }
 
                 foreach ( $candidates as $candidate ) {
@@ -76,10 +67,10 @@ final class EntityResolver {
             }
 
             $errors[] = (string) ( $payload['message'] ?? '' );
-            $resolved[] = $payload;
         }
 
         if ( $ambiguousCandidates !== [] ) {
+            $ambiguousCandidates = $this->dedupeCandidates( $ambiguousCandidates );
             return [
                 'ok' => false,
                 'multiple' => true,
@@ -138,5 +129,34 @@ final class EntityResolver {
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string,mixed> $match
+     * @return array<string,mixed>
+     */
+    private function candidateFromMatch( string $legacyType, array $match ): array {
+        return [
+            'entity_type' => $legacyType,
+            'id' => (int) ( $match['id'] ?? 0 ),
+            'name' => (string) ( $match['name'] ?? '' ),
+            'email' => (string) ( $match['email'] ?? '' ),
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $candidates
+     * @return array<int,array<string,mixed>>
+     */
+    private function dedupeCandidates( array $candidates ): array {
+        $deduped = [];
+        foreach ( $candidates as $candidate ) {
+            $key = strtolower( trim( (string) ( $candidate['entity_type'] ?? '' ) ) ) . '|'
+                . (int) ( $candidate['id'] ?? 0 ) . '|'
+                . strtolower( trim( (string) ( $candidate['email'] ?? '' ) ) );
+            $deduped[ $key ] = $candidate;
+        }
+
+        return array_values( $deduped );
     }
 }

@@ -82,6 +82,16 @@ use Metis\Hermes\HermesUniversalActionRegistry;
 use Metis\Hermes\HermesPlaybookValidator;
 use Metis\Hermes\HermesSecurityIntegration;
 use Metis\Hermes\HermesConversationStateEngine;
+use Metis\Hermes\Nlu\AmountParser;
+use Metis\Hermes\Nlu\ClarificationManager;
+use Metis\Hermes\Nlu\CommandValidator;
+use Metis\Hermes\Nlu\DateParser;
+use Metis\Hermes\Nlu\EntityExtractor;
+use Metis\Hermes\Nlu\IntentMatcher;
+use Metis\Hermes\Nlu\LanguagePackLoader;
+use Metis\Hermes\Nlu\NaturalLanguageNormalizer;
+use Metis\Hermes\Nlu\NaturalLanguageProcessor;
+use Metis\Hermes\Nlu\PhraseMatcher;
 
 final class HermesModule {
     private static bool $booted = false;
@@ -224,6 +234,39 @@ final class HermesModule {
         if ( ! $registry->has( 'hermes_command_registry' ) ) {
             $registry->singleton( 'hermes_command_registry', static fn (): HermesCommandRegistry => new HermesCommandRegistry() );
         }
+        if ( ! $registry->has( 'hermes_nlu_language_packs' ) ) {
+            $registry->singleton( 'hermes_nlu_language_packs', static fn (): LanguagePackLoader => new LanguagePackLoader() );
+        }
+        if ( ! $registry->has( 'hermes_nlu_amount_parser' ) ) {
+            $registry->singleton( 'hermes_nlu_amount_parser', static fn (): AmountParser => new AmountParser(
+                Application::service( 'hermes_nlu_language_packs' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_nlu_date_parser' ) ) {
+            $registry->singleton( 'hermes_nlu_date_parser', static fn (): DateParser => new DateParser(
+                Application::service( 'hermes_nlu_language_packs' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_nlu_entity_extractor' ) ) {
+            $registry->singleton( 'hermes_nlu_entity_extractor', static fn (): EntityExtractor => new EntityExtractor(
+                Application::service( 'hermes_nlu_language_packs' ),
+                Application::service( 'hermes_nlu_amount_parser' ),
+                Application::service( 'hermes_nlu_date_parser' )
+            ) );
+        }
+        if ( ! $registry->has( 'hermes_nlu' ) ) {
+            $registry->singleton( 'hermes_nlu', static fn (): NaturalLanguageProcessor => new NaturalLanguageProcessor(
+                new NaturalLanguageNormalizer( Application::service( 'hermes_nlu_language_packs' ) ),
+                new IntentMatcher(
+                    Application::service( 'hermes_nlu_language_packs' ),
+                    new PhraseMatcher( Application::service( 'hermes_nlu_language_packs' ) ),
+                    Application::service( 'hermes_nlu_entity_extractor' ),
+                    new CommandValidator()
+                ),
+                new ClarificationManager(),
+                Application::service( 'hermes_memory_store' )
+            ) );
+        }
         if ( ! $registry->has( 'operations_service_catalog' ) ) {
             $registry->singleton( 'operations_service_catalog', static fn (): OperationsServiceCatalog => new OperationsServiceCatalog( [
                 new UserOperationsService(),
@@ -257,7 +300,8 @@ final class HermesModule {
                 Application::service( 'hermes_entity_resolver' ),
                 Application::service( 'hermes_memory_store' ),
                 Application::service( 'hermes_intent_parser' ),
-                Application::service( 'hermes_intent_registry' )
+                Application::service( 'hermes_intent_registry' ),
+                Application::service( 'hermes_nlu' )
             ) );
         }
         if ( ! $registry->has( 'hermes_intent_registry' ) ) {
@@ -271,7 +315,8 @@ final class HermesModule {
                 Application::service( 'hermes_command_registry' ),
                 Application::service( 'hermes_entity_registry' ),
                 Application::service( 'hermes_intent_registry' ),
-                Application::service( 'hermes_attribute_registry' )
+                Application::service( 'hermes_attribute_registry' ),
+                Application::service( 'hermes_nlu' )
             ) );
         }
         if ( ! $registry->has( 'hermes_context_pack_loader' ) ) {

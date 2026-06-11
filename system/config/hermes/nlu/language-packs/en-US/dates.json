@@ -1,0 +1,20 @@
+{
+  "presets": {
+    "today": "today",
+    "yesterday": "yesterday",
+    "tomorrow": "tomorrow",
+    "this week": "this_week",
+    "last week": "last_week",
+    "next week": "next_week",
+    "this month": "this_month",
+    "last month": "last_month",
+    "next month": "next_month",
+    "this quarter": "this_quarter",
+    "last quarter": "last_quarter",
+    "this year": "this_year",
+    "last year": "last_year",
+    "month to date": "mtd",
+    "year to date": "ytd",
+    "ytd": "ytd"
+  }
+}

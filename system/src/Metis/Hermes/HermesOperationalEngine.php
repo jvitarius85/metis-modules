@@ -83,7 +83,7 @@ final class HermesOperationalEngine {
                 'context_packs' => [],
                 'action_plan'   => [],
                 'permission'    => [ 'status' => 'not_applicable', 'required_permission' => '', 'reason' => '' ],
-                'response'      => $this->responses->error( $intent, 'Request could not be mapped to a registered Hermes operation.' ),
+                'response'      => $this->responses->error( $intent, 'I could not resolve that to a safe Hermes operation. Try a more specific action or tell me which records you want.' ),
             ];
         }
 
@@ -307,8 +307,34 @@ final class HermesOperationalEngine {
         if ( (string) ( $permission['status'] ?? '' ) !== 'granted' ) {
             $response = $this->responses->denied( $intent, $plan, $contextPacks, (string) ( $permission['reason'] ?? 'Permission denied.' ) );
         } else {
-            $result = $this->execution->execute( $command, [ 'profile_request' => $request ] );
-            $response = $this->responses->executionResult( $command, $contextPacks, $plan, $result );
+            $subject = trim( (string) ( $request['subject'] ?? '' ) );
+            $hint = trim( (string) ( $request['entity_hint'] ?? 'auto' ) );
+            if ( $subject === '' ) {
+                $response = $this->responses->error( $intent, 'No entity subject found in query.' );
+            } else {
+                $resolved = $this->resolveEntityForAttribute( $subject, 'name', $hint );
+                if ( ! empty( $resolved['multiple'] ) ) {
+                    $response = [
+                        'intent' => 'lookup_profile',
+                        'status' => 'disambiguation_required',
+                        'message' => $this->disambiguationPrompt( (array) ( $resolved['candidates'] ?? [] ) ),
+                        'response_type' => 'Disambiguation',
+                        'candidates' => (array) ( $resolved['candidates'] ?? [] ),
+                    ];
+                } elseif ( empty( $resolved['ok'] ) ) {
+                    $response = $this->responses->error( $intent, (string) ( $resolved['error'] ?? 'Entity not found.' ) );
+                } else {
+                    $request['subject'] = trim( (string) (
+                        $resolved['record']['email']
+                        ?? $resolved['record']['did']
+                        ?? $resolved['record']['cid']
+                        ?? $request['subject']
+                    ) );
+                    $request['entity_hint'] = (string) ( $resolved['entity_type'] ?? $hint );
+                    $result = $this->execution->execute( $command, [ 'profile_request' => $request ] );
+                    $response = $this->responses->executionResult( $command, $contextPacks, $plan, $result );
+                }
+            }
         }
 
         return [
@@ -382,7 +408,7 @@ final class HermesOperationalEngine {
             return $this->entityAttributeError( $intent, 'No entity subject found in query.' );
         }
 
-        $resolved = $this->entityResolver->resolve( $subject, $entity_hint );
+        $resolved = $this->resolveEntityForAttribute( $subject, $attribute, $entity_hint );
 
         if ( ! empty( $resolved['multiple'] ) ) {
             if ( $this->debugLogger ) {
@@ -617,6 +643,32 @@ final class HermesOperationalEngine {
             $interpretation = array_merge( $intent, [
                 'intent' => strtolower( (string) ( $intent['intent'] ?? $intent['action'] ?? 'list' ) ),
             ] );
+            $interpretation = $this->normalizeSubjectScopedDataIntent( $interpretation );
+            if ( ! empty( $interpretation['resolution_error'] ) ) {
+                return [
+                    'intent'        => $intent,
+                    'command'       => null,
+                    'context_packs' => [],
+                    'action_plan'   => [],
+                    'permission'    => [ 'status' => 'not_applicable' ],
+                    'response'      => $this->responses->error( $intent, (string) $interpretation['resolution_error'] ),
+                ];
+            }
+            if ( ! empty( $interpretation['resolution_disambiguation'] ) ) {
+                return [
+                    'intent'        => $intent,
+                    'command'       => null,
+                    'context_packs' => [],
+                    'action_plan'   => [],
+                    'permission'    => [ 'status' => 'not_applicable' ],
+                    'response'      => [
+                        'status' => 'disambiguation_required',
+                        'message' => $this->disambiguationPrompt( (array) ( $interpretation['resolution_candidates'] ?? [] ) ),
+                        'response_type' => 'Disambiguation',
+                        'candidates' => (array) ( $interpretation['resolution_candidates'] ?? [] ),
+                    ],
+                ];
+            }
 
             $result = $reporting->handle( $interpretation, $actor );
 
@@ -724,6 +776,129 @@ final class HermesOperationalEngine {
                 ],
             ],
         ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function resolveEntityForAttribute( string $subject, string $attribute, string $entityHint ): array {
+        if ( $this->entityResolver === null ) {
+            return [ 'ok' => false, 'error' => 'Entity resolution service is unavailable.' ];
+        }
+
+        $attribute = strtolower( trim( $attribute ) );
+        $orders = [];
+        if ( in_array( $attribute, [ 'phone', 'address' ], true ) ) {
+            $orders = [ 'contact', 'donor', 'person' ];
+        } elseif ( in_array( $attribute, [ 'email', 'status', 'role', 'permissions', 'groups', 'last_login_at' ], true ) ) {
+            $orders = [ 'person', 'contact', 'donor' ];
+        }
+
+        if ( $entityHint !== '' && $entityHint !== 'auto' ) {
+            array_unshift( $orders, $entityHint );
+        }
+        $orders = array_values( array_unique( array_filter( $orders ) ) );
+        if ( $orders === [] ) {
+            $orders = [ 'person', 'contact', 'donor' ];
+        }
+
+        $bestAmbiguous = [];
+        $errors = [];
+        foreach ( $orders as $hint ) {
+            $resolved = $this->entityResolver->resolve( $subject, $hint );
+            if ( ! empty( $resolved['ok'] ) ) {
+                return $resolved;
+            }
+            if ( ! empty( $resolved['multiple'] ) ) {
+                $bestAmbiguous = (array) ( $resolved['candidates'] ?? [] );
+                break;
+            }
+            $errors[] = trim( (string) ( $resolved['error'] ?? '' ) );
+        }
+
+        if ( $bestAmbiguous !== [] ) {
+            return [
+                'ok' => false,
+                'multiple' => true,
+                'candidates' => $bestAmbiguous,
+                'error' => sprintf( 'Multiple entities matched "%s".', $subject ),
+            ];
+        }
+
+        return [
+            'ok' => false,
+            'error' => $errors !== [] ? $errors[0] : sprintf( 'No entity found matching "%s".', $subject ),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $interpretation
+     * @return array<string,mixed>
+     */
+    private function normalizeSubjectScopedDataIntent( array $interpretation ): array {
+        if ( $this->entityResolver === null ) {
+            return $interpretation;
+        }
+
+        $subject = trim( (string) ( $interpretation['payload']['subject'] ?? '' ) );
+        $entity = strtolower( trim( (string) ( $interpretation['entity'] ?? '' ) ) );
+        if ( $subject === '' || ! in_array( $entity, [ 'donation_transaction', 'donor' ], true ) ) {
+            return $interpretation;
+        }
+
+        $resolution = null;
+        foreach ( [ 'donor', 'contact', 'person' ] as $hint ) {
+            $candidate = $this->entityResolver->resolve( $subject, $hint );
+            if ( ! empty( $candidate['ok'] ) ) {
+                $resolution = $candidate;
+                break;
+            }
+            if ( ! empty( $candidate['multiple'] ) ) {
+                $interpretation['resolution_disambiguation'] = true;
+                $interpretation['resolution_candidates'] = (array) ( $candidate['candidates'] ?? [] );
+                return $interpretation;
+            }
+        }
+
+        if ( ! is_array( $resolution ) || empty( $resolution['ok'] ) ) {
+            $interpretation['resolution_error'] = sprintf( 'I could not find a donor or contact matching "%s".', $subject );
+            return $interpretation;
+        }
+
+        $record = (array) ( $resolution['record'] ?? [] );
+        $did = trim( (string) ( $record['did'] ?? $record['linked_donor_id'] ?? '' ) );
+        $email = strtolower( trim( (string) ( $record['email'] ?? '' ) ) );
+        $name = trim( (string) ( $record['first_name'] ?? '' ) . ' ' . (string) ( $record['last_name'] ?? '' ) );
+        $filters = (array) ( $interpretation['filters'] ?? [] );
+
+        if ( $entity === 'donation_transaction' ) {
+            if ( $did !== '' ) {
+                $filters[] = [ 'field' => 'donor_code', 'op' => '=', 'value' => $did, 'type' => 'string' ];
+            } elseif ( $email !== '' ) {
+                $filters[] = [ 'field' => 'donor_email', 'op' => '=', 'value' => $email, 'type' => 'string' ];
+            } elseif ( $name !== '' ) {
+                $filters[] = [ 'field' => 'donor_name', 'op' => '=', 'value' => $name, 'type' => 'string' ];
+            } else {
+                $interpretation['resolution_error'] = sprintf( 'I found "%s" but there is no linked donor history to query.', $subject );
+                return $interpretation;
+            }
+        } elseif ( $entity === 'donor' ) {
+            if ( $email !== '' ) {
+                $filters[] = [ 'field' => 'email', 'op' => '=', 'value' => $email, 'type' => 'string' ];
+            } else {
+                $first = trim( (string) ( $record['first_name'] ?? '' ) );
+                $last = trim( (string) ( $record['last_name'] ?? '' ) );
+                if ( $first !== '' ) {
+                    $filters[] = [ 'field' => 'first_name', 'op' => '=', 'value' => $first, 'type' => 'string' ];
+                }
+                if ( $last !== '' ) {
+                    $filters[] = [ 'field' => 'last_name', 'op' => '=', 'value' => $last, 'type' => 'string' ];
+                }
+            }
+        }
+
+        $interpretation['filters'] = $filters;
+        return $interpretation;
     }
 
     private function describeResult( array $result, array $intent = [] ): string {

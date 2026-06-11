@@ -1,0 +1,6 @@
+{
+  "donor": ["donor", "donors", "supporter", "supporters", "giver", "givers", "contributor", "contributors", "benefactor", "benefactors"],
+  "donation": ["donation", "donations", "gift", "gifts", "contribution", "contributions", "pledge", "pledges"],
+  "contact": ["contact", "contacts", "person", "people", "individual", "individuals", "household", "households"],
+  "event": ["event", "events", "meeting", "meetings", "fundraiser", "fundraisers", "gathering", "gatherings"]
+}

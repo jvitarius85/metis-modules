@@ -36,6 +36,14 @@ final class HermesMemoryStore {
         $this->repository->upsertMemory( 'disambiguation:' . $session_code, 'pending_disambiguation', $session_code, $disambiguation );
     }
 
+    public function rememberPendingNluContext( string $session_code, array $context ): void {
+        if ( $session_code === '' || $context === [] ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'nlu:' . $session_code, 'pending_nlu_context', $session_code, $context );
+    }
+
     public function rememberReport( string $report_code, array $summary ): void {
         $this->repository->upsertMemory( 'report:' . $report_code, 'diagnostic_report', 'reports', $summary );
     }
@@ -136,5 +144,38 @@ final class HermesMemoryStore {
         }
 
         $this->repository->upsertMemory( 'disambiguation:' . $session_code, 'pending_disambiguation', $session_code, [] );
+    }
+
+    public function recallPendingNluContext( string $session_code ): array {
+        if ( $session_code === '' ) {
+            return [];
+        }
+
+        $rows = $this->repository->recentMemory( $session_code, 8 );
+        foreach ( $rows as $row ) {
+            if ( (string) ( $row['memory_type'] ?? '' ) !== 'pending_nlu_context' ) {
+                continue;
+            }
+
+            $contents = (array) ( $row['contents'] ?? [] );
+            if ( $contents === [] ) {
+                return [];
+            }
+
+            return [
+                'updated_at' => (string) ( $row['updated_at'] ?? '' ),
+                'contents' => $contents,
+            ];
+        }
+
+        return [];
+    }
+
+    public function clearPendingNluContext( string $session_code ): void {
+        if ( $session_code === '' ) {
+            return;
+        }
+
+        $this->repository->upsertMemory( 'nlu:' . $session_code, 'pending_nlu_context', $session_code, [] );
     }
 }

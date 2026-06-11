@@ -1,0 +1,9 @@
+{
+  "search": ["find", "lookup", "look up", "search", "show", "display", "pull", "retrieve", "get"],
+  "create": ["create", "make", "generate", "build", "draft", "new"],
+  "update": ["update", "edit", "change", "modify"],
+  "delete": ["delete", "remove", "archive"],
+  "export": ["download", "save", "export", "print", "csv"],
+  "count": ["count", "how many", "number of", "total number of"],
+  "list": ["list", "show all", "display all", "everyone who"]
+}

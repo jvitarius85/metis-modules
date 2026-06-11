@@ -542,15 +542,22 @@ final class HermesReportingService {
                 'type' => 't.payment_method',
                 'campaign_id' => 't.campaign_code',
                 'deposit_id' => 't.deposit_batch_id',
+                'donor_code' => 't.did',
+                'donor_email' => 'LOWER(COALESCE(d.email, \'\'))',
+                'donor_name' => 'LOWER(COALESCE(NULLIF(TRIM(CONCAT(COALESCE(d.first_name, \'\'), \' \', COALESCE(d.last_name, \'\'))), \'\'), d.email, t.did, \'\'))',
                 default => '',
             };
 
-            if ( $column === '' || ! in_array( $op, [ '=', '!=', '>=', '<=', '>', '<' ], true ) ) {
+            if ( $column === '' || ! in_array( $op, [ '=', '!=', '>=', '<=', '>', '<', 'LIKE' ], true ) ) {
                 continue;
             }
 
             $whereParts[] = "{$column} {$op} %s";
-            $params[] = $value;
+            if ( in_array( $field, [ 'donor_email', 'donor_name' ], true ) ) {
+                $params[] = strtolower( (string) $value );
+            } else {
+                $params[] = $value;
+            }
         }
     }
 

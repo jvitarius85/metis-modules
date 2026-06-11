@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
+use Metis\Hermes\Nlu\AmountParser;
+use Metis\Hermes\Nlu\DateParser;
+use Metis\Hermes\Nlu\EntityExtractor;
+use Metis\Hermes\Nlu\LanguagePackLoader;
+use Metis\Hermes\Nlu\NaturalLanguageProcessor;
+
 final class HermesIntentParser {
     private const MUTATING_DATA_GUARD_PATTERN = '/^(?:create|add|update|edit|change|delete|remove|archive|publish|send|launch|disable|deactivate|enable|reactivate|offboard|reset|restore|rollback|install|apply|cancel|retry|assign|grant|revoke|link|attach)\b/';
 
@@ -68,32 +74,35 @@ final class HermesIntentParser {
     private ?EntityRegistryBuilder $entityRegistry;
     private HermesIntentRegistry $intentRegistry;
     private HermesAttributeRegistry $attributeRegistry;
+    private ?NaturalLanguageProcessor $nlu;
 
     public function __construct(
         HermesCommandRegistry  $commands,
         ?EntityRegistryBuilder $entityRegistry = null,
         ?HermesIntentRegistry $intentRegistry = null,
-        ?HermesAttributeRegistry $attributeRegistry = null
+        ?HermesAttributeRegistry $attributeRegistry = null,
+        ?NaturalLanguageProcessor $nlu = null
     ) {
         $this->commands       = $commands;
         $this->entityRegistry = $entityRegistry;
         $this->intentRegistry = $intentRegistry ?? new HermesIntentRegistry();
         $this->attributeRegistry = $attributeRegistry ?? new HermesAttributeRegistry();
+        $this->nlu = $nlu;
     }
 
     // ------------------------------------------------------------------
     // parse() — main entry point
     // ------------------------------------------------------------------
 
-    public function parse( string $query ): array {
-        $normalized = strtolower( trim( $query ) );
+    public function parse( string $query, string $sessionCode = '' ): array {
+        $normalized = $this->nlu?->normalizeInput( $query ) ?? strtolower( trim( $query ) );
 
         if ( $normalized === '' ) {
             return $this->commandResult( 'unknown', 'general', 0.0, [] );
         }
 
         if ( $this->entityRegistry !== null ) {
-            $dataIntent = $this->detectDataIntent( $normalized, $query );
+            $dataIntent = $this->detectDataIntent( $normalized, $query, $sessionCode );
             if ( $dataIntent !== null ) {
                 return $dataIntent;
             }
@@ -187,7 +196,7 @@ final class HermesIntentParser {
     // Data intent detection
     // ------------------------------------------------------------------
 
-    private function detectDataIntent( string $normalized, string $raw ): ?array {
+    private function detectDataIntent( string $normalized, string $raw, string $sessionCode = '' ): ?array {
         if ( $this->shouldPreferCommandPathOverDataIntent( $normalized ) ) {
             return null;
         }
@@ -202,6 +211,20 @@ final class HermesIntentParser {
             }
         }
         $entityKey = $this->resolveEntityFromQuery( $normalized );
+        if ( preg_match( '/\bwho\s+(made\s+)?donations?\b/', $normalized ) === 1 ) {
+            $entityKey = 'donor';
+        } elseif ( $this->matchesDonationHistoryQuery( $normalized, $raw ) ) {
+            $entityKey = 'donation_transaction';
+        }
+        if ( $entityKey === null && preg_match( '/\b(gave|donated|supporters?|givers?)\b/', $normalized ) === 1 ) {
+            $entityKey = 'donor';
+        }
+        if ( $entityKey === null && preg_match( '/\bwho\s+(made\s+)?donations?\b/', $normalized ) === 1 ) {
+            $entityKey = 'donor';
+        }
+        if ( $entityKey === null && preg_match( '/\b(donations?|gifts?|contributions?|pledges?)\b/', $normalized ) === 1 ) {
+            $entityKey = 'donation_transaction';
+        }
         if ( $entityKey === null ) {
             return null;
         }
@@ -211,6 +234,13 @@ final class HermesIntentParser {
             if ( $intent === null ) {
                 return null;
             }
+        }
+
+        if ( $intent === 'search' && preg_match( '/\bwho\s+(gave|donated)\b/', $normalized ) === 1 ) {
+            $intent = 'list';
+        }
+        if ( preg_match( '/\bwho\s+(made\s+)?donations?\b/', $normalized ) === 1 ) {
+            $intent = 'list';
         }
 
         // If the query contains a proper name (two+ capitalised words) after the entity
@@ -259,6 +289,7 @@ final class HermesIntentParser {
             'sort_dir'          => 'desc',
             'limit'             => 50,
             'offset'            => 0,
+            'normalized_input'  => $normalized,
         ];
 
         if ( $topN !== null ) {
@@ -279,6 +310,15 @@ final class HermesIntentParser {
             );
         }
 
+        if ( $this->nlu !== null ) {
+            $clarification = $this->nlu->dataClarification( $interpretation, $sessionCode );
+            $interpretation['requires_clarification'] = ! empty( $clarification['requires_clarification'] );
+            $interpretation['clarification_prompt'] = (string) ( $clarification['clarification_prompt'] ?? '' );
+            $interpretation['alternative_intents'] = $intent === 'list' && preg_match( '/\bwho\s+(gave|donated)\b/', $normalized ) === 1
+                ? [ [ 'intent' => 'search', 'confidence' => 0.7 ], [ 'intent' => 'count', 'confidence' => 0.45 ] ]
+                : [];
+        }
+
         return $interpretation;
     }
 
@@ -288,6 +328,15 @@ final class HermesIntentParser {
             && preg_match( '/\b(best|performed best|performing the best|performing best|raised the most|most money|highest performing|highest grossing)\b/', $normalized ) === 1
         ) {
             return 'top';
+        }
+
+        if ( in_array( $entityKey, [ 'donor', 'donation_transaction' ], true )
+            && preg_match( '/\b(who|everyone|people)\b/', $normalized ) === 1 ) {
+            return 'list';
+        }
+
+        if ( $entityKey === 'donation_transaction' && str_contains( $normalized, 'history' ) ) {
+            return 'list';
         }
 
         if ( preg_match( '/\b(current|latest|last)\b/', $normalized ) !== 1 ) {
@@ -326,6 +375,20 @@ final class HermesIntentParser {
      * @return array{filters?: array<int,array<string,mixed>>, payload?: array<string,mixed>}
      */
     private function extractEntitySpecificFilters( string $normalized, string $raw, string $entityKey ): array {
+        if ( $entityKey === 'donation_transaction' && $this->matchesDonationHistoryQuery( $normalized, $raw ) ) {
+            $subject = $this->extractSubject( $raw );
+            if ( $subject === '' || trim( $subject ) === trim( $raw ) ) {
+                return [];
+            }
+
+            return [
+                'payload' => [
+                    'subject' => $subject,
+                    'entity_hint' => 'donor',
+                ],
+            ];
+        }
+
         if ( ! in_array( $entityKey, [ 'donation_campaign', 'newsletter_campaign' ], true ) ) {
             return [];
         }
@@ -383,6 +446,18 @@ final class HermesIntentParser {
             }
         }
 
+        foreach ( $this->nluEntityAliases() as $entity => $aliases ) {
+            foreach ( $aliases as $alias ) {
+                if ( str_contains( $normalized, $alias ) && strlen( $alias ) >= $bestLength ) {
+                    $resolved = $this->entityRegistry->resolve( $entity );
+                    if ( $resolved !== null ) {
+                        $bestKey = $resolved;
+                        $bestLength = strlen( $alias );
+                    }
+                }
+            }
+        }
+
         return $bestKey;
     }
 
@@ -416,10 +491,22 @@ final class HermesIntentParser {
             $filters['is_board'] = [ 'field' => 'is_board', 'op' => '=', 'value' => 1, 'type' => 'integer' ];
         }
 
+        $amountField = $this->preferredAmountField( $definition );
+        if ( $amountField !== '' ) {
+            foreach ( $this->nluAmountFilters( $normalized, $amountField ) as $key => $filter ) {
+                $filters[ $key ] = $filter;
+            }
+        }
+
         return array_values( $filters );
     }
 
     private function extractDateRange( string $normalized ): array {
+        $nluDateRange = $this->nluDateRange( $normalized );
+        if ( $nluDateRange !== [] ) {
+            return $nluDateRange;
+        }
+
         foreach ( self::DATE_PRESET_MAP as $phrase => $preset ) {
             if ( str_contains( $normalized, $phrase ) ) {
                 return [ 'preset' => $preset ];
@@ -562,7 +649,90 @@ final class HermesIntentParser {
             'confidence' => $confidence,
             'command'    => $this->commands->definition( $action ),
             'payload'    => $payload,
+            'requires_clarification' => false,
+            'clarification_prompt' => '',
         ];
+    }
+
+    /**
+     * @return array<string,array<int,string>>
+     */
+    private function nluEntityAliases(): array {
+        return [
+            'donor' => [ 'supporter', 'supporters', 'giver', 'givers', 'contributor', 'contributors', 'benefactor', 'benefactors' ],
+            'donation_transaction' => [ 'donation', 'donations', 'gift', 'gifts', 'contribution', 'contributions', 'pledge', 'pledges' ],
+            'contact' => [ 'contact', 'contacts', 'person', 'people', 'individual', 'individuals', 'household', 'households' ],
+            'event' => [ 'event', 'events', 'meeting', 'meetings', 'fundraiser', 'fundraisers', 'gathering', 'gatherings' ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function nluDateRange( string $normalized ): array {
+        if ( $this->nlu === null ) {
+            return [];
+        }
+
+        static $parser = null;
+        if ( ! $parser instanceof DateParser ) {
+            $parser = new DateParser( new LanguagePackLoader() );
+        }
+
+        return $parser->parse( $normalized );
+    }
+
+    /**
+     * @return array<string,array<string,mixed>>
+     */
+    private function nluAmountFilters( string $normalized, string $amountField ): array {
+        if ( $this->nlu === null ) {
+            return [];
+        }
+
+        static $extractor = null;
+        if ( ! $extractor instanceof EntityExtractor ) {
+            $packs = new LanguagePackLoader();
+            $extractor = new EntityExtractor( $packs, new AmountParser( $packs ), new DateParser( $packs ) );
+        }
+
+        $extracted = $extractor->extract( $normalized, $normalized );
+        $filters = [];
+        foreach ( (array) ( $extracted['amounts'] ?? [] ) as $amount ) {
+            if ( ! is_array( $amount ) ) {
+                continue;
+            }
+
+            $kind = (string) ( $amount['kind'] ?? '' );
+            if ( $kind === 'range' ) {
+                $filters['amount_min'] = [ 'field' => $amountField, 'op' => '>=', 'value' => (float) ( $amount['min'] ?? 0 ), 'type' => 'decimal' ];
+                $filters['amount_max'] = [ 'field' => $amountField, 'op' => '<=', 'value' => (float) ( $amount['max'] ?? 0 ), 'type' => 'decimal' ];
+                continue;
+            }
+
+            $filters['amount_' . $kind] = [
+                'field' => $amountField,
+                'op' => match ( $kind ) {
+                    'min' => '>=',
+                    'max' => '<=',
+                    default => '=',
+                },
+                'value' => (float) ( $amount['value'] ?? 0 ),
+                'type' => 'decimal',
+            ];
+        }
+
+        return $filters;
+    }
+
+    private function preferredAmountField( array $definition ): string {
+        foreach ( array_keys( (array) ( $definition['fields'] ?? [] ) ) as $field ) {
+            if ( str_contains( $field, 'amount' ) || str_contains( $field, 'total' ) ) {
+                return $field;
+            }
+        }
+
+        return '';
     }
 
     private function matchesBackup( string $query ): bool {
@@ -880,6 +1050,10 @@ final class HermesIntentParser {
             $entityHint = 'donor';
         } elseif ( str_contains( $normalized, 'contact' ) ) {
             $entityHint = 'contact';
+        } elseif ( in_array( $attribute, [ 'phone', 'address' ], true ) ) {
+            $entityHint = 'contact';
+        } elseif ( in_array( $attribute, [ 'email', 'role', 'permissions', 'groups', 'last_login_at' ], true ) ) {
+            $entityHint = 'person';
         }
 
         return [
@@ -1169,6 +1343,7 @@ final class HermesIntentParser {
         }
         $patterns = [
             '/how much\s+(?:has|did|as)\s+([a-z][a-z\.\'\-]+(?:\s+[a-z][a-z\.\'\-]+){1,3})\s+donated\b/i',
+            '/what\s+is\s+([a-z][a-z\.\'\-]+(?:\s+[a-z][a-z\.\'\-]+){0,3})\'?s?\s+(?:donation|giving|gift|contribution)s?\s+history\b/i',
             '/what\s+newsletters?\s+(?:is|are)\s+([a-z][a-z\.\'\-]+(?:\s+[a-z][a-z\.\'\-]+){0,3})\s+(?:registered|subscribed)\b/i',
             '/what(?:\s+is|\'s)\s+([a-z][a-z\.\'\-]+(?:\s+[a-z][a-z\.\'\-]+){0,3})\'?s?\s+(?:email|phone|phone number|address|contact|profile|role|status|permissions|groups)\b/i',
             '/what\s+([a-z][a-z\.\'\-]+(?:\s+[a-z][a-z\.\'\-]+){0,3})\s+(?:email|phone|phone number|address|contact|profile|role|status|permissions|groups)\b/i',
@@ -1191,6 +1366,19 @@ final class HermesIntentParser {
             }
         }
         return trim( $query );
+    }
+
+    private function matchesDonationHistoryQuery( string $normalized, string $raw = '' ): bool {
+        if ( ! str_contains( $normalized, 'history' ) ) {
+            return false;
+        }
+
+        if ( ! preg_match( '/\b(donation|donations|giving|gifts|contributions)\b/', $normalized ) ) {
+            return false;
+        }
+
+        $subject = trim( $this->extractSubject( $raw !== '' ? $raw : $normalized ) );
+        return $subject !== '' && strcasecmp( $subject, trim( $raw !== '' ? $raw : $normalized ) ) !== 0;
     }
 
     private function extractEmail( string $query ): string {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Metis\Hermes;
 
 use Metis\Core\Cache\CacheService;
+use Metis\Core\Application;
 use Metis\Intelligence\Services\AlertIntelligenceService;
 use Metis\Intelligence\Services\DiagnosticTrendIntelligenceService;
 use Metis\Intelligence\Services\IntegrationFailureIntelligenceService;
@@ -136,6 +137,7 @@ final class HermesGateway {
         $session = (array) ( $turn['session'] ?? [] );
         $user_message = (array) ( $turn['user_message'] ?? [] );
         $runtimeContext = $this->state->hydrateRuntimeContext( $session, $runtimeContext );
+        $query = Application::service( 'hermes_nlu' )->mergePendingContextQuery( $query, (string) ( $session['session_code'] ?? '' ) );
 
         try {
             $disambiguated = $this->disambiguations->continueIfApplicable( $query, $session );
@@ -255,7 +257,9 @@ final class HermesGateway {
             && (
                 str_contains( $message, 'could not be mapped' )
                 || str_contains( $message, 'could not map' )
+                || str_contains( $message, 'could not resolve' )
                 || str_contains( $message, 'registered hermes operation' )
+                || str_contains( $message, 'safe hermes operation' )
             );
     }
 

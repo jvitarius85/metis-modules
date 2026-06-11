@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
+use Metis\Hermes\Nlu\NaturalLanguageProcessor;
+
 final class ConversationalParser {
     private const FILLER_PATTERNS = [
         '/\b(hey|hi|hello)\b/i',
@@ -39,13 +41,18 @@ final class ConversationalParser {
         private readonly ?EntityResolver $entityResolver = null,
         private readonly ?HermesMemoryStore $memory = null,
         private readonly ?HermesIntentParser $legacy = null,
-        private readonly ?HermesIntentRegistry $intentRegistry = null
+        private readonly ?HermesIntentRegistry $intentRegistry = null,
+        private readonly ?NaturalLanguageProcessor $nlu = null
     ) {}
 
     /**
      * @return array<string,mixed>
      */
     public function parse( string $input, string $session_code = '' ): array {
+        if ( $this->nlu !== null && $session_code !== '' ) {
+            $input = $this->nlu->mergePendingContextQuery( $input, $session_code );
+        }
+
         $normalized = $this->normalizeInput( $input );
         $fragments = $this->contextualizeFragments( $this->detectFragments( $normalized ) );
         $entities = $this->preResolveEntities( $input, $session_code );
@@ -138,6 +145,10 @@ final class ConversationalParser {
     }
 
     private function normalizeInput( string $input ): string {
+        if ( $this->nlu !== null ) {
+            return $this->nlu->normalizeInput( $input );
+        }
+
         $normalized = strtolower( trim( $input ) );
         foreach ( self::FILLER_PATTERNS as $pattern ) {
             $normalized = preg_replace( $pattern, ' ', $normalized ) ?? $normalized;
@@ -305,6 +316,27 @@ final class ConversationalParser {
      */
     private function rankFragment( string $fragment, array $entities, array $context ): array {
         $candidates = [];
+        $nluAnalysis = $this->nlu?->analyzeCommandFragment(
+            $fragment,
+            $fragment,
+            $this->commands->definitions(),
+            $context
+        ) ?? [];
+
+        foreach ( (array) ( $nluAnalysis['candidates'] ?? [] ) as $candidate ) {
+            if ( ! is_array( $candidate ) ) {
+                continue;
+            }
+
+            $candidates[] = [
+                'intent' => (string) ( $candidate['intent'] ?? '' ),
+                'fragment' => $fragment,
+                'command' => (array) ( $candidate['command'] ?? [] ),
+                'payload' => (array) ( $candidate['payload'] ?? [] ),
+                'confidence' => (float) ( $candidate['confidence'] ?? 0.0 ),
+                'confidence_label' => $this->confidenceLabel( (float) ( $candidate['confidence'] ?? 0.0 ) ),
+            ];
+        }
 
         foreach ( $this->commands->definitions() as $command_name => $command ) {
             $score = $this->scoreCommand( $fragment, $command, $entities, $context );
@@ -394,13 +426,22 @@ final class ConversationalParser {
             && $specificityGap < 0.05
             && abs( (float) $selected['confidence'] - (float) $second['confidence'] ) < 0.1;
 
+        $clarification = (array) ( $nluAnalysis['clarification'] ?? [] );
+        $requiresClarification = $ambiguous || ! empty( $context['ambiguous'] ) || ! empty( $clarification['requires_clarification'] );
+        $clarificationPrompt = '';
+        if ( ! empty( $clarification['requires_clarification'] ) ) {
+            $clarificationPrompt = (string) ( $clarification['clarification_prompt'] ?? '' );
+        } elseif ( $ambiguous ) {
+            $clarificationPrompt = sprintf( 'Multiple intents match "%s".', $fragment );
+        } elseif ( ! empty( $context['ambiguous'] ) ) {
+            $clarificationPrompt = 'Context reference could not be resolved safely.';
+        }
+
         return [
             'selected' => $selected,
             'alternatives' => array_slice( $candidates, 1, 3 ),
-            'ambiguous' => $ambiguous || ! empty( $context['ambiguous'] ),
-            'clarification' => $ambiguous
-                ? sprintf( 'Multiple intents match "%s".', $fragment )
-                : ( ! empty( $context['ambiguous'] ) ? 'Context reference could not be resolved safely.' : '' ),
+            'ambiguous' => $requiresClarification,
+            'clarification' => $clarificationPrompt,
         ];
     }
 
