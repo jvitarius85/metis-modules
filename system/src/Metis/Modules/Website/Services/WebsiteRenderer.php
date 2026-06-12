@@ -1536,9 +1536,6 @@ final class WebsiteRenderer {
 
     private static function sanitizeMenuStyle( string $style ): string {
         $normalized = metis_key_clean( strtolower( trim( $style ) ) );
-        if ( $normalized === 'h_marker_dropdown' ) {
-            $normalized = 'h_outline_tabs';
-        }
         $allowed = [
             'h_glide',
             'h_outline_tabs',
@@ -2259,7 +2256,6 @@ final class WebsiteRenderer {
             '.metis-theme-menu-live .metis-template .metis-template-menu{display:flex !important;align-items:center !important;justify-content:center !important;min-width:0;overflow:visible;flex:1 1 auto;}',
             '.metis-theme-menu-live .metis-template .metis-template-menu .metis-shell-menu-list{display:flex !important;justify-content:flex-start !important;align-items:var(--metis-menu-item-align,center) !important;flex-wrap:wrap !important;gap:10px var(--metis-menu-item-gap,16px) !important;list-style:none;margin:0;padding:0;overflow:visible;}',
             self::codepenGlideMenuCss( '.metis-theme-menu-live.metis-menu-style-h_glide .metis-template .metis-template-menu' ),
-            self::markerDropdownMenuCss( '.metis-theme-menu-live.metis-menu-style-h_marker_dropdown .metis-template .metis-template-menu' ),
             self::outlineTabsMenuCss( '.metis-theme-menu-live.metis-menu-style-h_outline_tabs .metis-template .metis-template-menu' ),
             self::pillDropdownMenuCss( '.metis-theme-menu-live.metis-menu-style-h_pill_dropdown .metis-template .metis-template-menu' ),
             self::modernBarMenuCss( '.metis-theme-menu-live.metis-menu-style-h_modern_bar .metis-template .metis-template-menu' ),
@@ -5608,44 +5604,6 @@ final class WebsiteRenderer {
 
         for ( $position = 1; $position <= 12; $position++ ) {
             $rules[] = $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub > .metis-shell-menu-item:nth-child(' . $position . '){transition-delay:' . ( 150 * $position ) . 'ms;}';
-        }
-
-        return implode( "\n", $rules );
-    }
-
-    private static function markerDropdownMenuCss( string $scope ): string {
-        $scope = trim( $scope );
-        if ( $scope === '' ) {
-            return '';
-        }
-
-        $list = $scope . ' > .metis-shell-menu-list';
-        $item = $list . ' > .metis-shell-menu-item';
-        $rules = [
-            $scope . '{--metis-marker-count:1;--metis-marker-index:0;--metis-marker-bg:var(--metis-color-primary,#485bc7);--metis-marker-accent:var(--metis-color-accent,#ff7542);padding:0 !important;border:0 !important;border-radius:0 !important;background:var(--metis-marker-bg) !important;box-shadow:0 12px 24px rgba(15,23,42,.13);text-transform:uppercase !important;overflow:visible !important;}',
-            $list . '{position:relative;display:flex !important;flex-wrap:nowrap !important;gap:0 !important;align-items:stretch !important;justify-content:flex-start !important;width:max-content;min-width:500px;max-width:100%;height:50px;padding:0 !important;margin:0 !important;list-style:none !important;overflow:visible;font-size:0;}',
-            $list . '::after{content:"";position:absolute;top:0;left:0;width:calc(100% / var(--metis-marker-count,1));height:100%;background:var(--metis-marker-accent);z-index:0;opacity:0;transform:translateX(calc(var(--metis-marker-index,0) * 100%));transition:all .5s ease 0s;pointer-events:none;}',
-            $list . ':has(> .metis-shell-menu-item:is(.is-active,.is-active-ancestor))::after{opacity:1;}',
-            $list . ':has(> .metis-shell-menu-item:is(:hover,:focus-within,.is-open))::after{opacity:1;}',
-            $item . '{position:relative;display:flex !important;align-items:stretch !important;justify-content:center !important;flex:1 1 0 !important;min-width:max-content;margin:0 !important;padding:0 !important;border:0 !important;list-style:none !important;z-index:1;cursor:pointer;}',
-            $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{position:relative;z-index:5;display:flex !important;align-items:center !important;justify-content:center !important;width:100%;min-width:max-content;height:50px;min-height:0 !important;padding:0 20px !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-button_text,#fff) !important;font-size:.8rem !important;font-weight:700 !important;letter-spacing:0 !important;line-height:1 !important;text-decoration:none !important;text-transform:uppercase !important;text-align:center;white-space:nowrap !important;opacity:1;text-shadow:0 1px 1px rgba(0,0,0,.22);transition:opacity .18s ease,color .18s ease;}',
-            $item . ' > .metis-shell-menu-link:hover,' . $item . ' > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-open > .metis-shell-menu-link,' . $item . '.is-open > .metis-shell-menu-btn,' . $item . '.is-active > .metis-shell-menu-link,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-link,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{opacity:1;color:var(--metis-color-button_text,#fff) !important;}',
-            $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;}',
-            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:50px !important;left:0 !important;width:100% !important;min-width:100% !important;max-height:0;z-index:1200 !important;visibility:hidden !important;opacity:1 !important;pointer-events:none;transform:none !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;padding:0 !important;margin:0 !important;overflow:hidden !important;transition:max-height 0s .5s,visibility 0s .5s;}',
-            $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub{max-height:32rem;visibility:visible !important;pointer-events:auto;transition:max-height 0s,visibility 0s;}',
-            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item{display:block !important;width:100%;min-width:0;padding:0;background:var(--metis-marker-accent) !important;transform:translate(0,-100%);transition:all .5s .1s;position:relative;}',
-            $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub > .metis-shell-menu-item{transform:translate(0,0);}',
-            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:flex !important;width:100%;min-width:0;height:50px;min-height:0 !important;padding:0 20px !important;border:0 !important;border-radius:0 !important;background:var(--metis-marker-accent) !important;color:rgba(255,255,255,.9) !important;text-align:center;align-items:center !important;justify-content:center !important;font-size:.8rem !important;font-weight:700 !important;letter-spacing:0 !important;text-decoration:none !important;text-transform:uppercase !important;white-space:nowrap !important;opacity:1;text-shadow:0 1px 1px rgba(0,0,0,.2);transition:box-shadow .2s ease,color .2s ease;}',
-            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item.is-active > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item.is-active > .metis-shell-menu-btn{box-shadow:inset 0 0 0 999px rgba(0,0,0,.12);color:#fff !important;}',
-            '@media (prefers-reduced-motion: reduce){' . $scope . ' *{transition:none !important;}}',
-        ];
-
-        for ( $count = 1; $count <= 12; $count++ ) {
-            $rules[] = $list . ':has(> .metis-shell-menu-item:nth-child(' . $count . '):last-child){--metis-marker-count:' . $count . ';}';
-            for ( $position = 1; $position <= $count; $position++ ) {
-                $rules[] = $list . ':has(> .metis-shell-menu-item:first-child:nth-last-child(' . $count . ')):has(> .metis-shell-menu-item:nth-child(' . $position . '):is(.is-active,.is-active-ancestor)){--metis-marker-index:' . ( $position - 1 ) . ';}';
-                $rules[] = $list . ':has(> .metis-shell-menu-item:first-child:nth-last-child(' . $count . ')):has(> .metis-shell-menu-item:nth-child(' . $position . '):is(:hover,:focus-within,.is-open)){--metis-marker-index:' . ( $position - 1 ) . ';}';
-            }
         }
 
         return implode( "\n", $rules );

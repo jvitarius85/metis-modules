@@ -971,9 +971,6 @@ final class ThemeService {
 
     private static function sanitizeMenuStyle( string $value ): string {
         $style = metis_key_clean( strtolower( trim( $value ) ) );
-        if ( $style === 'h_marker_dropdown' ) {
-            $style = 'h_outline_tabs';
-        }
         $allowed = [
             'h_glide',
             'h_outline_tabs',
