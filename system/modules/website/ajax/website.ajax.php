@@ -2940,10 +2940,17 @@ metis_ajax_register_handler( 'metis_website_menu_save', function (): void {
     $items_json = isset( metis_request_post()['items_json'] ) ? metis_runtime_unslash( metis_request_post()['items_json'] ) : '[]';
     $normalized_items = MenuService::normalizeItemsForPersistence( (string) $items_json );
 
+    $items_payload = function_exists( 'metis_json_encode' )
+        ? metis_json_encode( $normalized_items, JSON_UNESCAPED_UNICODE )
+        : json_encode( $normalized_items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+    if ( ! is_string( $items_payload ) || $items_payload === '' ) {
+        $items_payload = '[]';
+    }
+
     $data = [
         'name'       => $name,
         'location'   => isset( metis_request_post()['location'] ) ? metis_key_clean( metis_request_post()['location'] ) : null,
-        'items_json' => wp_json_encode( $normalized_items ),
+        'items_json' => $items_payload,
     ];
 
     if ( $id > 0 ) {

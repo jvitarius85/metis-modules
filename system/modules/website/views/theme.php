@@ -232,9 +232,10 @@ $global_defaults = [
 
 $menu_style_options = [
     'h_glide' => 'Glide Gradient',
-    'h_marker_dropdown' => 'Marker Dropdown',
+    'h_outline_tabs' => 'Outline Tabs',
     'h_pill_dropdown' => 'Pill Dropdown',
     'h_modern_bar' => 'Modern Bar',
+    'h_showcase_buttons' => 'Showcase Buttons',
 ];
 $custom_defaults = [
     'tokens' => [],
@@ -252,6 +253,9 @@ $global_styles = array_replace_recursive( $global_defaults, is_array( $global_st
 $custom = array_replace_recursive( $custom_defaults, $custom_input );
 $menu_component = is_array( $global_styles['components']['menu'] ?? null ) ? $global_styles['components']['menu'] : [];
 $menu_visual_style = (string) ( $menu_component['style'] ?? ( $global_styles['global_settings']['menu_style'] ?? 'h_glide' ) );
+if ( $menu_visual_style === 'h_marker_dropdown' ) {
+    $menu_visual_style = 'h_outline_tabs';
+}
 if ( ! isset( $menu_style_options[ $menu_visual_style ] ) ) {
     $menu_visual_style = 'h_glide';
 }
@@ -678,7 +682,7 @@ foreach ( $line_height_options as $value => $label ) {
                     </div>
                 </div>
                 <div class="metis-theme-field metis-theme-span-2 metis-theme-menu-preview-row">
-                    <label class="metis-theme-label">Live preview</label>
+                    <label class="metis-theme-label">Mockup preview</label>
                     <?php echo \Metis\Modules\Website\Services\WebsiteRenderer::renderThemeMenuPreviewCss(); ?>
                     <div class="metis-theme-menu-live" id="metis-theme-menu-live">
                         <?php echo \Metis\Modules\Website\Services\WebsiteRenderer::renderThemeMenuPreviewHtml(); ?>
@@ -1433,14 +1437,14 @@ var menuPresetDefinitions = {
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'none', animation: 'none' }
     },
-    h_marker_dropdown: {
-        layout: 'marker_dropdown',
+    h_outline_tabs: {
+        layout: 'horizontal_clean',
         alignment: 'center',
         container: 'contained',
-        desktop: { font_size: 13, item_spacing: 'normal', hover_style: 'none', active_style: 'none' },
-        dropdown: { behavior: 'hover', animation: 'slide', radius: 0 },
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'pill' },
+        dropdown: { behavior: 'hover', animation: 'slide', radius: 14 },
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
-        chevron: { type: 'none', animation: 'none' }
+        chevron: { type: 'chevron', animation: 'rotate' }
     },
     h_pill_dropdown: {
         layout: 'horizontal_clean',
@@ -1457,6 +1461,15 @@ var menuPresetDefinitions = {
         container: 'contained',
         desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'underline', active_style: 'underline' },
         dropdown: { behavior: 'hover', animation: 'slide', radius: 14 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
+    h_showcase_buttons: {
+        layout: 'horizontal_clean',
+        alignment: 'right',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'wide', hover_style: 'none', active_style: 'text' },
+        dropdown: { behavior: 'hover', animation: 'slide', radius: 18 },
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'chevron', animation: 'rotate' }
     }
@@ -1588,10 +1601,12 @@ function normalizeMenuStyleOption(raw) {
     var value = String(raw || '').toLowerCase();
     var allowed = {
         h_glide: true,
-        h_marker_dropdown: true,
+        h_outline_tabs: true,
         h_pill_dropdown: true,
-        h_modern_bar: true
+        h_modern_bar: true,
+        h_showcase_buttons: true
     };
+    if (value === 'h_marker_dropdown') return 'h_outline_tabs';
     return allowed[value] ? value : 'h_glide';
 }
 
@@ -2326,9 +2341,13 @@ $(document).on('click', '#metis-theme-menu-live .metis-shell-menu-link, #metis-t
     var $live = $('#metis-theme-menu-live');
     $live.find('.metis-shell-menu-link, .metis-shell-menu-btn').removeClass('is-active');
     $live.find('.metis-shell-menu-item').removeClass('is-active');
+    $live.find('.metis-shell-menu-item').removeClass('is-active-ancestor');
     $target.addClass('is-active');
     var $item = $target.closest('.metis-shell-menu-item');
     $item.addClass('is-active');
+    var $parentItems = $item.parents('.metis-shell-menu-item.has-children');
+    $parentItems.addClass('is-open is-active-ancestor');
+    $parentItems.children('.metis-shell-menu-link, .metis-shell-menu-btn').attr('aria-expanded', 'true');
 });
 
 $('#metis-theme-custom-font-file').on('change', function() {

@@ -971,11 +971,15 @@ final class ThemeService {
 
     private static function sanitizeMenuStyle( string $value ): string {
         $style = metis_key_clean( strtolower( trim( $value ) ) );
+        if ( $style === 'h_marker_dropdown' ) {
+            $style = 'h_outline_tabs';
+        }
         $allowed = [
             'h_glide',
-            'h_marker_dropdown',
+            'h_outline_tabs',
             'h_pill_dropdown',
             'h_modern_bar',
+            'h_showcase_buttons',
         ];
         if ( ! in_array( $style, $allowed, true ) ) {
             return 'h_glide';
@@ -1027,12 +1031,12 @@ final class ThemeService {
                 'dropdown' => [ 'animation' => 'scale', 'radius' => 8 ],
                 'chevron' => [ 'type' => 'none', 'animation' => 'none' ],
             ],
-            'h_marker_dropdown' => [
-                'layout' => 'marker_dropdown',
+            'h_outline_tabs' => [
+                'layout' => 'horizontal_clean',
                 'alignment' => 'center',
-                'desktop' => [ 'font_size' => 13, 'hover_style' => 'none', 'active_style' => 'none' ],
-                'dropdown' => [ 'animation' => 'slide', 'radius' => 0 ],
-                'chevron' => [ 'type' => 'none', 'animation' => 'none' ],
+                'desktop' => [ 'font_size' => 14, 'hover_style' => 'fill', 'active_style' => 'pill' ],
+                'dropdown' => [ 'animation' => 'slide', 'radius' => 14 ],
+                'chevron' => [ 'type' => 'chevron', 'animation' => 'rotate' ],
             ],
             'h_pill_dropdown' => [
                 'alignment' => 'center',
@@ -1043,6 +1047,11 @@ final class ThemeService {
                 'alignment' => 'center',
                 'desktop' => [ 'hover_style' => 'underline', 'active_style' => 'underline' ],
                 'dropdown' => [ 'animation' => 'slide', 'radius' => 14 ],
+            ],
+            'h_showcase_buttons' => [
+                'alignment' => 'right',
+                'desktop' => [ 'font_size' => 14, 'item_spacing' => 'wide', 'hover_style' => 'none', 'active_style' => 'text' ],
+                'dropdown' => [ 'animation' => 'slide', 'radius' => 18 ],
             ],
         ];
 
@@ -1057,8 +1066,10 @@ final class ThemeService {
             $layout = 'split_nav';
         } elseif ( $layout === 'sidebar' ) {
             $layout = 'sidebar_overlay';
+        } elseif ( $layout === 'marker_dropdown' ) {
+            $layout = 'horizontal_clean';
         }
-        $allowed = [ 'horizontal_clean', 'centered_logo', 'split_nav', 'minimal_topbar', 'glide_gradient', 'marker_dropdown', 'sidebar_overlay' ];
+        $allowed = [ 'horizontal_clean', 'centered_logo', 'split_nav', 'minimal_topbar', 'glide_gradient', 'sidebar_overlay' ];
         if ( ! in_array( $layout, $allowed, true ) ) {
             return 'horizontal_clean';
         }

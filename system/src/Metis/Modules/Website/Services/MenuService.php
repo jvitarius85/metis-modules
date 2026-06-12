@@ -57,7 +57,29 @@ final class MenuService {
             }
 
             $label = \metis_text_clean( (string) ( $item['label'] ?? $item['title'] ?? '' ) );
-            $url = self::normalizePublicItemUrl( (string) ( $item['url'] ?? '' ) );
+            $link_type = \metis_key_clean( (string) ( $item['link_type'] ?? ( ! empty( $item['page_id'] ) ? 'page' : 'custom' ) ) );
+            if ( ! in_array( $link_type, [ 'custom', 'page' ], true ) ) {
+                $link_type = 'custom';
+            }
+
+            $page_id = isset( $item['page_id'] ) ? (int) $item['page_id'] : 0;
+            $url = '';
+            if ( $link_type === 'page' && $page_id > 0 ) {
+                $page = PageService::getById( $page_id );
+                if ( $page instanceof \Metis\Modules\Website\Entities\Page && (string) ( $page->status ?? '' ) === 'published' ) {
+                    $url = PageService::publishedPathForPage( $page );
+                    if ( $label === '' ) {
+                        $label = \metis_text_clean( (string) ( $page->title ?? '' ) );
+                    }
+                }
+            }
+
+            if ( $url === '' ) {
+                $link_type = 'custom';
+                $page_id = 0;
+                $url = self::normalizePublicItemUrl( (string) ( $item['url'] ?? '' ) );
+            }
+
             if ( $label === '' || $url === '' ) {
                 continue;
             }
@@ -77,6 +99,8 @@ final class MenuService {
                 'external' => (string) ( $item['target'] ?? '' ) === '_blank' || ! empty( $item['external'] ),
                 'as_button' => ! empty( $item['as_button'] ),
                 'button_color_key' => self::normalizeButtonColorKey( (string) ( $item['button_color_key'] ?? 'metis_primary' ) ),
+                'link_type' => $link_type,
+                'page_id' => $page_id,
             ];
             $index++;
         }

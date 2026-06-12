@@ -9,6 +9,7 @@ if ( ! metis_website_require_view_permission( 'menus' ) ) {
 }
 
 use Metis\Modules\Website\Services\MenuService;
+use Metis\Modules\Website\Services\PageService;
 
 $menus = MenuService::getAll();
 
@@ -36,6 +37,33 @@ $menu_button_colors = [
     'metis_text' => metis_hex_color_clean( (string) ( $theme_saved['metis_text'] ?? $theme_defaults['metis_text'] ) ) ?: $theme_defaults['metis_text'],
     'metis_surface' => metis_hex_color_clean( (string) ( $theme_saved['metis_surface'] ?? $theme_defaults['metis_surface'] ) ) ?: $theme_defaults['metis_surface'],
 ];
+$published_pages = PageService::getAll(
+    [
+        'status' => 'published',
+        'fetch_all' => true,
+    ]
+);
+$published_page_options = [];
+foreach ( $published_pages as $page ) {
+    if ( ! $page instanceof \Metis\Modules\Website\Entities\Page ) {
+        continue;
+    }
+    $page_id = (int) ( $page->id ?? 0 );
+    if ( $page_id < 1 ) {
+        continue;
+    }
+    $page_path = method_exists( PageService::class, 'publishedPathForPage' )
+        ? (string) PageService::publishedPathForPage( $page )
+        : '';
+    if ( $page_path === '' ) {
+        continue;
+    }
+    $published_page_options[] = [
+        'id' => $page_id,
+        'title' => (string) ( $page->title ?? '' ),
+        'path' => $page_path,
+    ];
+}
 ?>
 <div class="metis-page-header">
     <div class="metis-page-header-left">
@@ -59,26 +87,26 @@ $menu_button_colors = [
             <button type="button" class="metis-btn metis-btn-primary" id="metis-create-menu-btn-empty">New Menu</button>
         </div>
     <?php else : ?>
-        <table class="metis-premium-table metis-menus-table">
+        <table class="metis-table metis-menus-table">
             <thead>
-                <tr class="metis-premium-row metis-premium-header">
-                    <th class="metis-premium-cell" scope="col">Name</th>
-                    <th class="metis-premium-cell" scope="col">Location</th>
-                    <th class="metis-premium-cell" scope="col">Items</th>
-                    <th class="metis-premium-cell" scope="col">Status</th>
-                    <th class="metis-premium-cell metis-col-right" scope="col">Actions</th>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Location</th>
+                    <th scope="col">Items</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" style="text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ( $menus as $menu ) :
                     $items = MenuService::getItems( $menu );
                 ?>
-                    <tr class="metis-premium-row">
-                        <td class="metis-premium-cell"><strong><?php echo metis_escape_html( $menu['name'] ?? '' ); ?></strong></td>
-                        <td class="metis-premium-cell"><?php echo metis_escape_html( $locations[ $menu['location'] ?? '' ] ?? ( $menu['location'] ?? '—' ) ); ?></td>
-                        <td class="metis-premium-cell metis-table-meta-cell"><?php echo count( $items ); ?> item<?php echo count( $items ) !== 1 ? 's' : ''; ?></td>
-                        <td class="metis-premium-cell"><span class="metis-status metis-status-<?php echo metis_escape_attr( $menu['status'] ?? 'active' ); ?>"><?php echo metis_escape_html( ucfirst( $menu['status'] ?? 'active' ) ); ?></span></td>
-                        <td class="metis-premium-cell metis-col-right">
+                    <tr>
+                        <td><strong><?php echo metis_escape_html( $menu['name'] ?? '' ); ?></strong></td>
+                        <td><?php echo metis_escape_html( $locations[ $menu['location'] ?? '' ] ?? ( $menu['location'] ?? '—' ) ); ?></td>
+                        <td class="metis-table-meta-cell"><?php echo count( $items ); ?> item<?php echo count( $items ) !== 1 ? 's' : ''; ?></td>
+                        <td><span class="metis-status metis-status-<?php echo metis_escape_attr( $menu['status'] ?? 'active' ); ?>"><?php echo metis_escape_html( ucfirst( $menu['status'] ?? 'active' ) ); ?></span></td>
+                        <td style="text-align:right;">
                             <div class="metis-table-actions">
                                 <button type="button" class="metis-action-btn metis-edit-menu"
                                     data-id="<?php echo metis_escape_attr( $menu['id'] ?? '' ); ?>"
@@ -134,7 +162,28 @@ $menu_button_colors = [
                     <label class="metis-label" for="metis-menu-item-label" style="font-size:11px;">Label</label>
                     <input type="text" id="metis-menu-item-label" class="metis-input metis-input-sm" placeholder="Link label">
                 </div>
-                <div class="metis-field" style="flex:2;min-width:200px;margin:0;">
+                <div class="metis-field" style="margin:0;">
+                    <label class="metis-label" for="metis-menu-item-source" style="font-size:11px;">Source</label>
+                    <select id="metis-menu-item-source" class="metis-input metis-input-sm" style="width:150px;">
+                        <option value="page">Published page</option>
+                        <option value="custom">Custom URL</option>
+                    </select>
+                </div>
+                <div class="metis-field" id="metis-menu-item-page-field" style="flex:2;min-width:240px;margin:0;">
+                    <label class="metis-label" for="metis-menu-item-page" style="font-size:11px;">Published page</label>
+                    <select id="metis-menu-item-page" class="metis-input metis-input-sm">
+                        <option value="">Select published page…</option>
+                        <?php foreach ( $published_page_options as $page_option ) : ?>
+                            <option value="<?php echo metis_escape_attr( (string) ( $page_option['id'] ?? '' ) ); ?>"
+                                data-title="<?php echo metis_escape_attr( (string) ( $page_option['title'] ?? '' ) ); ?>"
+                                data-path="<?php echo metis_escape_attr( (string) ( $page_option['path'] ?? '' ) ); ?>">
+                                <?php echo metis_escape_html( (string) ( $page_option['title'] ?? '' ) . ' (' . (string) ( $page_option['path'] ?? '' ) . ')' ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div id="metis-menu-item-page-path" style="margin-top:6px;font-size:11px;color:var(--metis-text-muted,#6b7280);">Select a published page to use its live path.</div>
+                </div>
+                <div class="metis-field" id="metis-menu-item-url-field" style="flex:2;min-width:200px;margin:0;display:none;">
                     <label class="metis-label" for="metis-menu-item-url" style="font-size:11px;">URL</label>
                     <input type="text" id="metis-menu-item-url" class="metis-input metis-input-sm" placeholder="https:// or /page-slug">
                 </div>
@@ -180,10 +229,19 @@ if (!window.jQuery) {
 }
 
 var $ = window.jQuery;
+var publishedPages = <?php
+if ( function_exists( 'metis_json_encode' ) ) {
+    echo metis_json_encode( $published_page_options, JSON_UNESCAPED_UNICODE );
+} else {
+    $encoded = json_encode( $published_page_options, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+    echo is_string( $encoded ) ? $encoded : '[]';
+}
+?>;
 
 var menuItems = [];
 var editingMenuId = null;
 var editingItemId = null;
+var itemLabelTouched = false;
 var locationLabels = {};
 
 $('#metis-menu-location option').each(function() {
@@ -232,7 +290,9 @@ function parseMenuItems(raw) {
             target: String(obj.target || ''),
             external: String(obj.target || '') === '_blank' || !!obj.external,
             as_button: !!obj.as_button,
-            button_color_key: String(obj.button_color_key || 'metis_primary').trim() || 'metis_primary'
+            button_color_key: String(obj.button_color_key || 'metis_primary').trim() || 'metis_primary',
+            link_type: String(obj.link_type || (obj.page_id ? 'page' : 'custom')).trim() === 'page' ? 'page' : 'custom',
+            page_id: parseInt(obj.page_id, 10) > 0 ? parseInt(obj.page_id, 10) : 0
         };
     }).filter(function(item) {
         return item.label !== '' && item.url !== '';
@@ -246,6 +306,43 @@ function parseMenuItems(raw) {
         }
     });
     return normalized;
+}
+
+function publishedPageById(id) {
+    var target = String(id || '');
+    for (var i = 0; i < publishedPages.length; i += 1) {
+        var page = publishedPages[i] && typeof publishedPages[i] === 'object' ? publishedPages[i] : {};
+        if (String(page.id || '') === target) {
+            return {
+                id: parseInt(page.id, 10) || 0,
+                title: String(page.title || '').trim(),
+                path: String(page.path || '').trim()
+            };
+        }
+    }
+    return null;
+}
+
+function updatePublishedPagePathHint() {
+    var source = String($('#metis-menu-item-source').val() || 'page');
+    var $hint = $('#metis-menu-item-page-path');
+    if (!$hint.length) {
+        return;
+    }
+    if (source !== 'page') {
+        $hint.text('Choose a custom URL for this item.');
+        return;
+    }
+    var page = publishedPageById($('#metis-menu-item-page').val());
+    $hint.text(page && page.path ? ('Live path: ' + page.path) : 'Select a published page to use its live path.');
+}
+
+function syncMenuItemSourceControls() {
+    var source = String($('#metis-menu-item-source').val() || 'page');
+    var isPage = source === 'page';
+    $('#metis-menu-item-page-field').toggle(isPage);
+    $('#metis-menu-item-url-field').toggle(!isPage);
+    updatePublishedPagePathHint();
 }
 
 function escapeHtml(value) {
@@ -281,12 +378,12 @@ function renderMenusTable(menus) {
         var location = String(menu && menu.location ? menu.location : '');
         var locationLabel = locationLabels[location] || location || '—';
         var status = String(menu && menu.status ? menu.status : 'active');
-        return '<tr class="metis-premium-row">'
-            + '<td class="metis-premium-cell"><strong>' + escapeHtml(String(menu && menu.name ? menu.name : '')) + '</strong></td>'
-            + '<td class="metis-premium-cell">' + escapeHtml(locationLabel) + '</td>'
-            + '<td class="metis-premium-cell metis-table-meta-cell">' + escapeHtml(String(itemCount)) + ' item' + (itemCount === 1 ? '' : 's') + '</td>'
-            + '<td class="metis-premium-cell"><span class="metis-status metis-status-' + escapeHtml(status) + '">' + escapeHtml(status.charAt(0).toUpperCase() + status.slice(1)) + '</span></td>'
-            + '<td class="metis-premium-cell metis-col-right"><div class="metis-table-actions">'
+        return '<tr>'
+            + '<td><strong>' + escapeHtml(String(menu && menu.name ? menu.name : '')) + '</strong></td>'
+            + '<td>' + escapeHtml(locationLabel) + '</td>'
+            + '<td class="metis-table-meta-cell">' + escapeHtml(String(itemCount)) + ' item' + (itemCount === 1 ? '' : 's') + '</td>'
+            + '<td><span class="metis-status metis-status-' + escapeHtml(status) + '">' + escapeHtml(status.charAt(0).toUpperCase() + status.slice(1)) + '</span></td>'
+            + '<td style="text-align:right;"><div class="metis-table-actions">'
             + '<button type="button" class="metis-action-btn metis-edit-menu" data-id="' + escapeHtml(String(menu && menu.id ? menu.id : '')) + '" data-name="' + escapeHtml(String(menu && menu.name ? menu.name : '')) + '" data-location="' + escapeHtml(location) + '" data-items="' + escapeHtml(itemsRaw) + '" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
             + '<button type="button" class="metis-action-btn metis-action-btn-danger metis-delete-menu" data-id="' + escapeHtml(String(menu && menu.id ? menu.id : '')) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>'
             + '</div></td>'
@@ -294,13 +391,13 @@ function renderMenusTable(menus) {
     }).join('');
 
     $wrap.append(
-        '<table class="metis-premium-table metis-menus-table">' +
-            '<thead><tr class="metis-premium-row metis-premium-header">' +
-                '<th class="metis-premium-cell" scope="col">Name</th>' +
-                '<th class="metis-premium-cell" scope="col">Location</th>' +
-                '<th class="metis-premium-cell" scope="col">Items</th>' +
-                '<th class="metis-premium-cell" scope="col">Status</th>' +
-                '<th class="metis-premium-cell metis-col-right" scope="col">Actions</th>' +
+        '<table class="metis-table metis-menus-table">' +
+            '<thead><tr>' +
+                '<th scope="col">Name</th>' +
+                '<th scope="col">Location</th>' +
+                '<th scope="col">Items</th>' +
+                '<th scope="col">Status</th>' +
+                '<th scope="col" style="text-align:right;">Actions</th>' +
             '</tr></thead><tbody>' +
             rows +
         '</tbody></table>'
@@ -365,8 +462,6 @@ function openMenuModal(id, name, location, items) {
     $('#metis-menu-id').val(id || '');
     $('#metis-menu-name').val(name || '');
     $('#metis-menu-location').val(location || '');
-    $('#metis-menu-item-label, #metis-menu-item-url').val('');
-    $('#metis-menu-item-target').val('');
     renderItems();
     if (window.Metis && Metis.ui && Metis.ui.modal) {
         Metis.ui.modal.form('metis-menu-modal');
@@ -382,11 +477,15 @@ function closeMenuModal() {
 
 function resetItemForm() {
     editingItemId = null;
+    itemLabelTouched = false;
     $('#metis-menu-item-label, #metis-menu-item-url').val('');
+    $('#metis-menu-item-source').val('page');
+    $('#metis-menu-item-page').val('');
     $('#metis-menu-item-target').val('');
     $('#metis-menu-item-as-button').prop('checked', false);
     $('#metis-menu-item-button-color').val('metis_primary');
     $('#metis-menu-add-item-btn').text('+ Add Item');
+    syncMenuItemSourceControls();
 }
 
 function renderItems() {
@@ -408,7 +507,7 @@ function renderItems() {
             '  <span class="metis-menu-drag-handle" style="cursor:grab;color:#bbb;font-size:14px;flex-shrink:0;">⣿</span>',
             '  <div style="flex:1;min-width:0;">',
             '    <div style="font-weight:600;font-size:13px;">' + $('<div>').text(item.label).html() + '</div>',
-            '    <div style="font-size:11px;color:var(--metis-text-muted,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + $('<div>').text(item.url).html() + (item.target === '_blank' ? ' ↗' : '') + '</div>' + (hasParent ? '<div style="font-size:10px;color:#5f6b86;margin-top:2px;">Sub item</div>' : ''),
+            '    <div style="font-size:11px;color:var(--metis-text-muted,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (item.link_type === 'page' ? 'Published page • ' : 'Custom URL • ') + $('<div>').text(item.url).html() + (item.target === '_blank' ? ' ↗' : '') + '</div>' + (hasParent ? '<div style="font-size:10px;color:#5f6b86;margin-top:2px;">Sub item</div>' : ''),
             item.as_button ? '    <div style="font-size:10px;color:#2f3c5a;margin-top:2px;">Button: ' + $('<div>').text(String(item.button_color_key || 'metis_primary')).html() + '</div>' : '',
             '  </div>',
             hasParent ? '  <button type="button" class="metis-menu-item-outdent metis-action-btn" data-item-id="' + $('<div>').text(item.id).html() + '" title="Make top-level" style="flex-shrink:0;">↰</button>' : '',
@@ -462,9 +561,42 @@ function renderItems() {
 }
 
 $(document).on('click', '#metis-create-menu-btn, #metis-create-menu-btn-empty', function() { openMenuModal(); });
+$(document).on('input', '#metis-menu-item-label', function() {
+    itemLabelTouched = true;
+});
+$(document).on('change', '#metis-menu-item-source', function() {
+    syncMenuItemSourceControls();
+});
+$(document).on('change', '#metis-menu-item-page', function() {
+    var page = publishedPageById($(this).val());
+    updatePublishedPagePathHint();
+    if (!page) return;
+    var currentLabel = $('#metis-menu-item-label').val().trim();
+    if (!itemLabelTouched || currentLabel === '') {
+        $('#metis-menu-item-label').val(page.title || '');
+    }
+});
 $(document).on('click', '#metis-menu-add-item-btn', function() {
     var label = $('#metis-menu-item-label').val().trim();
-    var url   = $('#metis-menu-item-url').val().trim();
+    var source = String($('#metis-menu-item-source').val() || 'page');
+    var pageId = 0;
+    var url = '';
+    if (source === 'page') {
+        var page = publishedPageById($('#metis-menu-item-page').val());
+        if (!page || !page.id || !page.path) {
+            Metis.ui.toast.warning('Select a published page for this item.');
+            $('#metis-menu-item-page').focus();
+            return;
+        }
+        pageId = page.id;
+        url = page.path;
+        if (!label) {
+            label = page.title || '';
+            $('#metis-menu-item-label').val(label);
+        }
+    } else {
+        url = $('#metis-menu-item-url').val().trim();
+    }
     if (!label) { Metis.ui.toast.warning('Item label is required.'); $('#metis-menu-item-label').focus(); return; }
     if (!url)   { Metis.ui.toast.warning('Item URL is required.'); $('#metis-menu-item-url').focus(); return; }
     var target = $('#metis-menu-item-target').val() || '';
@@ -479,6 +611,8 @@ $(document).on('click', '#metis-menu-add-item-btn', function() {
             existing.external = target === '_blank';
             existing.as_button = asButton;
             existing.button_color_key = colorKey;
+            existing.link_type = source === 'page' ? 'page' : 'custom';
+            existing.page_id = source === 'page' ? pageId : 0;
         }
     } else {
         menuItems.push({
@@ -489,7 +623,9 @@ $(document).on('click', '#metis-menu-add-item-btn', function() {
             target: target,
             external: target === '_blank',
             as_button: asButton,
-            button_color_key: colorKey
+            button_color_key: colorKey,
+            link_type: source === 'page' ? 'page' : 'custom',
+            page_id: source === 'page' ? pageId : 0
         });
     }
     resetItemForm();
@@ -520,12 +656,16 @@ $(document).on('click', '.metis-menu-item-edit', function() {
     var item = itemById(id);
     if (!item) return;
     editingItemId = id;
+    itemLabelTouched = false;
     $('#metis-menu-item-label').val(String(item.label || ''));
     $('#metis-menu-item-url').val(String(item.url || ''));
+    $('#metis-menu-item-source').val(String(item.link_type || (item.page_id ? 'page' : 'custom')) === 'page' ? 'page' : 'custom');
+    $('#metis-menu-item-page').val(item.page_id ? String(item.page_id) : '');
     $('#metis-menu-item-target').val(String(item.target || ''));
     $('#metis-menu-item-as-button').prop('checked', !!item.as_button);
     $('#metis-menu-item-button-color').val(String(item.button_color_key || 'metis_primary'));
     $('#metis-menu-add-item-btn').text('Update Item');
+    syncMenuItemSourceControls();
     $('#metis-menu-item-label').focus();
 });
 
@@ -542,6 +682,8 @@ $(document).on('click', '.metis-edit-menu', function() {
     resetItemForm();
     openMenuModal($b.data('id'), $b.data('name'), $b.data('location'), $b.data('items') || '[]');
 });
+
+syncMenuItemSourceControls();
 
 $(document).on('click', '#metis-menu-save-btn', function() {
     var name = $('#metis-menu-name').val().trim();
