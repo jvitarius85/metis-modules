@@ -3,13 +3,7 @@ declare(strict_types=1);
 
 namespace Metis\Modules\GrandyStash;
 
-use Metis\Modules\Forms\Repository as FormsRepository;
-
 final class GrandyStashRepository {
-
-    // Form slugs
-    private const REQUEST_FORM_SLUG  = 'grandys-stash-supplies-request';
-    private const DONATION_FORM_SLUG = 'grandys-stash-donation-offer';
 
     // Settings keys
     private const REQUEST_ASSIGNEE_SETTING  = 'grandys_stash_default_request_assignee_user_id';
@@ -25,8 +19,6 @@ final class GrandyStashRepository {
         \Metis\Modules\Contacts\ContactsModule::ensureSchema();
         \Metis\Modules\Forms\FormsModule::ensureSchema();
         self::ensureCatalogSeeded();
-        self::ensureProgramForms();
-        self::syncTicketsFromForms();
     }
 
     // ─── Core helpers ────────────────────────────────────
@@ -1077,90 +1069,6 @@ final class GrandyStashRepository {
             . '--' . $boundary . '--';
     }
 
-    // ─── Ticket sync ─────────────────────────────────────
-
-    private static function syncTicketsFromForms(): void {
-        $db = self::db();
-
-        $tickets_table     = \Metis_Tables::get( 'grandys_stash_tickets' );
-        $items_table       = \Metis_Tables::get( 'grandys_stash_ticket_items' );
-        $submissions_table = \Metis_Tables::get( 'form_submissions' );
-
-        foreach ( [
-            'request'  => self::REQUEST_FORM_SLUG,
-            'donation' => self::DONATION_FORM_SLUG,
-        ] as $type => $slug ) {
-            $form = FormsRepository::getFormBySlug( $slug );
-            if ( ! $form ) {
-                continue;
-            }
-
-            $rows = $db->fetchAll(
-                "SELECT s.*
-                 FROM {$submissions_table} s
-                 LEFT JOIN {$tickets_table} t ON t.form_submission_id = s.id
-                 WHERE s.form_id = %d
-                   AND t.id IS NULL
-                 ORDER BY s.created_at ASC, s.id ASC",
-                [ (int) $form['id'] ]
-            );
-
-            foreach ( $rows as $row ) {
-                $normalized = self::decodeAssoc( $row['normalized_json'] ?? null );
-                $payload    = $normalized !== [] ? $normalized : self::decodeAssoc( $row['payload_json'] ?? null );
-
-                $first_name = trim( (string) ( $payload['first_name'] ?? '' ) );
-                $last_name  = trim( (string) ( $payload['last_name'] ?? '' ) );
-                $email      = strtolower( trim( (string) ( $payload['email'] ?? '' ) ) );
-                $phone      = trim( (string) ( $payload['phone'] ?? '' ) );
-                $name       = trim( $first_name . ' ' . $last_name );
-
-                // Upsert contact
-                $contact_cid = self::upsertContactFromPayload( [
-                    'first_name' => $first_name,
-                    'last_name'  => $last_name,
-                    'email'      => $email,
-                    'phone'      => $phone,
-                ], '' );
-
-                // Auto-group
-                $group_id = self::findOrCreateGroup( $name, $email, $phone, $contact_cid );
-
-                $assignee_id   = self::defaultAssigneeUserId( $type );
-                $ticket_code   = self::generateCode( 'GST', $tickets_table, 'code' );
-
-                $db->insert( $tickets_table, [
-                    'code'               => $ticket_code,
-                    'group_id'           => $group_id > 0 ? $group_id : null,
-                    'type'               => $type,
-                    'status'             => 'NEW',
-                    'assigned_to'        => $assignee_id > 0 ? $assignee_id : null,
-                    'assigned_name'      => self::resolveAssigneeName( $assignee_id ),
-                    'source'             => 'web',
-                    'urgency'            => self::normalizeUrgency( (string) ( $payload['urgency'] ?? 'standard' ) ),
-                    'pickup_delivery'    => self::normalizePickupDelivery( (string) ( $payload['pickup_delivery'] ?? '' ) ) ?: null,
-                    'submit_name'        => $name !== '' ? $name : 'Unknown',
-                    'submit_email'       => $email !== '' ? $email : null,
-                    'submit_phone'       => $phone !== '' ? $phone : null,
-                    'submit_notes'       => self::nullableTextArea( $payload['notes'] ?? '' ),
-                    'form_id'            => (int) $form['id'],
-                    'form_submission_id' => (int) $row['id'],
-                ] );
-
-                $ticket_id = $db->lastInsertId();
-
-                // Create line items
-                self::createTicketItemsFromPayload( $ticket_id, $type, $payload );
-
-                // Log creation
-                self::logActivity( $ticket_id, 'created', 'Ticket created from form submission.', null );
-                if ( $group_id > 0 ) {
-                    self::logActivity( $ticket_id, 'grouped', 'Auto-grouped by ' . ( $email !== '' ? 'email' : ( $phone !== '' ? 'phone' : 'name' ) ) . '.', null );
-                }
-            }
-        }
-    }
-
     private static function createTicketItemsFromPayload( int $ticket_id, string $type, array $payload ): void {
         $db    = self::db();
         $table = \Metis_Tables::get( 'grandys_stash_ticket_items' );
@@ -1317,154 +1225,6 @@ final class GrandyStashRepository {
         }
 
         return $normalized;
-    }
-
-    // ─── Form management ─────────────────────────────────
-
-    private static function ensureProgramForms(): void {
-        self::saveManagedForm(
-            self::REQUEST_FORM_SLUG,
-            'Supplies Request',
-            'Request durable medical equipment through Grandy\'s Stash.',
-            [
-                self::field( 'text', 'first_name', 'First name', true, 'half' ),
-                self::field( 'text', 'last_name', 'Last name', true, 'half' ),
-                self::field( 'email', 'email', 'Email', true, 'half' ),
-                self::field( 'text', 'phone', 'Phone', false, 'half', [ 'format' => 'phone_us' ] ),
-                self::field( 'select', 'requested_category', 'Requested category', false, 'half', [ 'options' => self::categoryOptions() ] ),
-                self::field( 'select', 'requested_catalog_item', 'Requested item', false, 'half', [ 'options' => self::itemOptions() ] ),
-                self::field( 'textarea', 'requested_items', 'Specific equipment details', false, 'full', [ 'help' => 'Use this for size, quantity, or anything not listed in the catalog.' ] ),
-                self::field( 'radio', 'urgency', 'Urgency', true, 'full', [ 'options' => [
-                    [ 'label' => 'Urgent', 'value' => 'urgent' ],
-                    [ 'label' => 'Within two weeks', 'value' => 'standard' ],
-                    [ 'label' => 'Flexible timing', 'value' => 'flexible' ],
-                ] ] ),
-                self::field( 'select', 'pickup_delivery', 'Preferred coordination', false, 'half', [ 'options' => [
-                    [ 'label' => 'Pick up', 'value' => 'pickup' ],
-                    [ 'label' => 'Delivery', 'value' => 'delivery' ],
-                    [ 'label' => 'Need to discuss', 'value' => 'discuss' ],
-                ] ] ),
-                self::field( 'textarea', 'notes', 'Anything else staff should know?', false, 'full' ),
-            ]
-        );
-
-        self::saveManagedForm(
-            self::DONATION_FORM_SLUG,
-            'Donation Offer',
-            'Offer durable medical equipment for Grandy\'s Stash review.',
-            [
-                self::field( 'text', 'first_name', 'First name', true, 'half' ),
-                self::field( 'text', 'last_name', 'Last name', true, 'half' ),
-                self::field( 'email', 'email', 'Email', true, 'half' ),
-                self::field( 'text', 'phone', 'Phone', false, 'half', [ 'format' => 'phone_us' ] ),
-                self::field( 'select', 'offered_category', 'Equipment category', false, 'half', [ 'options' => self::categoryOptions() ] ),
-                self::field( 'select', 'offered_catalog_item', 'Equipment item', false, 'half', [ 'options' => self::itemOptions() ] ),
-                self::field( 'textarea', 'offered_items', 'Describe the equipment', true, 'full', [ 'help' => 'Add model, size, quantity, or anything not covered by the catalog.' ] ),
-                self::field( 'select', 'condition_status', 'Condition', true, 'half', [ 'options' => [
-                    [ 'label' => 'Excellent', 'value' => 'excellent' ],
-                    [ 'label' => 'Good', 'value' => 'good' ],
-                    [ 'label' => 'Fair', 'value' => 'fair' ],
-                    [ 'label' => 'Needs repair', 'value' => 'repair' ],
-                ] ] ),
-                self::field( 'select', 'pickup_delivery', 'Coordination preference', false, 'half', [ 'options' => [
-                    [ 'label' => 'Drop off', 'value' => 'dropoff' ],
-                    [ 'label' => 'Pick up from donor', 'value' => 'pickup' ],
-                    [ 'label' => 'Need to discuss', 'value' => 'discuss' ],
-                ] ] ),
-                self::field( 'textarea', 'notes', 'Additional notes', false, 'full' ),
-            ]
-        );
-    }
-
-    private static function saveManagedForm( string $slug, string $name, string $description, array $schema ): void {
-        $existing           = FormsRepository::getFormBySlug( $slug );
-        if ( $existing ) {
-            return;
-        }
-
-        $normalized_payload = FormsRepository::canonicalizeFormPayload( [
-            'id'          => (int) ( $existing['id'] ?? 0 ),
-            'name'        => $name,
-            'slug'        => $slug,
-            'description' => $description,
-            'status'      => 'published',
-            'schema'      => $schema,
-            'settings'    => [
-                'confirmation' => [
-                    'message'      => 'Thanks. Grandy\'s Stash received your information and will follow up after review.',
-                    'redirect_url' => '',
-                ],
-                'notifications' => [
-                    'submitter' => [
-                        'enabled'         => true,
-                        'subject'         => 'Grandy\'s Stash received your submission',
-                        'message'         => 'Thank you. Our team will review your submission and follow up soon.',
-                        'recipient_field' => 'email',
-                        'emails'          => [],
-                        'rules'           => [],
-                    ],
-                    'receiver' => [ 'enabled' => false, 'subject' => '', 'message' => '', 'recipient_field' => '', 'emails' => [], 'rules' => [] ],
-                ],
-                'payments' => [ 'enabled' => false ],
-                'design'   => [
-                    'accent_color'  => '#24506e',
-                    'button_bg'     => '#24506e',
-                    'button_text'   => '#ffffff',
-                    'field_radius'  => '14',
-                    'surface_style' => 'soft',
-                ],
-            ],
-        ] );
-        $normalized_schema   = (array) ( $normalized_payload['schema'] ?? [] );
-        $normalized_settings = (array) ( $normalized_payload['settings'] ?? [] );
-
-        $payload = [
-            'id'            => (int) ( $normalized_payload['id'] ?? 0 ),
-            'name'          => (string) ( $normalized_payload['name'] ?? $name ),
-            'slug'          => (string) ( $normalized_payload['slug'] ?? $slug ),
-            'description'   => (string) ( $normalized_payload['description'] ?? $description ),
-            'status'        => (string) ( $normalized_payload['status'] ?? 'published' ),
-            'schema'        => $normalized_schema,
-            'settings'      => $normalized_settings,
-            'version_notes' => 'Managed by Grandy\'s Stash',
-        ];
-
-        $result = FormsRepository::saveForm( $payload, (int) \metis_current_user_id() );
-        if ( ! empty( $result['ok'] ) && ! empty( $result['form']['id'] ) ) {
-            FormsRepository::publishForm( (int) $result['form']['id'] );
-        }
-    }
-
-    private static function field( string $type, string $key, string $label, bool $required, string $width, array $extra = [] ): array {
-        return array_merge( [
-            'id'          => 'stash_' . $key,
-            'type'        => $type,
-            'key'         => $key,
-            'label'       => $label,
-            'required'    => $required,
-            'width'       => $width,
-            'help'        => '',
-            'placeholder' => '',
-        ], $extra );
-    }
-
-    private static function categoryOptions(): array {
-        $options = [];
-        foreach ( self::catalogCategories() as $cat ) {
-            $options[] = [ 'label' => (string) ( $cat['category_name'] ?? '' ), 'value' => (string) ( $cat['category_slug'] ?? '' ) ];
-        }
-        return $options;
-    }
-
-    private static function itemOptions(): array {
-        $options = [];
-        foreach ( self::catalogItems() as $item ) {
-            $options[] = [
-                'label' => (string) ( $item['item_name'] ?? '' ) . ' (' . (string) ( $item['category_name'] ?? '' ) . ')',
-                'value' => (string) ( $item['item_slug'] ?? '' ),
-            ];
-        }
-        return $options;
     }
 
     // ─── Assignees ───────────────────────────────────────
