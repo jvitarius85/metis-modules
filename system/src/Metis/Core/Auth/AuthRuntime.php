@@ -1379,6 +1379,17 @@ function metis_auth_google_callback_url(): string {
     return metis_add_query_arg( [ 'provider' => 'google_workspace' ], metis_auth_login_url() );
 }
 
+function metis_auth_google_start_url( string $redirect = '' ): string {
+    return metis_add_query_arg(
+        [
+            'provider'    => 'google_workspace',
+            'auth_action' => 'start',
+            'redirect_to' => metis_auth_normalize_redirect( $redirect, metis_portal_url() ),
+        ],
+        metis_auth_login_url()
+    );
+}
+
 function metis_auth_session_keepalive_path(): string {
     return '/api/auth/session/keepalive';
 }
@@ -1593,6 +1604,7 @@ function metis_auth_build_passkey_client( string $redirect ): string {
     $resolve_nonce = metis_runtime_create_nonce( 'metis_auth_resolve' );
     $begin_nonce = metis_runtime_create_nonce( metis_auth_passkey_begin_nonce_action() );
     $complete_nonce = metis_runtime_create_nonce( metis_auth_passkey_complete_nonce_action() );
+    $google_start_url = metis_auth_google_start_url( $redirect );
 
     return ' data-resolve-url="' . metis_escape_attr( $resolve_url ) . '"'
         . ' data-complete-url="' . metis_escape_attr( $complete_url ) . '"'
@@ -1600,6 +1612,7 @@ function metis_auth_build_passkey_client( string $redirect ): string {
         . ' data-begin-nonce="' . metis_escape_attr( $begin_nonce ) . '"'
         . ' data-complete-nonce="' . metis_escape_attr( $complete_nonce ) . '"'
         . ' data-complete-action="' . metis_escape_attr( metis_auth_passkey_complete_nonce_action() ) . '"'
+        . ' data-google-start-url="' . metis_escape_attr( $google_start_url ) . '"'
         . ' data-redirect="' . metis_escape_attr( $redirect ) . '"';
 }
 
@@ -1868,6 +1881,19 @@ function metis_auth_handle_request( Metis_Http_Request $request ): bool {
     );
     $show_mfa = $step === 'mfa' && is_array( $pending ) && is_array( $pending_person );
     $needs_bootstrap = ! metis_auth_has_users() && metis_auth_legacy_people_without_auth_count() === 0;
+
+    if ( (string) ( metis_request_get()['provider'] ?? '' ) === 'google_workspace'
+        && (string) ( metis_request_get()['auth_action'] ?? '' ) === 'start'
+        && \Metis\Core\Application::has_service( 'auth_core' )
+    ) {
+        try {
+            metis_auth_rate_limit_check( 'google_workspace' );
+            $auth_url = \Metis\Core\Application::service( 'auth_core' )->beginGoogleWorkspaceLogin( $redirect );
+            metis_runtime_redirect( $auth_url );
+        } catch ( Throwable $e ) {
+            $error = metis_auth_ui_error_message( $e, 'google_workspace' );
+        }
+    }
 
     if ( (string) ( metis_request_get()['provider'] ?? '' ) === 'google_workspace' && isset( metis_request_get()['code'] ) && \Metis\Core\Application::has_service( 'auth_core' ) ) {
         try {

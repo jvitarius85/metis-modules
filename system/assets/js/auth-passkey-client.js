@@ -20,6 +20,7 @@
     var beginNonce = form.dataset.beginNonce || "";
     var completeNonce = form.dataset.completeNonce || "";
     var completeAction = form.dataset.completeAction || "";
+    var googleStartUrl = form.dataset.googleStartUrl || "";
     var redirect = form.dataset.redirect || "";
 
     function navigate(url) {
@@ -111,13 +112,17 @@
     }
 
     function startGoogleWorkspace() {
-        if (!googleForm) {
+        if (!googleForm && !googleStartUrl) {
             throw new Error("Google Workspace sign-in is unavailable.");
         }
 
         setStatus("Opening Google Workspace sign-in...", false);
         if (googleButton) {
             googleButton.disabled = true;
+        }
+        if (googleStartUrl) {
+            navigate(googleStartUrl);
+            return;
         }
         if (typeof googleForm.requestSubmit === "function") {
             googleForm.requestSubmit();
