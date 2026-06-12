@@ -37,6 +37,12 @@ $menu_button_colors = [
     'metis_text' => metis_hex_color_clean( (string) ( $theme_saved['metis_text'] ?? $theme_defaults['metis_text'] ) ) ?: $theme_defaults['metis_text'],
     'metis_surface' => metis_hex_color_clean( (string) ( $theme_saved['metis_surface'] ?? $theme_defaults['metis_surface'] ) ) ?: $theme_defaults['metis_surface'],
 ];
+$menu_button_color_labels = [
+    'metis_primary' => 'Primary',
+    'metis_accent' => 'Accent',
+    'metis_text' => 'Text',
+    'metis_surface' => 'Surface',
+];
 $published_pages = PageService::getAll(
     [
         'status' => 'published',
@@ -144,7 +150,7 @@ foreach ( $published_pages as $page ) {
 
             <div class="metis-field" style="margin-bottom:20px;">
                 <label class="metis-label" for="metis-menu-location">Location</label>
-                <select id="metis-menu-location" class="metis-input">
+                <select id="metis-menu-location" class="metis-input" data-metis-ui-select="1" data-metis-select-trigger-class="metis-input">
                     <?php foreach ( $locations as $val => $label ) : ?>
                         <option value="<?php echo metis_escape_attr( $val ); ?>"><?php echo metis_escape_html( $label ); ?></option>
                     <?php endforeach; ?>
@@ -164,14 +170,14 @@ foreach ( $published_pages as $page ) {
                 </div>
                 <div class="metis-field" style="margin:0;">
                     <label class="metis-label" for="metis-menu-item-source" style="font-size:11px;">Source</label>
-                    <select id="metis-menu-item-source" class="metis-input metis-input-sm" style="width:150px;">
+                    <select id="metis-menu-item-source" class="metis-input metis-input-sm" style="width:150px;" data-metis-ui-select="1" data-metis-select-trigger-class="metis-input metis-input-sm">
                         <option value="page">Published page</option>
                         <option value="custom">Custom URL</option>
                     </select>
                 </div>
                 <div class="metis-field" id="metis-menu-item-page-field" style="flex:2;min-width:240px;margin:0;">
                     <label class="metis-label" for="metis-menu-item-page" style="font-size:11px;">Published page</label>
-                    <select id="metis-menu-item-page" class="metis-input metis-input-sm">
+                    <select id="metis-menu-item-page" class="metis-input metis-input-sm" data-metis-ui-select="1" data-metis-select-trigger-class="metis-input metis-input-sm">
                         <option value="">Select published page…</option>
                         <?php foreach ( $published_page_options as $page_option ) : ?>
                             <option value="<?php echo metis_escape_attr( (string) ( $page_option['id'] ?? '' ) ); ?>"
@@ -189,7 +195,7 @@ foreach ( $published_pages as $page ) {
                 </div>
                 <div class="metis-field" style="margin:0;">
                     <label class="metis-label" for="metis-menu-item-target" style="font-size:11px;">Opens in</label>
-                    <select id="metis-menu-item-target" class="metis-input metis-input-sm" style="width:110px;">
+                    <select id="metis-menu-item-target" class="metis-input metis-input-sm" style="width:110px;" data-metis-ui-select="1" data-metis-select-trigger-class="metis-input metis-input-sm">
                         <option value="">Same tab</option>
                         <option value="_blank">New tab</option>
                     </select>
@@ -200,9 +206,12 @@ foreach ( $published_pages as $page ) {
                 </div>
                 <div class="metis-field" style="margin:0;">
                     <label class="metis-label" for="metis-menu-item-button-color" style="font-size:11px;">Button Color</label>
-                    <select id="metis-menu-item-button-color" class="metis-input metis-input-sm" style="width:150px;">
+                    <select id="metis-menu-item-button-color" class="metis-input metis-input-sm" style="width:150px;" data-metis-ui-select="1" data-metis-select-trigger-class="metis-input metis-input-sm" data-metis-select-variant="theme-binding">
                         <?php foreach ( $menu_button_colors as $color_key => $color_hex ) : ?>
-                            <option value="<?php echo metis_escape_attr( $color_key ); ?>"><?php echo metis_escape_html( strtoupper( str_replace( 'metis_', '', $color_key ) ) . ' (' . $color_hex . ')' ); ?></option>
+                            <option value="<?php echo metis_escape_attr( $color_key ); ?>"
+                                data-metis-select-color="<?php echo metis_escape_attr( $color_hex ); ?>">
+                                <?php echo metis_escape_html( (string) ( $menu_button_color_labels[ $color_key ] ?? $color_key ) ); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -237,12 +246,51 @@ if ( function_exists( 'metis_json_encode' ) ) {
     echo is_string( $encoded ) ? $encoded : '[]';
 }
 ?>;
+var menuButtonPalette = <?php
+if ( function_exists( 'metis_json_encode' ) ) {
+    echo metis_json_encode( $menu_button_colors, JSON_UNESCAPED_UNICODE );
+} else {
+    $encoded = json_encode( $menu_button_colors, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+    echo is_string( $encoded ) ? $encoded : '{}';
+}
+?>;
 
 var menuItems = [];
 var editingMenuId = null;
 var editingItemId = null;
 var itemLabelTouched = false;
 var locationLabels = {};
+
+function refreshMenuSelects(scope) {
+    if (!(window.Metis && Metis.ui && Metis.ui.select && typeof Metis.ui.select.refresh === 'function')) {
+        return;
+    }
+    var $scope = scope ? $(scope) : $(document);
+    var seen = [];
+    $scope.find('select[data-metis-ui-select="1"]').addBack('select[data-metis-ui-select="1"]').each(function() {
+        var select = this;
+        if (!(select instanceof HTMLSelectElement)) return;
+        if (seen.indexOf(select) !== -1) return;
+        seen.push(select);
+
+        if (select.id === 'metis-menu-item-button-color') {
+            select.dataset.metisSelectVariant = 'theme-binding';
+            $(select).find('option').each(function() {
+                var key = String(this.value || '').trim();
+                var color = String(this.dataset.metisSelectColor || menuButtonPalette[key] || '#ffffff');
+                this.dataset.metisSelectColor = color;
+            });
+        } else {
+            delete select.dataset.metisSelectVariant;
+            $(select).find('option').each(function() {
+                delete this.dataset.metisSelectColor;
+                delete this.dataset.metisSelectFontFamily;
+            });
+        }
+
+        Metis.ui.select.refresh(select);
+    });
+}
 
 $('#metis-menu-location option').each(function() {
     locationLabels[String($(this).val() || '')] = String($(this).text() || '');
@@ -462,6 +510,7 @@ function openMenuModal(id, name, location, items) {
     $('#metis-menu-id').val(id || '');
     $('#metis-menu-name').val(name || '');
     $('#metis-menu-location').val(location || '');
+    refreshMenuSelects($('#metis-menu-modal'));
     renderItems();
     if (window.Metis && Metis.ui && Metis.ui.modal) {
         Metis.ui.modal.form('metis-menu-modal');
@@ -486,6 +535,7 @@ function resetItemForm() {
     $('#metis-menu-item-button-color').val('metis_primary');
     $('#metis-menu-add-item-btn').text('+ Add Item');
     syncMenuItemSourceControls();
+    refreshMenuSelects($('#metis-menu-modal'));
 }
 
 function renderItems() {
@@ -666,6 +716,7 @@ $(document).on('click', '.metis-menu-item-edit', function() {
     $('#metis-menu-item-button-color').val(String(item.button_color_key || 'metis_primary'));
     $('#metis-menu-add-item-btn').text('Update Item');
     syncMenuItemSourceControls();
+    refreshMenuSelects($('#metis-menu-modal'));
     $('#metis-menu-item-label').focus();
 });
 
@@ -684,6 +735,7 @@ $(document).on('click', '.metis-edit-menu', function() {
 });
 
 syncMenuItemSourceControls();
+refreshMenuSelects($('#metis-menu-modal'));
 
 $(document).on('click', '#metis-menu-save-btn', function() {
     var name = $('#metis-menu-name').val().trim();

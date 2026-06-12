@@ -552,6 +552,7 @@
 .metis-theme-menu-live.metis-menu-style-h_glide .metis-template-menu {
   --metis-glide-primary:var(--metis-color-primary,#485bc7);
   --metis-glide-accent:var(--metis-color-accent,#ff7542);
+  --metis-glide-menu-width:62rem;
   flex:1 1 100%;
   min-width:0;
   width:100% !important;

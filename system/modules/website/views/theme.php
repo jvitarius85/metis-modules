@@ -232,6 +232,7 @@ $global_defaults = [
 
 $menu_style_options = [
     'h_glide' => 'Glide Gradient',
+    'h_marker_dropdown' => 'Marker Dropdown',
     'h_outline_tabs' => 'Outline Tabs',
     'h_pill_dropdown' => 'Pill Dropdown',
     'h_modern_bar' => 'Modern Bar',
@@ -253,9 +254,6 @@ $global_styles = array_replace_recursive( $global_defaults, is_array( $global_st
 $custom = array_replace_recursive( $custom_defaults, $custom_input );
 $menu_component = is_array( $global_styles['components']['menu'] ?? null ) ? $global_styles['components']['menu'] : [];
 $menu_visual_style = (string) ( $menu_component['style'] ?? ( $global_styles['global_settings']['menu_style'] ?? 'h_glide' ) );
-if ( $menu_visual_style === 'h_marker_dropdown' ) {
-    $menu_visual_style = 'h_outline_tabs';
-}
 if ( ! isset( $menu_style_options[ $menu_visual_style ] ) ) {
     $menu_visual_style = 'h_glide';
 }
@@ -1437,6 +1435,15 @@ var menuPresetDefinitions = {
         mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
         chevron: { type: 'none', animation: 'none' }
     },
+    h_marker_dropdown: {
+        layout: 'horizontal_clean',
+        alignment: 'center',
+        container: 'contained',
+        desktop: { font_size: 14, item_spacing: 'normal', hover_style: 'fill', active_style: 'pill' },
+        dropdown: { behavior: 'hover', animation: 'slide', radius: 0 },
+        mobile: { breakpoint: 980, style: 'hamburger', menu_type: 'slide', button_style: 'rounded' },
+        chevron: { type: 'chevron', animation: 'rotate' }
+    },
     h_outline_tabs: {
         layout: 'horizontal_clean',
         alignment: 'center',
@@ -1601,12 +1608,12 @@ function normalizeMenuStyleOption(raw) {
     var value = String(raw || '').toLowerCase();
     var allowed = {
         h_glide: true,
+        h_marker_dropdown: true,
         h_outline_tabs: true,
         h_pill_dropdown: true,
         h_modern_bar: true,
         h_showcase_buttons: true
     };
-    if (value === 'h_marker_dropdown') return 'h_outline_tabs';
     return allowed[value] ? value : 'h_glide';
 }
 
