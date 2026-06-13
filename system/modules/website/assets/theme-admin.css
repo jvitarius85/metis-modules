@@ -263,6 +263,10 @@
   color:var(--metis-menu-button-text,#fff) !important;
   border:1px solid var(--metis-menu-button-border,transparent);
 }
+.metis-theme-menu-live .metis-shell-menu-item > .metis-shell-menu-btn--metis_primary,
+.metis-theme-menu-live .metis-shell-menu-item > .metis-shell-menu-btn--metis_accent {
+  --metis-menu-button-text:#fff;
+}
 .metis-theme-menu-live .metis-shell-menu-label:not([tabindex]) {
   cursor:default;
 }
@@ -295,7 +299,9 @@
   position:absolute;
   left:0;
   top:100%;
-  min-width:180px;
+  min-width:max(100%, 16rem);
+  width:max-content;
+  max-width:min(30rem, calc(100vw - 32px));
   background:#fff;
   border:1px solid var(--metis-color-border,#e2e8f0);
   padding:6px;
@@ -321,6 +327,8 @@
   width:100%;
   box-sizing:border-box;
   padding:7px 10px;
+  white-space:normal;
+  line-height:1.35;
   background:transparent;
   border-radius:8px;
   color:var(--metis-menu-dropdown-text,var(--metis-color-text,#1a1f2b));

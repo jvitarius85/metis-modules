@@ -2758,7 +2758,9 @@
                 var colIndex = parseInt(s(inlineCol.getAttribute('data-v2-inline-col') || '-1'), 10);
                 var colSection = blockIndex >= 0 && state.sections[blockIndex] ? state.sections[blockIndex] : null;
                 if (colSection && Array.isArray(colSection.content && colSection.content.columns) && colSection.content.columns[colIndex]) {
-                    colSection.content.columns[colIndex].body = repairMojibakeHtml(inlineCol.innerHTML || '') || '<p></p>';
+                    var normalizedColumnBody = repairMojibakeHtml(inlineCol.innerHTML || '') || '<p></p>';
+                    colSection.content.columns[colIndex].body = normalizedColumnBody;
+                    colSection.content.columns[colIndex].module = normalizeColumnModule({ type: 'text', content: { body: normalizedColumnBody } }, normalizedColumnBody);
                 }
             }
         }
@@ -3906,6 +3908,38 @@
                     }
                 },
                 sections: []
+            });
+        }
+
+        function flushPendingEditorState() {
+            if (!root || !root.querySelectorAll) return;
+            root.querySelectorAll('.metis-se-rich-editor').forEach(function (node) {
+                syncRichEditorToSection(node);
+            });
+            root.querySelectorAll('[data-v2-inline]').forEach(function (node) {
+                var inlineIndex = parseInt(s(node.getAttribute('data-inline-index') || '-1'), 10);
+                var inlineField = s(node.getAttribute('data-v2-inline') || '');
+                var inlineSection = inlineIndex >= 0 && state.sections[inlineIndex] ? state.sections[inlineIndex] : null;
+                if (!inlineSection) return;
+                inlineSection.content = inlineSection.content && typeof inlineSection.content === 'object' ? inlineSection.content : {};
+                if (inlineField === 'heading_text') inlineSection.content.text = s(node.textContent || '');
+                else if (inlineField === 'text_body') inlineSection.content.body = repairMojibakeHtml(node.innerHTML || '') || '<p></p>';
+                else if (inlineField === 'image_caption') inlineSection.content.caption = s(node.textContent || '');
+                else if (inlineField === 'button_label') inlineSection.content.label = s(node.textContent || '');
+                else if (inlineField === 'hero_title') inlineSection.content.title = s(node.textContent || '');
+                else if (inlineField === 'hero_subtitle') inlineSection.content.subtitle = s(node.textContent || '');
+                else if (inlineField === 'hero_cta_label') inlineSection.content.cta_label = s(node.textContent || '');
+                else if (inlineField === 'campaign_title') inlineSection.content.title = s(node.textContent || '');
+                else if (inlineField === 'divider_label') inlineSection.content.label = s(node.textContent || '');
+            });
+            root.querySelectorAll('[data-v2-inline-item]').forEach(function (node) {
+                var itemBlockIndex = parseInt(s(node.getAttribute('data-inline-index') || '-1'), 10);
+                var itemIndex = parseInt(s(node.getAttribute('data-v2-inline-item') || '-1'), 10);
+                var itemField = s(node.getAttribute('data-inline-item-field') || '');
+                var itemSection = itemBlockIndex >= 0 && state.sections[itemBlockIndex] ? state.sections[itemBlockIndex] : null;
+                if (itemSection && Array.isArray(itemSection.content && itemSection.content.items) && itemSection.content.items[itemIndex]) {
+                    itemSection.content.items[itemIndex][itemField] = s(node.textContent || '');
+                }
             });
         }
 
@@ -5354,7 +5388,18 @@
                 setStatus('You do not have permission to save this item.', 'error');
                 return;
             }
-            if (state.saving) return;
+            if (state.saving) {
+                var nextQueuedSave = { autosave: !!autosave, publishRequested: !!publishRequested };
+                if (!state.queuedSave || !state.queuedSave.publishRequested || publishRequested || !autosave) {
+                    state.queuedSave = nextQueuedSave;
+                }
+                return;
+            }
+            if (state.autosaveTimer) {
+                window.clearTimeout(state.autosaveTimer);
+                state.autosaveTimer = null;
+            }
+            flushPendingEditorState();
             var titleEl = document.getElementById('metis-v2-title');
             var slugEl = document.getElementById('metis-v2-slug');
             var statusEl = document.getElementById('metis-v2-status');
@@ -5440,6 +5485,13 @@
                 setStatus('Save failed: ' + s(err && err.message || 'Request failed.'), 'error');
             }).finally(function () {
                 state.saving = false;
+                if (state.queuedSave) {
+                    var queued = state.queuedSave;
+                    state.queuedSave = null;
+                    if (queued.publishRequested || !queued.autosave || state.dirty) {
+                        saveEntity(!!queued.autosave, !!queued.publishRequested);
+                    }
+                }
             });
         }
 
@@ -6345,7 +6397,9 @@
                     var colIndex = parseInt(s(inlineCol.getAttribute('data-v2-inline-col') || '-1'), 10);
                     var colSection = blockIndex >= 0 && state.sections[blockIndex] ? state.sections[blockIndex] : null;
                     if (colSection && Array.isArray(colSection.content && colSection.content.columns) && colSection.content.columns[colIndex]) {
-                        colSection.content.columns[colIndex].body = inlineCol.innerHTML;
+                        var liveColumnBody = repairMojibakeHtml(inlineCol.innerHTML || '') || '<p></p>';
+                        colSection.content.columns[colIndex].body = liveColumnBody;
+                        colSection.content.columns[colIndex].module = normalizeColumnModule({ type: 'text', content: { body: liveColumnBody } }, liveColumnBody);
                         setDirtyAutosave();
                     }
                     return;

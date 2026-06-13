@@ -14,6 +14,18 @@ metis_people_seed_permissions_and_roles();
 $can_manage = metis_people_can_manage();
 $is_new = isset( metis_request_get()['new'] ) && (string) metis_runtime_unslash( metis_request_get()['new'] ) === '1';
 $pid = isset( metis_request_get()['pid'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_get()['pid'] ) ) : '';
+if ( $pid === '' ) {
+    $request_path = isset( $_SERVER['REQUEST_URI'] ) ? (string) parse_url( (string) $_SERVER['REQUEST_URI'], PHP_URL_PATH ) : '';
+    $person_base_path = (string) parse_url( metis_people_person_url(), PHP_URL_PATH );
+    $person_base_path = rtrim( $person_base_path, '/' ) . '/';
+    if ( $request_path !== '' && strpos( $request_path, $person_base_path ) === 0 ) {
+        $remainder = trim( substr( $request_path, strlen( $person_base_path ) ), '/' );
+        if ( $remainder !== '' ) {
+            $segments = explode( '/', $remainder );
+            $pid = metis_text_clean( (string) ( $segments[0] ?? '' ) );
+        }
+    }
+}
 
 $snapshot = \Metis\Modules\People\ReadService::personSnapshot( $pid, $is_new );
 $person = $snapshot['person'] ?? null;
@@ -51,6 +63,7 @@ $linked_donor_name = (string) ( $snapshot['linked_donor_name'] ?? '' );
 $lifecycle_status = (string) ( $person['lifecycle_status'] ?? 'active' );
 $manager_pid = (string) ( $person['manager_pid'] ?? '' );
 $department = (string) ( $person['department'] ?? '' );
+$date_joined = (string) ( $snapshot['date_joined'] ?? '' );
 $board_position = (string) ( $person['board_position'] ?? '' );
 $staff_position = (string) ( $person['staff_position'] ?? '' );
 $volunteer_position = (string) ( $person['volunteer_position'] ?? '' );
@@ -95,6 +108,8 @@ $can_attach_drive_folder = ! empty( $snapshot['can_attach_drive_folder'] ) && $c
 $drive_shared_id = (string) ( $snapshot['drive_shared_id'] ?? '' );
 $drive_users_root_id = (string) ( $snapshot['drive_users_root_id'] ?? '' );
 $drive_users_root_name = (string) ( $snapshot['drive_users_root_name'] ?? 'Users' );
+$editor_icon_base = function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/svg' ) : '/svg';
+$editor_icon_fallback_base = function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/assets/Images/icons' ) : '/assets/Images/icons';
 if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
     function metis_people_workspace_label_from_key( string $role_key, string $description = '' ): string {
         $label = trim( $role_key );
@@ -380,6 +395,11 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
                     </select>
                 </div>
 
+                <div class="metis-field metis-field-half">
+                    <label for="metis-people-date-joined">Date Joined</label>
+                    <input id="metis-people-date-joined" class="metis-input" type="date" value="<?php echo metis_escape_attr( $date_joined ); ?>" <?php disabled( ! $can_manage ); ?>>
+                </div>
+
                 <div class="metis-field metis-field-full">
                     <h4 class="metis-people-form-subtitle">Public Profile</h4>
                     <div class="metis-muted">Used for staff, board, volunteer listings and article author pages.</div>
@@ -402,26 +422,52 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
                 </div>
 
                 <div class="metis-field metis-field-half">
-                    <label for="metis-people-public-slug">Profile URL Slug</label>
-                    <input id="metis-people-public-slug" class="metis-input" type="text" value="<?php echo metis_escape_attr( $public_slug ); ?>" placeholder="jane-doe" <?php disabled( ! $can_manage ); ?>>
-                </div>
-
-                <div class="metis-field metis-field-half">
                     <label for="metis-people-public-tagline">Tagline</label>
                     <input id="metis-people-public-tagline" class="metis-input" type="text" value="<?php echo metis_escape_attr( $public_tagline ); ?>" placeholder="Executive Director" <?php disabled( ! $can_manage ); ?>>
                 </div>
 
                 <div class="metis-field metis-field-full">
                     <label for="metis-people-public-bio-editor">Public Bio</label>
-                    <div class="metis-shared-rich-shell">
+                    <div class="metis-shared-rich-shell metis-rich-text metis-profile-rich-text">
                         <div class="metis-se-rich-toolbar" data-rich-toolbar="people-public-bio">
-                            <button type="button" class="metis-btn-xs" data-rich-cmd="bold">Bold</button>
-                            <button type="button" class="metis-btn-xs" data-rich-cmd="italic">Italic</button>
-                            <button type="button" class="metis-btn-xs" data-rich-cmd="insertUnorderedList">Bullets</button>
-                            <button type="button" class="metis-btn-xs" data-rich-cmd="formatBlock" data-rich-value="blockquote">Quote</button>
-                            <button type="button" class="metis-btn-xs" data-rich-action="link">Link</button>
+                            <div class="metis-se-rich-group">
+                                <div class="metis-se-rich-dropdown">
+                                    <button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger" data-rich-toggle="menu" aria-label="Text style">
+                                        <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-scale' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-scale.svg' ); ?>" alt="" aria-hidden="true">
+                                    </button>
+                                    <div class="metis-se-rich-menu">
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="P">Paragraph</button>
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="H2">Heading 2</button>
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="H3">Heading 3</button>
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="BLOCKQUOTE">Quote</button>
+                                    </div>
+                                </div>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="bold" aria-label="Bold">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-bold' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-bold.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="italic" aria-label="Italic">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/italic' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/italic.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="underline" aria-label="Underline">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-underline' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-underline.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                            </div>
+                            <div class="metis-se-rich-group">
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="insertOrderedList" aria-label="Numbered list">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/list-boxes' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/list-boxes.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="insertUnorderedList" aria-label="Bulleted list">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/list-bulleted' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/list-bulleted.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="createLink" aria-label="Insert link">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/link' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/link.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="removeFormat" aria-label="Clear formatting">
+                                    <img src="<?php echo metis_escape_attr( $editor_icon_base . '/text-clear-format' ); ?>" data-icon-fallback="<?php echo metis_escape_attr( $editor_icon_fallback_base . '/text-clear-format.svg' ); ?>" alt="" aria-hidden="true">
+                                </button>
+                            </div>
                         </div>
-                        <div id="metis-people-public-bio-editor" class="metis-input metis-shared-rich-editor" contenteditable="<?php echo $can_manage ? 'true' : 'false'; ?>" data-rich-editor-input="people-public-bio"><?php echo $public_bio_html; ?></div>
+                        <div id="metis-people-public-bio-editor" class="metis-input metis-shared-rich-editor metis-se-rich-editor" contenteditable="<?php echo $can_manage ? 'true' : 'false'; ?>" spellcheck="true" data-placeholder="Share their role, experience, and focus." data-rich-editor-input="people-public-bio"><?php echo $public_bio_html; ?></div>
                         <input id="metis-people-public-bio-html" type="hidden" value="<?php echo metis_escape_attr( $public_bio_html ); ?>">
                     </div>
                 </div>

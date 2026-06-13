@@ -1,5 +1,16 @@
 window.MetisPeopleProfileModules = window.MetisPeopleProfileModules || {};
 
+function metisPeoplePersonDetailUrl(baseUrl, pid) {
+    var base = String(baseUrl || '').trim();
+    var personPid = String(pid || '').trim();
+    if (!base || !personPid) return '';
+    return base.replace(/\/?$/, '/') + encodeURIComponent(personPid) + '/';
+}
+
+function personDetailUrl(baseUrl, pid) {
+    return metisPeoplePersonDetailUrl(baseUrl, pid);
+}
+
 window.MetisPeopleProfileModules.initOverview = function (context) {
     const normalize = context.normalize;
     const showAlert = context.showAlert;
@@ -99,7 +110,7 @@ window.MetisPeopleProfileModules.initOverview = function (context) {
                     if (pid && rowsWrap) {
                         const personName = fullName || 'Person';
                         const personEmail = String(email ? email.value : '').trim();
-                        const href = personBaseUrl ? (personBaseUrl + '?pid=' + encodeURIComponent(pid)) : '';
+                        const href = metisPeoplePersonDetailUrl(personBaseUrl, pid);
                         const row = document.createElement('div');
                         row.className = 'metis-premium-row metis-people-row';
                         row.dataset.search = normalize([pid, personName, personEmail, 'metis', 'no'].join(' '));
@@ -339,7 +350,7 @@ window.MetisPeopleProfileModules.initOverview = function (context) {
                 if (!btn) return;
                 const pid = String(btn.dataset.pid || '').trim();
                 if (!pid || !personBaseUrl) return;
-                navigate(personBaseUrl + '?pid=' + encodeURIComponent(pid));
+                navigate(metisPeoplePersonDetailUrl(personBaseUrl, pid));
             });
 
             document.addEventListener('click', function (event) {
@@ -469,35 +480,86 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
     function syncPublicBio() {
         if (!publicBioEditor || !publicBioHidden) return;
         if (window.Metis && Metis.ui && Metis.ui.richText) {
-            publicBioEditor.innerHTML = Metis.ui.richText.normalizeHtml(String(publicBioEditor.innerHTML || ''));
-            Metis.ui.richText.bindIconFallbacks(publicBioEditor);
+            Metis.ui.richText.bindIconFallbacks(publicBioToolbar.closest('.metis-rich-text') || publicBioToolbar);
         }
         publicBioHidden.value = String(publicBioEditor.innerHTML || '');
     }
 
+    function normalizePublicBio() {
+        if (!publicBioEditor) return;
+        if (window.Metis && Metis.ui && Metis.ui.richText) {
+            publicBioEditor.innerHTML = Metis.ui.richText.normalizeHtml(String(publicBioEditor.innerHTML || ''));
+        }
+        syncPublicBio();
+    }
+
     if (publicBioToolbar && publicBioEditor && publicBioHidden) {
-        publicBioToolbar.addEventListener('click', function (event) {
-            const button = event.target.closest('[data-rich-cmd],[data-rich-action]');
-            if (!button || !(window.Metis && Metis.ui && Metis.ui.richText)) return;
-            event.preventDefault();
-            Metis.ui.richText.saveSelection(publicBioEditor);
-            if (button.hasAttribute('data-rich-action')) {
-                const action = String(button.getAttribute('data-rich-action') || '');
-                const value = action === 'link' ? window.prompt('Enter link URL', 'https://') : '';
-                if (action === 'link' && !value) return;
-                Metis.ui.richText.applyAction(publicBioEditor, action, value || '', '');
-            } else {
-                Metis.ui.richText.applyCommand(
-                    publicBioEditor,
-                    String(button.getAttribute('data-rich-cmd') || ''),
-                    String(button.getAttribute('data-rich-value') || '')
-                );
+        publicBioEditor.addEventListener('focus', function () {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(publicBioEditor);
+            }
+        });
+        ['mouseup', 'keyup', 'blur'].forEach(function (eventName) {
+            publicBioEditor.addEventListener(eventName, function () {
+                if (window.Metis && Metis.ui && Metis.ui.richText) {
+                    Metis.ui.richText.saveSelection(publicBioEditor);
+                }
+                if (eventName === 'blur') {
+                    syncPublicBio();
+                }
+            });
+        });
+        publicBioEditor.addEventListener('input', function () {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(publicBioEditor);
             }
             syncPublicBio();
         });
-        publicBioEditor.addEventListener('input', syncPublicBio);
-        publicBioEditor.addEventListener('blur', syncPublicBio);
-        syncPublicBio();
+        publicBioToolbar.addEventListener('click', async function (event) {
+            if (!(window.Metis && Metis.ui && Metis.ui.richText)) return;
+            const toggle = event.target.closest('[data-rich-toggle="menu"]');
+            if (toggle) {
+                event.preventDefault();
+                const dropdown = toggle.closest('.metis-se-rich-dropdown');
+                publicBioToolbar.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
+                    if (node !== dropdown) node.classList.remove('is-open');
+                });
+                if (dropdown) dropdown.classList.toggle('is-open');
+                return;
+            }
+
+            const action = event.target.closest('[data-rich-action]');
+            if (action) {
+                event.preventDefault();
+                Metis.ui.richText.applyAction(
+                    publicBioEditor,
+                    String(action.getAttribute('data-rich-action') || ''),
+                    String(action.getAttribute('data-rich-value') || ''),
+                    String(action.getAttribute('data-rich-color') || '')
+                );
+                Metis.ui.richText.closeMenus(publicBioToolbar);
+                normalizePublicBio();
+                return;
+            }
+
+            const command = event.target.closest('[data-rich-cmd]');
+            if (command) {
+                event.preventDefault();
+                await Metis.ui.richText.applyCommand(
+                    publicBioEditor,
+                    String(command.getAttribute('data-rich-cmd') || ''),
+                    String(command.getAttribute('data-rich-value') || '')
+                );
+                Metis.ui.richText.closeMenus(publicBioToolbar);
+                normalizePublicBio();
+            }
+        });
+        document.addEventListener('click', function (event) {
+            if (!publicBioToolbar.contains(event.target) && window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.closeMenus(publicBioToolbar);
+            }
+        });
+        normalizePublicBio();
     }
 
     function syncPositionFieldVisibility() {
@@ -602,6 +664,7 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
             event.preventDefault();
 
             const personId = document.getElementById('metis-people-id');
+            const personPid = document.getElementById('metis-people-pid');
             const personFirstName = document.getElementById('metis-people-first-name');
             const personLastName = document.getElementById('metis-people-last-name');
             const personName = document.getElementById('metis-people-name');
@@ -617,10 +680,10 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
             const personLifecycleStatus = document.getElementById('metis-people-lifecycle-status');
             const personManagerPid = document.getElementById('metis-people-manager-pid');
             const personDepartment = document.getElementById('metis-people-department');
+            const personDateJoined = document.getElementById('metis-people-date-joined');
             const personBoardTermStart = document.getElementById('metis-people-board-term-start');
             const personBoardTermEnd = document.getElementById('metis-people-board-term-end');
             const personVolunteerArea = document.getElementById('metis-people-volunteer-area');
-            const personPublicSlug = document.getElementById('metis-people-public-slug');
             const personPublicTagline = document.getElementById('metis-people-public-tagline');
             const personPublicVisibility = document.getElementById('metis-people-public-visibility');
             const personPublicSortOrder = document.getElementById('metis-people-public-sort-order');
@@ -638,7 +701,7 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
             const roleWindows = collectRoleWindows();
             const notificationPrefs = collectNotificationPrefs();
             const effectiveWorkspaceEmail = String((personWorkspaceEmail && personWorkspaceEmail.value) || '').trim();
-            syncPublicBio();
+            normalizePublicBio();
 
             post('metis_people_save_person', {
                 person_id: personId ? personId.value : '0',
@@ -657,10 +720,10 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
                 linked_donor_id: personLinkedDonorId ? personLinkedDonorId.value : '',
                 manager_pid: personManagerPid ? personManagerPid.value : '',
                 department: personDepartment ? personDepartment.value : '',
+                date_joined: personDateJoined ? personDateJoined.value : '',
                 board_term_start: personBoardTermStart ? personBoardTermStart.value : '',
                 board_term_end: personBoardTermEnd ? personBoardTermEnd.value : '',
                 volunteer_area: personVolunteerArea ? personVolunteerArea.value : '',
-                public_slug: personPublicSlug ? personPublicSlug.value : '',
                 public_tagline: personPublicTagline ? personPublicTagline.value : '',
                 public_visibility: personPublicVisibility ? personPublicVisibility.value : 'private',
                 public_sort_order: personPublicSortOrder ? personPublicSortOrder.value : '0',
@@ -689,9 +752,13 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
                         personId.value = savedPersonId;
                     }
                     if (savedPid) {
-                        url.searchParams.delete('new');
-                        url.searchParams.set('pid', savedPid);
-                        window.history.replaceState({}, '', url.toString());
+                        var nextUrl = metisPeoplePersonDetailUrl(personBaseUrl || url.pathname, savedPid);
+                        if (nextUrl) {
+                            if (url.searchParams.get('panel')) {
+                                nextUrl += '?panel=' + encodeURIComponent(String(url.searchParams.get('panel') || ''));
+                            }
+                            window.history.replaceState({}, '', nextUrl);
+                        }
                         if (personPidInput) personPidInput.value = savedPid;
                         if (offboardPidEl) offboardPidEl.dataset.pid = savedPid;
                         const sub = document.querySelector('.metis-people-detail-header .metis-subtitle');
@@ -711,73 +778,41 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
     const avatarSave = document.getElementById('metis-people-avatar-save');
     const avatarFile = document.getElementById('metis-people-avatar-file');
     const avatarCanvas = document.getElementById('metis-people-avatar-canvas');
+    const avatarPreview = document.getElementById('metis-people-avatar-preview');
     const avatarZoom = document.getElementById('metis-people-avatar-zoom');
-    const avatarOffsetX = document.getElementById('metis-people-avatar-offset-x');
-    const avatarOffsetY = document.getElementById('metis-people-avatar-offset-y');
-    let avatarImage = null;
-    let avatarImageLoaded = false;
-    const avatarCtx = avatarCanvas ? avatarCanvas.getContext('2d') : null;
-
-    function drawAvatarCanvas() {
-        if (!avatarCtx || !avatarCanvas) return;
-        const width = avatarCanvas.width;
-        const height = avatarCanvas.height;
-        avatarCtx.clearRect(0, 0, width, height);
-        avatarCtx.fillStyle = '#f3f5fb';
-        avatarCtx.fillRect(0, 0, width, height);
-        if (!avatarImageLoaded || !avatarImage) return;
-        const zoom = parseFloat(avatarZoom ? avatarZoom.value : '1') || 1;
-        const dx = parseInt(avatarOffsetX ? avatarOffsetX.value : '0', 10) || 0;
-        const dy = parseInt(avatarOffsetY ? avatarOffsetY.value : '0', 10) || 0;
-        const srcW = avatarImage.width;
-        const srcH = avatarImage.height;
-        const fit = Math.max(width / srcW, height / srcH);
-        const drawW = srcW * fit * zoom;
-        const drawH = srcH * fit * zoom;
-        const x = (width - drawW) / 2 + dx;
-        const y = (height - drawH) / 2 + dy;
-        avatarCtx.drawImage(avatarImage, x, y, drawW, drawH);
-    }
+    const avatarCropper = (window.Metis && typeof Metis.avatarCropper === 'function' && avatarCanvas)
+        ? Metis.avatarCropper({ canvas: avatarCanvas, preview: avatarPreview, zoomInput: avatarZoom, outputSize: 256 })
+        : null;
 
     if (avatarOpen && avatarModal) {
-        avatarOpen.addEventListener('click', function () { openModal(avatarModal); drawAvatarCanvas(); });
+        avatarOpen.addEventListener('click', function () {
+            openModal(avatarModal);
+            if (avatarCropper) avatarCropper.render();
+        });
         if (avatarCancel) avatarCancel.addEventListener('click', function () { closeModal(avatarModal); });
         avatarModal.addEventListener('click', function (event) {
             if (event.target === avatarModal) closeModal(avatarModal);
         });
-        [avatarZoom, avatarOffsetX, avatarOffsetY].forEach(function (el) {
-            if (!el) return;
-            el.addEventListener('input', drawAvatarCanvas);
-        });
         if (avatarFile) {
             avatarFile.addEventListener('change', function () {
                 const file = avatarFile.files && avatarFile.files[0] ? avatarFile.files[0] : null;
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = function () {
-                    const img = new Image();
-                    img.onload = function () {
-                        avatarImage = img;
-                        avatarImageLoaded = true;
-                        if (avatarZoom) avatarZoom.value = '1';
-                        if (avatarOffsetX) avatarOffsetX.value = '0';
-                        if (avatarOffsetY) avatarOffsetY.value = '0';
-                        drawAvatarCanvas();
-                    };
-                    img.src = String(reader.result || '');
-                };
-                reader.readAsDataURL(file);
+                if (!file || !avatarCropper) return;
+                avatarCropper.loadFile(file).catch(function (err) {
+                    showAlert(err.message || 'Selected image could not be loaded.', 'error');
+                });
             });
         }
         if (avatarSave) {
             avatarSave.addEventListener('click', function () {
-                if (!avatarCanvas || !avatarImageLoaded || !activePersonId) {
-                    showAlert('Select and crop an image first.', 'error');
+                var activePid = typeof currentPersonPid === 'function' ? currentPersonPid(personPidInput) : (personPidInput ? String(personPidInput.value || '').trim() : '');
+                if (!avatarCropper || !avatarCropper.hasImage() || (!activePersonId && !activePid)) {
+                    showAlert('Select an image first.', 'error');
                     return;
                 }
-                const base64 = avatarCanvas.toDataURL('image/png');
+                const base64 = avatarCropper.getDataUrl();
                 post('metis_people_save_avatar', {
                     person_id: activePersonId,
+                    pid: activePid,
                     avatar_base64: base64
                 }).then(function (data) {
                     closeModal(avatarModal);

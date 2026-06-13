@@ -986,6 +986,7 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
     $linked_donor_id_raw = isset(metis_request_post()['linked_donor_id']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['linked_donor_id'])) : '';
     $manager_pid = isset(metis_request_post()['manager_pid']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['manager_pid'])) : '';
     $department = isset(metis_request_post()['department']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['department'])) : '';
+    $date_joined = isset(metis_request_post()['date_joined']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['date_joined'])) : '';
     $board_term_start = isset(metis_request_post()['board_term_start']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_term_start'])) : '';
     $board_term_end = isset(metis_request_post()['board_term_end']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_term_end'])) : '';
     $volunteer_area = isset(metis_request_post()['volunteer_area']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['volunteer_area'])) : '';
@@ -1144,6 +1145,7 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
         'stripe_role' => $stripe_role,
         'manager_pid' => $manager_pid,
         'department' => $department,
+        'date_joined' => $date_joined,
         'board_term_start' => $board_term_start,
         'board_term_end' => $board_term_end,
         'volunteer_area' => $volunteer_area,
@@ -1192,7 +1194,8 @@ metis_ajax_register_handler( 'metis_people_save_avatar', function () {
     if (($person_id < 1 && $pid === '') || $base64 === '') {
         metis_runtime_send_json_error('Image data is required.', 400);
     }
-    $person = metis_people_resolve_person_record($person_id, $pid);
+    $resolved_person = metis_people_resolve_person_record($person_id, $pid);
+    $person = is_array($resolved_person['person'] ?? null) ? (array) $resolved_person['person'] : [];
     $person_id = (int) ($person['id'] ?? 0);
     $pid = (string) ($person['pid'] ?? $pid);
     if ($person_id < 1 || $pid === '') {

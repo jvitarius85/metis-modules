@@ -1212,8 +1212,16 @@ function metis_avatar_store_cropped_image( string $avatar_key, string $image_bit
         return [ 'ok' => false, 'error' => 'Avatar dimensions are invalid.' ];
     }
 
-    imagecopyresampled( $target, $source, 0, 0, 0, 0, 256, 256, $width, $height );
-    $saved = imagejpeg( $target, $target_path, 80 );
+    $saved = false;
+    $is_pre_cropped_jpeg = $detected_mime === 'image/jpeg' && $width === 256 && $height === 256;
+
+    if ( $is_pre_cropped_jpeg ) {
+        $saved = file_put_contents( $target_path, $image_bits ) !== false;
+    } else {
+        imagecopyresampled( $target, $source, 0, 0, 0, 0, 256, 256, $width, $height );
+        imageinterlace( $target, true );
+        $saved = imagejpeg( $target, $target_path, 82 );
+    }
 
     imagedestroy( $source );
     imagedestroy( $target );

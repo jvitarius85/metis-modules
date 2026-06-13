@@ -204,6 +204,9 @@ final class FormRenderer {
         foreach ( $attrs as $attr => $value ) {
             echo ' ' . metis_escape_attr( $attr ) . '="' . metis_escape_attr( (string) $value ) . '"';
         }
+        if ( ! self::fieldStartsVisible( $field ) ) {
+            echo ' hidden';
+        }
         echo '>';
 
         if ( $type !== 'radio' && $type !== 'checkbox' ) {
@@ -369,5 +372,33 @@ final class FormRenderer {
         }
 
         return null;
+    }
+
+    private static function fieldStartsVisible( array $field ): bool {
+        $conditions = is_array( $field['conditions'] ?? null ) ? $field['conditions'] : [];
+        if ( $conditions === [] ) {
+            return true;
+        }
+
+        foreach ( $conditions as $condition ) {
+            if ( ! is_array( $condition ) ) {
+                continue;
+            }
+
+            $operator = (string) ( $condition['operator'] ?? 'equals' );
+            if ( $operator === 'empty' ) {
+                continue;
+            }
+            if ( $operator === 'not_equals' ) {
+                $expected = (string) ( $condition['value'] ?? '' );
+                if ( $expected !== '' ) {
+                    continue;
+                }
+            }
+
+            return false;
+        }
+
+        return true;
     }
 }

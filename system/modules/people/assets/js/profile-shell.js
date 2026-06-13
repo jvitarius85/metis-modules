@@ -152,6 +152,10 @@ function initMetisPeopleProfileShell(context) {
     function currentPersonPid(input) {
         const hiddenPid = String(input ? input.value : '').trim();
         if (hiddenPid) return hiddenPid;
+        const pathMatch = window.location.pathname.match(/\/admin\/people\/person\/([^/]+)\/?$/i);
+        if (pathMatch && pathMatch[1]) {
+            return String(decodeURIComponent(pathMatch[1])).trim();
+        }
         return String(new URLSearchParams(window.location.search).get('pid') || '').trim();
     }
 

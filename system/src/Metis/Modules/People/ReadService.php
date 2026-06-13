@@ -898,6 +898,7 @@ final class ReadService {
             'full_name' => $full_name,
             'display_name' => $display_name,
             'avatar_src' => $avatar_src,
+            'date_joined' => (string) ( $person['date_joined'] ?? '' ),
             'public_slug' => (string) ( $person['public_slug'] ?? '' ),
             'public_tagline' => (string) ( $person['public_tagline'] ?? '' ),
             'public_bio_html' => (string) ( $person['public_bio_html'] ?? '' ),
@@ -981,6 +982,7 @@ final class ReadService {
             'avatar_src' => $avatar_src,
             'groups' => self::publicGroupBadges( $person ),
             'primary_role' => self::publicPrimaryRoleLabel( $person ),
+            'joined_label' => self::publicJoinedLabel( (string) ( $person['date_joined'] ?? '' ) ),
         ];
     }
 
@@ -1020,6 +1022,7 @@ final class ReadService {
                 'slug' => (string) ( $row['public_slug'] ?? '' ),
                 'tagline' => (string) ( $row['public_tagline'] ?? '' ),
                 'bio_html' => (string) ( $row['public_bio_html'] ?? '' ),
+                'joined_label' => self::publicJoinedLabel( (string) ( $row['date_joined'] ?? '' ) ),
                 'avatar_url' => \metis_avatar_url(
                     $full_name !== '' ? $full_name : (string) ( $row['email'] ?? 'Person' ),
                     (string) ( $row['avatar_url'] ?? '' ),
@@ -1064,5 +1067,16 @@ final class ReadService {
         }
 
         return $groups;
+    }
+
+    private static function publicJoinedLabel( string $date ): string {
+        $date = trim( $date );
+        if ( $date === '' ) {
+            return '';
+        }
+
+        return function_exists( 'metis_runtime_format_date' )
+            ? (string) \metis_runtime_format_date( $date, 'F Y' )
+            : $date;
     }
 }

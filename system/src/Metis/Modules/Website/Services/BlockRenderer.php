@@ -757,6 +757,7 @@ final class BlockRenderer {
             $name = trim( (string) ( $person['full_name'] ?? '' ) );
             $tagline = trim( (string) ( $person['tagline'] ?? '' ) );
             $role = trim( (string) ( $person['primary_role'] ?? '' ) );
+            $joined_label = trim( (string) ( $person['joined_label'] ?? '' ) );
             $avatar = trim( (string) ( $person['avatar_url'] ?? '' ) );
             $bio_html = trim( (string) ( $person['bio_html'] ?? '' ) );
             $content = '<article class="metis-people-directory__card">';
@@ -772,6 +773,9 @@ final class BlockRenderer {
                 : '<h3>' . metis_escape_html( $name ) . '</h3>';
             if ( $tagline !== '' || $role !== '' ) {
                 $content .= '<p class="metis-people-directory__role">' . metis_escape_html( $tagline !== '' ? $tagline : $role ) . '</p>';
+            }
+            if ( $joined_label !== '' ) {
+                $content .= '<p class="metis-people-directory__meta">Joined ' . metis_escape_html( $joined_label ) . '</p>';
             }
             if ( $layout === 'list' && $bio_html !== '' ) {
                 $content .= '<div class="metis-people-directory__bio">' . WebsiteRenderer::sanitizePublicRichText( $bio_html ) . '</div>';
@@ -884,7 +888,7 @@ final class BlockRenderer {
         return '<style>'
             . '.metis-people-directory{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.metis-people-directory.is-compact{grid-template-columns:repeat(4,minmax(0,1fr))}.metis-people-directory.is-list,.metis-people-directory.is-featured{grid-template-columns:1fr}'
             . '.metis-people-directory__card{display:grid;gap:14px;padding:18px;border:1px solid #d8def2;border-radius:24px;background:#fff;box-shadow:0 18px 40px rgba(34,52,102,.06)}.metis-people-directory__media{aspect-ratio:1/1;border-radius:20px;overflow:hidden;background:#eef2fb;display:block}.metis-people-directory__media img{width:100%;height:100%;object-fit:cover;display:block}'
-            . '.metis-people-directory__body h3{margin:0;font-size:1.2rem}.metis-people-directory__body h3 a{text-decoration:none;color:inherit}.metis-people-directory__role{margin:6px 0 0;color:#53627e}.metis-people-directory__bio{margin-top:12px;color:#26324a;line-height:1.65}'
+            . '.metis-people-directory__body h3{margin:0;font-size:1.2rem}.metis-people-directory__body h3 a{text-decoration:none;color:inherit}.metis-people-directory__role{margin:6px 0 0;color:#53627e}.metis-people-directory__meta{margin:8px 0 0;font-size:.88rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7b879d}.metis-people-directory__bio{margin-top:12px;color:#26324a;line-height:1.65}'
             . '.metis-people-directory__featured .metis-people-directory__card{grid-template-columns:minmax(180px,240px) minmax(0,1fr);align-items:center}.metis-people-directory.is-list .metis-people-directory__card{grid-template-columns:120px minmax(0,1fr);align-items:start}'
             . '@media (max-width:980px){.metis-people-directory,.metis-people-directory.is-compact{grid-template-columns:repeat(2,minmax(0,1fr))}.metis-people-directory__featured .metis-people-directory__card,.metis-people-directory.is-list .metis-people-directory__card{grid-template-columns:1fr}}@media (max-width:640px){.metis-people-directory,.metis-people-directory.is-compact{grid-template-columns:1fr}}'
             . '</style>';

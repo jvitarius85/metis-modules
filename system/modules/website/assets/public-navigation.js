@@ -17,6 +17,49 @@
     body.classList.add("metis-menu-dropdown-click");
   }
   var lastNavToggle = null;
+  var hoverOpenDelay = 60;
+  var hoverCloseDelay = 360;
+  var hoverTimers = typeof WeakMap === "function" ? new WeakMap() : null;
+
+  function itemTrigger(item) {
+    if (!item || !item.querySelector) return null;
+    return item.querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn");
+  }
+
+  function itemTimerState(item) {
+    if (!item) return { open: 0, close: 0 };
+    if (!hoverTimers) {
+      if (!item._metisHoverTimers) item._metisHoverTimers = { open: 0, close: 0 };
+      return item._metisHoverTimers;
+    }
+    var existing = hoverTimers.get(item);
+    if (existing) return existing;
+    var created = { open: 0, close: 0 };
+    hoverTimers.set(item, created);
+    return created;
+  }
+
+  function clearHoverTimers(item) {
+    var state = itemTimerState(item);
+    if (state.open) {
+      window.clearTimeout(state.open);
+      state.open = 0;
+    }
+    if (state.close) {
+      window.clearTimeout(state.close);
+      state.close = 0;
+    }
+  }
+
+  function setItemOpen(item, open) {
+    if (!item || !item.classList) return;
+    clearHoverTimers(item);
+    item.classList.toggle("is-open", !!open);
+    var trigger = itemTrigger(item);
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
 
   function triggerUrl(trigger) {
     if (!trigger) return "";
@@ -48,9 +91,7 @@
     if (!exceptItem) {
       var openedAll = document.querySelectorAll(".metis-shell-menu-item.has-children.is-open");
       for (var a = 0; a < openedAll.length; a++) {
-        openedAll[a].classList.remove("is-open");
-        var triggerAll = openedAll[a].querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn");
-        if (triggerAll) triggerAll.setAttribute("aria-expanded", "false");
+        setItemOpen(openedAll[a], false);
       }
       return;
     }
@@ -65,9 +106,7 @@
       }
     }
     for (var i = 0; i < opened.length; i++) {
-      opened[i].classList.remove("is-open");
-      var trigger = opened[i].querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn");
-      if (trigger) trigger.setAttribute("aria-expanded", "false");
+      setItemOpen(opened[i], false);
     }
   }
 
@@ -152,6 +191,87 @@
     }
   });
 
+  function bindDesktopHoverMenus() {
+    var items = document.querySelectorAll(".metis-shell-nav-primary .metis-shell-menu-item.has-children");
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (item.getAttribute("data-metis-hover-bound") === "1") {
+        continue;
+      }
+      item.setAttribute("data-metis-hover-bound", "1");
+
+      item.addEventListener("pointerenter", function (event) {
+        if (isMobileViewport() || dropdownBehavior !== "hover") {
+          return;
+        }
+        var currentItem = event.currentTarget;
+        if (!currentItem || !currentItem.classList) {
+          return;
+        }
+        if (event.pointerType && event.pointerType.toLowerCase() === "touch") {
+          return;
+        }
+        clearHoverTimers(currentItem);
+        var state = itemTimerState(currentItem);
+        state.open = window.setTimeout(function () {
+          closeOpenSubmenus(currentItem);
+          setItemOpen(currentItem, true);
+        }, hoverOpenDelay);
+      });
+
+      item.addEventListener("pointerleave", function (event) {
+        if (isMobileViewport() || dropdownBehavior !== "hover") {
+          return;
+        }
+        var currentItem = event.currentTarget;
+        if (!currentItem || !currentItem.classList) {
+          return;
+        }
+        clearHoverTimers(currentItem);
+        var state = itemTimerState(currentItem);
+        state.close = window.setTimeout(function () {
+          if (currentItem.matches(":hover")) {
+            return;
+          }
+          if (currentItem.contains(document.activeElement)) {
+            return;
+          }
+          setItemOpen(currentItem, false);
+        }, hoverCloseDelay);
+      });
+
+      item.addEventListener("focusin", function (event) {
+        if (isMobileViewport() || dropdownBehavior !== "hover") {
+          return;
+        }
+        var currentItem = event.currentTarget;
+        if (!currentItem || !currentItem.classList) {
+          return;
+        }
+        closeOpenSubmenus(currentItem);
+        setItemOpen(currentItem, true);
+      });
+
+      item.addEventListener("focusout", function (event) {
+        if (isMobileViewport() || dropdownBehavior !== "hover") {
+          return;
+        }
+        var currentItem = event.currentTarget;
+        if (!currentItem || !currentItem.classList) {
+          return;
+        }
+        clearHoverTimers(currentItem);
+        var state = itemTimerState(currentItem);
+        state.close = window.setTimeout(function () {
+          if (currentItem.contains(document.activeElement)) {
+            return;
+          }
+          setItemOpen(currentItem, false);
+        }, hoverCloseDelay);
+      });
+    }
+  }
+
   document.addEventListener("click", function (e) {
     var trigger = e.target && e.target.closest
       ? e.target.closest(".metis-shell-menu-item.has-children > .metis-shell-menu-link, .metis-shell-menu-item.has-children > .metis-shell-menu-btn")
@@ -183,14 +303,12 @@
           navigate(url);
           return;
         }
-        item.classList.remove("is-open");
-        trigger.setAttribute("aria-expanded", "false");
+        setItemOpen(item, false);
         return;
       }
 
       closeOpenSubmenus(item);
-      item.classList.add("is-open");
-      trigger.setAttribute("aria-expanded", "true");
+      setItemOpen(item, true);
       return;
     }
 
@@ -216,6 +334,7 @@
 
   window.addEventListener("scroll", syncCondensedHeader, { passive: true });
   window.addEventListener("resize", syncViewportMode, { passive: true });
+  bindDesktopHoverMenus();
   syncViewportMode();
   syncCondensedHeader();
 })();

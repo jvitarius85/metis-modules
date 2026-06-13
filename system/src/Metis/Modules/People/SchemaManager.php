@@ -156,6 +156,7 @@ final class SchemaManager {
         self::addColumnIfMissing( $people_table, 'volunteer_position', 'VARCHAR(120) DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'manager_pid', 'VARCHAR(16) DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'department', 'VARCHAR(120) DEFAULT NULL' );
+        self::addColumnIfMissing( $people_table, 'date_joined', 'DATE DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'board_term_start', 'DATE DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'board_term_end', 'DATE DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'volunteer_area', 'VARCHAR(120) DEFAULT NULL' );

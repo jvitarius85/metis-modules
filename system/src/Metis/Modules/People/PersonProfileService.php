@@ -22,7 +22,7 @@ final class PersonProfileService {
 
     public static function updateSelfProfile( int $person_id, array $payload ): ?array {
         $people_table = \Metis_Tables::get( 'people' );
-        $public_profile = self::normalizePublicProfilePayload( $payload );
+        $public_profile = self::normalizePublicProfilePayload( $payload, $person_id );
 
         $ok = \metis_db()->update(
             $people_table,
@@ -177,6 +177,7 @@ final class PersonProfileService {
             'stripe_role' => $stripe_role !== '' ? $stripe_role : null,
             'manager_pid' => $manager_pid !== '' ? $manager_pid : null,
             'department' => (string) ( $data['department'] ?? '' ) !== '' ? (string) $data['department'] : null,
+            'date_joined' => self::normalizeOptionalDate( (string) ( $data['date_joined'] ?? '' ) ),
             'board_term_start' => (string) ( $data['board_term_start'] ?? '' ) !== '' ? (string) $data['board_term_start'] : null,
             'board_term_end' => (string) ( $data['board_term_end'] ?? '' ) !== '' ? (string) $data['board_term_end'] : null,
             'volunteer_area' => (string) ( $data['volunteer_area'] ?? '' ) !== '' ? (string) $data['volunteer_area'] : null,
@@ -195,7 +196,47 @@ final class PersonProfileService {
             'status' => $status,
             'offboarded_at' => ( $status === 'inactive' || $lifecycle_status === 'alumni' ) ? \metis_current_time( 'mysql' ) : null,
         ];
-        $format = [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' ];
+        $format = [
+            '%s', // auth_provider
+            '%s', // email
+            '%s', // first_name
+            '%s', // last_name
+            '%s', // display_name
+            '%s', // public_slug
+            '%s', // public_tagline
+            '%s', // public_bio_html
+            '%s', // public_visibility
+            '%d', // public_sort_order
+            '%s', // public_updated_at
+            '%s', // linked_donor_id
+            '%d', // is_workspace_user
+            '%s', // workspace_email
+            '%s', // workspace_role
+            '%s', // stripe_role
+            '%s', // manager_pid
+            '%s', // department
+            '%s', // date_joined
+            '%s', // board_term_start
+            '%s', // board_term_end
+            '%s', // volunteer_area
+            '%s', // lifecycle_status
+            '%d', // email_notifications
+            '%d', // sms_notifications
+            '%s', // notification_prefs_json
+            '%d', // requires_2fa
+            '%s', // mfa_method
+            '%d', // is_staff
+            '%d', // is_board
+            '%s', // board_position
+            '%s', // staff_position
+            '%d', // is_volunteer
+            '%s', // volunteer_position
+            '%s', // status
+            '%s', // offboarded_at
+        ];
+        if ( count( $payload ) !== count( $format ) ) {
+            \metis_runtime_send_json_error( 'Person save contract is out of sync.', 500 );
+        }
 
         $previous_person = null;
         $previous_workspace_email = '';
@@ -213,6 +254,11 @@ final class PersonProfileService {
             }
             $ok = $db->update( $people_table, $payload, [ 'id' => $person_id ], $format, [ '%d' ] );
             if ( $ok === false ) {
+                self::logSaveProfileError( 'person_update_failed', [
+                    'person_id' => $person_id,
+                    'pid' => (string) ( $previous_person['pid'] ?? '' ),
+                    'db_error' => method_exists( $db, 'lastError' ) ? (string) $db->lastError() : '',
+                ] );
                 \metis_runtime_send_json_error( 'Failed to update person.', 500 );
             }
         } else {
@@ -225,6 +271,10 @@ final class PersonProfileService {
             $format[] = '%s';
             $ok = $db->insert( $people_table, $payload, $format );
             if ( ! $ok ) {
+                self::logSaveProfileError( 'person_create_failed', [
+                    'person_id' => $person_id,
+                    'db_error' => method_exists( $db, 'lastError' ) ? (string) $db->lastError() : '',
+                ] );
                 \metis_runtime_send_json_error( 'Failed to create person.', 500 );
             }
             $person_id = (int) $db->lastInsertId();
@@ -261,18 +311,26 @@ final class PersonProfileService {
         ];
         $can_stripe_provision = ( $is_workspace_user === 1 && $workspace_email !== '' && $status === 'active' && $lifecycle_status !== 'alumni' );
         $had_stripe_before = ! empty( $previous_person['stripe_role'] );
-        if ( $can_stripe_provision && $stripe_role !== '' ) {
-            \metis_people_workspace_queue_job( 'stripe_user_upsert', 'person', $person_id, $actor_id, $stripe_payload );
-        } elseif ( $had_stripe_before || $stripe_role === '' || ! $can_stripe_provision ) {
-            \metis_people_workspace_queue_job(
-                'stripe_user_disable',
-                'person',
-                $person_id,
-                $actor_id,
-                array_merge( $stripe_payload, [
-                    'reason' => $status !== 'active' || $lifecycle_status === 'alumni' ? 'person_inactive' : 'role_or_workspace_removed',
-                ] )
-            );
+        try {
+            if ( $can_stripe_provision && $stripe_role !== '' ) {
+                \metis_people_workspace_queue_job( 'stripe_user_upsert', 'person', $person_id, $actor_id, $stripe_payload );
+            } elseif ( $had_stripe_before || $stripe_role === '' || ! $can_stripe_provision ) {
+                \metis_people_workspace_queue_job(
+                    'stripe_user_disable',
+                    'person',
+                    $person_id,
+                    $actor_id,
+                    array_merge( $stripe_payload, [
+                        'reason' => $status !== 'active' || $lifecycle_status === 'alumni' ? 'person_inactive' : 'role_or_workspace_removed',
+                    ] )
+                );
+            }
+        } catch ( \Throwable $exception ) {
+            self::logSaveProfileError( 'stripe_queue_failed', [
+                'person_id' => $person_id,
+                'pid' => $person_pid,
+                'message' => $exception->getMessage(),
+            ] );
         }
 
         $linked_workspace_user_id = 0;
@@ -289,31 +347,69 @@ final class PersonProfileService {
                     [ '%d', '%d', '%s' ],
                     [ '%d' ]
                 );
-                \metis_people_workspace_queue_job(
-                    'workspace_user_upsert',
-                    'workspace_user',
-                    $linked_workspace_user_id,
-                    $actor_id,
-                    [
+                try {
+                    \metis_people_workspace_queue_job(
+                        'workspace_user_upsert',
+                        'workspace_user',
+                        $linked_workspace_user_id,
+                        $actor_id,
+                        [
+                            'person_id' => $person_id,
+                            'workspace_email' => $workspace_email,
+                            'workspace_is_protected' => $workspace_is_protected,
+                            'workspace_role' => $workspace_role,
+                            'stripe_role' => $stripe_role,
+                            'previous_primary_email' => $previous_workspace_email,
+                            'add_alias_email' => ( $previous_workspace_email !== '' && $previous_workspace_email !== $workspace_email ) ? $previous_workspace_email : '',
+                        ]
+                    );
+                } catch ( \Throwable $exception ) {
+                    self::logSaveProfileError( 'workspace_user_queue_failed', [
                         'person_id' => $person_id,
-                        'workspace_email' => $workspace_email,
-                        'workspace_is_protected' => $workspace_is_protected,
-                        'workspace_role' => $workspace_role,
-                        'stripe_role' => $stripe_role,
-                        'previous_primary_email' => $previous_workspace_email,
-                        'add_alias_email' => ( $previous_workspace_email !== '' && $previous_workspace_email !== $workspace_email ) ? $previous_workspace_email : '',
-                    ]
-                );
+                        'pid' => $person_pid,
+                        'workspace_user_id' => $linked_workspace_user_id,
+                        'message' => $exception->getMessage(),
+                    ] );
+                }
             }
         }
 
         if ( $linked_workspace_user_id > 0 ) {
-            self::syncWorkspaceGroupAssignments( $workspace_group_emails, $linked_workspace_user_id, $workspace_groups_table, $workspace_members_table, $actor_id );
+            try {
+                self::syncWorkspaceGroupAssignments( $workspace_group_emails, $linked_workspace_user_id, $workspace_groups_table, $workspace_members_table, $actor_id );
+            } catch ( \Throwable $exception ) {
+                self::logSaveProfileError( 'workspace_group_sync_failed', [
+                    'person_id' => $person_id,
+                    'pid' => $person_pid,
+                    'workspace_user_id' => $linked_workspace_user_id,
+                    'message' => $exception->getMessage(),
+                ] );
+            }
         }
 
         $drive_folder = null;
         if ( $is_workspace_user === 1 && $workspace_email !== '' ) {
-            $drive_folder = \metis_people_autocreate_drive_folder_for_person( $person_id, $person_pid );
+            try {
+                $drive_folder = \metis_people_autocreate_drive_folder_for_person( $person_id, $person_pid );
+                if ( is_array( $drive_folder ) && empty( $drive_folder['ok'] ) ) {
+                    self::logSaveProfileError( 'drive_folder_autocreate_failed', [
+                        'person_id' => $person_id,
+                        'pid' => $person_pid,
+                        'error' => (string) ( $drive_folder['error'] ?? '' ),
+                    ] );
+                }
+            } catch ( \Throwable $exception ) {
+                self::logSaveProfileError( 'drive_folder_autocreate_exception', [
+                    'person_id' => $person_id,
+                    'pid' => $person_pid,
+                    'message' => $exception->getMessage(),
+                ] );
+                $drive_folder = [
+                    'ok' => false,
+                    'created' => false,
+                    'error' => $exception->getMessage(),
+                ];
+            }
         }
 
         return [
@@ -554,7 +650,18 @@ final class PersonProfileService {
 
     private static function normalizePublicProfilePayload( array $payload, int $person_id = 0 ): array {
         $public_slug = \metis_slug_clean( (string) ( $payload['public_slug'] ?? '' ) );
+        if ( $public_slug === '' && $person_id > 0 ) {
+            $existing_person = self::getById( $person_id );
+            $public_slug = \metis_slug_clean( (string) ( $existing_person['public_slug'] ?? '' ) );
+        }
+
+        $first_name = trim( (string) ( $payload['first_name'] ?? '' ) );
+        $last_name = trim( (string) ( $payload['last_name'] ?? '' ) );
         $display_name = trim( (string) ( $payload['display_name'] ?? '' ) );
+        $name_slug_source = trim( $first_name . ' ' . $last_name );
+        if ( $public_slug === '' && $name_slug_source !== '' ) {
+            $public_slug = \metis_slug_clean( $name_slug_source );
+        }
         if ( $public_slug === '' && $display_name !== '' ) {
             $public_slug = \metis_slug_clean( $display_name );
         }
@@ -608,6 +715,29 @@ final class PersonProfileService {
             $slug = $candidate . '-' . $suffix;
             $suffix++;
         }
+    }
+
+    private static function normalizeOptionalDate( string $value ): ?string {
+        $value = trim( $value );
+        if ( $value === '' ) {
+            return null;
+        }
+
+        $timestamp = strtotime( $value );
+        if ( ! $timestamp ) {
+            return null;
+        }
+
+        return gmdate( 'Y-m-d', $timestamp );
+    }
+
+    private static function logSaveProfileError( string $event, array $context = [] ): void {
+        $message = '[people.saveProfile] ' . $event;
+        $json = function_exists( 'metis_json_encode' ) ? \metis_json_encode( $context ) : json_encode( $context );
+        if ( is_string( $json ) && $json !== '' ) {
+            $message .= ' ' . $json;
+        }
+        error_log( $message );
     }
 
     private static function sanitizeRichTextHtml( string $html ): string {

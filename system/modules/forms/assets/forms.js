@@ -269,11 +269,32 @@
         return;
       }
 
+      const addBindingRule = event.target.closest('[data-add-binding-rule]');
+      if (addBindingRule) {
+        const binding = state.form.settings.binding || {};
+        binding.rules = Array.isArray(binding.rules) ? binding.rules : [];
+        binding.rules.push({field: '', operator: 'equals', value: '', flow: ''});
+        renderSettings();
+        return;
+      }
+
       const removeRoute = event.target.closest('[data-remove-route]');
       if (removeRoute) {
         const index = Number(removeRoute.dataset.removeRoute || -1);
         state.form.settings.notifications.internal.routes.splice(index, 1);
         renderSettings();
+        return;
+      }
+
+      const removeBindingRule = event.target.closest('[data-remove-binding-rule]');
+      if (removeBindingRule) {
+        const binding = state.form.settings.binding || {};
+        const rules = Array.isArray(binding.rules) ? binding.rules : [];
+        const index = Number(removeBindingRule.dataset.removeBindingRule || -1);
+        if (index >= 0 && index < rules.length) {
+          rules.splice(index, 1);
+          renderSettings();
+        }
         return;
       }
 
@@ -353,12 +374,23 @@
 
       if (target.matches('[data-condition-field], [data-condition-operator], [data-condition-value]')) {
         updateCondition(target);
+        if (target.matches('[data-condition-field], [data-condition-operator]')) {
+          renderEditor();
+        }
         renderPreview();
         return;
       }
 
       if (target.matches('[data-route-value], [data-route-user], [data-notification-user]')) {
         updateNotificationRoutes(target);
+        return;
+      }
+
+      if (target.matches('[data-binding-rule-field], [data-binding-rule-operator], [data-binding-rule-value], [data-binding-rule-flow]')) {
+        updateBindingRule(target);
+        if (target.matches('[data-binding-rule-field], [data-binding-rule-operator]')) {
+          renderSettings();
+        }
         return;
       }
     });
@@ -411,7 +443,18 @@
 
       if (target.matches('[data-condition-field], [data-condition-operator], [data-condition-value]')) {
         updateCondition(target);
+        if (target.matches('[data-condition-field], [data-condition-operator]')) {
+          renderEditor();
+        }
         renderPreview();
+        return;
+      }
+
+      if (target.matches('[data-binding-rule-field], [data-binding-rule-operator], [data-binding-rule-value], [data-binding-rule-flow]')) {
+        updateBindingRule(target);
+        if (target.matches('[data-binding-rule-field], [data-binding-rule-operator]')) {
+          renderSettings();
+        }
         return;
       }
     });
@@ -775,8 +818,16 @@
       const index = Number(target.getAttribute('data-condition-index') || -1);
       if (index < 0 || index >= node.item.conditions.length) return;
       const condition = node.item.conditions[index];
-      if (target.matches('[data-condition-field]')) condition.field = String(readElementValue(target));
-      if (target.matches('[data-condition-operator]')) condition.operator = String(readElementValue(target));
+      if (target.matches('[data-condition-field]')) {
+        condition.field = String(readElementValue(target));
+        condition.value = '';
+      }
+      if (target.matches('[data-condition-operator]')) {
+        condition.operator = String(readElementValue(target));
+        if (condition.operator === 'empty' || condition.operator === 'not_empty') {
+          condition.value = '';
+        }
+      }
       if (target.matches('[data-condition-value]')) condition.value = String(readElementValue(target));
     }
 
@@ -799,6 +850,29 @@
       }
       if (target.matches('[data-route-value]')) internal.routes[index].value = String(readElementValue(target));
       if (target.matches('[data-route-user]')) internal.routes[index].user_id = Number(readElementValue(target) || 0);
+    }
+
+    function updateBindingRule(target) {
+      const binding = state.form.settings.binding || {};
+      binding.rules = Array.isArray(binding.rules) ? binding.rules : [];
+      const index = Number(target.getAttribute('data-binding-rule-index') || -1);
+      if (index < 0) return;
+      if (!binding.rules[index]) {
+        binding.rules[index] = {field: '', operator: 'equals', value: '', flow: ''};
+      }
+      const rule = binding.rules[index];
+      if (target.matches('[data-binding-rule-field]')) {
+        rule.field = String(readElementValue(target));
+        rule.value = '';
+      }
+      if (target.matches('[data-binding-rule-operator]')) {
+        rule.operator = String(readElementValue(target));
+        if (rule.operator === 'empty' || rule.operator === 'not_empty') {
+          rule.value = '';
+        }
+      }
+      if (target.matches('[data-binding-rule-value]')) rule.value = String(readElementValue(target));
+      if (target.matches('[data-binding-rule-flow]')) rule.flow = String(readElementValue(target));
     }
 
     function render() {
@@ -829,6 +903,10 @@
       const node = root.querySelector('[data-ui="preview"]');
       if (node) {
         node.innerHTML = renderPreviewHtml(state.form);
+        const previewForm = node.querySelector('[data-metis-forms-preview-form]');
+        if (previewForm) {
+          initFieldGroup(previewForm, state.form.schema || []);
+        }
         if (window.Metis && Metis.ui && Metis.ui.select) {
           Metis.ui.select.init(node);
         }
@@ -1424,7 +1502,7 @@
       ${conditions.length === 0 ? '<div class="metis-forms-empty">This field is always visible.</div>' : `
         <div class="metis-forms-condition-list">
           ${conditions.map((condition, index) => `
-            <div class="metis-forms-condition-row">
+            <div class="metis-forms-condition-row metis-forms-condition-row--visibility">
               <select class="metis-select" data-condition-field="1" data-condition-index="${index}">
                 <option value="">Choose field</option>
                 ${siblings.map((candidate) => `<option value="${escapeAttr(candidate.key)}"${candidate.key === condition.field ? ' selected' : ''}>${escapeHtml(candidate.label || candidate.key)}</option>`).join('')}
@@ -1432,7 +1510,14 @@
               <select class="metis-select" data-condition-operator="1" data-condition-index="${index}">
                 ${['equals', 'not_equals', 'contains', 'empty', 'not_empty'].map((operator) => `<option value="${operator}"${operator === condition.operator ? ' selected' : ''}>${operator.replace(/_/g, ' ')}</option>`).join('')}
               </select>
-              <input class="metis-input" type="text" value="${escapeAttr(Array.isArray(condition.value) ? condition.value.join(', ') : String(condition.value || ''))}" data-condition-value="1" data-condition-index="${index}">
+              ${renderRuleValueControl(
+                siblings,
+                String(condition.field || ''),
+                String(condition.operator || 'equals'),
+                Array.isArray(condition.value) ? condition.value.join(', ') : String(condition.value || ''),
+                {'data-condition-value': '1', 'data-condition-index': String(index)},
+                'Match value'
+              )}
               <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-remove-condition="${index}">Remove</button>
             </div>
           `).join('')}
@@ -1530,7 +1615,9 @@
     const internal = settings.notifications.internal;
     const emailFields = form.schema.filter((field) => field.type === 'email');
     const routeFields = form.schema.filter((field) => field.type !== 'payment').map((field) => ({key: field.key, label: field.label || field.key}));
+    const bindingFields = form.schema.filter((field) => field.type !== 'payment').map((field) => ({key: field.key, label: field.label || field.key}));
     const flows = options.module_flows && options.module_flows[settings.binding.module] ? options.module_flows[settings.binding.module] : [];
+    const bindingRules = Array.isArray(settings.binding.rules) ? settings.binding.rules : [];
     const mergeTokens = buildMergeTokenOptions(form.schema || []);
 
     return `
@@ -1569,6 +1656,40 @@
                 ${flows.map((item) => `<option value="${escapeAttr(String(item.value || ''))}"${String(item.value || '') === String(settings.binding.flow || '') ? ' selected' : ''}>${escapeHtml(String(item.label || ''))}</option>`).join('')}
               </select>
             </label>
+            <div class="metis-forms-control metis-forms-control--full">
+              <div class="metis-forms-editor-tools">
+                <span>Conditional flow rules</span>
+                <button type="button" class="metis-btn metis-btn-xs" data-add-binding-rule>Add rule</button>
+              </div>
+              ${bindingRules.length === 0 ? '<div class="metis-forms-empty">Submissions use the module flow above unless a rule matches first.</div>' : `
+                <div class="metis-forms-condition-list">
+                  ${bindingRules.map((rule, index) => `
+                    <div class="metis-forms-condition-row metis-forms-condition-row--binding">
+                      <select class="metis-select" data-binding-rule-field="1" data-binding-rule-index="${index}">
+                        <option value="">Choose field</option>
+                        ${bindingFields.map((field) => `<option value="${escapeAttr(field.key)}"${field.key === String(rule.field || '') ? ' selected' : ''}>${escapeHtml(field.label || field.key)}</option>`).join('')}
+                      </select>
+                      <select class="metis-select" data-binding-rule-operator="1" data-binding-rule-index="${index}">
+                        ${['equals', 'not_equals', 'contains', 'empty', 'not_empty'].map((operator) => `<option value="${operator}"${operator === String(rule.operator || 'equals') ? ' selected' : ''}>${operator.replace(/_/g, ' ')}</option>`).join('')}
+                      </select>
+                      ${renderRuleValueControl(
+                        form.schema || [],
+                        String(rule.field || ''),
+                        String(rule.operator || 'equals'),
+                        String(rule.value || ''),
+                        {'data-binding-rule-value': '1', 'data-binding-rule-index': String(index)},
+                        'Match value'
+                      )}
+                      <select class="metis-select" data-binding-rule-flow="1" data-binding-rule-index="${index}">
+                        <option value="">Use default flow</option>
+                        ${flows.filter((item) => String(item.value || '') !== '').map((item) => `<option value="${escapeAttr(String(item.value || ''))}"${String(item.value || '') === String(rule.flow || '') ? ' selected' : ''}>${escapeHtml(String(item.label || ''))}</option>`).join('')}
+                      </select>
+                      <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-remove-binding-rule="${index}">Remove</button>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
           </div>
         </section>
 
@@ -1723,7 +1844,14 @@
               </div>
               ${Array.isArray(internal.routes) && internal.routes.length ? internal.routes.map((route, index) => `
                 <div class="metis-forms-route-row">
-                  <input class="metis-input" type="text" value="${escapeAttr(String(route.value || ''))}" data-route-value="1" data-route-index="${index}" placeholder="Match value">
+                  ${renderRuleValueControl(
+                    form.schema || [],
+                    String(internal.routing_field || ''),
+                    'equals',
+                    String(route.value || ''),
+                    {'data-route-value': '1', 'data-route-index': String(index)},
+                    'Match value'
+                  )}
                   <select class="metis-select" data-route-user="1" data-route-index="${index}">
                     <option value="">Choose user</option>
                     ${(options.users || []).map((user) => `<option value="${escapeAttr(String(user.value || ''))}"${Number(user.value || 0) === Number(route.user_id || 0) ? ' selected' : ''}>${escapeHtml(String(user.label || ''))}</option>`).join('')}
@@ -1803,7 +1931,7 @@
           <h3>${escapeHtml(form.name || 'Untitled form')}</h3>
           ${form.description ? `<p>${escapeHtml(form.description)}</p>` : ''}
         </div>
-        <div class="metis-forms-preview-card__body">
+        <div class="metis-forms-preview-card__body" data-metis-forms-preview-form>
           ${(form.schema || []).map((field) => renderPreviewField(field)).join('')}
         </div>
       </div>
@@ -1811,15 +1939,16 @@
   }
 
   function renderPreviewField(field) {
+    const hiddenAttr = fieldIsInitiallyVisible(field) ? '' : ' hidden';
     if (field.type === 'payment') {
       const payment = field.payment || {};
       return `
-        <section class="metis-forms-preview-field is-full">
+        <section class="metis-forms-preview-field is-full" data-field-key="${escapeAttr(field.key || '')}"${hiddenAttr}>
           <label>${escapeHtml(field.label || 'Payment')}</label>
           <div class="metis-forms-preview-payment">
             ${(payment.donation_amounts || []).map((amount) => `<span class="metis-forms-preview-pill">$${escapeHtml(Number(amount).toFixed(2))}</span>`).join('')}
-            ${payment.allow_custom_amount ? `<input class="metis-input" type="text" value="${escapeAttr(payment.custom_amount_label || 'Other amount')}" disabled>` : ''}
-            ${payment.cover_fees_enabled ? `<label class="metis-forms-check"><input type="checkbox" disabled><span>${escapeHtml(payment.cover_fees_label || '')}</span></label>` : ''}
+            ${payment.allow_custom_amount ? `<input class="metis-input" type="text" value="${escapeAttr(payment.custom_amount_label || 'Other amount')}">` : ''}
+            ${payment.cover_fees_enabled ? `<label class="metis-forms-check"><input type="checkbox"><span>${escapeHtml(payment.cover_fees_label || '')}</span></label>` : ''}
           </div>
         </section>
       `;
@@ -1827,7 +1956,7 @@
 
     if (field.type === 'repeater') {
       return `
-        <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}">
+        <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}" data-field-key="${escapeAttr(field.key || '')}"${hiddenAttr}>
           <label>${escapeHtml(field.label || 'Repeater')}</label>
           <div class="metis-forms-preview-repeater">
             ${(field.subfields || []).map((subfield) => `<div class="metis-forms-preview-subfield is-${normalizeWidthValue(subfield.width)}"><span>${escapeHtml(subfield.label || subfield.key)}</span></div>`).join('')}
@@ -1838,23 +1967,40 @@
 
     if (fieldUsesChoices(field.type)) {
       const choices = (field.options_source && field.options_source.parent_field) ? [] : (field.options || []);
+      if (field.type === 'radio' || field.type === 'checkbox') {
+        const inputType = field.type === 'checkbox' ? 'checkbox' : 'radio';
+        const name = `preview_${field.key || createId('field_')}${field.type === 'checkbox' ? '[]' : ''}`;
+        return `
+          <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}" data-field-key="${escapeAttr(field.key || '')}"${hiddenAttr}>
+            <label>${escapeHtml(field.label || field.key)}</label>
+            <div class="metis-forms-preview-choice-group">
+              ${choices.map((option, index) => `
+                <label class="metis-forms-choice">
+                  <input type="${escapeAttr(inputType)}" name="${escapeAttr(name)}" value="${escapeAttr(option.value || '')}">
+                  <span>${escapeHtml(option.label || option.value || `Option ${index + 1}`)}</span>
+                </label>
+              `).join('')}
+            </div>
+          </section>
+        `;
+      }
       return `
-        <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}">
-          <label>${escapeHtml(field.label || field.key)}</label>
-          <select class="metis-select" disabled>
+          <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}" data-field-key="${escapeAttr(field.key || '')}"${hiddenAttr}>
+            <label>${escapeHtml(field.label || field.key)}</label>
+          <select class="metis-select">
             <option>Select…</option>
-            ${choices.map((option) => `<option>${escapeHtml(option.label || option.value || '')}</option>`).join('')}
+            ${choices.map((option) => `<option value="${escapeAttr(option.value || '')}">${escapeHtml(option.label || option.value || '')}</option>`).join('')}
           </select>
         </section>
       `;
     }
 
     return `
-      <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}">
+      <section class="metis-forms-preview-field is-${normalizeWidthValue(field.width)}" data-field-key="${escapeAttr(field.key || '')}"${hiddenAttr}>
         <label>${escapeHtml(field.label || field.key)}</label>
         ${field.type === 'textarea'
-          ? '<textarea class="metis-input" rows="3" disabled></textarea>'
-          : `<input class="metis-input" type="${field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}" disabled>`}
+          ? '<textarea class="metis-input" rows="3"></textarea>'
+          : `<input class="metis-input" type="${field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}">`}
       </section>
     `;
   }
@@ -1881,6 +2027,14 @@
     settings.binding.module = String(source.binding?.module || '');
     settings.binding.flow = String(source.binding?.flow || '');
     settings.binding.campaign_code = String(source.binding?.campaign_code || '');
+    settings.binding.rules = Array.isArray(source.binding?.rules)
+      ? source.binding.rules.map((rule) => ({
+        field: String(rule?.field || ''),
+        operator: String(rule?.operator || 'equals'),
+        value: String(rule?.value || ''),
+        flow: String(rule?.flow || '')
+      }))
+      : [];
     settings.access.mode = String(source.access?.mode || 'public');
     settings.access.password = String(source.access?.password || '');
     settings.access.denied_message = String(source.access?.denied_message || defaults.access.denied_message);
@@ -1994,7 +2148,7 @@
       public_url: '',
       schema: [],
       settings: {
-        binding: {module: '', flow: '', campaign_code: ''},
+        binding: {module: '', flow: '', campaign_code: '', rules: []},
         access: {mode: 'public', password: '', denied_message: 'This form is not currently available.', roles: []},
         schedule: {enabled: false, start_at: '', end_at: '', closed_message: 'This form is not accepting submissions right now.'},
         confirmation: {message: 'Thanks, your submission has been received.'},
@@ -2503,6 +2657,55 @@
     }).filter((option) => option.label && option.value);
   }
 
+  function findFieldByKey(schema, key) {
+    const matchKey = String(key || '');
+    if (!matchKey) return null;
+    return (schema || []).find((field) => String(field?.key || '') === matchKey) || null;
+  }
+
+  function fieldMatchOptions(schema, key) {
+    const field = findFieldByKey(schema, key);
+    if (!field || !fieldUsesChoices(field.type)) return [];
+    const source = field.options_source || {};
+    const sourceType = String(source.type || 'static');
+    const sourceItems = Array.isArray(source.items) ? source.items : [];
+    const rawOptions = sourceType && sourceType !== 'static'
+      ? sourceItems
+      : (Array.isArray(field.options) ? field.options : sourceItems);
+    const seen = new Set();
+    return rawOptions.map((option) => ({
+      label: String(option?.label || option?.value || ''),
+      value: String(option?.value || '')
+    })).filter((option) => {
+      if (!option.value || seen.has(option.value)) return false;
+      seen.add(option.value);
+      return true;
+    });
+  }
+
+  function renderRuleValueControl(schema, fieldKey, operator, currentValue, attrs, placeholder) {
+    const value = String(currentValue || '');
+    const currentOperator = String(operator || 'equals');
+    if (currentOperator === 'empty' || currentOperator === 'not_empty') {
+      return `<input class="metis-input" type="text" value="" placeholder="No value needed" disabled>`;
+    }
+
+    const options = fieldMatchOptions(schema, fieldKey);
+    const attrHtml = Object.entries(attrs || {}).map(([name, attrValue]) => ` ${escapeAttr(name)}="${escapeAttr(String(attrValue || ''))}"`).join('');
+    if (options.length === 0) {
+      return `<input class="metis-input" type="text" value="${escapeAttr(value)}"${attrHtml} placeholder="${escapeAttr(String(placeholder || 'Value'))}">`;
+    }
+
+    const selectedKnown = options.some((option) => option.value === value);
+    return `
+      <select class="metis-select"${attrHtml}>
+        <option value="">${escapeHtml(String(placeholder || 'Choose value'))}</option>
+        ${!selectedKnown && value ? `<option value="${escapeAttr(value)}" selected>Current: ${escapeHtml(value)}</option>` : ''}
+        ${options.map((option) => `<option value="${escapeAttr(option.value)}"${option.value === value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+      </select>
+    `;
+  }
+
   function toOptionsText(options) {
     return (options || []).map((option) => {
       const parts = [option.label || '', option.value || ''];
@@ -2626,6 +2829,12 @@
       case 'not_empty': return actual !== '';
       default: return actual === expected;
     }
+  }
+
+  function fieldIsInitiallyVisible(field) {
+    const conditions = Array.isArray(field?.conditions) ? field.conditions : [];
+    if (conditions.length === 0) return true;
+    return conditions.every((condition) => conditionPasses(condition, {}));
   }
 
   function formDataToObject(formData) {

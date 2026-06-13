@@ -1030,6 +1030,7 @@
 .metis-shared-rich-shell { display: grid; gap: 8px; }
 .metis-shared-rich-editor { min-height: 200px; padding: 14px; overflow: auto; line-height: 1.6; }
 .metis-shared-rich-editor:focus { outline: 2px solid rgba(72,91,199,.18); outline-offset: 0; }
+.metis-profile-rich-text .metis-se-rich-editor { min-height: 220px; }
 
 /* ── Responsive ─────────────────────────────────────────── */
 

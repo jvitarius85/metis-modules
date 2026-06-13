@@ -82,6 +82,10 @@ trait SharedRepositoryLogic {
         $normalized['binding']['module'] = metis_key_clean( (string) ( $settings['binding']['module'] ?? $defaults['binding']['module'] ) );
         $normalized['binding']['flow'] = metis_key_clean( (string) ( $settings['binding']['flow'] ?? $defaults['binding']['flow'] ) );
         $normalized['binding']['campaign_code'] = self::normalizeCampaignCode( (string) ( $settings['binding']['campaign_code'] ?? '' ) );
+        $normalized['binding']['rules'] = self::normalizeBindingRules(
+            $settings['binding']['rules'] ?? [],
+            $normalized['binding']['module']
+        );
 
         $normalized['access']['mode'] = metis_key_clean( (string) ( $settings['access']['mode'] ?? $defaults['access']['mode'] ) );
         if ( ! in_array( $normalized['access']['mode'], [ 'public', 'logged_in', 'password', 'role' ], true ) ) {
@@ -285,6 +289,52 @@ trait SharedRepositoryLogic {
                 'field'    => $field,
                 'operator' => $operator,
                 'value'    => is_array( $condition['value'] ?? null ) ? array_values( $condition['value'] ) : trim( (string) ( $condition['value'] ?? '' ) ),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeBindingRules( mixed $rules, string $module ): array {
+        $rules = is_array( $rules ) ? $rules : [];
+        $normalized = [];
+        $allowed_flows = array_values(
+            array_filter(
+                array_map(
+                    static fn ( mixed $flow ): string => metis_key_clean( (string) ( is_array( $flow ) ? ( $flow['value'] ?? '' ) : '' ) ),
+                    (array) ( \Metis\Modules\Forms\Support::moduleFlows()[ $module ] ?? [] )
+                )
+            )
+        );
+
+        foreach ( $rules as $rule ) {
+            if ( ! is_array( $rule ) ) {
+                continue;
+            }
+
+            $conditions = self::normalizeConditions(
+                [
+                    [
+                        'field'    => $rule['field'] ?? '',
+                        'operator' => $rule['operator'] ?? 'equals',
+                        'value'    => $rule['value'] ?? '',
+                    ],
+                ]
+            );
+            if ( $conditions === [] ) {
+                continue;
+            }
+
+            $flow = metis_key_clean( (string) ( $rule['flow'] ?? '' ) );
+            if ( $flow !== '' && ! in_array( $flow, $allowed_flows, true ) ) {
+                $flow = '';
+            }
+
+            $normalized[] = [
+                'field'    => (string) $conditions[0]['field'],
+                'operator' => (string) $conditions[0]['operator'],
+                'value'    => $conditions[0]['value'],
+                'flow'     => $flow,
             ];
         }
 
@@ -920,7 +970,7 @@ trait SharedRepositoryLogic {
         $settings = self::normalizeSettings( $form['settings'] ?? [] );
         $binding = (array) ( $settings['binding'] ?? [] );
         $module = (string) ( $binding['module'] ?? '' );
-        $flow = (string) ( $binding['flow'] ?? '' );
+        $flow = self::resolveBindingFlow( $binding, $normalized );
         $context = [];
 
         if ( $module === 'grandys_stash' && \class_exists( '\Metis\Modules\GrandyStash\GrandyStashRepository' ) ) {
@@ -950,6 +1000,34 @@ trait SharedRepositoryLogic {
         }
 
         return $context;
+    }
+
+    private static function resolveBindingFlow( array $binding, array $context ): string {
+        $default_flow = metis_key_clean( (string) ( $binding['flow'] ?? '' ) );
+        $rules = is_array( $binding['rules'] ?? null ) ? $binding['rules'] : [];
+
+        foreach ( $rules as $rule ) {
+            if ( ! is_array( $rule ) ) {
+                continue;
+            }
+
+            $candidate = [
+                'field'    => (string) ( $rule['field'] ?? '' ),
+                'operator' => (string) ( $rule['operator'] ?? 'equals' ),
+                'value'    => $rule['value'] ?? '',
+            ];
+
+            if ( ! self::fieldIsVisible( [ 'conditions' => [ $candidate ] ], $context ) ) {
+                continue;
+            }
+
+            $flow = metis_key_clean( (string) ( $rule['flow'] ?? '' ) );
+            if ( $flow !== '' ) {
+                return $flow;
+            }
+        }
+
+        return $default_flow;
     }
 
     private static function recordDonationTransaction( array $form, array $normalized, array $totals, object $intent, mixed $charge ): string {
@@ -1365,6 +1443,7 @@ trait SharedRepositoryLogic {
                 'module'        => '',
                 'flow'          => '',
                 'campaign_code' => '',
+                'rules'         => [],
             ],
             'access' => [
                 'mode'           => 'public',
@@ -1437,25 +1516,53 @@ trait SharedRepositoryLogic {
         }
 
         $options = [];
-        $table = \Metis_Tables::has( 'auth_users' ) ? (string) \Metis_Tables::get( 'auth_users' ) : '';
+        $table = \Metis_Tables::has( 'people' ) ? (string) \Metis_Tables::get( 'people' ) : '';
         if ( $table === '' ) {
             self::$userOptions = $options;
             return self::$userOptions;
         }
 
         $rows = self::db()->fetchAll(
-            "SELECT id, display_name, user_email
+            "SELECT id, display_name, first_name, last_name, email, workspace_email
              FROM {$table}
-             WHERE is_active = 1
-             ORDER BY COALESCE(NULLIF(display_name, ''), user_email) ASC
+             WHERE COALESCE(NULLIF(workspace_email, ''), NULLIF(email, '')) IS NOT NULL
+             ORDER BY COALESCE(NULLIF(display_name, ''), NULLIF(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')), ''), COALESCE(workspace_email, email)) ASC
              LIMIT 500"
         ) ?: [];
 
-        foreach ( $rows as $user ) {
+        foreach ( $rows as $person ) {
+            $email = strtolower(
+                trim(
+                    metis_email_clean(
+                        (string) ( $person['workspace_email'] ?? $person['email'] ?? '' )
+                    )
+                )
+            );
+            if ( ! metis_email_is_valid( $email ) ) {
+                $email = strtolower( trim( metis_email_clean( (string) ( $person['email'] ?? '' ) ) ) );
+            }
+            if ( ! metis_email_is_valid( $email ) ) {
+                continue;
+            }
+
+            $label = trim( (string) ( $person['display_name'] ?? '' ) );
+            if ( $label === '' ) {
+                $label = trim( (string) ( $person['first_name'] ?? '' ) . ' ' . (string) ( $person['last_name'] ?? '' ) );
+            }
+            if ( $label === '' ) {
+                $label = $email;
+            }
+
+            $id = (int) ( $person['id'] ?? 0 );
+            if ( $id < 1 ) {
+                continue;
+            }
+
             $options[] = [
-                'id'    => (int) ( $user['id'] ?? 0 ),
-                'label' => (string) ( $user['display_name'] ?? $user['user_email'] ?? '' ),
-                'email' => (string) ( $user['user_email'] ?? '' ),
+                'id'    => $id,
+                'value' => $id,
+                'label' => $label,
+                'email' => $email,
             ];
         }
 
@@ -2007,24 +2114,27 @@ trait SharedRepositoryLogic {
     }
 
     private static function userEmailById( int $user_id ): string {
-        if ( $user_id < 1 || ! \Metis_Tables::has( 'auth_users' ) ) {
+        if ( $user_id < 1 || ! \Metis_Tables::has( 'people' ) ) {
             return '';
         }
 
-        $table = (string) \Metis_Tables::get( 'auth_users' );
+        $table = (string) \Metis_Tables::get( 'people' );
         if ( $table === '' ) {
             return '';
         }
 
         $row = self::db()->fetchOne(
-            "SELECT user_email
+            "SELECT workspace_email, email
              FROM {$table}
-             WHERE id = %d AND is_active = 1
+             WHERE id = %d
              LIMIT 1",
             [ $user_id ]
         );
 
-        $email = strtolower( trim( metis_email_clean( (string) ( $row['user_email'] ?? '' ) ) ) );
+        $email = strtolower( trim( metis_email_clean( (string) ( $row['workspace_email'] ?? '' ) ) ) );
+        if ( ! metis_email_is_valid( $email ) ) {
+            $email = strtolower( trim( metis_email_clean( (string) ( $row['email'] ?? '' ) ) ) );
+        }
         return $email !== '' && metis_email_is_valid( $email ) ? $email : '';
     }
 

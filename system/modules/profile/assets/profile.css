@@ -176,6 +176,7 @@
 .metis-shared-rich-shell { display: grid; gap: 8px; }
 .metis-shared-rich-editor { min-height: 180px; padding: 14px; overflow: auto; line-height: 1.6; }
 .metis-shared-rich-editor:focus { outline: 2px solid rgba(72, 91, 199, 0.18); outline-offset: 0; }
+.metis-profile-rich-text .metis-se-rich-editor { min-height: 200px; }
 .metis-se-rich-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--metis-border); border-radius: 14px; background: #f7f9ff; }
 
 @media (max-width: 1000px) {

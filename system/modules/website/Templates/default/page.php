@@ -2,7 +2,9 @@
 if (!defined('METIS_ROOT')) { exit; }
 $brandHtml = isset($brand_html) ? (string) $brand_html : '';
 $menuHtml = isset($menu_html) ? (string) $menu_html : '';
+$ctaMenuHtml = isset($cta_menu_html) ? (string) $cta_menu_html : '';
 $footerHtml = isset($footer_html) ? (string) $footer_html : '';
+$pageHeaderHtml = isset($page_header_html) ? (string) $page_header_html : '';
 $contentHtml = isset($content_html) ? (string) $content_html : '';
 $sidebarHtml = isset($sidebar_html) ? (string) $sidebar_html : '';
 $withSidebar = !empty($with_sidebar) && trim($sidebarHtml) !== '';
@@ -19,8 +21,14 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
                 <span class="metis-shell-nav-toggle-text">Menu</span>
             </button>
             <nav id="metis-template-primary-menu" class="metis-template-menu metis-shell-nav metis-shell-nav-primary" aria-label="Primary menu"><?php echo $menuHtml; ?></nav>
+            <?php if (trim($ctaMenuHtml) !== ''): ?>
+                <div class="metis-template-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Primary actions"><?php echo $ctaMenuHtml; ?></div>
+            <?php endif; ?>
         </div>
     </header>
+    <?php if (trim($pageHeaderHtml) !== ''): ?>
+        <?php echo $pageHeaderHtml; ?>
+    <?php endif; ?>
     <main class="metis-template-main<?php echo $withSidebar ? ' has-sidebar' : ''; ?>" data-view="page" data-sidebar-position="<?php echo metis_escape_attr($sidebarPosition); ?>">
         <div class="metis-template-main-inner<?php echo $withSidebar ? ' has-sidebar' : ''; ?>" data-sidebar-position="<?php echo metis_escape_attr($sidebarPosition); ?>">
             <?php if ($withSidebar && $sidebarPosition === 'left'): ?>

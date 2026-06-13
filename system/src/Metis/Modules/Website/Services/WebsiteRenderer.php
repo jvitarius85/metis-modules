@@ -19,7 +19,10 @@ use Metis\Modules\Website\Services\TemplateService;
  */
 final class WebsiteRenderer {
     /** @var array<int,string> */
-    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
+    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
+    /** @var array<string,string>|null */
+    private static ?array $emoji_asset_map = null;
+    private static ?string $emoji_match_pattern = null;
 
     /**
      * Structured page/post preview that matches the production rendering pipeline.
@@ -495,6 +498,7 @@ final class WebsiteRenderer {
         $primary_role = trim( (string) ( $snapshot['primary_role'] ?? '' ) );
         $groups = array_values( array_filter( array_map( 'strval', (array) ( $snapshot['groups'] ?? [] ) ) ) );
         $avatar = trim( (string) ( $snapshot['avatar_src'] ?? '' ) );
+        $joined_label = trim( (string) ( $snapshot['joined_label'] ?? '' ) );
         $bio_html = self::sanitizePublicRichText( (string) ( $person['public_bio_html'] ?? '' ) );
         $posts = self::publishedPostsByAuthorPersonId( (int) ( $person['id'] ?? 0 ), 12 );
 
@@ -516,6 +520,9 @@ final class WebsiteRenderer {
                 $content .= '<span class="metis-public-profile__chip">' . metis_escape_html( $group ) . '</span>';
             }
             $content .= '</div>';
+        }
+        if ( $joined_label !== '' ) {
+            $content .= '<p class="metis-public-profile__meta">Joined ' . metis_escape_html( $joined_label ) . '</p>';
         }
         $content .= '</div></div>';
         if ( $bio_html !== '' ) {
@@ -1140,6 +1147,7 @@ final class WebsiteRenderer {
         $layout_settings = is_array( $layout_data['layout_settings'] ?? null ) ? $layout_data['layout_settings'] : [];
         $page_data = is_array( $data['page'] ?? null ) ? $data['page'] : [];
         $resolved_page_data = array_merge( $page_data, $layout_page_data );
+        $page_header_html = self::buildContextPageHeaderHtml( $context, $resolved_page_data );
         $content = self::prependPostFeaturedImage( (string) $content, $context, $resolved_page_data );
         $site_layout_profile = is_array( $data['site_layout_profile'] ?? null ) ? $data['site_layout_profile'] : [];
         $site_layout_profile_key = metis_key_clean( (string) ( $data['site_layout_profile_key'] ?? ( $site_layout_profile['key'] ?? LayoutProfileService::defaultWBProfileKey() ) ) );
@@ -1244,6 +1252,7 @@ final class WebsiteRenderer {
             $site_layout_profile,
             $menu_dataset,
             self::renderHomepageHero( $hero, $context ),
+            $page_header_html,
             (string) $content,
             (string) $sidebar,
             $with_sidebar,
@@ -1396,10 +1405,48 @@ final class WebsiteRenderer {
     }
 
     /**
+     * @param array<string,mixed> $context
+     * @param array<string,mixed> $page_data
+     */
+    private static function buildContextPageHeaderHtml( array $context, array $page_data ): string {
+        if ( metis_key_clean( (string) ( $context['content_type'] ?? '' ) ) !== 'page' ) {
+            return '';
+        }
+
+        if ( ! empty( $context['is_homepage'] ) ) {
+            return '';
+        }
+
+        return self::buildDefaultPageHeaderHtml( $page_data );
+    }
+
+    /**
      * @param array<string,mixed> $page_data
      */
     private static function prependPostHeader( string $content_html, array $page_data ): string {
         return self::buildPostHeaderHtml( $page_data ) . $content_html;
+    }
+
+    /**
+     * @param array<string,mixed> $page_data
+     */
+    private static function buildDefaultPageHeaderHtml( array $page_data ): string {
+        $title = trim( (string) ( $page_data['title'] ?? '' ) );
+        if ( $title === '' ) {
+            return '';
+        }
+
+        $html = '<section class="metis-template-page-header metis-structured-section metis-structured-section--heading-band is-bg-primary-tint">';
+        $html .= '<div class="metis-structured-section__inner">';
+        $html .= '<div class="metis-structured-section__content">';
+        $html .= '<div class="metis-structured-heading-wrap is-section-header">';
+        $html .= '<h1 class="metis-structured-heading is-align-center metis-template-page-header__title">' . metis_escape_html( $title ) . '</h1>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '</section>';
+
+        return $html;
     }
 
     /**
@@ -1904,7 +1951,8 @@ final class WebsiteRenderer {
         $utility_locations = is_array( $site_layout_profile['utility_menu_locations'] ?? null )
             ? $site_layout_profile['utility_menu_locations']
             : [ 'utility', 'secondary', 'top' ];
-        $menu_html = self::renderShellMenuByLocation( $primary_locations, [], $menu_dataset );
+        $menu_html = self::renderShellMenuByLocation( $primary_locations, [ 'cluster' => 'primary' ], $menu_dataset );
+        $cta_menu_html = self::renderShellMenuByLocation( $primary_locations, [ 'cluster' => 'cta' ], $menu_dataset );
         $utility_menu_html = self::renderShellMenuByLocation( $utility_locations, [], $menu_dataset );
         $header_variant = metis_key_clean( (string) ( $site_layout_profile['header_variant'] ?? 'split' ) );
 
@@ -1915,6 +1963,7 @@ final class WebsiteRenderer {
             'home_url' => self::normalizePublicUrl( '/' ),
             'logo_url' => $logo_url,
             'menu_html' => $menu_html,
+            'cta_menu_html' => $cta_menu_html,
             'utility_menu_html' => $utility_menu_html,
             'header_variant' => $header_variant,
         ] );
@@ -1983,6 +2032,7 @@ final class WebsiteRenderer {
         array $site_layout_profile,
         array $menu_dataset,
         string $hero_html,
+        string $page_header_html,
         string $content_html,
         string $sidebar_html,
         bool $with_sidebar,
@@ -2001,7 +2051,8 @@ final class WebsiteRenderer {
         $primary_locations = is_array( $site_layout_profile['primary_menu_locations'] ?? null )
             ? $site_layout_profile['primary_menu_locations']
             : [ 'primary', 'header' ];
-        $menu_html = self::renderShellMenuByLocation( $primary_locations, [], $menu_dataset );
+        $menu_html = self::renderShellMenuByLocation( $primary_locations, [ 'cluster' => 'primary' ], $menu_dataset );
+        $cta_menu_html = self::renderShellMenuByLocation( $primary_locations, [ 'cluster' => 'cta' ], $menu_dataset );
         $footer_html = self::renderTemplateFooterContent( $context, $site_layout_profile, $menu_dataset );
         if ( $hero_html === '' && ! empty( $context['template_preview_mode'] ) && ! empty( $context['template_preview_placeholder'] ) ) {
             $hero_html = '<div class="metis-template-preview-hero"><div class="metis-template-preview-hero-kicker"></div><div class="metis-template-preview-hero-title"></div><div class="metis-template-preview-hero-copy"></div></div>';
@@ -2256,8 +2307,12 @@ final class WebsiteRenderer {
     private static function renderShellMenuByLocation( $location, array $options = [], array $menu_dataset = [] ): string {
         $locations = is_array( $location ) ? $location : [ (string) $location ];
         $mode = metis_key_clean( (string) ( $options['mode'] ?? 'default' ) );
+        $cluster = metis_key_clean( (string) ( $options['cluster'] ?? 'all' ) );
         if ( ! in_array( $mode, [ 'default', 'footer' ], true ) ) {
             $mode = 'default';
+        }
+        if ( ! in_array( $cluster, [ 'all', 'primary', 'cta' ], true ) ) {
+            $cluster = 'all';
         }
         foreach ( $locations as $candidate ) {
             $location_key = metis_key_clean( (string) $candidate );
@@ -2278,6 +2333,10 @@ final class WebsiteRenderer {
                 }
                 $tree = self::normalizeShellMenuTree( $items );
             }
+            $tree = self::filterShellMenuTreeByCluster( $tree, $cluster );
+            if ( $tree === [] ) {
+                continue;
+            }
             if ( $mode === 'footer' ) {
                 return self::renderShellFooterMenu( $tree );
             }
@@ -2288,6 +2347,33 @@ final class WebsiteRenderer {
             return '<ul class="metis-shell-menu-list">' . self::renderShellMenuItems( $tree, $current_path ) . '</ul>';
         }
         return '';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $tree
+     * @return array<int,array<string,mixed>>
+     */
+    private static function filterShellMenuTreeByCluster( array $tree, string $cluster ): array {
+        if ( $cluster === 'all' ) {
+            return $tree;
+        }
+
+        $filtered = [];
+        foreach ( $tree as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+            $as_button = ! empty( $item['as_button'] );
+            if ( $cluster === 'cta' && $as_button ) {
+                $filtered[] = $item;
+                continue;
+            }
+            if ( $cluster === 'primary' && ! $as_button ) {
+                $filtered[] = $item;
+            }
+        }
+
+        return $filtered;
     }
 
     /**
@@ -2318,6 +2404,8 @@ final class WebsiteRenderer {
             . '<li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link">About</a></li>'
             . '<li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link">Resources</a></li>'
             . '<li class="metis-shell-menu-item has-children is-open"><a href="#" class="metis-shell-menu-link" aria-haspopup="true">Explore<span class="metis-shell-menu-sub-indicator" aria-hidden="true"></span></a><ul class="metis-shell-menu-sub"><li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link">Articles</a></li><li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link">Events</a></li></ul></li>'
+            . '</ul>';
+        $cta_html = '<ul class="metis-shell-menu-list">'
             . '<li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link metis-shell-menu-btn metis-shell-menu-btn--metis_accent">Get Started</a></li>'
             . '<li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link metis-shell-menu-btn metis-shell-menu-btn--metis_primary">Support</a></li>'
             . '<li class="metis-shell-menu-item"><a href="#" class="metis-shell-menu-link metis-shell-menu-btn metis-shell-menu-btn--metis_text">Contact</a></li>'
@@ -2327,6 +2415,7 @@ final class WebsiteRenderer {
             . '<div class="metis-template-header">'
             . '<div class="metis-template-header-inner">'
             . '<div class="metis-template-menu metis-shell-nav metis-shell-nav-primary">' . $menu_html . '</div>'
+            . '<div class="metis-template-menu-cta metis-shell-nav metis-shell-nav-cta">' . $cta_html . '</div>'
             . '</div>'
             . '</div>'
             . '</div>';
@@ -2341,13 +2430,15 @@ final class WebsiteRenderer {
             '.metis-theme-menu-live .metis-template .metis-template-header{display:block !important;position:relative !important;padding:0 !important;}',
             '.metis-theme-menu-live .metis-template .metis-template-header-inner{display:flex !important;align-items:center !important;justify-content:center !important;gap:24px !important;padding:0 !important;}',
             '.metis-theme-menu-live .metis-template .metis-template-menu{display:flex !important;align-items:center !important;justify-content:center !important;min-width:0;overflow:visible;flex:1 1 auto;}',
+            '.metis-theme-menu-live .metis-template .metis-template-menu-cta{display:flex !important;align-items:center !important;justify-content:flex-end !important;flex:0 0 auto !important;min-width:0;overflow:visible;}',
             '.metis-theme-menu-live .metis-template .metis-template-menu .metis-shell-menu-list{display:flex !important;justify-content:flex-start !important;align-items:var(--metis-menu-item-align,center) !important;flex-wrap:wrap !important;gap:10px var(--metis-menu-item-gap,16px) !important;list-style:none;margin:0;padding:0;overflow:visible;}',
+            '.metis-theme-menu-live .metis-template .metis-template-menu-cta .metis-shell-menu-list{display:flex !important;justify-content:flex-end !important;align-items:center !important;flex-wrap:wrap !important;gap:10px !important;list-style:none;margin:0;padding:0;overflow:visible;}',
             self::codepenGlideMenuCss( '.metis-theme-menu-live.metis-menu-style-h_glide .metis-template .metis-template-menu' ),
             self::outlineTabsMenuCss( '.metis-theme-menu-live.metis-menu-style-h_outline_tabs .metis-template .metis-template-menu' ),
             self::pillDropdownMenuCss( '.metis-theme-menu-live.metis-menu-style-h_pill_dropdown .metis-template .metis-template-menu' ),
             self::modernBarMenuCss( '.metis-theme-menu-live.metis-menu-style-h_modern_bar .metis-template .metis-template-menu' ),
             self::showcaseButtonsMenuCss( '.metis-theme-menu-live.metis-menu-style-h_showcase_buttons .metis-template .metis-template-menu', '.metis-theme-menu-live.metis-menu-style-h_showcase_buttons .metis-template .metis-template-header' ),
-            self::menuButtonAttentionCss( '.metis-theme-menu-live .metis-template .metis-template-menu' ),
+            self::menuButtonAttentionCss( '.metis-theme-menu-live .metis-template .metis-template-menu-cta' ),
         ] );
     }
 
@@ -3330,6 +3421,25 @@ final class WebsiteRenderer {
                 $context
             );
         }
+        if ( $type === 'people_directory' ) {
+            $group = metis_key_clean( (string) ( $content['group'] ?? 'staff' ) );
+            if ( ! in_array( $group, [ 'staff', 'board', 'volunteer' ], true ) ) {
+                $group = 'staff';
+            }
+            $layout = metis_key_clean( (string) ( $content['layout'] ?? 'grid' ) );
+            if ( ! in_array( $layout, [ 'grid', 'list' ], true ) ) {
+                $layout = 'grid';
+            }
+            return self::renderStructuredBlockModule(
+                'people_directory',
+                [
+                    'group' => $group,
+                    'layout' => $layout,
+                    'limit' => max( 1, min( 48, (int) ( $content['limit'] ?? 12 ) ) ),
+                ],
+                $context
+            );
+        }
         if ( $type === 'divider' ) {
             return self::renderStructuredDividerSection( $content, $context );
         }
@@ -3757,8 +3867,8 @@ final class WebsiteRenderer {
             $text
         );
         $text = self::repairMojibakeText( $text );
-
-        return preg_replace( '/[ \t]{2,}/u', ' ', $text ) ?? $text;
+        $text = preg_replace( '/[ \t]{2,}/u', ' ', $text ) ?? $text;
+        return self::replaceUnicodeEmojiWithAssets( $text );
     }
 
     private static function replaceEmojiShortcodes( string $html ): string {
@@ -3802,6 +3912,97 @@ final class WebsiteRenderer {
         ];
 
         return str_ireplace( array_keys( $map ), array_values( $map ), $html );
+    }
+
+    private static function replaceUnicodeEmojiWithAssets( string $text ): string {
+        if ( $text === '' || preg_match( '/[\x{203C}-\x{1FAFF}]/u', $text ) !== 1 ) {
+            return $text;
+        }
+
+        $pattern = self::emojiMatchPattern();
+        if ( $pattern === '' ) {
+            return $text;
+        }
+
+        $map = self::emojiAssetMap();
+        if ( $map === [] ) {
+            return $text;
+        }
+
+        return preg_replace_callback(
+            $pattern,
+            static function ( array $matches ) use ( $map ): string {
+                $emoji = (string) ( $matches[0] ?? '' );
+                $file = $map[ $emoji ] ?? '';
+                if ( $emoji === '' || $file === '' ) {
+                    return $emoji;
+                }
+
+                $src = '/assets/Images/emojis/' . ltrim( $file, '/' );
+                return '<img class="metis-inline-emoji" src="' . metis_escape_attr( $src ) . '" alt="' . metis_escape_attr( $emoji ) . '" title="' . metis_escape_attr( $emoji ) . '" loading="lazy" decoding="async">';
+            },
+            $text
+        ) ?? $text;
+    }
+
+    /** @return array<string,string> */
+    private static function emojiAssetMap(): array {
+        if ( is_array( self::$emoji_asset_map ) ) {
+            return self::$emoji_asset_map;
+        }
+
+        $path = defined( 'METIS_ASSETS_PATH' ) ? METIS_ASSETS_PATH . 'Images/emojis/emoji-index.json' : '';
+        if ( $path === '' || ! is_file( $path ) || ! is_readable( $path ) ) {
+            self::$emoji_asset_map = [];
+            return self::$emoji_asset_map;
+        }
+
+        $decoded = json_decode( (string) file_get_contents( $path ), true );
+        if ( ! is_array( $decoded ) ) {
+            self::$emoji_asset_map = [];
+            return self::$emoji_asset_map;
+        }
+
+        $map = [];
+        foreach ( $decoded as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+            $emoji = trim( (string) ( $item['emoji'] ?? '' ) );
+            $file = trim( (string) ( $item['file'] ?? '' ) );
+            if ( $emoji === '' || $file === '' ) {
+                continue;
+            }
+            $map[ $emoji ] = $file;
+        }
+
+        self::$emoji_asset_map = $map;
+        return self::$emoji_asset_map;
+    }
+
+    private static function emojiMatchPattern(): string {
+        if ( is_string( self::$emoji_match_pattern ) ) {
+            return self::$emoji_match_pattern;
+        }
+
+        $emoji_values = array_keys( self::emojiAssetMap() );
+        if ( $emoji_values === [] ) {
+            self::$emoji_match_pattern = '';
+            return self::$emoji_match_pattern;
+        }
+
+        usort(
+            $emoji_values,
+            static fn ( string $left, string $right ): int => mb_strlen( $right, 'UTF-8' ) <=> mb_strlen( $left, 'UTF-8' )
+        );
+
+        $quoted = array_map(
+            static fn ( string $emoji ): string => preg_quote( $emoji, '/' ),
+            $emoji_values
+        );
+
+        self::$emoji_match_pattern = '/(?:' . implode( '|', $quoted ) . ')/u';
+        return self::$emoji_match_pattern;
     }
 
     /**
@@ -5055,7 +5256,7 @@ final class WebsiteRenderer {
             . '.metis-public-profile{display:grid;gap:28px;padding:8px 0 20px}.metis-public-profile__hero{display:grid;grid-template-columns:minmax(180px,240px) minmax(0,1fr);gap:24px;align-items:center;padding:28px;border:1px solid #d8def2;border-radius:28px;background:linear-gradient(180deg,#fbfcff 0%,#f4f7ff 100%)}'
             . '.metis-public-profile__avatar{aspect-ratio:1/1;border-radius:28px;overflow:hidden;background:#e8edf9;border:1px solid #d8def2}.metis-public-profile__avatar img{width:100%;height:100%;object-fit:cover;display:block}'
             . '.metis-public-profile__eyebrow{margin:0 0 8px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#60708d;font-weight:700}.metis-public-profile__intro h1{margin:0;font-size:clamp(2rem,4vw,3.2rem);line-height:1.04}'
-            . '.metis-public-profile__tagline{margin:12px 0 0;font-size:1.08rem;color:#42506b}.metis-public-profile__chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.metis-public-profile__chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:999px;background:#e8eeff;color:#3347aa;font-weight:700}'
+            . '.metis-public-profile__tagline{margin:12px 0 0;font-size:1.08rem;color:#42506b}.metis-public-profile__chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.metis-public-profile__chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:999px;background:#e8eeff;color:#3347aa;font-weight:700}.metis-public-profile__meta{margin:14px 0 0;font-size:.9rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6f7d96}'
             . '.metis-public-profile__bio{padding:26px;border:1px solid #d8def2;border-radius:24px;background:#fff;box-shadow:0 18px 40px rgba(34,52,102,.06)}.metis-public-profile__bio p:first-child{margin-top:0}.metis-public-profile__section-head h2{margin:0 0 14px}'
             . '.metis-public-profile__posts-wrap{display:grid;gap:12px}@media (max-width:900px){.metis-public-profile__hero{grid-template-columns:1fr}.metis-public-profile__avatar{max-width:240px}}'
             . '</style>';
@@ -5152,9 +5353,10 @@ final class WebsiteRenderer {
             '.metis-shell-menu-list,.metis-shell-menu-sub{list-style:none;margin:0;padding:0;}',
             '.metis-shell-menu-list{display:flex;flex-wrap:wrap;gap:8px var(--metis-menu-item-gap,14px);align-items:var(--metis-menu-item-align,center);}',
             '.metis-shell-menu-item{position:relative;z-index:1;}',
-            '.metis-shell-menu-item.has-children{z-index:30;}',
+            '.metis-shell-menu-item.has-children{z-index:30;padding-bottom:14px;margin-bottom:-14px;}',
             '.metis-shell-menu-item>.metis-shell-menu-link,.metis-shell-menu-item>.metis-shell-menu-btn{text-decoration:none;color:var(--metis-color-text,#1a1f2b);font-weight:500;font-size:var(--metis-menu-font-size,14px);display:inline-flex;align-items:var(--metis-menu-item-align,center);justify-content:center;gap:8px;padding:0 10px;min-height:40px;border:0;background:transparent;line-height:1;box-sizing:border-box;cursor:pointer;font-family:inherit;border-radius:var(--metis-menu-item-radius,10px);}',
             '.metis-shell-menu-item>.metis-shell-menu-link:hover,.metis-shell-menu-item>.metis-shell-menu-btn:hover{color:var(--metis-color-primary,#485bc7);}',
+            '.metis-shell-menu-item>.metis-shell-menu-link:focus-visible,.metis-shell-menu-item>.metis-shell-menu-btn:focus-visible{outline:2px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 32%,#ffffff);outline-offset:2px;}',
             '.metis-shell-menu-item>.metis-shell-menu-btn{padding:var(--metis-menu-button-padding-y,10px) var(--metis-menu-button-padding-x,14px);min-height:0;border-radius:var(--metis-menu-button-radius,10px);background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7));color:var(--metis-menu-button-text,#fff) !important;font-weight:700;border:1px solid var(--metis-menu-button-border,transparent);line-height:1;-webkit-appearance:none;appearance:none;}',
             '.metis-shell-menu-item>.metis-shell-menu-btn:hover{filter:brightness(.96);}',
             '.metis-shell-menu-item>.metis-shell-menu-btn--metis_primary,.metis-shell-menu-item>.metis-shell-menu-btn--metis_accent,.metis-shell-menu-item>.metis-shell-menu-btn--metis_text,.metis-shell-menu-item>.metis-shell-menu-btn--metis_surface{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7));color:var(--metis-menu-button-text,#fff) !important;border:1px solid var(--metis-menu-button-border,transparent);}',
@@ -5167,9 +5369,10 @@ final class WebsiteRenderer {
             '.metis-shell-menu-sub-indicator{display:inline-flex;align-items:center;justify-content:center;width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-3px);opacity:.9;flex-shrink:0;}',
             '.metis-shell-menu-item.has-children:hover>.metis-shell-menu-sub,.metis-shell-menu-item.has-children:focus-within>.metis-shell-menu-sub,.metis-shell-menu-item.has-children.is-open>.metis-shell-menu-sub{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);}',
             '.metis-shell-menu-sub{display:block;position:absolute;left:0;top:calc(100% + 8px);z-index:1200;min-width:180px;background:#fff;border:1px solid var(--metis-color-border,#e2e8f0);padding:6px;border-radius:var(--metis-menu-dropdown-radius,10px);box-shadow:0 10px 24px rgba(2,8,23,.14);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(var(--metis-menu-sub-open-y,-8px)) scale(var(--metis-menu-sub-open-scale,1));transform-origin:top left;transition:opacity var(--metis-menu-sub-open-duration,180ms) ease,transform var(--metis-menu-sub-open-duration,180ms) ease;}',
+            '.metis-shell-menu-sub::before{content:"";position:absolute;left:0;right:0;top:-18px;height:20px;background:transparent;}',
             '.metis-shell-menu-sub .metis-shell-menu-item{width:100%;}',
             '.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-link,.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-btn{display:flex;align-items:var(--metis-menu-item-align,center);justify-content:flex-start;gap:8px;width:100%;box-sizing:border-box;padding:7px 10px;background:transparent;border-radius:8px;color:var(--metis-menu-dropdown-text,var(--metis-color-text,#1a1f2b));font-weight:var(--metis-menu-dropdown-weight,500);transition:background-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease,background-position .24s ease,background-size .24s ease;}',
-            '.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-link:hover,.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-btn:hover{background:var(--metis-menu-dropdown-highlight,var(--metis-color-surface_alt,#f8fafc));color:var(--metis-menu-dropdown-text,var(--metis-color-text,#1a1f2b));}',
+            '.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-link:hover,.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-link:focus-visible,.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-btn:hover,.metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-btn:focus-visible{background:var(--metis-menu-dropdown-highlight,var(--metis-color-surface_alt,#f8fafc));color:var(--metis-menu-dropdown-text,var(--metis-color-text,#1a1f2b));}',
             '.metis-shell-body{padding:16px max(16px,3vw);flex:1 0 auto;}',
             '.metis-shell-body-inner{max-width:1200px;margin:0 auto;}',
             '.metis-shell-body-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);gap:24px;align-items:start;}',
@@ -5583,6 +5786,7 @@ final class WebsiteRenderer {
             'body.metis-public-site .metis-template .metis-template-header-inner{max-width:1320px;margin:0 auto;min-width:0;width:100%;gap:48px !important;}',
             'body.metis-public-site .metis-template .metis-template-header-brand{flex:0 0 auto;min-width:0;}',
             'body.metis-public-site .metis-template .metis-template-menu{flex:1 1 auto;min-width:0;}',
+            'body.metis-public-site .metis-template .metis-template-menu-cta{flex:0 0 auto;min-width:0;}',
             '.metis-shell-header-inner,.metis-template .metis-template-header-inner{transition:padding .22s ease,gap .22s ease;}',
             '.metis-shell-brand-logo-header,.metis-template .metis-template-brand-logo{transition:max-height .22s ease;}',
             '.metis-shell-header.is-scrolled,.metis-template .metis-template-sticky-capable.is-scrolled{box-shadow:0 12px 28px rgba(15,23,42,.12);}',
@@ -5654,10 +5858,12 @@ final class WebsiteRenderer {
             $list . '{display:flex !important;flex-wrap:nowrap !important;gap:.35rem !important;align-items:center !important;justify-content:center !important;width:100%;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;overflow:visible !important;}',
             $item . '{position:relative;display:flex !important;align-items:center !important;justify-content:center !important;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;}',
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:center !important;min-width:max-content;min-height:0 !important;padding:.78rem 1.08rem !important;border:0 !important;border-radius:999px !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-text,#1a1f2b) !important;font-size:var(--metis-menu-font-size,14px) !important;font-weight:700 !important;letter-spacing:0 !important;line-height:1 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .2s ease;}',
-            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn{background:var(--metis-color-primary,#485bc7) !important;color:var(--metis-color-button_text,#fff) !important;box-shadow:0 8px 18px color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,transparent);}',
+            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:var(--metis-color-primary,#485bc7) !important;color:var(--metis-color-button_text,#fff) !important;box-shadow:0 8px 18px color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,transparent);}',
+            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:0 10px 22px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 30%,transparent) !important;}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
-            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:50% !important;z-index:1200 !important;min-width:max(100%,14rem) !important;width:max-content !important;margin:0 !important;padding:.45rem !important;border:1px solid var(--metis-color-border,#d8deea) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 18px 34px rgba(15,23,42,.16) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translate(-50%,8px) scale(.96) !important;transform-origin:top center;transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility .18s ease;overflow:hidden !important;}',
+            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:50% !important;z-index:1200 !important;min-width:max(100%,14rem) !important;width:max-content !important;margin:0 !important;padding:.45rem !important;border:1px solid var(--metis-color-border,#d8deea) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 18px 34px rgba(15,23,42,.16) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translate(-50%,8px) scale(.96) !important;transform-origin:top center;transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility .18s ease;overflow:visible !important;}',
+            $item . ' > .metis-shell-menu-sub::before{content:"";position:absolute;left:0;right:0;top:-16px;height:18px;background:transparent;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub{visibility:visible;opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1) !important;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item{display:block !important;width:100%;min-width:0;opacity:0;transform:translateY(6px);transition:opacity .18s ease,transform .2s ease;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub > .metis-shell-menu-item{opacity:1;transform:translateY(0);}',
@@ -5687,11 +5893,13 @@ final class WebsiteRenderer {
             $item . '{position:relative;display:flex !important;align-items:stretch !important;justify-content:center !important;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;}',
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{position:relative;display:flex !important;align-items:center !important;justify-content:center !important;min-width:max-content;min-height:0 !important;padding:1rem 1.08rem !important;border:0 !important;border-radius:12px !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-text,#1a1f2b) !important;font-size:var(--metis-menu-font-size,14px) !important;font-weight:700 !important;letter-spacing:0 !important;line-height:1 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease;}',
             $item . ' > .metis-shell-menu-link::after,' . $item . ' > .metis-shell-menu-btn::after{content:"";position:absolute;left:1rem;right:1rem;bottom:.43rem;height:2px;border-radius:999px;background:var(--metis-color-accent,#ff7542);transform:scaleX(0);transform-origin:left center;transition:transform .22s ease;}',
-            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 8%,transparent) !important;color:var(--metis-color-primary,#485bc7) !important;}',
+            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 8%,transparent) !important;color:var(--metis-color-primary,#485bc7) !important;}',
+            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:0 12px 24px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 24%,transparent) !important;}',
             $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link::after,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn::after{transform:scaleX(1);}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
-            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:0 !important;z-index:1200 !important;min-width:max(100%,15rem) !important;width:max-content !important;margin:0 !important;padding:.5rem !important;border:1px solid var(--metis-color-border,#d8deea) !important;border-radius:14px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 18px 34px rgba(15,23,42,.16) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(10px) !important;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:hidden !important;}',
+            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:0 !important;z-index:1200 !important;min-width:max(100%,15rem) !important;width:max-content !important;margin:0 !important;padding:.5rem !important;border:1px solid var(--metis-color-border,#d8deea) !important;border-radius:14px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 18px 34px rgba(15,23,42,.16) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(10px) !important;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:visible !important;}',
+            $item . ' > .metis-shell-menu-sub::before{content:"";position:absolute;left:0;right:0;top:-16px;height:18px;background:transparent;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub{visibility:visible;opacity:1;pointer-events:auto;transform:translateY(0) !important;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item{display:block !important;width:100%;min-width:0;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:flex-start !important;width:100%;min-height:0 !important;padding:.82rem .9rem !important;border:0 !important;border-radius:10px !important;background:transparent !important;color:var(--metis-color-text,#1a1f2b) !important;font-size:.95rem !important;font-weight:650 !important;letter-spacing:0 !important;line-height:1.1 !important;text-align:left;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .18s ease,color .18s ease,transform .18s ease;}',
@@ -5718,12 +5926,14 @@ final class WebsiteRenderer {
             $item . ':not(:has(> .metis-shell-menu-btn)):is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{color:color-mix(in srgb,var(--metis-color-primary,#485bc7) 88%,#0f172a) !important;transform:translateY(-1px);}',
             $item . ' > .metis-shell-menu-btn{padding:.92rem 1.35rem !important;border-radius:8px !important;color:#fff !important;border:0 !important;box-shadow:none !important;}',
             $item . ' > .metis-shell-menu-btn--metis_accent{--metis-menu-button-bg:var(--metis-color-accent,#ff7542) !important;}',
-            $item . ' > .metis-shell-menu-btn--metis_primary{--metis-menu-button-bg:#57b53b !important;--metis-menu-button-text:#fff !important;}',
-            $item . ' > .metis-shell-menu-btn--metis_text{--metis-menu-button-bg:var(--metis-color-primary,#485bc7) !important;--metis-menu-button-text:#fff !important;}',
+            $item . ' > .metis-shell-menu-btn--metis_primary{--metis-menu-button-bg:var(--metis-color-primary,#485bc7) !important;--metis-menu-button-text:var(--metis-color-button_text,#fff) !important;}',
+            $item . ' > .metis-shell-menu-btn--metis_text{--metis-menu-button-bg:var(--metis-color-text,#1a1f2b) !important;--metis-menu-button-text:var(--metis-color-bg,#fff) !important;}',
+            $item . ' > .metis-shell-menu-btn--metis_surface{--metis-menu-button-bg:var(--metis-color-surface,#fff) !important;--metis-menu-button-text:var(--metis-color-text,#1a1f2b) !important;--metis-menu-button-border:var(--metis-color-border,#d8deea) !important;}',
             $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible{transform:translateY(-1px);filter:none !important;box-shadow:0 10px 20px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-accent,#ff7542)) 18%,transparent) !important;}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{margin-left:.4rem;width:7px;height:7px;color:currentColor;border-color:currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
-            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:50% !important;z-index:1200 !important;min-width:14rem !important;width:max-content !important;margin:0 !important;padding:.55rem !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 88%,#ffffff) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 18px 40px rgba(15,23,42,.12) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translate(-50%,12px) !important;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:hidden !important;}',
+            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:50% !important;z-index:1200 !important;min-width:14rem !important;width:max-content !important;margin:0 !important;padding:.55rem !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 88%,#ffffff) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 18px 40px rgba(15,23,42,.12) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translate(-50%,12px) !important;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:visible !important;}',
+            $item . ' > .metis-shell-menu-sub::before{content:"";position:absolute;left:0;right:0;top:-16px;height:18px;background:transparent;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub{visibility:visible;opacity:1;pointer-events:auto;transform:translate(-50%,0) !important;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item{display:block !important;width:100%;min-width:0;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:flex-start !important;width:100%;min-height:0 !important;padding:.8rem .95rem !important;border:0 !important;border-radius:12px !important;background:transparent !important;color:var(--metis-color-primary,#485bc7) !important;font-size:.94rem !important;font-weight:700 !important;letter-spacing:0 !important;line-height:1.1 !important;text-align:left !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .18s ease,color .18s ease,transform .18s ease;}',
@@ -5754,16 +5964,17 @@ final class WebsiteRenderer {
             $list . '{display:flex !important;flex-wrap:wrap !important;align-items:center !important;justify-content:center !important;gap:.65rem .8rem !important;width:100%;margin:0 !important;padding:.55rem !important;list-style:none !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 84%,var(--metis-color-primary,#485bc7) 16%) !important;border-radius:20px !important;background:color-mix(in srgb,var(--metis-color-surface,#fff) 92%,var(--metis-color-primary,#485bc7) 8%) !important;box-shadow:0 16px 34px rgba(15,23,42,.10) !important;overflow:visible !important;}',
             $item . '{position:relative;display:flex !important;align-items:stretch !important;justify-content:center !important;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;}',
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:center !important;gap:.55rem !important;min-width:max-content;min-height:46px !important;padding:.82rem 1.1rem !important;border:1px solid transparent !important;border-radius:14px !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-primary,#485bc7) !important;font-size:var(--metis-menu-font-size,14px) !important;font-weight:760 !important;letter-spacing:-.01em !important;line-height:1.1 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease;}',
-            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn{background:var(--metis-color-surface,#fff) !important;border-color:color-mix(in srgb,var(--metis-color-border,#d8deea) 80%,var(--metis-color-primary,#485bc7) 20%) !important;color:color-mix(in srgb,var(--metis-color-primary,#485bc7) 88%,#0f172a) !important;box-shadow:0 10px 22px rgba(15,23,42,.10) !important;transform:translateY(-1px);}',
+            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:var(--metis-color-surface,#fff) !important;border-color:color-mix(in srgb,var(--metis-color-border,#d8deea) 80%,var(--metis-color-primary,#485bc7) 20%) !important;color:color-mix(in srgb,var(--metis-color-primary,#485bc7) 88%,#0f172a) !important;box-shadow:0 10px 22px rgba(15,23,42,.10) !important;transform:translateY(-1px);}',
             $item . ' > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;border-color:transparent !important;box-shadow:0 12px 24px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 22%,transparent) !important;}',
             $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible{transform:translateY(-1px);filter:none !important;box-shadow:0 14px 28px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 28%,transparent) !important;}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
-            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:calc(100% + .45rem) !important;left:0 !important;z-index:1200 !important;min-width:max(100%,15rem) !important;width:max-content !important;margin:0 !important;padding:.6rem !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 86%,#ffffff) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 20px 40px rgba(15,23,42,.14) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(10px) scale(.98) !important;transform-origin:top left;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:hidden !important;}',
+            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:calc(100% + .45rem) !important;left:0 !important;z-index:1200 !important;min-width:max(100%,15rem) !important;width:max-content !important;margin:0 !important;padding:.6rem !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 86%,#ffffff) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:0 20px 40px rgba(15,23,42,.14) !important;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(10px) scale(.98) !important;transform-origin:top left;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:visible !important;}',
+            $item . ' > .metis-shell-menu-sub::before{content:"";position:absolute;left:0;right:0;top:-16px;height:18px;background:transparent;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub{visibility:visible;opacity:1;pointer-events:auto;transform:translateY(0) scale(1) !important;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item{display:block !important;width:100%;min-width:0;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:flex-start !important;width:100%;min-height:0 !important;padding:.82rem .95rem !important;border:0 !important;border-radius:12px !important;background:transparent !important;color:var(--metis-color-text,#1a1f2b) !important;font-size:.94rem !important;font-weight:650 !important;letter-spacing:0 !important;line-height:1.1 !important;text-align:left !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .18s ease,color .18s ease,transform .18s ease;}',
-            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item.is-active > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item.is-active > .metis-shell-menu-btn{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 8%,#ffffff) !important;color:var(--metis-color-primary,#485bc7) !important;transform:translateX(2px);}',
+            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item.is-active > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item.is-active > .metis-shell-menu-btn{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 8%,#ffffff) !important;color:var(--metis-color-primary,#485bc7) !important;transform:none !important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--metis-color-primary,#485bc7) 14%,transparent) !important;}',
             '@media (prefers-reduced-motion: reduce){' . $scope . ' *{transition:none !important;}}',
         ] );
     }
@@ -5786,13 +5997,15 @@ final class WebsiteRenderer {
             $item . ':first-child > .metis-shell-menu-link,' . $item . ':first-child > .metis-shell-menu-btn{opacity:1;}',
             $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn{opacity:1 !important;}',
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{position:relative;z-index:1;display:flex !important;align-items:center !important;justify-content:center !important;width:100% !important;min-width:0;max-width:100%;min-height:0 !important;padding:2rem .9rem !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-button_text,#fff) !important;font-size:var(--metis-menu-font-size,19px) !important;font-weight:500 !important;letter-spacing:0 !important;text-decoration:none !important;text-transform:uppercase !important;text-align:center;white-space:nowrap !important;overflow:hidden;text-overflow:ellipsis;line-height:1.1 !important;opacity:.7;text-shadow:0 1px 1px rgba(0,0,0,.28);transition:opacity 250ms ease,color 250ms ease,background-color 250ms ease,box-shadow 250ms ease;}',
+            $item . ' > .metis-shell-menu-btn{width:auto !important;min-width:max-content !important;max-width:none !important;margin:.7rem .55rem !important;padding:1rem 1.25rem !important;border:1px solid var(--metis-menu-button-border,rgba(255,255,255,.3)) !important;border-radius:999px !important;background:var(--metis-menu-button-bg,var(--metis-glide-accent,var(--metis-color-accent,#ff7542))) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:0 12px 26px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-glide-accent,var(--metis-color-accent,#ff7542))) 22%,transparent) !important;opacity:1 !important;text-shadow:none !important;flex:0 0 auto !important;}',
             $item . ' > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-btn:focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:-4px;}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform 250ms ease;}',
-            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:0 !important;width:100% !important;min-width:max(100%,180px) !important;z-index:1200 !important;visibility:hidden;opacity:1 !important;pointer-events:none;transform:none !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;padding:0 !important;margin:0 !important;overflow:visible !important;}',
+            $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:0 !important;width:max-content !important;min-width:max(100%,18rem) !important;max-width:min(32rem,calc(100vw - 32px)) !important;z-index:1200 !important;visibility:hidden;opacity:1 !important;pointer-events:none;transform:none !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;padding:0 !important;margin:0 !important;overflow:visible !important;}',
+            $item . ' > .metis-shell-menu-sub::before{content:"";position:absolute;left:0;right:0;top:-16px;height:18px;background:transparent;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub{visibility:visible;pointer-events:auto;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item{width:100%;margin-top:.5rem;transform:scale(0);transform-origin:top center;transition:250ms cubic-bezier(.42,.83,.49,1.35) transform;}',
             $item . ':is(:hover,:focus-within,.is-open) > .metis-shell-menu-sub > .metis-shell-menu-item{transform:scale(1);}',
-            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:block !important;width:100%;min-height:0 !important;padding:.85rem .7rem !important;border:0 !important;border-radius:.25rem !important;background:var(--metis-glide-accent,var(--metis-color-accent,#ff7542)) !important;color:rgba(255,255,255,.86) !important;text-align:center;font-size:1rem !important;font-weight:550 !important;letter-spacing:0 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;opacity:1;text-shadow:0 1px 1px rgba(0,0,0,.22);box-shadow:inset 0 0 0 3rem rgba(0,0,0,0);transition:250ms ease all;}',
+            $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn{display:block !important;width:100%;min-height:0 !important;padding:.85rem .9rem !important;border:0 !important;border-radius:.25rem !important;background:var(--metis-glide-accent,var(--metis-color-accent,#ff7542)) !important;color:#fff !important;text-align:center;font-size:1rem !important;font-weight:550 !important;letter-spacing:0 !important;text-decoration:none !important;text-transform:none !important;white-space:normal !important;line-height:1.3 !important;opacity:1;text-shadow:0 1px 1px rgba(0,0,0,.22);box-shadow:inset 0 0 0 3rem rgba(0,0,0,0);transition:250ms ease all;}',
             $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-link:focus-visible,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-sub > .metis-shell-menu-item > .metis-shell-menu-btn:focus-visible{box-shadow:inset 0 0 0 3rem rgba(0,0,0,.1);color:#fff !important;}',
             '@media (prefers-reduced-motion: reduce){' . $scope . ' *{transition:none !important;}}',
         ];
@@ -5970,7 +6183,11 @@ final class WebsiteRenderer {
             '.metis-template-footer-menu .metis-shell-menu-list{display:flex;flex-wrap:wrap;gap:8px 12px;list-style:none;margin:0;padding:0;}',
             '.metis-template-footer-menu .metis-shell-footer-menu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,170px));gap:14px;max-width:620px;}',
             '.metis-template-footer-meta{color:var(--metis-color-muted,#64748b);font-size:13px;}',
-            '.metis-template-page-header{padding:20px 0 8px;}',
+            '.metis-template-page-header{position:relative;left:50%;clear:both;width:100vw;max-width:none;margin:0 0 26px -50vw;padding:0;}',
+            '.metis-template-page-header > .metis-structured-section__inner{max-width:none;padding:0;}',
+            '.metis-template-page-header .metis-structured-section__content{width:100%;}',
+            '.metis-template-page-header .metis-structured-heading-wrap.is-section-header{display:grid;place-items:center;min-height:152px;margin:0;padding:48px 24px;background:linear-gradient(180deg,color-mix(in srgb,var(--metis-color-primary,#485bc7) 6%,#ffffff) 0%,color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 92%,#ffffff) 100%);}',
+            '.metis-template-page-header__title{color:var(--metis-color-primary,#485bc7);font-size:clamp(2.25rem,4.6vw,4.4rem);line-height:.98;letter-spacing:-.03em;font-weight:800;text-wrap:balance;}',
             '.metis-template-page-header-centered{text-align:center;}',
             '.metis-template-post-header{padding:12px 0 18px;display:grid;gap:10px;}',
             '.metis-template-post-header .metis-structured-section__head--post{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;left:50%;width:100vw;max-width:none;min-height:120px;margin:0 0 10px -50vw;padding:35px 24px;border:0;border-radius:0;box-shadow:none;text-align:center;box-sizing:border-box;}',
@@ -5997,8 +6214,8 @@ final class WebsiteRenderer {
             '.metis-template-compact_app_style .metis-template-header-inner{gap:10px;}',
             '.metis-template-content-centered{max-width:760px;margin:0 auto;}',
             '@media (max-width: 980px){.metis-template-grid{grid-template-columns:1fr;}.metis-template-editorial-shell{grid-template-columns:1fr;}.metis-template-editorial-rail{position:static;flex-direction:row;justify-content:space-between;}}',
-            '@media (max-width: 980px){.metis-template{padding:0 12px 0;}.metis-template-header{flex-direction:column;align-items:flex-start;}.metis-template-brand-logo{max-height:72px;max-width:220px;}}',
-            '@media (max-width: 980px){.metis-template-hero-style-split{grid-template-columns:1fr;}.metis-template-hero-shell{gap:12px;}}',
+            '@media (max-width: 980px){.metis-template{padding:0 12px 0;}.metis-template-header{flex-direction:column;align-items:flex-start;}.metis-template-brand-logo{max-height:72px;max-width:220px;}.metis-template-page-header{margin-bottom:22px;}.metis-template-page-header .metis-structured-heading-wrap.is-section-header{min-height:132px;padding:38px 20px;}}',
+            '@media (max-width: 980px){.metis-template-hero-style-split{grid-template-columns:1fr;}.metis-template-hero-shell{gap:12px;}.metis-template-page-header .metis-structured-heading-wrap.is-section-header{min-height:132px;padding:38px 20px;margin-bottom:22px;}.metis-template-page-header__title{font-size:clamp(2rem,9vw,3.2rem);}}',
             '@media (max-width: 980px){.metis-template-footer-inner{grid-template-columns:1fr;}.metis-template-footer-meta{text-align:left;}}',
             '@media (max-width: 980px){.metis-template-main[data-has-sidebar="1"] .metis-template-main-inner{display:block;}}',
         ] );
@@ -6009,30 +6226,38 @@ final class WebsiteRenderer {
             '.metis-template .metis-template-header{display:block !important;}',
             '.metis-template .metis-template-header-inner{display:flex !important;align-items:center !important;justify-content:space-between !important;gap:18px !important;}',
             '.metis-template .metis-template-header-brand{display:flex;align-items:center;justify-content:flex-start;}',
-            '.metis-template .metis-template-menu{display:flex !important;align-items:center !important;justify-content:flex-end !important;min-width:0;overflow:visible;}',
+            '.metis-template .metis-template-menu{display:flex !important;align-items:center !important;justify-content:flex-end !important;min-width:0;overflow:visible;flex:1 1 auto;}',
+            '.metis-template .metis-template-menu-cta{display:flex !important;align-items:center !important;justify-content:flex-end !important;flex:0 0 auto;min-width:0;overflow:visible;}',
             '.metis-template .metis-template-menu .metis-shell-menu-list{display:flex !important;justify-content:flex-end !important;align-items:var(--metis-menu-item-align,center) !important;flex-wrap:wrap !important;gap:10px var(--metis-menu-item-gap,16px) !important;list-style:none;margin:0;padding:0;overflow:visible;}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-list{display:flex !important;justify-content:flex-end !important;align-items:center !important;flex-wrap:wrap !important;gap:10px !important;list-style:none;margin:0;padding:0;overflow:visible;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-link,.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn{text-decoration:none;color:var(--metis-color-text,#1a1f2b);font-weight:600;font-size:var(--metis-menu-font-size,14px);padding:0 10px;min-height:40px;display:inline-flex;align-items:var(--metis-menu-item-align,center);justify-content:center;gap:8px;border:0;background:transparent;box-sizing:border-box;cursor:pointer;font-family:inherit;border-radius:var(--metis-menu-item-radius,10px);line-height:1;}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn{text-decoration:none;font-weight:700;font-size:var(--metis-menu-font-size,14px);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:var(--metis-menu-button-padding-y,10px) var(--metis-menu-button-padding-x,14px);min-height:0;border:1px solid var(--metis-menu-button-border,transparent);background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7));box-sizing:border-box;cursor:pointer;font-family:inherit;border-radius:var(--metis-menu-button-radius,999px);line-height:1;color:var(--metis-menu-button-text,#fff);-webkit-appearance:none;appearance:none;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn{padding:var(--metis-menu-button-padding-y,10px) var(--metis-menu-button-padding-x,14px);min-height:0;border-radius:var(--metis-menu-button-radius,10px);background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7));color:var(--metis-menu-button-text,#fff);border:1px solid var(--metis-menu-button-border,transparent);line-height:1;-webkit-appearance:none;appearance:none;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_primary,.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_accent,.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_text,.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_surface{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7));color:var(--metis-menu-button-text,#fff);border:1px solid var(--metis-menu-button-border,transparent);}',
-            '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_primary{--metis-menu-button-bg:var(--metis-color-primary,#485bc7);--metis-menu-button-text:var(--metis-color-button_text,#fff);--metis-menu-button-border:transparent;}',
-            '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_accent{--metis-menu-button-bg:var(--metis-color-accent,#ff7542);--metis-menu-button-text:var(--metis-color-button_text,#fff);--metis-menu-button-border:transparent;}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_primary,.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_accent,.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_text,.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_surface{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7));color:var(--metis-menu-button-text,#fff);border:1px solid var(--metis-menu-button-border,transparent);}',
+            '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_primary{--metis-menu-button-bg:var(--metis-color-primary,#485bc7);--metis-menu-button-text:#fff;--metis-menu-button-border:transparent;}',
+            '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_accent{--metis-menu-button-bg:var(--metis-color-accent,#ff7542);--metis-menu-button-text:#fff;--metis-menu-button-border:transparent;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_text{--metis-menu-button-bg:var(--metis-color-text,#1a1f2b);--metis-menu-button-text:var(--metis-color-bg,#fff);--metis-menu-button-border:transparent;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item>.metis-shell-menu-btn--metis_surface{--metis-menu-button-bg:var(--metis-color-surface,#fff);--metis-menu-button-text:var(--metis-color-text,#1a1f2b);--metis-menu-button-border:var(--metis-color-border,#d8deea);}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_primary{--metis-menu-button-bg:var(--metis-color-primary,#485bc7);--metis-menu-button-text:#fff;--metis-menu-button-border:transparent;}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_accent{--metis-menu-button-bg:var(--metis-color-accent,#ff7542);--metis-menu-button-text:#fff;--metis-menu-button-border:transparent;}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_text{--metis-menu-button-bg:var(--metis-color-text,#1a1f2b);--metis-menu-button-text:var(--metis-color-bg,#fff);--metis-menu-button-border:transparent;}',
+            '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_surface{--metis-menu-button-bg:var(--metis-color-surface,#fff);--metis-menu-button-text:var(--metis-color-text,#1a1f2b);--metis-menu-button-border:var(--metis-color-border,#d8deea);}',
             '.metis-template .metis-template-menu .metis-shell-menu-label:not([tabindex]){cursor:default;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item.has-children{z-index:40;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item.has-children>.metis-shell-menu-label{cursor:pointer;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item .metis-shell-menu-sub-indicator{display:inline-flex;align-items:center;justify-content:center;width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-3px);opacity:.9;flex-shrink:0;}',
             '.metis-template .metis-template-menu .metis-shell-menu-sub{z-index:1200;padding:6px;border-radius:var(--metis-menu-dropdown-radius,10px);}',
             '.metis-template .metis-template-menu .metis-shell-menu-sub .metis-shell-menu-item{width:100%;}',
-            '.metis-template .metis-template-menu .metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-link,.metis-template .metis-template-menu .metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-btn{display:flex;align-items:var(--metis-menu-item-align,center);justify-content:flex-start;gap:8px;width:100%;box-sizing:border-box;padding:7px 10px;background:transparent;border-radius:8px;color:var(--metis-menu-dropdown-text,var(--metis-color-text,#1a1f2b));font-weight:var(--metis-menu-dropdown-weight,500);transition:background-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease,background-position .24s ease,background-size .24s ease;}',
+            '.metis-template .metis-template-menu .metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-link,.metis-template .metis-template-menu .metis-shell-menu-sub .metis-shell-menu-item>.metis-shell-menu-btn{display:flex;align-items:var(--metis-menu-item-align,center);justify-content:flex-start;gap:8px;width:100%;box-sizing:border-box;padding:7px 10px;white-space:normal;line-height:1.35;background:transparent;border-radius:8px;color:var(--metis-menu-dropdown-text,var(--metis-color-text,#1a1f2b));font-weight:var(--metis-menu-dropdown-weight,500);transition:background-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease,background-position .24s ease,background-size .24s ease;}',
             self::codepenGlideMenuCss( 'body.metis-menu-style-h_glide .metis-template .metis-template-menu' ),
             self::outlineTabsMenuCss( 'body.metis-menu-style-h_outline_tabs .metis-template .metis-template-menu' ),
             self::pillDropdownMenuCss( 'body.metis-menu-style-h_pill_dropdown .metis-template .metis-template-menu' ),
             self::modernBarMenuCss( 'body.metis-menu-style-h_modern_bar .metis-template .metis-template-menu' ),
             self::showcaseButtonsMenuCss( 'body.metis-menu-style-h_showcase_buttons .metis-template .metis-template-menu', 'body.metis-menu-style-h_showcase_buttons .metis-template .metis-template-header' ),
-            self::menuButtonAttentionCss( '.metis-template .metis-template-menu' ),
+            self::menuButtonAttentionCss( '.metis-template .metis-template-menu-cta' ),
             self::stickyHeaderCss(),
-            '@media (max-width: 980px){.metis-template .metis-template-header-inner{display:grid !important;grid-template-columns:minmax(0,1fr) auto !important;align-items:center !important;gap:12px !important;}.metis-template .metis-template-menu{justify-content:flex-start !important;}}',
+            '@media (max-width: 980px){.metis-template .metis-template-header-inner{display:grid !important;grid-template-columns:minmax(0,1fr) auto !important;align-items:center !important;gap:12px !important;}.metis-template .metis-template-menu{justify-content:flex-start !important;}.metis-template .metis-template-menu-cta{grid-column:1/-1;justify-content:flex-start !important;}}',
             self::mobileFlyoutMenuCss(),
         ] );
     }

@@ -125,12 +125,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (avatar && p.avatar_url) {
             avatar.src = String(p.avatar_url);
         }
-        const publicSlug = document.getElementById('metis-profile-public-slug');
         const publicTagline = document.getElementById('metis-profile-public-tagline');
         const publicVisibility = document.getElementById('metis-profile-public-visibility');
         const publicBioEditor = document.getElementById('metis-profile-public-bio-editor');
         const publicBioHidden = document.getElementById('metis-profile-public-bio-html');
-        if (publicSlug) publicSlug.value = String(p.public_slug || '');
         if (publicTagline) publicTagline.value = String(p.public_tagline || '');
         if (publicVisibility) publicVisibility.value = String(p.public_visibility || 'private');
         if (publicBioEditor) publicBioEditor.innerHTML = String(p.public_bio_html || '');
@@ -231,37 +229,83 @@ document.addEventListener('DOMContentLoaded', function () {
         const hidden = document.querySelector(hiddenSelector);
         if (!toolbar || !editor || !hidden) return;
 
-        function sync() {
+        function sync(options) {
+            const shouldNormalize = !!(options && options.normalize);
             if (window.Metis && Metis.ui && Metis.ui.richText) {
-                editor.innerHTML = Metis.ui.richText.normalizeHtml(String(editor.innerHTML || ''));
-                Metis.ui.richText.bindIconFallbacks(editor);
+                if (shouldNormalize) {
+                    editor.innerHTML = Metis.ui.richText.normalizeHtml(String(editor.innerHTML || ''));
+                }
+                Metis.ui.richText.bindIconFallbacks(toolbar.closest('.metis-rich-text') || toolbar);
             }
             hidden.value = String(editor.innerHTML || '');
         }
 
-        toolbar.addEventListener('click', function (event) {
-            const button = event.target.closest('[data-rich-cmd],[data-rich-action]');
-            if (!button || !(window.Metis && Metis.ui && Metis.ui.richText)) return;
-            event.preventDefault();
-            Metis.ui.richText.saveSelection(editor);
-            if (button.hasAttribute('data-rich-action')) {
-                const action = String(button.getAttribute('data-rich-action') || '');
-                const value = action === 'link' ? window.prompt('Enter link URL', 'https://') : '';
-                if (action === 'link' && !value) return;
-                Metis.ui.richText.applyAction(editor, action, value || '', '');
-            } else {
-                Metis.ui.richText.applyCommand(
-                    editor,
-                    String(button.getAttribute('data-rich-cmd') || ''),
-                    String(button.getAttribute('data-rich-value') || '')
-                );
+        editor.addEventListener('focus', function () {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(editor);
+            }
+        });
+        ['mouseup', 'keyup', 'blur'].forEach(function (eventName) {
+            editor.addEventListener(eventName, function () {
+                if (window.Metis && Metis.ui && Metis.ui.richText) {
+                    Metis.ui.richText.saveSelection(editor);
+                }
+                if (eventName === 'blur') {
+                    sync();
+                }
+            });
+        });
+        editor.addEventListener('input', function () {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(editor);
             }
             sync();
         });
+        toolbar.addEventListener('click', async function (event) {
+            if (!(window.Metis && Metis.ui && Metis.ui.richText)) return;
+            const toggle = event.target.closest('[data-rich-toggle="menu"]');
+            if (toggle) {
+                event.preventDefault();
+                const dropdown = toggle.closest('.metis-se-rich-dropdown');
+                toolbar.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
+                    if (node !== dropdown) node.classList.remove('is-open');
+                });
+                if (dropdown) dropdown.classList.toggle('is-open');
+                return;
+            }
 
-        editor.addEventListener('input', sync);
-        editor.addEventListener('blur', sync);
-        sync();
+            const action = event.target.closest('[data-rich-action]');
+            if (action) {
+                event.preventDefault();
+                Metis.ui.richText.applyAction(
+                    editor,
+                    String(action.getAttribute('data-rich-action') || ''),
+                    String(action.getAttribute('data-rich-value') || ''),
+                    String(action.getAttribute('data-rich-color') || '')
+                );
+                Metis.ui.richText.closeMenus(toolbar);
+                sync({ normalize: true });
+                return;
+            }
+
+            const command = event.target.closest('[data-rich-cmd]');
+            if (command) {
+                event.preventDefault();
+                await Metis.ui.richText.applyCommand(
+                    editor,
+                    String(command.getAttribute('data-rich-cmd') || ''),
+                    String(command.getAttribute('data-rich-value') || '')
+                );
+                Metis.ui.richText.closeMenus(toolbar);
+                sync({ normalize: true });
+            }
+        });
+        document.addEventListener('click', function (event) {
+            if (!toolbar.contains(event.target) && window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.closeMenus(toolbar);
+            }
+        });
+        sync({ normalize: true });
     }
 
     const profileForm = document.getElementById('metis-profile-form');
@@ -272,7 +316,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 first_name: (document.getElementById('metis-profile-first-name') || {}).value || '',
                 last_name: (document.getElementById('metis-profile-last-name') || {}).value || '',
                 display_name: (document.getElementById('metis-profile-display-name') || {}).value || '',
-                public_slug: (document.getElementById('metis-profile-public-slug') || {}).value || '',
                 public_tagline: (document.getElementById('metis-profile-public-tagline') || {}).value || '',
                 public_visibility: (document.getElementById('metis-profile-public-visibility') || {}).value || 'private',
                 public_bio_html: (document.getElementById('metis-profile-public-bio-html') || {}).value || '',
@@ -297,7 +340,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 first_name: (document.getElementById('metis-profile-first-name') || {}).value || '',
                 last_name: (document.getElementById('metis-profile-last-name') || {}).value || '',
                 display_name: (document.getElementById('metis-profile-display-name') || {}).value || '',
-                public_slug: (document.getElementById('metis-profile-public-slug') || {}).value || '',
                 public_tagline: (document.getElementById('metis-profile-public-tagline') || {}).value || '',
                 public_visibility: (document.getElementById('metis-profile-public-visibility') || {}).value || 'private',
                 public_bio_html: (document.getElementById('metis-profile-public-bio-html') || {}).value || '',

@@ -9,12 +9,12 @@ final class Support {
     }
 
     public static function personUrl( string $pid = '' ): string {
-        $base = \metis_portal_url( 'people', 'person' );
+        $base = rtrim( \metis_portal_url( 'people', 'person' ), '/' ) . '/';
         if ( $pid === '' ) {
             return $base;
         }
 
-        return $base . '?pid=' . rawurlencode( $pid );
+        return $base . rawurlencode( $pid ) . '/';
     }
 
     public static function peopleListUrl(): string {
