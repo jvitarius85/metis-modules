@@ -889,10 +889,21 @@
     const formEl = root.querySelector('[data-metis-forms-public-form]');
     const alertEl = root.querySelector('[data-metis-forms-alert]');
     const submitButton = root.querySelector('[data-metis-forms-submit-button]');
+    const submitActions = submitButton ? submitButton.closest('.metis-forms-public-actions') : null;
     const successOverlay = root.querySelector('[data-metis-forms-success-overlay]');
+    const loadingOverlay = root.querySelector('[data-metis-forms-loading-overlay]');
     if (!formEl) return;
 
     const paymentField = schema.find((field) => field && field.type === 'payment') || null;
+    const setLoadingOverlay = (visible, message) => {
+      if (!loadingOverlay) return;
+      const messageNode = loadingOverlay.querySelector('[data-metis-forms-loading-message]');
+      if (messageNode && typeof message === 'string' && message) {
+        messageNode.textContent = message;
+      }
+      loadingOverlay.hidden = !visible;
+      root.classList.toggle('is-loading-payment', !!visible);
+    };
     initFieldGroup(formEl, schema);
 
     root.addEventListener('click', (event) => {
@@ -994,6 +1005,7 @@
       payload.mode = 'prepare_payment';
 
       try {
+        setLoadingOverlay(true, 'Loading payment information...');
         const response = await publicRequest(form.submit_url || window.location.href, payload);
         if (!response.ok) {
           showPublicAlert(alertEl, response.message || 'Unable to start payment.', 'error');
@@ -1011,20 +1023,27 @@
         const paymentElement = paymentState.elements.create('payment');
         paymentElement.mount(paymentState.paymentMount);
         if (paymentState.stripePanel) paymentState.stripePanel.hidden = false;
+        if (submitActions) submitActions.hidden = true;
         showPublicAlert(alertEl, 'Payment details are ready. Complete the payment to finish the form.', 'success');
       } catch (error) {
         showPublicAlert(alertEl, error.message || 'Unable to start payment.', 'error');
+      } finally {
+        setLoadingOverlay(false);
       }
     });
 
     if (paymentState.confirmButton) {
       paymentState.confirmButton.addEventListener('click', async () => {
         if (!paymentState.stripe || !paymentState.elements || !paymentState.sessionKey) return;
+        paymentState.confirmButton.disabled = true;
+        setLoadingOverlay(true, 'Submitting payment...');
         const confirmation = await paymentState.stripe.confirmPayment({
           elements: paymentState.elements,
           redirect: 'if_required'
         });
         if (confirmation.error) {
+          setLoadingOverlay(false);
+          paymentState.confirmButton.disabled = false;
           showPublicAlert(alertEl, confirmation.error.message || 'Payment could not be completed.', 'error');
           return;
         }
@@ -1041,12 +1060,16 @@
             formEl.reset();
             formEl.dispatchEvent(new Event('change', {bubbles: true}));
             if (paymentState.stripePanel) paymentState.stripePanel.hidden = true;
+            if (submitActions) submitActions.hidden = false;
             updateTotals();
             hidePublicAlert(alertEl);
             showSuccessOverlay(root, result.message || 'Payment complete.');
           }
         } catch (error) {
           showPublicAlert(alertEl, error.message || 'Payment could not be finalized.', 'error');
+        } finally {
+          setLoadingOverlay(false);
+          paymentState.confirmButton.disabled = false;
         }
       });
     }
@@ -2964,3 +2987,10 @@
     return String(value || '').replace(/["\\#.;:?+*~\[\]()=><|/]/g, '\\$&');
   }
 })();
+    const setLoadingOverlay = (visible, message) => {
+      if (!loadingOverlay) return;
+      const messageNode = loadingOverlay.querySelector('[data-metis-forms-loading-message]');
+      if (messageNode && message) messageNode.textContent = String(message);
+      loadingOverlay.hidden = !visible;
+      root.classList.toggle('is-loading-payment', !!visible);
+    };

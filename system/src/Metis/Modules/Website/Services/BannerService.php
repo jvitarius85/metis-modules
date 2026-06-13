@@ -73,7 +73,7 @@ final class BannerService {
             return false;
         }
 
-        return (bool) self::db()->update( \Metis_Tables::get( 'website_banners' ), $update, [ 'id' => $id ] );
+        return self::db()->update( \Metis_Tables::get( 'website_banners' ), $update, [ 'id' => $id ] ) !== false;
     }
 
     public static function delete( int $id ): bool {

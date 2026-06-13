@@ -4,6 +4,9 @@ declare(strict_types=1);
 namespace Metis\Modules\Newsletter;
 
 final class SubscriptionService {
+    public const DEFAULT_SIGNUP_FORM_REF = '__newsletter_default_signup__';
+    public const DEFAULT_LIST_NAME = 'Newsletter';
+
     public static function upsert(array $input): array {
         NewsletterModule::ensureSchema();
 
@@ -16,7 +19,11 @@ final class SubscriptionService {
         $last_name = \metis_text_clean((string) ($input['last_name'] ?? ''));
         $list_id = (int) ($input['list_id'] ?? 0);
         $status = strtolower(trim((string) ($input['status'] ?? 'subscribed')));
+        $source = \metis_key_clean((string) ($input['source'] ?? 'metis_manual'));
         $status = in_array($status, ['subscribed', 'unsubscribed', 'bounced', 'rejected'], true) ? $status : 'subscribed';
+        if ($source === '') {
+            $source = 'metis_manual';
+        }
 
         if ($email === '' || $list_id < 1) {
             return ['success' => false, 'status' => 400, 'message' => 'Email and list are required.'];
@@ -35,7 +42,7 @@ final class SubscriptionService {
         $now = \metis_current_time('mysql');
         $payload = [
             'status' => $status,
-            'source' => 'metis_manual',
+            'source' => $source,
             'last_event_at' => $now,
             'updated_at' => $now,
         ];
@@ -115,5 +122,23 @@ final class SubscriptionService {
             'list_id' => $list_id,
             'status_value' => $status,
         ];
+    }
+
+    public static function defaultListId(): int {
+        NewsletterModule::ensureSchema();
+
+        $lists_table = \Metis_Tables::get('newsletter_lists');
+        if ($lists_table === '') {
+            return 0;
+        }
+
+        return max(0, (int) \metis_db()->scalar(
+            "SELECT id
+             FROM {$lists_table}
+             WHERE LOWER(name) = %s
+             ORDER BY is_active DESC, id ASC
+             LIMIT 1",
+            [ strtolower(self::DEFAULT_LIST_NAME) ]
+        ));
     }
 }

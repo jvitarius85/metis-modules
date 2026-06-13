@@ -1557,6 +1557,38 @@ Metis.ui.select = (function() {
 Metis.ui.richText = (function() {
     var selectionStore = Object.create(null);
     var iconMarkupCache = Object.create(null);
+    var sharedEmojiPicker = null;
+    var emojiCatalogPromise = null;
+    var emojiStarterItems = [
+        { emoji: '❤️', shortcode: ':heart:', label: 'Red Heart' },
+        { emoji: '💖', shortcode: ':sparkling_heart:', label: 'Sparkling Heart' },
+        { emoji: '✨', shortcode: ':sparkles:', label: 'Sparkles' },
+        { emoji: '🔥', shortcode: ':fire:', label: 'Fire' },
+        { emoji: '📣', shortcode: ':mega:', label: 'Megaphone' },
+        { emoji: '📬', shortcode: ':mailbox_with_mail:', label: 'Mailbox' },
+        { emoji: '📝', shortcode: ':memo:', label: 'Memo' },
+        { emoji: '🎉', shortcode: ':tada:', label: 'Party Popper' },
+        { emoji: '🙏', shortcode: ':pray:', label: 'Folded Hands' },
+        { emoji: '💝', shortcode: ':heart_with_ribbon:', label: 'Heart with Ribbon' },
+        { emoji: '📅', shortcode: ':calendar:', label: 'Calendar' },
+        { emoji: '🎯', shortcode: ':dart:', label: 'Target' },
+        { emoji: '⭐', shortcode: ':star:', label: 'Star' },
+        { emoji: '👋', shortcode: ':wave:', label: 'Wave' },
+        { emoji: '💙', shortcode: ':blue_heart:', label: 'Blue Heart' },
+        { emoji: '💚', shortcode: ':green_heart:', label: 'Green Heart' },
+        { emoji: '🩷', shortcode: ':pink_heart:', label: 'Pink Heart' },
+        { emoji: '💛', shortcode: ':yellow_heart:', label: 'Yellow Heart' }
+    ];
+
+    function s(value) {
+        return String(value == null ? '' : value);
+    }
+
+    function esc(value) {
+        return s(value).replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
 
     function appBasePath() {
         var ajax = String(
@@ -1647,6 +1679,279 @@ Metis.ui.richText = (function() {
                 img.src = fallback;
             }, { once: false });
             hydrateIcon(img);
+        });
+    }
+
+    function emojiValueFromInput(value) {
+        return s(value).trim();
+    }
+
+    function emojiCodepointsFromValue(value) {
+        var input = emojiValueFromInput(value);
+        if (!input) return [];
+        return Array.from(input).map(function(symbol) {
+            return s(symbol.codePointAt(0).toString(16).toUpperCase()).padStart(4, '0');
+        });
+    }
+
+    function normalizeEmojiAssetCodepoints(codepoints) {
+        var direct = Array.isArray(codepoints) ? codepoints.slice() : [];
+        var stripped = direct.filter(function(codepoint) {
+            return codepoint !== 'FE0F' && codepoint !== 'FE0E';
+        });
+        var variants = [];
+        if (direct.length) variants.push(direct);
+        if (stripped.length && stripped.join('-') !== direct.join('-')) variants.push(stripped);
+        return variants;
+    }
+
+    function emojiAssetBaseUrl() {
+        return appBasePath() + '/assets/Images/emojis/';
+    }
+
+    function emojiIndexUrl() {
+        return emojiAssetBaseUrl() + 'emoji-index.json';
+    }
+
+    function emojiAssetUrlCandidatesFromValue(value) {
+        var codepoints = emojiCodepointsFromValue(value);
+        if (!codepoints.length) return [];
+        var urls = [];
+        normalizeEmojiAssetCodepoints(codepoints).forEach(function(variant) {
+            var candidate = emojiAssetBaseUrl() + variant.join('-') + '.svg';
+            if (urls.indexOf(candidate) === -1) {
+                urls.push(candidate);
+            }
+        });
+        return urls;
+    }
+
+    function emojiAssetUrlFromItem(item) {
+        var candidates = [];
+        if (item && item.file) {
+            candidates = [ emojiAssetBaseUrl() + s(item.file) ];
+        } else {
+            candidates = emojiAssetUrlCandidatesFromValue(item && item.emoji ? item.emoji : '');
+        }
+        return candidates.length ? candidates[0] : '';
+    }
+
+    function emojiAssetCandidatesAttrForItem(item) {
+        var candidates = [];
+        if (item && item.file) {
+            candidates = [ emojiAssetBaseUrl() + s(item.file) ];
+        } else {
+            candidates = emojiAssetUrlCandidatesFromValue(item && item.emoji ? item.emoji : '');
+        }
+        return candidates.join('|');
+    }
+
+    function bindEmojiAssetFallback(img) {
+        if (!img || img.getAttribute('data-emoji-fallback-bound') === '1') return;
+        img.setAttribute('data-emoji-fallback-bound', '1');
+        img.addEventListener('error', function() {
+            var candidates = s(img.getAttribute('data-emoji-src-candidates') || '').split('|').filter(Boolean);
+            var current = s(img.getAttribute('src') || '');
+            var next = '';
+            for (var i = 0; i < candidates.length; i += 1) {
+                if (candidates[i] !== current) {
+                    next = candidates[i];
+                    break;
+                }
+            }
+            if (next) {
+                img.setAttribute('src', next);
+                img.setAttribute('data-emoji-src-candidates', candidates.filter(function(candidate) {
+                    return candidate !== current;
+                }).join('|'));
+                return;
+            }
+            img.classList.add('is-broken');
+        });
+    }
+
+    function normalizeEmojiCatalogItem(item) {
+        if (!item || typeof item !== 'object') return null;
+        var emoji = emojiValueFromInput(item.emoji || '');
+        if (!emoji) return null;
+        var shortcode = s(item.shortcode || '').trim();
+        var label = s(item.label || shortcode || emoji).trim();
+        return {
+            key: s(item.key || item.file || emoji + '|' + shortcode),
+            emoji: emoji,
+            shortcode: shortcode,
+            label: label,
+            file: s(item.file || '').trim(),
+            search: [label, shortcode, emoji].join(' ').toLowerCase()
+        };
+    }
+
+    function loadEmojiCatalog() {
+        if (emojiCatalogPromise) return emojiCatalogPromise;
+        emojiCatalogPromise = fetch(emojiIndexUrl(), { credentials: 'same-origin' }).then(function(response) {
+            if (!response || !response.ok) throw new Error('emoji index unavailable');
+            return response.json();
+        }).then(function(payload) {
+            var items = Array.isArray(payload) ? payload : (Array.isArray(payload.items) ? payload.items : []);
+            var normalized = items.map(normalizeEmojiCatalogItem).filter(Boolean);
+            if (!normalized.length) throw new Error('emoji index empty');
+            return normalized;
+        }).catch(function() {
+            return emojiStarterItems.map(normalizeEmojiCatalogItem).filter(Boolean);
+        });
+        return emojiCatalogPromise;
+    }
+
+    function ensureEmojiPicker() {
+        if (sharedEmojiPicker) return sharedEmojiPicker;
+        var backdrop = document.createElement('div');
+        backdrop.className = 'metis-modal-backdrop metis-emoji-picker-backdrop';
+        backdrop.setAttribute('aria-hidden', 'true');
+        backdrop.innerHTML =
+            '<div class="metis-modal metis-emoji-picker-modal" role="dialog" aria-modal="true" aria-labelledby="metis-emoji-picker-title">' +
+                '<div class="metis-modal-header">' +
+                    '<h2 class="metis-modal-title" id="metis-emoji-picker-title">Insert Emoji</h2>' +
+                    '<button type="button" class="metis-modal-close" data-emoji-picker-close="1" aria-label="Close">&times;</button>' +
+                '</div>' +
+                '<div class="metis-modal-body metis-emoji-picker-body">' +
+                    '<label class="metis-label" for="metis-emoji-picker-search">Emoji or shortcode</label>' +
+                    '<input type="text" id="metis-emoji-picker-search" class="metis-input" placeholder="Type 💖, 🎉, or :sparkles:">' +
+                    '<div class="metis-emoji-picker-help">Search by emoji, name, or shortcode.</div>' +
+                    '<div class="metis-emoji-picker-grid" data-emoji-picker-grid="1"></div>' +
+                '</div>' +
+                '<div class="metis-modal-footer">' +
+                    '<button type="button" class="metis-btn metis-btn-ghost" data-emoji-picker-close="1">Cancel</button>' +
+                    '<button type="button" class="metis-btn" data-emoji-picker-insert="1">Insert</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(backdrop);
+        var search = backdrop.querySelector('#metis-emoji-picker-search');
+        var grid = backdrop.querySelector('[data-emoji-picker-grid="1"]');
+        var insert = backdrop.querySelector('[data-emoji-picker-insert="1"]');
+        var renderToken = 0;
+        var nodeCache = {};
+
+        function buttonForItem(item) {
+            var key = s(item && (item.key || item.file || item.emoji));
+            if (key && nodeCache[key]) return nodeCache[key];
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'metis-emoji-picker-item';
+            button.setAttribute('data-emoji-value', s(item && item.emoji || ''));
+            button.setAttribute('title', s(item && item.label || item && item.emoji || ''));
+            button.setAttribute('aria-label', s(item && item.label || item && item.emoji || ''));
+            var src = emojiAssetUrlFromItem(item);
+            if (src) {
+                var img = document.createElement('img');
+                img.className = 'metis-emoji-picker-icon';
+                img.setAttribute('src', src);
+                img.setAttribute('alt', s(item && item.emoji || ''));
+                img.setAttribute('loading', 'lazy');
+                img.setAttribute('data-emoji-src-candidates', emojiAssetCandidatesAttrForItem(item));
+                bindEmojiAssetFallback(img);
+                button.appendChild(img);
+            } else {
+                button.textContent = s(item && item.emoji || '');
+            }
+            if (key) nodeCache[key] = button;
+            return button;
+        }
+
+        function renderItems(items, emptyMessage) {
+            grid.replaceChildren();
+            if (!items.length) {
+                grid.innerHTML = '<div class="metis-emoji-picker-empty">' + esc(emptyMessage || 'No matching emoji found.') + '</div>';
+                return;
+            }
+            var fragment = document.createDocumentFragment();
+            items.forEach(function(item) {
+                fragment.appendChild(buttonForItem(item));
+            });
+            grid.appendChild(fragment);
+        }
+
+        function filterItems(items, filter) {
+            var query = s(filter || '').trim().toLowerCase();
+            if (!query) return emojiStarterItems.map(normalizeEmojiCatalogItem).filter(Boolean);
+            return items.filter(function(item) {
+                return s(item.emoji).toLowerCase().indexOf(query) !== -1
+                    || s(item.shortcode).toLowerCase().indexOf(query) !== -1
+                    || s(item.label).toLowerCase().indexOf(query) !== -1
+                    || s(item.search).indexOf(query) !== -1;
+            }).slice(0, 240);
+        }
+
+        function render(filterValue) {
+            var token = ++renderToken;
+            var filter = s(filterValue || '').trim().toLowerCase();
+            if (!filter) {
+                renderItems(emojiStarterItems.map(normalizeEmojiCatalogItem).filter(Boolean), 'No emoji available.');
+                return;
+            }
+            renderItems([], 'Loading emoji library...');
+            loadEmojiCatalog().then(function(items) {
+                if (token !== renderToken) return;
+                renderItems(filterItems(items, filter), 'No matching emoji found. You can still insert a typed emoji or shortcode.');
+            }).catch(function() {
+                if (token !== renderToken) return;
+                renderItems(filterItems(emojiStarterItems.map(normalizeEmojiCatalogItem).filter(Boolean), filter), 'No matching emoji found. You can still insert a typed emoji or shortcode.');
+            });
+        }
+
+        function close(result) {
+            backdrop.setAttribute('aria-hidden', 'true');
+            backdrop.classList.remove('is-open');
+            var resolver = sharedEmojiPicker && sharedEmojiPicker.resolve;
+            sharedEmojiPicker.resolve = null;
+            if (resolver) resolver(result || null);
+        }
+
+        backdrop.addEventListener('click', function(event) {
+            var item = event.target.closest('.metis-emoji-picker-item');
+            if (item) {
+                event.preventDefault();
+                close(s(item.getAttribute('data-emoji-value') || ''));
+                return;
+            }
+            if (event.target === backdrop || event.target.closest('[data-emoji-picker-close="1"]')) {
+                event.preventDefault();
+                close(null);
+            }
+        });
+        insert.addEventListener('click', function() {
+            close(emojiValueFromInput(search && search.value || ''));
+        });
+        search.addEventListener('input', function() {
+            render(search.value || '');
+        });
+        search.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                close(emojiValueFromInput(search.value || ''));
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                close(null);
+            }
+        });
+
+        sharedEmojiPicker = { backdrop: backdrop, search: search, render: render, resolve: null };
+        loadEmojiCatalog();
+        return sharedEmojiPicker;
+    }
+
+    function requestEmoji() {
+        var picker = ensureEmojiPicker();
+        picker.render('');
+        picker.search.value = '';
+        picker.backdrop.setAttribute('aria-hidden', 'false');
+        picker.backdrop.classList.add('is-open');
+        window.setTimeout(function() {
+            if (picker.search && typeof picker.search.focus === 'function') picker.search.focus();
+        }, 0);
+        return new Promise(function(resolve) {
+            picker.resolve = function(value) {
+                resolve(emojiValueFromInput(value));
+            };
         });
     }
 
@@ -1847,7 +2152,8 @@ Metis.ui.richText = (function() {
         placeCaretAtEnd: placeCaretAtEnd,
         closeMenus: closeMenus,
         applyCommand: applyCommand,
-        applyAction: applyAction
+        applyAction: applyAction,
+        requestEmoji: requestEmoji
     };
 }());
 

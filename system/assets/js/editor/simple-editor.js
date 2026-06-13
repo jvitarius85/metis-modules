@@ -150,54 +150,36 @@
         if (stripped.length && stripped.join('-') !== direct.join('-')) variants.push(stripped);
         return variants;
     }
-    function emojiAssetBaseUrls() {
+    function emojiAssetBaseUrl() {
         var siteUrl = s((window.metisAjax && window.metisAjax.site_url) || '');
         if (siteUrl) {
             siteUrl = siteUrl.replace(/\/+$/, '');
-            return [
-                siteUrl + '/assets/Images/emojis/',
-                siteUrl + '/assets/images/emojis/'
-            ];
+            return siteUrl + '/assets/Images/emojis/';
         }
         var ajaxUrl = (window.Metis && Metis.ajax && Metis.ajax.url) ? Metis.ajax.url : ((window.metisAjax && window.metisAjax.ajax_url) ? window.metisAjax.ajax_url : '');
         try {
             var url = new URL(String(ajaxUrl || '/api/ajax'), window.location.href);
             var basePath = url.pathname.replace(/\/api\/ajax\/?$/, '').replace(/\/+$/, '');
-            return [
-                url.origin + basePath + '/assets/Images/emojis/',
-                url.origin + basePath + '/assets/images/emojis/'
-            ];
+            return url.origin + basePath + '/assets/Images/emojis/';
         } catch (_err) {
-            return [
-                '/assets/Images/emojis/',
-                '/assets/images/emojis/'
-            ];
+            return '/assets/Images/emojis/';
         }
     }
-    function emojiIndexUrlCandidates() {
-        return emojiAssetBaseUrls().map(function (baseUrl) {
-            return baseUrl + 'emoji-index.json';
-        });
+    function emojiIndexUrl() {
+        return emojiAssetBaseUrl() + 'emoji-index.json';
     }
     function emojiAssetUrlCandidatesFromFile(fileName) {
         var raw = s(fileName || '').trim().replace(/^\/+/, '');
         if (!raw) return [];
-        var urls = [];
-        emojiAssetBaseUrls().forEach(function (baseUrl) {
-            var candidate = baseUrl + raw;
-            if (urls.indexOf(candidate) === -1) urls.push(candidate);
-        });
-        return urls;
+        return [emojiAssetBaseUrl() + raw];
     }
     function emojiAssetUrlCandidatesFromValue(value) {
         var codepoints = emojiCodepointsFromValue(value);
         if (!codepoints.length) return [];
         var urls = [];
-        emojiAssetBaseUrls().forEach(function (baseUrl) {
-            normalizeEmojiAssetCodepoints(codepoints).forEach(function (variant) {
-                var candidate = baseUrl + variant.join('-') + '.svg';
-                if (urls.indexOf(candidate) === -1) urls.push(candidate);
-            });
+        normalizeEmojiAssetCodepoints(codepoints).forEach(function (variant) {
+            var candidate = emojiAssetBaseUrl() + variant.join('-') + '.svg';
+            if (urls.indexOf(candidate) === -1) urls.push(candidate);
         });
         return urls;
     }
@@ -253,25 +235,18 @@
     function loadEmojiCatalog() {
         if (Array.isArray(sharedEmojiCatalog)) return Promise.resolve(sharedEmojiCatalog);
         if (sharedEmojiCatalogPromise) return sharedEmojiCatalogPromise;
-        var urls = emojiIndexUrlCandidates();
-        var attempt = function (index) {
-            if (index >= urls.length) {
-                sharedEmojiCatalog = sharedEmojiStarterItems();
-                return Promise.resolve(sharedEmojiCatalog);
-            }
-            return fetch(urls[index], { credentials: 'same-origin' }).then(function (response) {
-                if (!response || !response.ok) throw new Error('emoji index unavailable');
-                return response.json();
-            }).then(function (payload) {
-                var normalized = normalizeEmojiCatalogItems(payload);
-                if (!normalized.length) throw new Error('emoji index empty');
-                sharedEmojiCatalog = normalized;
-                return sharedEmojiCatalog;
-            }).catch(function () {
-                return attempt(index + 1);
-            });
-        };
-        sharedEmojiCatalogPromise = attempt(0).finally(function () {
+        sharedEmojiCatalogPromise = fetch(emojiIndexUrl(), { credentials: 'same-origin' }).then(function (response) {
+            if (!response || !response.ok) throw new Error('emoji index unavailable');
+            return response.json();
+        }).then(function (payload) {
+            var normalized = normalizeEmojiCatalogItems(payload);
+            if (!normalized.length) throw new Error('emoji index empty');
+            sharedEmojiCatalog = normalized;
+            return sharedEmojiCatalog;
+        }).catch(function () {
+            sharedEmojiCatalog = sharedEmojiStarterItems();
+            return sharedEmojiCatalog;
+        }).finally(function () {
             if (!Array.isArray(sharedEmojiCatalog)) {
                 sharedEmojiCatalog = sharedEmojiStarterItems();
             }
@@ -922,6 +897,7 @@
             authors: [],
             categories: [],
             forms: [],
+            popups: [],
             donationCampaigns: [],
             testimonyCategories: [],
             calendarSources: [],
@@ -977,6 +953,7 @@
             authors: Array.isArray(initialOptions.authors) ? initialOptions.authors : [],
             categories: Array.isArray(initialOptions.categories) ? initialOptions.categories : [],
             forms: Array.isArray(initialOptions.forms) ? initialOptions.forms : [],
+            popups: Array.isArray(initialOptions.popups) ? initialOptions.popups : [],
             donationCampaigns: Array.isArray(initialOptions.donation_campaigns) ? initialOptions.donation_campaigns : [],
             testimonyCategories: Array.isArray(initialOptions.testimony_categories) ? initialOptions.testimony_categories : [],
             calendarSources: Array.isArray(initialOptions.calendar_sources) ? initialOptions.calendar_sources : [],
@@ -3286,7 +3263,9 @@
                 next.content.empty_message = repairMojibakeText(content.empty_message || '');
             } else if (next.type === 'button') {
                 next.content.label = repairMojibakeText(content.label || 'Learn more');
+                next.content.action_type = s(content.action_type || 'url') === 'popup' ? 'popup' : 'url';
                 next.content.url = s(content.url || '#') || '#';
+                next.content.popup_id = s(content.popup_id || '');
                 next.content.align = ['left', 'center', 'right'].indexOf(s(content.align || 'left')) === -1 ? 'left' : s(content.align || 'left');
             } else if (next.type === 'image') {
                 next.content.src = s(content.src || '');
@@ -3600,7 +3579,9 @@
                 out.content.height = normalizeImageDimension(content.height || '');
             } else if (out.type === 'button') {
                 out.content.label = repairMojibakeText(content.label || 'Learn more');
+                out.content.action_type = s(content.action_type || 'url') === 'popup' ? 'popup' : 'url';
                 out.content.url = s(content.url || '#') || '#';
+                out.content.popup_id = s(content.popup_id || '');
                 out.content.align = ['left', 'center', 'right'].indexOf(s(content.align || 'left')) === -1 ? 'left' : s(content.align || 'left');
             } else if (out.type === 'hero') {
                 out.content.title = repairMojibakeText(content.title || 'Hero Title');
@@ -4111,7 +4092,11 @@
                     return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Testimonies</strong><span>' + esc(testimonyLabels.length ? testimonyLabels.join(', ') : 'All categories') + '</span><small>' + esc(String(parseInt(s(moduleContent.limit || '6'), 10) || 6)) + ' items • ' + esc(s(moduleContent.layout || 'grid')) + (moduleContent.featured_only ? ' • featured only' : '') + '</small></div></div>';
                 }
                 if (module.type === 'button') {
-                    return '<div class="metis-builder-column"><div class="metis-builder-button-row is-' + esc(s(moduleContent.align || 'left')) + '"><a class="metis-builder-button" href="' + esc(s(moduleContent.url || '#')) + '" data-builder-link="1">' + esc(s(moduleContent.label || 'Learn more')) + '</a></div></div>';
+                    var moduleActionType = s(moduleContent.action_type || 'url') === 'popup' ? 'popup' : 'url';
+                    var moduleTargetLabel = moduleActionType === 'popup'
+                        ? optionLabel(state.options.popups, moduleContent.popup_id, 'Choose popup')
+                        : s(moduleContent.url || '#');
+                    return '<div class="metis-builder-column"><div class="metis-builder-button-row is-' + esc(s(moduleContent.align || 'left')) + '"><a class="metis-builder-button" href="' + esc(moduleActionType === 'popup' ? '#' : s(moduleContent.url || '#')) + '" data-builder-link="1">' + esc(s(moduleContent.label || 'Learn more')) + '</a><small class="metis-builder-button-meta">' + esc(moduleActionType === 'popup' ? ('Opens popup: ' + moduleTargetLabel) : moduleTargetLabel) + '</small></div></div>';
                 }
                 if (module.type === 'image') {
                     return '<div class="metis-builder-column"><figure class="metis-builder-image">' +
@@ -4135,8 +4120,13 @@
                     '<figcaption' + editableAttr(index, 'image_caption') + '>' + esc(s(content.caption || '')) + '</figcaption>' +
                 '</figure>';
             } else if (type === 'button') {
+                var sectionButtonActionType = s(content.action_type || 'url') === 'popup' ? 'popup' : 'url';
+                var sectionButtonTargetLabel = sectionButtonActionType === 'popup'
+                    ? optionLabel(state.options.popups, content.popup_id, 'Choose popup')
+                    : s(content.url || '#');
                 body = '<div class="metis-builder-button-row is-' + esc(s(content.align || 'left')) + '">' +
-                    '<a class="metis-builder-button" href="' + esc(s(content.url || '#')) + '" data-builder-link="1"' + editableAttr(index, 'button_label') + '>' + esc(s(content.label || 'Learn more')) + '</a>' +
+                    '<a class="metis-builder-button" href="' + esc(sectionButtonActionType === 'popup' ? '#' : s(content.url || '#')) + '" data-builder-link="1"' + editableAttr(index, 'button_label') + '>' + esc(s(content.label || 'Learn more')) + '</a>' +
+                    '<small class="metis-builder-button-meta">' + esc(sectionButtonActionType === 'popup' ? ('Opens popup: ' + sectionButtonTargetLabel) : sectionButtonTargetLabel) + '</small>' +
                 '</div>';
             } else if (type === 'hero') {
                 body = '<div class="metis-builder-hero">' +
@@ -4413,7 +4403,11 @@
                 html += '<div class="metis-se-field-row"><label>Width</label><input id="metis-v2-image-width" class="metis-se-input" inputmode="numeric" pattern="[0-9]*" value="' + esc(s(sec.content.width || '')) + '" placeholder="Auto"></div>';
                 html += '<div class="metis-se-field-row"><label>Height</label><input id="metis-v2-image-height" class="metis-se-input" inputmode="numeric" pattern="[0-9]*" value="' + esc(s(sec.content.height || '')) + '" placeholder="Auto"></div>';
             } else if (sec.type === 'button') {
-                html += '<div class="metis-se-field-row"><label>URL</label><input id="metis-v2-button-url" class="metis-se-input" value="' + esc(s(sec.content.url || '#')) + '"></div>';
+                var buttonActionType = s(sec.content.action_type || 'url') === 'popup' ? 'popup' : 'url';
+                html += '<div class="metis-se-field-row"><label>Action</label><select id="metis-v2-button-action-type" class="metis-se-select"><option value="url"' + (buttonActionType === 'url' ? ' selected' : '') + '>Open a link</option><option value="popup"' + (buttonActionType === 'popup' ? ' selected' : '') + '>Open a popup</option></select></div>';
+                html += '<div class="metis-se-field-row"' + (buttonActionType !== 'url' ? ' hidden' : '') + ' id="metis-v2-button-url-row"><label>URL</label><input id="metis-v2-button-url" class="metis-se-input" value="' + esc(s(sec.content.url || '#')) + '"></div>';
+                html += '<div class="metis-se-field-row"' + (buttonActionType !== 'popup' ? ' hidden' : '') + ' id="metis-v2-button-popup-row"><label>Popup</label><select id="metis-v2-button-popup-id" class="metis-se-select">' + optionList(state.options.popups, sec.content.popup_id, 'Select popup') + '</select></div>';
+                if (buttonActionType === 'popup' && !state.options.popups.length) html += '<div class="metis-se-meta-value">No popups are available yet.</div>';
                 html += '<div class="metis-se-field-row"><label>Alignment</label><select id="metis-v2-button-align" class="metis-se-select"><option value="left"' + (sec.content.align === 'left' ? ' selected' : '') + '>Left</option><option value="center"' + (sec.content.align === 'center' ? ' selected' : '') + '>Center</option><option value="right"' + (sec.content.align === 'right' ? ' selected' : '') + '>Right</option></select></div>';
             } else if (sec.type === 'hero') {
                 html += '<div class="metis-se-field-row"><label>CTA URL</label><input id="metis-v2-block-hero-cta-url" class="metis-se-input" value="' + esc(s(sec.content.cta_url || '#')) + '"></div>';
@@ -4867,7 +4861,12 @@
             };
             else if (type === 'text') data = { content: s(sec.content && sec.content.body || '<p></p>'), tag: 'div' };
             else if (type === 'image') data = { src: s(sec.content && sec.content.src || ''), alt: s(sec.content && sec.content.alt || '') };
-            else if (type === 'button') data = { label: s(sec.content && sec.content.label || 'Learn more'), url: s(sec.content && sec.content.url || '#') };
+            else if (type === 'button') data = {
+                label: s(sec.content && sec.content.label || 'Learn more'),
+                url: s(sec.content && sec.content.url || '#'),
+                action_type: s(sec.content && sec.content.action_type || 'url'),
+                popup_id: s(sec.content && sec.content.popup_id || '')
+            };
             else if (type === 'hero') data = Object.assign({}, sec.content || {});
             else if (type === 'html') data = { content: s(sec.content && sec.content.html || ''), tag: 'div' };
             else data = Object.assign({}, sec.content || {});
@@ -5547,6 +5546,7 @@
             state.options.authors = Array.isArray(resp.authors) ? resp.authors : [];
             state.options.categories = Array.isArray(resp.categories) ? resp.categories : [];
             state.options.forms = Array.isArray(resp.forms) ? resp.forms : [];
+            state.options.popups = Array.isArray(resp.popups) ? resp.popups : [];
             state.options.donationCampaigns = Array.isArray(resp.donation_campaigns) ? resp.donation_campaigns : [];
             state.options.testimonyCategories = Array.isArray(resp.testimony_categories) ? resp.testimony_categories : [];
             state.options.calendarSources = Array.isArray(resp.calendar_sources) ? resp.calendar_sources : [];
@@ -6577,6 +6577,17 @@
                 if (target.id === 'metis-v2-heading-level') { sec.content.level = ['h1', 'h2', 'h3', 'h4'].indexOf(s(target.value || 'h2')) === -1 ? 'h2' : s(target.value || 'h2'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-heading-align') { sec.content.align = ['left', 'center', 'right'].indexOf(s(target.value || 'left')) === -1 ? 'left' : s(target.value || 'left'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-heading-vertical') { sec.content.vertical_align = ['top', 'middle', 'bottom'].indexOf(s(target.value || 'top')) === -1 ? 'top' : s(target.value || 'top'); renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-button-action-type') {
+                    sec.content.action_type = s(target.value || 'url') === 'popup' ? 'popup' : 'url';
+                    if (sec.content.action_type !== 'popup') {
+                        sec.content.popup_id = '';
+                    }
+                    renderStep2Editor();
+                    renderBuilderCanvas();
+                    setDirtyAutosave();
+                    return;
+                }
+                if (target.id === 'metis-v2-button-popup-id') { sec.content.popup_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-button-align') { sec.content.align = ['left', 'center', 'right'].indexOf(s(target.value || 'left')) === -1 ? 'left' : s(target.value || 'left'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-background') { sec.settings = normalizeSectionSettings(Object.assign({}, sec.settings || {}, { background: target.value })); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-section-type') { sec.type = availableSectionTypes().indexOf(s(target.value || 'text')) === -1 ? 'text' : s(target.value); sec.content = defaultSectionByType(sec.type).content; renderSectionList(); renderStep2Editor(); setDirtyAutosave(); return; }

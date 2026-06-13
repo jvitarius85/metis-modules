@@ -205,9 +205,24 @@ final class BlockRenderer {
     private static function renderButton( array $data, array $style, array $context ): string {
         $label   = self::resolveDynamicShortcodes( (string) ( $data['label'] ?? 'Click Here' ), $context );
         $url     = $data['url'] ?? '#';
+        $action_type = metis_key_clean( (string) ( $data['action_type'] ?? 'url' ) );
+        $popup_id = (int) ( $data['popup_id'] ?? 0 );
         $bgcolor = $data['bgcolor'] ?? '#0d6efd';
         $color   = $data['color'] ?? '#ffffff';
         $size    = $data['size'] ?? 'medium';
+
+        if ( $action_type === 'popup' && $popup_id > 0 ) {
+            return sprintf(
+                '<div class="%s"%s><button type="button" class="metis-btn metis-btn-%s" data-metis-popup="%d" style="background-color:%s;color:%s;">%s</button></div>',
+                metis_escape_attr( self::buildClasses( 'metis-block-button', $style ) ),
+                self::buildInlineStyle( $style ),
+                metis_escape_attr( $size ),
+                $popup_id,
+                metis_escape_attr( $bgcolor ),
+                metis_escape_attr( $color ),
+                metis_escape_html( $label )
+            );
+        }
 
         return sprintf(
             '<div class="%s"%s><a href="%s" class="metis-btn metis-btn-%s" style="background-color:%s;color:%s;">%s</a></div>',
@@ -1265,6 +1280,16 @@ final class BlockRenderer {
     }
 
     private static function renderCanonicalFormEmbed( string $form_ref, array $options, string $wrapper_class, string $fallback_html = '' ): string {
+        if (
+            $form_ref === \Metis\Modules\Newsletter\SubscriptionService::DEFAULT_SIGNUP_FORM_REF
+            && function_exists( 'metis_newsletter_public_signup_url' )
+        ) {
+            $html = self::renderNewsletterSignupFormEmbed( $options );
+            if ( $html !== '' ) {
+                return sprintf( '<div class="%s">%s</div>', metis_escape_attr( $wrapper_class ), $html );
+            }
+        }
+
         if ( $form_ref !== '' && function_exists( 'metis_forms_render_embed' ) ) {
             $html = (string) metis_forms_render_embed( $form_ref, $options );
             if ( $html !== '' ) {
@@ -1273,6 +1298,31 @@ final class BlockRenderer {
         }
 
         return $fallback_html;
+    }
+
+    private static function renderNewsletterSignupFormEmbed( array $options ): string {
+        $submit_url = function_exists( 'metis_newsletter_public_signup_url' )
+            ? (string) metis_newsletter_public_signup_url()
+            : '';
+        if ( $submit_url === '' ) {
+            return '';
+        }
+
+        $submit_label = trim( (string) ( $options['submit_label'] ?? 'Sign up' ) );
+        if ( $submit_label === '' ) {
+            $submit_label = 'Sign up';
+        }
+
+        return ''
+            . '<form class="metis-newsletter-signup-form" data-metis-newsletter-signup-form action="' . metis_escape_url( $submit_url ) . '" method="post" novalidate>'
+            . '<div class="metis-newsletter-signup-grid">'
+            . '<label><span>First name</span><input class="metis-input" name="first_name" type="text" autocomplete="given-name" required></label>'
+            . '<label><span>Last name</span><input class="metis-input" name="last_name" type="text" autocomplete="family-name" required></label>'
+            . '<label class="metis-newsletter-signup-grid__email"><span>Email</span><input class="metis-input" name="email" type="email" autocomplete="email" required></label>'
+            . '</div>'
+            . '<div class="metis-newsletter-signup-alert" data-metis-newsletter-signup-alert hidden></div>'
+            . '<button class="metis-btn" type="submit" data-metis-newsletter-signup-submit>' . metis_escape_html( $submit_label ) . '</button>'
+            . '</form>';
     }
 
     private static function renderDonationFormBlock( array $data, array $style, array $context ): string {

@@ -5337,10 +5337,69 @@ final class WebsiteRenderer {
             '.metis-donation-progress-fill{position:absolute;inset:0 auto 0 0;display:block;height:100%;border-radius:inherit;background:var(--metis-token-donation-fill,var(--metis-color-primary,#485bc7));}',
             '.metis-donation-progress-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 14px;color:var(--metis-token-donation-label,var(--metis-color-button_text,#ffffff));font-weight:700;line-height:1.2;text-shadow:0 1px 2px rgba(15,23,42,.18);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;}',
             '.metis-public-popup[hidden]{display:none !important;}',
-            '.metis-public-popup{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;}',
+            '.metis-public-popup{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;padding:28px;}',
+            'body.metis-public-site .metis-public-popup-launcher{position:fixed;z-index:1200;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 18px;border:var(--metis-popup-launcher-border-width,1px) solid var(--metis-popup-launcher-border-color,transparent);border-radius:999px;background:var(--metis-popup-launcher-bg,var(--metis-color-primary,#485bc7));color:var(--metis-popup-launcher-color,var(--metis-color-button_text,#fff));font:inherit;font-weight:600;box-shadow:0 18px 40px rgba(15,23,42,.22);cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease,color .18s ease,border-color .18s ease;}',
+            'body.metis-public-site .metis-public-popup-launcher:hover{transform:translateY(-1px);box-shadow:0 22px 48px rgba(15,23,42,.26);}',
+            'body.metis-public-site .metis-public-popup-launcher__icon,body.metis-public-site .metis-public-popup-launcher__icon svg{width:22px;height:22px;display:block;line-height:1;flex:0 0 auto;}',
+            'body.metis-public-site .metis-public-popup-launcher__icon svg,body.metis-public-site .metis-public-popup__close svg{color:currentColor;}',
+            'body.metis-public-site .metis-public-popup-launcher__icon svg [stroke]:not([stroke="none"]),body.metis-public-site .metis-public-popup__close svg [stroke]:not([stroke="none"]){stroke-width:3.2 !important;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;}',
+            'body.metis-public-site .metis-public-popup-launcher__icon svg [fill]:not([fill="none"]):not([stroke]),body.metis-public-site .metis-public-popup__close svg [fill]:not([fill="none"]):not([stroke]){stroke:currentColor;stroke-width:.6;paint-order:stroke fill;stroke-linecap:round;stroke-linejoin:round;}',
+            'body.metis-public-site .metis-public-popup-launcher__label{line-height:1.1;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-layout-icon{width:56px;min-width:56px;height:56px;min-height:56px;padding:0;border-radius:999px;gap:0;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-shape-rounded{border-radius:16px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-shape-square{border-radius:10px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-border-none{--metis-popup-launcher-border-width:0px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-border-thin{--metis-popup-launcher-border-width:1px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-border-regular{--metis-popup-launcher-border-width:2px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-border-thick{--metis-popup-launcher-border-width:3px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-border-effect-double-ring{border-color:currentColor;box-shadow:0 0 0 calc(var(--metis-popup-launcher-border-width,1px) + 1px) currentColor,0 0 0 calc(var(--metis-popup-launcher-border-width,1px) + 5px) var(--metis-popup-launcher-bg,var(--metis-color-primary,#485bc7)),0 18px 40px rgba(15,23,42,.22);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-border-effect-double-ring:hover{box-shadow:0 0 0 calc(var(--metis-popup-launcher-border-width,1px) + 1px) currentColor,0 0 0 calc(var(--metis-popup-launcher-border-width,1px) + 5px) var(--metis-popup-launcher-bg,var(--metis-color-primary,#485bc7)),0 22px 48px rgba(15,23,42,.26);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-solid{--metis-popup-launcher-border-color:transparent;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-solid.is-color-metis-primary{--metis-popup-launcher-bg:var(--metis-color-primary,#485bc7);--metis-popup-launcher-color:var(--metis-color-button_text,#fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-solid.is-color-metis-accent{--metis-popup-launcher-bg:var(--metis-color-accent,#ff7542);--metis-popup-launcher-color:var(--metis-color-button_text,#fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-solid.is-color-metis-text{--metis-popup-launcher-bg:var(--metis-color-text,#1a1f2b);--metis-popup-launcher-color:var(--metis-color-bg,#fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-solid.is-color-metis-surface{--metis-popup-launcher-bg:var(--metis-color-surface,#fff);--metis-popup-launcher-color:var(--metis-color-text,#1a1f2b);--metis-popup-launcher-border-color:var(--metis-color-border,#d8deea);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-soft.is-color-metis-primary{--metis-popup-launcher-bg:color-mix(in srgb,var(--metis-color-primary,#485bc7) 14%, #fff);--metis-popup-launcher-color:var(--metis-color-primary,#485bc7);--metis-popup-launcher-border-color:color-mix(in srgb,var(--metis-color-primary,#485bc7) 18%, #fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-soft.is-color-metis-accent{--metis-popup-launcher-bg:color-mix(in srgb,var(--metis-color-accent,#ff7542) 16%, #fff);--metis-popup-launcher-color:var(--metis-color-accent,#ff7542);--metis-popup-launcher-border-color:color-mix(in srgb,var(--metis-color-accent,#ff7542) 22%, #fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-soft.is-color-metis-text{--metis-popup-launcher-bg:color-mix(in srgb,var(--metis-color-text,#1a1f2b) 10%, #fff);--metis-popup-launcher-color:var(--metis-color-text,#1a1f2b);--metis-popup-launcher-border-color:color-mix(in srgb,var(--metis-color-text,#1a1f2b) 14%, #fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-soft.is-color-metis-surface{--metis-popup-launcher-bg:var(--metis-color-surface_alt,#f8fafc);--metis-popup-launcher-color:var(--metis-color-text,#1a1f2b);--metis-popup-launcher-border-color:var(--metis-color-border,#d8deea);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-outline{--metis-popup-launcher-bg:transparent;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-outline.is-color-metis-primary{--metis-popup-launcher-color:var(--metis-color-primary,#485bc7);--metis-popup-launcher-border-color:var(--metis-color-primary,#485bc7);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-outline.is-color-metis-accent{--metis-popup-launcher-bg:transparent;--metis-popup-launcher-color:var(--metis-color-accent,#ff7542);--metis-popup-launcher-border-color:var(--metis-color-accent,#ff7542);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-outline.is-color-metis-text{--metis-popup-launcher-bg:transparent;--metis-popup-launcher-color:var(--metis-color-text,#1a1f2b);--metis-popup-launcher-border-color:var(--metis-color-text,#1a1f2b);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-style-outline.is-color-metis-surface{--metis-popup-launcher-bg:rgba(255,255,255,.08);--metis-popup-launcher-color:var(--metis-color-surface,#fff);--metis-popup-launcher-border-color:rgba(255,255,255,.42);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-text-metis-primary{--metis-popup-launcher-color:var(--metis-color-primary,#485bc7);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-text-metis-accent{--metis-popup-launcher-color:var(--metis-color-accent,#ff7542);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-text-metis-text{--metis-popup-launcher-color:var(--metis-color-text,#1a1f2b);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-text-metis-surface{--metis-popup-launcher-color:var(--metis-color-surface,#fff);}',
+            'body.metis-public-site .metis-public-popup-launcher.is-top-left{top:24px;left:24px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-top-right{top:24px;right:24px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-bottom-left{bottom:24px;left:24px;}',
+            'body.metis-public-site .metis-public-popup-launcher.is-bottom-right{right:24px;bottom:24px;}',
             '.metis-public-popup__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.62);}',
-            '.metis-public-popup__dialog{position:relative;background:#fff;color:#0f172a;max-width:min(720px,92vw);max-height:86vh;overflow:auto;border-radius:12px;padding:24px 20px;box-shadow:0 20px 60px rgba(2,6,23,.35);}',
-            '.metis-public-popup__close{position:absolute;top:8px;right:10px;border:0;background:transparent;font-size:30px;line-height:1;cursor:pointer;color:#334155;}',
+            '.metis-public-popup__dialog{position:relative;background:#fff;color:#0f172a;max-width:min(720px,92vw);max-height:calc(100vh - 56px);overflow:visible;border-radius:12px;padding:24px 20px;box-shadow:0 20px 60px rgba(2,6,23,.35);}',
+            '.metis-public-popup__body{max-height:calc(100vh - 120px);overflow:auto;}',
+            '.metis-public-popup__close{position:absolute;top:-18px;right:-18px;z-index:2;display:inline-flex;align-items:center;justify-content:center;inline-size:56px;block-size:56px;min-inline-size:56px;min-block-size:56px;max-inline-size:56px;max-block-size:56px;flex:0 0 56px;aspect-ratio:1/1;box-sizing:border-box;padding:0;margin:0;border:3px solid #fff;border-radius:50% !important;clip-path:circle(50% at 50% 50%);background:var(--metis-color-primary,#485bc7);cursor:pointer;color:var(--metis-color-button_text,#fff);box-shadow:0 16px 34px rgba(15,23,42,.28);line-height:1;-webkit-appearance:none;appearance:none;}',
+            '.metis-public-popup__close:hover{transform:translateY(-1px);box-shadow:0 20px 38px rgba(15,23,42,.34);}',
+            '.metis-public-popup__close img,.metis-public-popup__close svg,.metis-public-popup__close .metis-inline-icon-svg{width:26px;height:26px;display:block;pointer-events:none;}',
+            '.metis-public-popup__dialog.has-payment-form{max-width:min(980px,96vw);padding:18px 22px 22px;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-public-popup__body{display:grid;gap:12px;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-block-form,.metis-public-popup__dialog.has-payment-form .metis-block-donation-form{max-width:none;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-public-card--embed{padding:0;border:0;box-shadow:none;background:transparent;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-payment-field{display:grid;gap:18px;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-payment-choice-grid{grid-template-columns:repeat(3,minmax(0,1fr));}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-frequency-choices .metis-forms-payment-choice-grid{grid-template-columns:repeat(4,minmax(0,1fr));}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-payment-toggle{margin-top:4px;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-public-actions{padding-top:0;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-forms-payment-head:empty{display:none;}',
+            '.metis-public-popup__dialog.has-payment-form .metis-alert{margin-bottom:6px;}',
+            '.metis-newsletter-signup-form{display:grid;gap:14px;}',
+            '.metis-newsletter-signup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}',
+            '.metis-newsletter-signup-grid label{display:grid;gap:6px;font-weight:600;color:#334155;}',
+            '.metis-newsletter-signup-grid__email{grid-column:1/-1;}',
+            '.metis-newsletter-signup-alert{padding:10px 12px;border-radius:10px;font-size:14px;line-height:1.45;}',
+            '.metis-newsletter-signup-alert.is-success{background:#ecfdf3;color:#166534;}',
+            '.metis-newsletter-signup-alert.is-error{background:#fef2f2;color:#b91c1c;}',
             '.metis-public-banners{position:sticky;top:0;z-index:1200;display:flex;flex-direction:column;gap:1px;}',
             '.metis-public-banner{display:flex;align-items:center;gap:12px;justify-content:center;padding:12px 16px;background:#0f172a;color:#fff;font:500 14px/1.4 system-ui,sans-serif;}',
             '.metis-banner-announcement_bar{background:#1d4ed8;}',
@@ -5348,7 +5407,7 @@ final class WebsiteRenderer {
             '.metis-public-banner__content{max-width:980px;}',
             '.metis-public-banner__cta{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:#fff;color:#0f172a;text-decoration:none;font-weight:700;}',
             '.metis-public-banner__dismiss{margin-left:8px;border:0;background:transparent;color:#fff;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}',
-            '@media (max-width: 980px){.metis-shell-header-inner{padding:12px 16px;flex-wrap:wrap;display:flex !important;}.metis-shell-menu-list{gap:8px 10px;}.metis-shell-body-grid{grid-template-columns:1fr;}.metis-simple-grid-2,.metis-simple-grid-3{grid-template-columns:1fr;}.metis-shell-brand-logo-header{max-height:88px;}.metis-shell-brand-logo-footer{max-height:70px;}.metis-shell-footer-menu-grid{grid-template-columns:1fr;}.metis-shell-nav-utility{width:100%;}.metis-shell-nav-utility .metis-shell-menu-list{justify-content:flex-start;}.metis-shell-footer-variant-inline .metis-shell-footer-inner{display:block;}body.metis-layout-centered_editorial .metis-shell-header-inner{display:flex !important;}body.metis-layout-centered_editorial .metis-shell-header-row-main{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:100%;}body.metis-layout-centered_editorial .metis-shell-brand{order:1;margin-right:auto;}body.metis-layout-centered_editorial .metis-shell-nav-primary{order:3;width:100%;}body.metis-layout-centered_editorial .metis-shell-nav-primary .metis-shell-menu-list{justify-content:flex-start;}body.metis-layout-centered_editorial .metis-shell-nav-utility{order:2;margin-left:auto;}body.metis-layout-story_sidebar .metis-shell-header{position:relative;width:100%;height:auto;left:auto;top:auto;bottom:auto;border-right:0;border-bottom:1px solid var(--metis-color-border,#e2e8f0);}body.metis-layout-story_sidebar .metis-shell-header-inner{height:auto;padding:12px 16px;}body.metis-layout-story_sidebar .metis-shell-header-row-main{flex-direction:row;flex-wrap:wrap;}body.metis-layout-story_sidebar .metis-shell-body,body.metis-layout-story_sidebar .metis-site-footer{margin-left:0;}body.metis-layout-story_sidebar .metis-shell-nav-primary .metis-shell-menu-list{flex-direction:row;flex-wrap:wrap;}body.metis-layout-minimal_focus .metis-shell-nav-toggle{display:inline-flex;}body.metis-layout-minimal_focus .metis-shell-nav-primary{width:min(320px,90vw);}body.metis-layout-showcase_grid .metis-shell-header-row-main{display:flex;flex-wrap:wrap;}body.metis-layout-showcase_grid .metis-shell-nav-primary{width:100%;}}',
+            '@media (max-width: 980px){.metis-shell-header-inner{padding:12px 16px;flex-wrap:wrap;display:flex !important;}.metis-shell-menu-list{gap:8px 10px;}.metis-shell-body-grid{grid-template-columns:1fr;}.metis-simple-grid-2,.metis-simple-grid-3{grid-template-columns:1fr;}.metis-shell-brand-logo-header{max-height:88px;}.metis-shell-brand-logo-footer{max-height:70px;}.metis-shell-footer-menu-grid{grid-template-columns:1fr;}.metis-shell-nav-utility{width:100%;}.metis-shell-nav-utility .metis-shell-menu-list{justify-content:flex-start;}.metis-shell-footer-variant-inline .metis-shell-footer-inner{display:block;}body.metis-layout-centered_editorial .metis-shell-header-inner{display:flex !important;}body.metis-layout-centered_editorial .metis-shell-header-row-main{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:100%;}body.metis-layout-centered_editorial .metis-shell-brand{order:1;margin-right:auto;}body.metis-layout-centered_editorial .metis-shell-nav-primary{order:3;width:100%;}body.metis-layout-centered_editorial .metis-shell-nav-primary .metis-shell-menu-list{justify-content:flex-start;}body.metis-layout-centered_editorial .metis-shell-nav-utility{order:2;margin-left:auto;}body.metis-layout-story_sidebar .metis-shell-header{position:relative;width:100%;height:auto;left:auto;top:auto;bottom:auto;border-right:0;border-bottom:1px solid var(--metis-color-border,#e2e8f0);}body.metis-layout-story_sidebar .metis-shell-header-inner{height:auto;padding:12px 16px;}body.metis-layout-story_sidebar .metis-shell-header-row-main{flex-direction:row;flex-wrap:wrap;}body.metis-layout-story_sidebar .metis-shell-body,body.metis-layout-story_sidebar .metis-site-footer{margin-left:0;}body.metis-layout-story_sidebar .metis-shell-nav-primary .metis-shell-menu-list{flex-direction:row;flex-wrap:wrap;}body.metis-layout-minimal_focus .metis-shell-nav-toggle{display:inline-flex;}body.metis-layout-minimal_focus .metis-shell-nav-primary{width:min(320px,90vw);}body.metis-layout-showcase_grid .metis-shell-header-row-main{display:flex;flex-wrap:wrap;}body.metis-layout-showcase_grid .metis-shell-nav-primary{width:100%;}.metis-newsletter-signup-grid{grid-template-columns:1fr;}.metis-public-popup{padding:18px;}.metis-public-popup__dialog.has-payment-form{max-width:min(100vw - 20px,96vw);padding:16px 14px 18px;}.metis-public-popup__body{max-height:calc(100vh - 110px);}.metis-public-popup__dialog.has-payment-form .metis-forms-payment-choice-grid,.metis-public-popup__dialog.has-payment-form .metis-forms-frequency-choices .metis-forms-payment-choice-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}',
             self::mobileFlyoutMenuCss(),
             '@media (max-width: 900px){.metis-block-grid{grid-template-columns:1fr !important;}.metis-structured-columns{grid-template-columns:1fr;}.metis-structured-columns__col.is-w25,.metis-structured-columns__col.is-w33,.metis-structured-columns__col.is-w50,.metis-structured-columns__col.is-w100{grid-column:1/-1;}.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4,.metis-structured-cta--split,.metis-structured-hero-block{grid-template-columns:1fr;}.metis-structured-hero-block{padding:18px;}}',
         ] );
@@ -5873,10 +5932,22 @@ final class WebsiteRenderer {
             if ( trim( $body_html ) === '' ) {
                 continue;
             }
+            $dialog_classes = [ 'metis-public-popup__dialog' ];
+            if ( str_contains( $body_html, 'metis-forms-payment-field' ) ) {
+                $dialog_classes[] = 'has-payment-form';
+            }
 
             $config = json_decode( (string) ( $popup['trigger_config_json'] ?? '{}' ), true );
             if ( ! is_array( $config ) ) {
                 $config = [];
+            }
+            $close_icon_markup = function_exists( 'metis_navigation_svg_icon_markup' ) ? (string) metis_navigation_svg_icon_markup( 'close-outline' ) : '';
+            $close_icon_markup = '<span aria-hidden="true">&times;</span>';
+            if ( function_exists( 'metis_navigation_svg_icon_markup' ) ) {
+                $inline_close_icon = (string) metis_navigation_svg_icon_markup( 'close-outline' );
+                if ( $inline_close_icon !== '' ) {
+                    $close_icon_markup = $inline_close_icon;
+                }
             }
 
             $items[] = [
@@ -5887,10 +5958,79 @@ final class WebsiteRenderer {
                 'frequency' => in_array( (string) ( $config['frequency'] ?? 'session' ), [ 'session', 'persisted', 'always' ], true ) ? (string) $config['frequency'] : 'session',
             ];
 
+            if (
+                metis_key_clean( (string) ( $popup['trigger_type'] ?? 'click' ) ) === 'click'
+                && metis_key_clean( (string) ( $config['click_mode'] ?? 'page_button' ) ) === 'floating_button'
+            ) {
+                $launcher_label = trim( metis_text_clean( (string) ( $config['launcher_label'] ?? 'Open popup' ) ) );
+                if ( $launcher_label === '' ) {
+                    $launcher_label = 'Open popup';
+                }
+                $launcher_position = metis_key_clean( (string) ( $config['launcher_position'] ?? 'bottom_right' ) );
+                if ( ! in_array( $launcher_position, [ 'top_left', 'top_right', 'bottom_left', 'bottom_right' ], true ) ) {
+                    $launcher_position = 'bottom_right';
+                }
+                $launcher_color_key = metis_key_clean( (string) ( $config['launcher_color_key'] ?? 'metis_primary' ) );
+                if ( ! in_array( $launcher_color_key, [ 'metis_primary', 'metis_accent', 'metis_text', 'metis_surface' ], true ) ) {
+                    $launcher_color_key = 'metis_primary';
+                }
+                $launcher_text_color_key = metis_key_clean( (string) ( $config['launcher_text_color_key'] ?? '' ) );
+                if ( $launcher_text_color_key !== '' && ! in_array( $launcher_text_color_key, [ 'metis_primary', 'metis_accent', 'metis_text', 'metis_surface' ], true ) ) {
+                    $launcher_text_color_key = '';
+                }
+                $launcher_layout = metis_key_clean( (string) ( $config['launcher_layout'] ?? 'full' ) );
+                if ( ! in_array( $launcher_layout, [ 'full', 'icon' ], true ) ) {
+                    $launcher_layout = 'full';
+                }
+                $launcher_style = metis_key_clean( (string) ( $config['launcher_style'] ?? 'solid' ) );
+                if ( ! in_array( $launcher_style, [ 'solid', 'soft', 'outline' ], true ) ) {
+                    $launcher_style = 'solid';
+                }
+                $launcher_shape = metis_key_clean( (string) ( $config['launcher_shape'] ?? 'pill' ) );
+                if ( ! in_array( $launcher_shape, [ 'pill', 'rounded', 'square' ], true ) ) {
+                    $launcher_shape = 'pill';
+                }
+                $launcher_border_width = metis_key_clean( (string) ( $config['launcher_border_width'] ?? 'thin' ) );
+                if ( ! in_array( $launcher_border_width, [ 'none', 'thin', 'regular', 'thick' ], true ) ) {
+                    $launcher_border_width = 'thin';
+                }
+                $launcher_border_effect = metis_key_clean( (string) ( $config['launcher_border_effect'] ?? 'single' ) );
+                if ( ! in_array( $launcher_border_effect, [ 'single', 'double_ring' ], true ) ) {
+                    $launcher_border_effect = 'single';
+                }
+                $launcher_icon = str_replace( '_', '-', metis_key_clean( str_replace( '-', '_', (string) ( $config['launcher_icon'] ?? '' ) ) ) );
+                if ( $launcher_icon !== '' && function_exists( 'metis_navigation_svg_icon_path' ) && metis_navigation_svg_icon_path( $launcher_icon ) === '' ) {
+                    $launcher_icon = '';
+                }
+                $launcher_classes = [
+                    'metis-public-popup-launcher',
+                    'is-' . str_replace( '_', '-', $launcher_position ),
+                    'is-style-' . $launcher_style,
+                    'is-layout-' . $launcher_layout,
+                    'is-color-' . str_replace( '_', '-', $launcher_color_key ),
+                    'is-border-' . $launcher_border_width,
+                    'is-border-effect-' . str_replace( '_', '-', $launcher_border_effect ),
+                ];
+                if ( $launcher_layout !== 'icon' ) {
+                    $launcher_classes[] = 'is-shape-' . $launcher_shape;
+                }
+                if ( $launcher_text_color_key !== '' ) {
+                    $launcher_classes[] = 'is-text-' . str_replace( '_', '-', $launcher_text_color_key );
+                }
+                $launcher_inner = '';
+                if ( $launcher_icon !== '' && function_exists( 'metis_navigation_svg_icon_markup' ) ) {
+                    $launcher_inner .= '<span class="metis-public-popup-launcher__icon" aria-hidden="true">' . (string) metis_navigation_svg_icon_markup( $launcher_icon ) . '</span>';
+                }
+                if ( $launcher_layout !== 'icon' ) {
+                    $launcher_inner .= '<span class="metis-public-popup-launcher__label">' . metis_escape_html( $launcher_label ) . '</span>';
+                }
+                $html .= '<button type="button" class="' . metis_escape_attr( implode( ' ', $launcher_classes ) ) . '" data-metis-popup="' . metis_escape_attr( (string) $id ) . '" aria-label="' . metis_escape_attr( $launcher_label ) . '">' . $launcher_inner . '</button>';
+            }
+
             $html .= '<div class="metis-public-popup" id="metis-public-popup-' . metis_escape_attr( (string) $id ) . '" data-popup-id="' . metis_escape_attr( (string) $id ) . '" hidden>';
             $html .= '<div class="metis-public-popup__backdrop" data-popup-close></div>';
-            $html .= '<div class="metis-public-popup__dialog" role="dialog" aria-modal="true" aria-label="' . metis_escape_attr( (string) ( $popup['name'] ?? 'Popup' ) ) . '" tabindex="-1">';
-            $html .= '<button class="metis-public-popup__close" type="button" aria-label="Close popup" data-popup-close>&times;</button>';
+            $html .= '<div class="' . metis_escape_attr( implode( ' ', $dialog_classes ) ) . '" role="dialog" aria-modal="true" aria-label="' . metis_escape_attr( (string) ( $popup['name'] ?? 'Popup' ) ) . '" tabindex="-1">';
+            $html .= '<button class="metis-public-popup__close" type="button" aria-label="Close popup" data-popup-close>' . $close_icon_markup . '</button>';
             $html .= '<div class="metis-public-popup__body">' . $body_html . '</div>';
             $html .= '</div></div>';
         }
@@ -5912,9 +6052,11 @@ final class WebsiteRenderer {
         $html .= 'var openCount=0;var focusRestore={};';
         $html .= 'function tabbables(node){if(!node){return [];}return Array.prototype.slice.call(node.querySelectorAll(\'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])\')).filter(function(el){return !el.hidden;});}';
         $html .= 'function getNode(id){return document.getElementById("metis-public-popup-"+id);}';
+        $html .= 'function setSignupAlert(form,msg,ok){if(!form){return;}var alert=form.querySelector("[data-metis-newsletter-signup-alert]");if(!alert){return;}alert.hidden=!msg;alert.textContent=msg||"";alert.classList.remove("is-success","is-error");if(msg){alert.classList.add(ok?"is-success":"is-error");}}';
         $html .= 'function open(id,f){var n=getNode(id);if(!n){return;}if(f!=="always"&&seen(id,f)){return;}if(n.hidden){openCount++;}n.hidden=false;document.body.classList.add("metis-popup-open");document.body.style.overflow="hidden";focusRestore[id]=document.activeElement;var d=n.querySelector(".metis-public-popup__dialog");if(d){var list=tabbables(d);if(list.length){list[0].focus();}else{d.focus();}}mark(id,f);}';
         $html .= 'function close(id){var n=getNode(id);if(!n||n.hidden){return;}n.hidden=true;openCount=Math.max(0,openCount-1);if(openCount<1){document.body.classList.remove("metis-popup-open");document.body.style.overflow="";}var back=focusRestore[id];if(back&&typeof back.focus==="function"){try{back.focus();}catch(e){}}delete focusRestore[id];}';
         $html .= 'document.addEventListener("click",function(ev){var t=ev.target;var c=t&&t.closest? t.closest("[data-popup-close]"):null;if(c){var p=c.closest(".metis-public-popup");if(p){close(Number(p.getAttribute("data-popup-id")||0));}return;}var trg=t&&t.closest? t.closest("[data-metis-popup]"):null;if(trg){var id=Number(trg.getAttribute("data-metis-popup")||0);for(var i=0;i<defs.length;i++){if(defs[i].id===id){open(id,defs[i].frequency);break;}}}});';
+        $html .= 'document.addEventListener("submit",function(ev){var form=ev.target;if(!(form&&form.matches&&form.matches("[data-metis-newsletter-signup-form]"))){return;}ev.preventDefault();var btn=form.querySelector("[data-metis-newsletter-signup-submit]");if(btn){btn.disabled=true;}setSignupAlert(form,"",false);var data=new FormData(form);fetch(form.getAttribute("action")||window.location.href,{method:"POST",body:data,headers:{"Accept":"application/json","X-Requested-With":"XMLHttpRequest"},credentials:"same-origin"}).then(function(resp){return resp.json().catch(function(){return {};}).then(function(body){return {ok:resp.ok,body:body};});}).then(function(result){if(btn){btn.disabled=false;}var body=result&&result.body&&typeof result.body==="object"?result.body:{};if(result&&result.ok&&body.success){setSignupAlert(form,body.message||"You are signed up.",true);form.reset();return;}setSignupAlert(form,body.message||"We could not complete that sign-up.",false);}).catch(function(){if(btn){btn.disabled=false;}setSignupAlert(form,"We could not complete that sign-up.",false);});});';
         $html .= 'document.addEventListener("keydown",function(ev){if(ev.key==="Escape"){var nodes=document.querySelectorAll(".metis-public-popup:not([hidden])");for(var i=0;i<nodes.length;i++){close(Number(nodes[i].getAttribute("data-popup-id")||0));}return;}if(ev.key!=="Tab"){return;}var active=document.querySelector(".metis-public-popup:not([hidden]) .metis-public-popup__dialog");if(!active){return;}var list=tabbables(active);if(list.length===0){ev.preventDefault();active.focus();return;}var first=list[0];var last=list[list.length-1];if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last.focus();}else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first.focus();}});';
         $html .= 'defs.forEach(function(def){if(def.trigger==="load"){window.setTimeout(function(){open(def.id,def.frequency);},Math.max(0,def.delay_ms||0));}';
         $html .= 'if(def.trigger==="delay"){window.setTimeout(function(){open(def.id,def.frequency);},Math.max(0,def.delay_ms||1500));}';

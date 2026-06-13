@@ -1568,9 +1568,6 @@ table.metis-premium-table tbody {
 }
 
 table.metis-premium-table thead {
-    position: sticky;
-    top: var(--metis-topbar-h);
-    z-index: 12;
     border-radius: var(--metis-radius) var(--metis-radius) 0 0;
     text-align: center;
 }
@@ -1686,6 +1683,77 @@ table.metis-premium-table th.metis-premium-cell {
 .metis-rows-compact .metis-premium-row:last-child { border-radius: var(--metis-radius); }
 
 .metis-rows-compact { gap: var(--metis-row-gap-compact); }
+
+.metis-emoji-picker-backdrop {
+    display: none;
+}
+
+.metis-emoji-picker-backdrop.is-open {
+    display: flex;
+}
+
+.metis-emoji-picker-modal {
+    width: min(760px, calc(100vw - 32px));
+}
+
+.metis-emoji-picker-body {
+    display: grid;
+    gap: 12px;
+}
+
+.metis-emoji-picker-help {
+    color: var(--metis-text-muted, #6d7485);
+    font-size: 0.92rem;
+}
+
+.metis-emoji-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    gap: 8px;
+    max-height: min(52vh, 420px);
+    overflow: auto;
+}
+
+.metis-emoji-picker-item {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--metis-border, #e0e2ea);
+    border-radius: 14px;
+    background: var(--metis-surface, #fff);
+    padding: 0;
+    text-align: center;
+    cursor: pointer;
+}
+
+.metis-emoji-picker-item:hover {
+    border-color: var(--metis-primary, #485bc7);
+    box-shadow: 0 6px 18px rgba(31, 35, 48, 0.08);
+}
+
+.metis-emoji-picker-item:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--metis-primary, #485bc7) 72%, white);
+    outline-offset: 2px;
+}
+
+.metis-emoji-picker-icon {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.metis-emoji-picker-icon.is-broken {
+    display: none;
+}
+
+.metis-emoji-picker-empty {
+    padding: 18px;
+    border: 1px dashed var(--metis-border, #e0e2ea);
+    border-radius: 12px;
+    color: var(--metis-text-muted, #6d7485);
+    background: color-mix(in srgb, var(--metis-surface, #fff) 94%, var(--metis-bg, #f5f6fa));
+}
 
 /* ============================================================
    FORMS

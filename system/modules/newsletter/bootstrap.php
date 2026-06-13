@@ -33,6 +33,7 @@ function metis_newsletter_handle_manage_route( Metis_Http_Request $request ): Me
 function metis_newsletter_handle_public_unsubscribe_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\Newsletter\NewsletterModule::handlePublicUnsubscribeRoute( $request ); }
 function metis_newsletter_handle_public_manage_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\Newsletter\NewsletterModule::handlePublicManageRoute( $request ); }
 function metis_newsletter_handle_public_view_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\Newsletter\NewsletterModule::handlePublicViewRoute( $request ); }
+function metis_newsletter_handle_public_signup_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\Newsletter\NewsletterModule::handlePublicSignupRoute( $request ); }
 
 // Newsletter native editor routes using shared core editor shell.
 metis_on( 'init', static function (): void {

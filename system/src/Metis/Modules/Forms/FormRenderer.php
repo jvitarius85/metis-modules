@@ -128,6 +128,14 @@ final class FormRenderer {
                 </div>
             </div>
 
+            <div class="metis-forms-loading-overlay" data-metis-forms-loading-overlay hidden>
+                <div class="metis-forms-loading-overlay__backdrop"></div>
+                <div class="metis-forms-loading-overlay__dialog" role="status" aria-live="polite" aria-atomic="true">
+                    <span class="metis-forms-loading-overlay__spinner" aria-hidden="true"></span>
+                    <p data-metis-forms-loading-message>Loading payment information...</p>
+                </div>
+            </div>
+
             <?php if ( ! $blocked ) : ?>
                 <form id="<?php echo metis_escape_attr( $instance_id . '-form' ); ?>" class="metis-forms-public-form" data-metis-forms-public-form action="<?php echo metis_escape_url( Support::publicUrl( (string) ( $form['slug'] ?? '' ) ) ); ?>" method="post" novalidate>
                     <?php foreach ( $schema as $field ) : ?>
@@ -294,7 +302,9 @@ final class FormRenderer {
         $prefix = $dom_prefix !== '' ? $dom_prefix . '__' : '';
 
         echo '<section class="metis-forms-public-field is-full metis-forms-payment-field" data-field-key="' . metis_escape_attr( (string) ( $field['key'] ?? 'payment' ) ) . '" data-field-type="payment">';
-        echo '<div class="metis-forms-payment-head"><h2>' . metis_escape_html( $label ) . '</h2></div>';
+        if ( trim( $label ) !== '' ) {
+            echo '<div class="metis-forms-payment-head"><h2>' . metis_escape_html( $label ) . '</h2></div>';
+        }
         echo '<fieldset class="metis-forms-payment-choices"><legend>Donation amount</legend><div class="metis-forms-payment-choice-grid">';
         foreach ( $amounts as $index => $amount ) {
             $choice_id = $prefix . 'payment-choice-' . (int) $index;

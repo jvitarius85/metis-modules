@@ -333,6 +333,7 @@ function metis_security_register_route_policies(): void {
     $register( new Metis_Security_Policy( 'route.system_version', null, 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.system_cron', null, 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.forms_public', null, 'create', false, false, false, null, 120, 60 ) );
+    $register( new Metis_Security_Policy( 'route.newsletter_public_signup', null, 'create', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.manage_profile', null, 'view', false, false, false, null, 60, 60 ) );
     $register( new Metis_Security_Policy( 'route.manage_profile', null, 'create', false, false, false, null, 20, 60 ) );
     $register( new Metis_Security_Policy( 'route.manage_access', null, 'view', false, false, false, null, 60, 60 ) );

@@ -48,7 +48,7 @@ final class PopupService {
             return false;
         }
 
-        return (bool) self::db()->update( \Metis_Tables::get( 'website_popups' ), $update, [ 'id' => $id ] );
+        return self::db()->update( \Metis_Tables::get( 'website_popups' ), $update, [ 'id' => $id ] ) !== false;
     }
 
     public static function delete( int $id ): bool {
@@ -148,11 +148,66 @@ final class PopupService {
             if ( ! in_array( $frequency, [ 'session', 'persisted', 'always' ], true ) ) {
                 $frequency = 'session';
             }
+            $click_mode = metis_key_clean( (string) ( $trigger_config['click_mode'] ?? 'page_button' ) );
+            if ( ! in_array( $click_mode, [ 'page_button', 'floating_button' ], true ) ) {
+                $click_mode = 'page_button';
+            }
+            $launcher_position = metis_key_clean( (string) ( $trigger_config['launcher_position'] ?? 'bottom_right' ) );
+            if ( ! in_array( $launcher_position, [ 'top_left', 'top_right', 'bottom_left', 'bottom_right' ], true ) ) {
+                $launcher_position = 'bottom_right';
+            }
+            $launcher_color_key = metis_key_clean( (string) ( $trigger_config['launcher_color_key'] ?? 'metis_primary' ) );
+            if ( ! in_array( $launcher_color_key, [ 'metis_primary', 'metis_accent', 'metis_text', 'metis_surface' ], true ) ) {
+                $launcher_color_key = 'metis_primary';
+            }
+            $launcher_text_color_key = metis_key_clean( (string) ( $trigger_config['launcher_text_color_key'] ?? '' ) );
+            if ( $launcher_text_color_key !== '' && ! in_array( $launcher_text_color_key, [ 'metis_primary', 'metis_accent', 'metis_text', 'metis_surface' ], true ) ) {
+                $launcher_text_color_key = '';
+            }
+            $launcher_layout = metis_key_clean( (string) ( $trigger_config['launcher_layout'] ?? 'full' ) );
+            if ( ! in_array( $launcher_layout, [ 'full', 'icon' ], true ) ) {
+                $launcher_layout = 'full';
+            }
+            $launcher_style = metis_key_clean( (string) ( $trigger_config['launcher_style'] ?? 'solid' ) );
+            if ( ! in_array( $launcher_style, [ 'solid', 'soft', 'outline' ], true ) ) {
+                $launcher_style = 'solid';
+            }
+            $launcher_shape = metis_key_clean( (string) ( $trigger_config['launcher_shape'] ?? 'pill' ) );
+            if ( ! in_array( $launcher_shape, [ 'pill', 'rounded', 'square' ], true ) ) {
+                $launcher_shape = 'pill';
+            }
+            $launcher_border_width = metis_key_clean( (string) ( $trigger_config['launcher_border_width'] ?? 'thin' ) );
+            if ( ! in_array( $launcher_border_width, [ 'none', 'thin', 'regular', 'thick' ], true ) ) {
+                $launcher_border_width = 'thin';
+            }
+            $launcher_border_effect = metis_key_clean( (string) ( $trigger_config['launcher_border_effect'] ?? 'single' ) );
+            if ( ! in_array( $launcher_border_effect, [ 'single', 'double_ring' ], true ) ) {
+                $launcher_border_effect = 'single';
+            }
+            $launcher_icon = str_replace( '_', '-', metis_key_clean( str_replace( '-', '_', (string) ( $trigger_config['launcher_icon'] ?? '' ) ) ) );
+            if ( $launcher_icon !== '' && function_exists( 'metis_navigation_svg_icon_path' ) && metis_navigation_svg_icon_path( $launcher_icon ) === '' ) {
+                $launcher_icon = '';
+            }
+            $launcher_label = trim( metis_text_clean( (string) ( $trigger_config['launcher_label'] ?? 'Open popup' ) ) );
+            if ( $launcher_label === '' ) {
+                $launcher_label = 'Open popup';
+            }
             $delay_ms = max( 0, (int) ( $trigger_config['delay_ms'] ?? 1500 ) );
             $scroll_percent = max( 1, min( 100, (int) ( $trigger_config['scroll_percent'] ?? 50 ) ) );
 
             $out['trigger_config_json'] = self::jsonEncode( [
                 'frequency' => $frequency,
+                'click_mode' => $click_mode,
+                'launcher_position' => $launcher_position,
+                'launcher_color_key' => $launcher_color_key,
+                'launcher_text_color_key' => $launcher_text_color_key,
+                'launcher_layout' => $launcher_layout,
+                'launcher_style' => $launcher_style,
+                'launcher_shape' => $launcher_shape,
+                'launcher_border_width' => $launcher_border_width,
+                'launcher_border_effect' => $launcher_border_effect,
+                'launcher_icon' => $launcher_icon,
+                'launcher_label' => $launcher_label,
                 'delay_ms' => $delay_ms,
                 'scroll_percent' => $scroll_percent,
             ] );

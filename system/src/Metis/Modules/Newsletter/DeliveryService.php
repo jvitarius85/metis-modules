@@ -606,6 +606,69 @@ final class DeliveryService {
         return Response::html( $html );
     }
 
+    public static function handlePublicSignupRoute( Request $request ): Response {
+        NewsletterModule::ensureSchema();
+
+        $payload = $request->parsed_body();
+        if ( isset( $payload['payload'] ) && is_string( $payload['payload'] ) ) {
+            $decoded = json_decode( $payload['payload'], true );
+            if ( is_array( $decoded ) ) {
+                $payload = $decoded;
+            }
+        }
+        if ( ! is_array( $payload ) ) {
+            $payload = [];
+        }
+
+        $first_name = trim( (string) ( $payload['first_name'] ?? '' ) );
+        $last_name  = trim( (string) ( $payload['last_name'] ?? '' ) );
+        $email      = strtolower( trim( (string) ( $payload['email'] ?? '' ) ) );
+
+        if ( $first_name === '' || $last_name === '' || $email === '' ) {
+            return self::respondPublicSignup( $request, [
+                'success' => false,
+                'message' => 'First name, last name, and email are required.',
+            ], 400 );
+        }
+
+        if ( ! \metis_email_is_valid( $email ) ) {
+            return self::respondPublicSignup( $request, [
+                'success' => false,
+                'message' => 'Enter a valid email address.',
+            ], 400 );
+        }
+
+        $list_id = SubscriptionService::defaultListId();
+        if ( $list_id < 1 ) {
+            return self::respondPublicSignup( $request, [
+                'success' => false,
+                'message' => 'The default Newsletter list is not configured yet.',
+            ], 503 );
+        }
+
+        $result = SubscriptionService::upsert( [
+            'email' => $email,
+            'first_name' => $first_name,
+            'last_name' => $last_name,
+            'list_id' => $list_id,
+            'status' => 'subscribed',
+            'source' => 'website_popup_signup',
+        ] );
+
+        if ( empty( $result['success'] ) ) {
+            return self::respondPublicSignup( $request, [
+                'success' => false,
+                'message' => (string) ( $result['message'] ?? 'Unable to save your sign-up.' ),
+            ], (int) ( $result['status'] ?? 500 ) );
+        }
+
+        return self::respondPublicSignup( $request, [
+            'success' => true,
+            'message' => 'You are signed up for the Newsletter list.',
+            'list_name' => SubscriptionService::DEFAULT_LIST_NAME,
+        ], 200 );
+    }
+
     public static function handlePublicUnsubscribeRoute( Request $request ): Response {
         $db = self::db();
         $resolved = self::resolvePublicContact( (string) $request->attribute( 'contact', '' ) );
@@ -951,5 +1014,28 @@ final class DeliveryService {
             'ref'  => (string) ( $row['newsletter_list_uid'] ?? $row['list_key'] ?? $ref ),
             'name' => (string) ( $row['name'] ?? '' ),
         ];
+    }
+
+    private static function respondPublicSignup( Request $request, array $payload, int $status ): Response {
+        $expects_json = str_contains( strtolower( (string) $request->header( 'accept', '' ) ), 'application/json' )
+            || strtolower( (string) $request->header( 'x-requested-with', '' ) ) === 'xmlhttprequest';
+
+        if ( $expects_json ) {
+            return Response::json( $payload, $status );
+        }
+
+        $title = ! empty( $payload['success'] ) ? 'Thanks for signing up' : 'Sign-up unavailable';
+        $message = trim( (string) ( $payload['message'] ?? '' ) );
+        if ( $message === '' ) {
+            $message = ! empty( $payload['success'] ) ? 'You are signed up.' : 'We could not complete that sign-up.';
+        }
+
+        return Response::html(
+            '<html><body style="font-family:Arial,sans-serif;padding:24px;max-width:640px;margin:0 auto;">'
+            . '<h2 style="margin:0 0 8px;">' . metis_escape_html( $title ) . '</h2>'
+            . '<p style="margin:0;color:#4b5563;">' . metis_escape_html( $message ) . '</p>'
+            . '</body></html>',
+            $status
+        );
     }
 }

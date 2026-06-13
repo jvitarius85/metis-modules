@@ -1368,7 +1368,7 @@ function metis_router_route_permission_for_request( Metis_Http_Request $request 
         return 'manage';
     }
 
-    if ( in_array( $route_name, [ 'forms.public', 'donations.recurring.manage', 'manage.profile', 'manage.access', 'manage.statement' ], true ) ) {
+    if ( in_array( $route_name, [ 'forms.public', 'newsletter.public.signup', 'donations.recurring.manage', 'manage.profile', 'manage.access', 'manage.statement' ], true ) ) {
         return $method === 'POST' ? 'create' : 'view';
     }
 
@@ -1454,6 +1454,7 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
             break;
 
         case 'forms.public':
+        case 'newsletter.public.signup':
             // Public form views/submissions must be accessible without portal auth.
             $module = null;
             $require_authentication = false;

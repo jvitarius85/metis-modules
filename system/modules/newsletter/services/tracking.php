@@ -26,6 +26,10 @@ function metis_newsletter_public_view_url(string $newsletter_ref): string {
     return metis_home_url('/n/view/' . rawurlencode(trim($newsletter_ref)) . '/');
 }
 
+function metis_newsletter_public_signup_url(): string {
+    return metis_home_url('/n/signup/');
+}
+
 function metis_newsletter_open_pixel_url_from_message_code(string $message_code): string {
     return metis_home_url('/metis/v1/newsletter/open/' . rawurlencode($message_code) . '.gif');
 }

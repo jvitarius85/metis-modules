@@ -180,6 +180,38 @@ final class EditorOptionsService {
         return \Metis\Modules\Testimonies\Repository::categoryOptions( true );
     }
 
+    /**
+     * @return array<int,array{value:string,label:string}>
+     */
+    public static function popupOptions(): array {
+        if ( ! class_exists( PopupService::class ) ) {
+            return [];
+        }
+
+        $options = [];
+        foreach ( PopupService::getAll() as $popup ) {
+            if ( ! is_array( $popup ) ) {
+                continue;
+            }
+            $id = (int) ( $popup['id'] ?? 0 );
+            if ( $id < 1 ) {
+                continue;
+            }
+            $name = trim( (string) ( $popup['name'] ?? '' ) );
+            $status = metis_key_clean( (string) ( $popup['status'] ?? 'draft' ) );
+            $label = $name !== '' ? $name : ( 'Popup #' . $id );
+            if ( $status !== 'published' ) {
+                $label .= ' [' . ucfirst( $status ) . ']';
+            }
+            $options[] = [
+                'value' => (string) $id,
+                'label' => $label,
+            ];
+        }
+
+        return $options;
+    }
+
     private static function usersTable(): string {
         $db = \metis_db();
         $prefix = $db->prefix();

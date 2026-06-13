@@ -87,4 +87,5 @@ final class NewsletterModule {
     public static function handlePublicUnsubscribeRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicUnsubscribeRoute( $request ); }
     public static function handlePublicManageRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicManageRoute( $request ); }
     public static function handlePublicViewRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicViewRoute( $request ); }
+    public static function handlePublicSignupRoute( \Metis_Http_Request $request ): \Metis_Http_Response { return DeliveryService::handlePublicSignupRoute( $request ); }
 }

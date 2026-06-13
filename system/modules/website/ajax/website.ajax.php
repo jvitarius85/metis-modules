@@ -468,6 +468,13 @@ function metis_website_ajax_testimony_category_options(): array {
 }
 
 /**
+ * @return array<int,array{value:string,label:string}>
+ */
+function metis_website_ajax_popup_options(): array {
+    return EditorOptionsService::popupOptions();
+}
+
+/**
  * @return array<string,mixed>
  */
 function metis_website_ajax_decode_json_array( $raw ): array {
@@ -1784,6 +1791,7 @@ metis_ajax_register_handler( 'metis_website_editor_properties_options', function
         'categories' => metis_website_ajax_post_category_options(),
         'forms' => metis_website_ajax_form_options(),
         'donation_campaigns' => metis_website_ajax_donation_campaign_options(),
+        'popups' => metis_website_ajax_popup_options(),
         'calendar_sources' => metis_website_ajax_calendar_source_options(),
         'testimony_categories' => metis_website_ajax_testimony_category_options(),
         'media' => metis_website_ajax_media_options(),
@@ -3087,17 +3095,23 @@ metis_ajax_register_handler( 'metis_website_popup_save', function (): void {
     metis_website_ajax_assert_blocks_valid( $popup_blocks, 'web_part', 'standard' );
     metis_website_ajax_assert_accessibility_valid( $popup_blocks );
 
+    if ( $id > 0 && PopupService::getById( $id ) === null ) {
+        $id = 0;
+    }
+
     if ( $id > 0 ) {
         $ok = PopupService::update( $id, $data );
+        $saved_id = $id;
     } else {
-        $ok = (bool) PopupService::create( $data );
+        $saved_id = (int) PopupService::create( $data );
+        $ok = $saved_id > 0;
     }
 
     if ( ! $ok ) {
         metis_runtime_send_json_error( 'Failed to save popup.', 500 );
     }
 
-    metis_runtime_send_json_success( [ 'message' => 'Popup saved.', 'popups' => PopupService::getAll() ] );
+    metis_runtime_send_json_success( [ 'message' => 'Popup saved.', 'popup_id' => $saved_id, 'popups' => PopupService::getAll() ] );
 } );
 
 metis_ajax_register_handler( 'metis_website_popup_delete', function (): void {
@@ -3114,7 +3128,7 @@ metis_ajax_register_handler( 'metis_website_popup_delete', function (): void {
         metis_runtime_send_json_error( 'Failed to delete popup.', 500 );
     }
 
-    metis_runtime_send_json_success( [ 'message' => 'Popup deleted.' ] );
+    metis_runtime_send_json_success( [ 'message' => 'Popup deleted.', 'popups' => PopupService::getAll() ] );
 } );
 
 // ---------------------------------------------------------------------------

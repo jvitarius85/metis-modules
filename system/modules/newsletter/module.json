@@ -131,6 +131,14 @@
             ],
             "pattern": "#^/n/view/(?P<newsletter>[A-Za-z0-9\\-_]+)/?$#",
             "handler": "metis_newsletter_handle_public_view_route"
+        },
+        {
+            "name": "newsletter.public.signup",
+            "methods": [
+                "POST"
+            ],
+            "pattern": "#^/n/signup/?$#",
+            "handler": "metis_newsletter_handle_public_signup_route"
         }
     ],
     "assets": {
