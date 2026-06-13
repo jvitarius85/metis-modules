@@ -898,6 +898,11 @@ final class ReadService {
             'full_name' => $full_name,
             'display_name' => $display_name,
             'avatar_src' => $avatar_src,
+            'public_slug' => (string) ( $person['public_slug'] ?? '' ),
+            'public_tagline' => (string) ( $person['public_tagline'] ?? '' ),
+            'public_bio_html' => (string) ( $person['public_bio_html'] ?? '' ),
+            'public_visibility' => (string) ( $person['public_visibility'] ?? 'private' ),
+            'public_sort_order' => (int) ( $person['public_sort_order'] ?? 0 ),
             'linked_donor_id' => $linked_donor_id,
             'donor_profile_url' => $donor_profile_url,
             'linked_donor_name' => $linked_donor_name,
@@ -935,5 +940,129 @@ final class ReadService {
             'drive_users_root_id' => $drive_users_root_id,
             'drive_users_root_name' => $drive_users_root_name,
         ];
+    }
+
+    public static function publicProfileSnapshotBySlug( string $slug ): ?array {
+        $slug = \metis_slug_clean( $slug );
+        if ( $slug === '' ) {
+            return null;
+        }
+
+        $db = \metis_db();
+        $people_table = \Metis_Tables::get( 'people' );
+        $person = $db->fetchOne(
+            "SELECT *
+             FROM {$people_table}
+             WHERE public_slug = %s
+               AND public_visibility <> 'private'
+               AND status = 'active'
+             LIMIT 1",
+            [ $slug ]
+        );
+
+        if ( ! is_array( $person ) ) {
+            return null;
+        }
+
+        $full_name = trim( (string) ( $person['first_name'] ?? '' ) . ' ' . (string) ( $person['last_name'] ?? '' ) );
+        if ( $full_name === '' ) {
+            $full_name = trim( (string) ( $person['display_name'] ?? '' ) );
+        }
+        $avatar_src = \metis_avatar_url(
+            $full_name !== '' ? $full_name : (string) ( $person['email'] ?? 'Person' ),
+            (string) ( $person['avatar_url'] ?? '' ),
+            320,
+            (string) ( $person['pid'] ?? '' )
+        );
+
+        return [
+            'person' => $person,
+            'full_name' => $full_name,
+            'avatar_src' => $avatar_src,
+            'groups' => self::publicGroupBadges( $person ),
+            'primary_role' => self::publicPrimaryRoleLabel( $person ),
+        ];
+    }
+
+    public static function peopleDirectorySnapshot( array $options = [] ): array {
+        $group = \metis_key_clean( (string) ( $options['group'] ?? 'staff' ) );
+        if ( ! in_array( $group, [ 'staff', 'board', 'volunteer' ], true ) ) {
+            $group = 'staff';
+        }
+        $limit = max( 1, min( 100, (int) ( $options['limit'] ?? 24 ) ) );
+
+        $db = \metis_db();
+        $people_table = \Metis_Tables::get( 'people' );
+        $column = 'is_' . $group;
+        $rows = $db->fetchAll(
+            "SELECT *
+             FROM {$people_table}
+             WHERE {$column} = 1
+               AND public_visibility IN (%s, %s)
+               AND status = 'active'
+             ORDER BY public_sort_order ASC, display_name ASC
+             LIMIT %d",
+            [ $group, 'all', $limit ]
+        ) ?: [];
+
+        $people = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $full_name = trim( (string) ( $row['first_name'] ?? '' ) . ' ' . (string) ( $row['last_name'] ?? '' ) );
+            if ( $full_name === '' ) {
+                $full_name = trim( (string) ( $row['display_name'] ?? '' ) );
+            }
+            $people[] = [
+                'pid' => (string) ( $row['pid'] ?? '' ),
+                'full_name' => $full_name,
+                'slug' => (string) ( $row['public_slug'] ?? '' ),
+                'tagline' => (string) ( $row['public_tagline'] ?? '' ),
+                'bio_html' => (string) ( $row['public_bio_html'] ?? '' ),
+                'avatar_url' => \metis_avatar_url(
+                    $full_name !== '' ? $full_name : (string) ( $row['email'] ?? 'Person' ),
+                    (string) ( $row['avatar_url'] ?? '' ),
+                    240,
+                    (string) ( $row['pid'] ?? '' )
+                ),
+                'groups' => self::publicGroupBadges( $row ),
+                'primary_role' => self::publicPrimaryRoleLabel( $row ),
+            ];
+        }
+
+        return [
+            'group' => $group,
+            'people' => $people,
+        ];
+    }
+
+    private static function publicPrimaryRoleLabel( array $person ): string {
+        if ( ! empty( $person['is_staff'] ) && trim( (string) ( $person['staff_position'] ?? '' ) ) !== '' ) {
+            return trim( (string) $person['staff_position'] );
+        }
+        if ( ! empty( $person['is_board'] ) && trim( (string) ( $person['board_position'] ?? '' ) ) !== '' ) {
+            return trim( (string) $person['board_position'] );
+        }
+        if ( ! empty( $person['is_volunteer'] ) && trim( (string) ( $person['volunteer_position'] ?? '' ) ) !== '' ) {
+            return trim( (string) $person['volunteer_position'] );
+        }
+
+        return '';
+    }
+
+    private static function publicGroupBadges( array $person ): array {
+        $groups = [];
+        if ( ! empty( $person['is_staff'] ) ) {
+            $groups[] = 'Staff';
+        }
+        if ( ! empty( $person['is_board'] ) ) {
+            $groups[] = 'Board';
+        }
+        if ( ! empty( $person['is_volunteer'] ) ) {
+            $groups[] = 'Volunteer';
+        }
+
+        return $groups;
     }
 }

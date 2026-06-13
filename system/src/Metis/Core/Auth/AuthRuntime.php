@@ -1492,18 +1492,6 @@ function metis_auth_login_customization(): array {
         }
     }
 
-    $asset_to_data_uri = static function( $asset ): string {
-        if ( ! is_array( $asset ) ) {
-            return '';
-        }
-        $mime = (string) ( $asset['mime_type'] ?? '' );
-        $data = (string) ( $asset['data_base64'] ?? '' );
-        if ( $mime === '' || $data === '' ) {
-            return '';
-        }
-        return 'data:' . $mime . ';base64,' . $data;
-    };
-
     $resolved = [
         'logo' => $defaults['logo'],
         'background_image' => $defaults['background_image'],
@@ -1514,15 +1502,25 @@ function metis_auth_login_customization(): array {
     ];
 
     if ( class_exists( 'Core_Settings_Service' ) ) {
-        $logo = $asset_to_data_uri( Core_Settings_Service::get( 'login_logo', [] ) );
-        $background_image = $asset_to_data_uri( Core_Settings_Service::get( 'login_background_image', [] ) );
+        $logo = metis_settings_asset_src( Core_Settings_Service::get( 'login_logo', [] ) );
+        $background_image = metis_settings_asset_src( Core_Settings_Service::get( 'login_background_image', [] ) );
         if ( $logo !== '' ) {
             $resolved['logo'] = $logo;
         }
         if ( $background_image !== '' ) {
             $resolved['background_image'] = $background_image;
         }
-        $resolved['background_color'] = metis_hex_color_clean( (string) Core_Settings_Service::get( 'login_background_color', $resolved['background_color'] ) ) ?: $resolved['background_color'];
+        $theme_colors = Core_Settings_Service::get( 'theme_colors', [] );
+        $theme_colors = is_array( $theme_colors ) ? $theme_colors : [];
+        $background_binding = metis_key_clean( (string) Core_Settings_Service::get( 'login_background_color_binding', '' ) );
+        $background_color = metis_hex_color_clean( (string) Core_Settings_Service::get( 'login_background_color', $resolved['background_color'] ) ) ?: $resolved['background_color'];
+        if ( $background_binding !== '' ) {
+            $bound_color = metis_hex_color_clean( (string) ( $theme_colors[ $background_binding ] ?? '' ) );
+            if ( $bound_color !== '' ) {
+                $background_color = $bound_color;
+            }
+        }
+        $resolved['background_color'] = $background_color;
         $resolved['welcome_text'] = (string) Core_Settings_Service::get( 'login_welcome_text', $resolved['welcome_text'] );
         $resolved['organization_name'] = (string) Core_Settings_Service::get( 'login_organization_name', $resolved['organization_name'] );
         $resolved['footer_text'] = (string) Core_Settings_Service::get( 'login_footer_text', $resolved['footer_text'] );
@@ -1537,9 +1535,9 @@ function metis_auth_render_shell( string $title, string $body, int $status = 200
     $js_path = ( defined( 'METIS_PATH' ) ? rtrim( (string) METIS_PATH, '/\\' ) : dirname( __DIR__, 4 ) ) . '/system/assets/js/auth-passkey-client.js';
     $inline_css = is_readable( $css_path ) ? (string) file_get_contents( $css_path ) : '';
     $inline_js = is_readable( $js_path ) ? (string) file_get_contents( $js_path ) : '';
-    $background_style = 'background:' . metis_escape_attr( (string) $custom['background_color'] ) . ';';
+    $background_style = 'background:' . metis_escape_attr( (string) $custom['background_color'] ) . ' center center / cover fixed no-repeat;';
     if ( ! empty( $custom['background_image'] ) ) {
-        $background_style = 'background:' . metis_escape_attr( (string) $custom['background_color'] ) . ' url(' . metis_escape_url( (string) $custom['background_image'] ) . ') center/cover no-repeat;';
+        $background_style = 'background:' . metis_escape_attr( (string) $custom['background_color'] ) . ' url(' . metis_escape_url( (string) $custom['background_image'] ) . ') center center / cover fixed no-repeat;';
     }
     $brand = trim( (string) ( $custom['organization_name'] ?? 'Metis' ) );
     $welcome = trim( (string) ( $custom['welcome_text'] ?? '' ) );

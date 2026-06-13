@@ -60,6 +60,13 @@ final class PostService {
                 $where[] = '(post_category_id IS NULL OR post_category_id = 0)';
             }
         }
+        if ( array_key_exists( 'author_id', $options ) ) {
+            $author_id = (int) $options['author_id'];
+            if ( $author_id > 0 ) {
+                $where[] = 'author_id = %d';
+                $params[] = $author_id;
+            }
+        }
         $post_category_ids = self::normalizeCategoryIds( $options['post_category_ids'] ?? [] );
         if ( $post_category_ids !== [] ) {
             $map_table = self::mapTable();
@@ -130,6 +137,13 @@ final class PostService {
                 $where[] = '(post_category_id IS NULL OR post_category_id = 0)';
             }
         }
+        if ( array_key_exists( 'author_id', $filters ) ) {
+            $author_id = (int) $filters['author_id'];
+            if ( $author_id > 0 ) {
+                $where[] = 'author_id = %d';
+                $params[] = $author_id;
+            }
+        }
         $post_category_ids = self::normalizeCategoryIds( $filters['post_category_ids'] ?? [] );
         if ( $post_category_ids !== [] ) {
             $map_table = self::mapTable();
@@ -180,6 +194,13 @@ final class PostService {
                 $params[] = $post_category_id;
             } else {
                 $where[] = '(post_category_id IS NULL OR post_category_id = 0)';
+            }
+        }
+        if ( array_key_exists( 'author_id', $filters ) ) {
+            $author_id = (int) $filters['author_id'];
+            if ( $author_id > 0 ) {
+                $where[] = 'author_id = %d';
+                $params[] = $author_id;
             }
         }
         $post_category_ids = self::normalizeCategoryIds( $filters['post_category_ids'] ?? [] );

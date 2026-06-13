@@ -57,6 +57,11 @@ $volunteer_position = (string) ( $person['volunteer_position'] ?? '' );
 $board_term_start = (string) ( $person['board_term_start'] ?? '' );
 $board_term_end = (string) ( $person['board_term_end'] ?? '' );
 $volunteer_area = (string) ( $person['volunteer_area'] ?? '' );
+$public_slug = (string) ( $snapshot['public_slug'] ?? '' );
+$public_tagline = (string) ( $snapshot['public_tagline'] ?? '' );
+$public_bio_html = (string) ( $snapshot['public_bio_html'] ?? '' );
+$public_visibility = (string) ( $snapshot['public_visibility'] ?? 'private' );
+$public_sort_order = (int) ( $snapshot['public_sort_order'] ?? 0 );
 $position_options = $snapshot['position_options'] ?? [ 'board' => [], 'staff' => [], 'volunteer' => [] ];
 $email_notifications = ! empty( $snapshot['email_notifications'] );
 $requires_2fa = ! empty( $snapshot['requires_2fa'] );
@@ -373,6 +378,52 @@ if ( ! function_exists( 'metis_people_workspace_label_from_key' ) ) {
                             <option value="<?php echo metis_escape_attr( $label ); ?>" <?php metis_attr_selected( $volunteer_position, $label ); ?>><?php echo metis_escape_html( $label ); ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <div class="metis-field metis-field-full">
+                    <h4 class="metis-people-form-subtitle">Public Profile</h4>
+                    <div class="metis-muted">Used for staff, board, volunteer listings and article author pages.</div>
+                </div>
+
+                <div class="metis-field metis-field-half">
+                    <label for="metis-people-public-visibility">Public Listing</label>
+                    <select id="metis-people-public-visibility" class="metis-select" <?php disabled( ! $can_manage ); ?>>
+                        <option value="private" <?php metis_attr_selected( $public_visibility, 'private' ); ?>>Keep private</option>
+                        <option value="staff" <?php metis_attr_selected( $public_visibility, 'staff' ); ?>>Show in staff listings</option>
+                        <option value="board" <?php metis_attr_selected( $public_visibility, 'board' ); ?>>Show in board listings</option>
+                        <option value="volunteer" <?php metis_attr_selected( $public_visibility, 'volunteer' ); ?>>Show in volunteer listings</option>
+                        <option value="all" <?php metis_attr_selected( $public_visibility, 'all' ); ?>>Show anywhere they belong</option>
+                    </select>
+                </div>
+
+                <div class="metis-field metis-field-half">
+                    <label for="metis-people-public-sort-order">Listing Order</label>
+                    <input id="metis-people-public-sort-order" class="metis-input" type="number" value="<?php echo metis_escape_attr( (string) $public_sort_order ); ?>" <?php disabled( ! $can_manage ); ?>>
+                </div>
+
+                <div class="metis-field metis-field-half">
+                    <label for="metis-people-public-slug">Profile URL Slug</label>
+                    <input id="metis-people-public-slug" class="metis-input" type="text" value="<?php echo metis_escape_attr( $public_slug ); ?>" placeholder="jane-doe" <?php disabled( ! $can_manage ); ?>>
+                </div>
+
+                <div class="metis-field metis-field-half">
+                    <label for="metis-people-public-tagline">Tagline</label>
+                    <input id="metis-people-public-tagline" class="metis-input" type="text" value="<?php echo metis_escape_attr( $public_tagline ); ?>" placeholder="Executive Director" <?php disabled( ! $can_manage ); ?>>
+                </div>
+
+                <div class="metis-field metis-field-full">
+                    <label for="metis-people-public-bio-editor">Public Bio</label>
+                    <div class="metis-shared-rich-shell">
+                        <div class="metis-se-rich-toolbar" data-rich-toolbar="people-public-bio">
+                            <button type="button" class="metis-btn-xs" data-rich-cmd="bold">Bold</button>
+                            <button type="button" class="metis-btn-xs" data-rich-cmd="italic">Italic</button>
+                            <button type="button" class="metis-btn-xs" data-rich-cmd="insertUnorderedList">Bullets</button>
+                            <button type="button" class="metis-btn-xs" data-rich-cmd="formatBlock" data-rich-value="blockquote">Quote</button>
+                            <button type="button" class="metis-btn-xs" data-rich-action="link">Link</button>
+                        </div>
+                        <div id="metis-people-public-bio-editor" class="metis-input metis-shared-rich-editor" contenteditable="<?php echo $can_manage ? 'true' : 'false'; ?>" data-rich-editor-input="people-public-bio"><?php echo $public_bio_html; ?></div>
+                        <input id="metis-people-public-bio-html" type="hidden" value="<?php echo metis_escape_attr( $public_bio_html ); ?>">
+                    </div>
                 </div>
 
                 <?php if ( $can_manage ) : ?>

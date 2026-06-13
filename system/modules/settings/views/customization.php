@@ -4,6 +4,9 @@ require_once __DIR__ . '/_settings_bootstrap.php';
 $ctx = metis_settings_bootstrap( 'branding' );
 if ( empty( $ctx['allowed'] ) ) return;
 extract( $ctx, EXTR_SKIP );
+$login_background_trigger_color = $login_background_color_binding !== '' && isset( $theme_colors[ $login_background_color_binding ] )
+    ? (string) $theme_colors[ $login_background_color_binding ]
+    : $login_background_color;
 ?>
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Settings' ) ); ?></h1>
 <p class="metis-subtitle">Customize the shared Metis color system used by the portal.</p>
@@ -43,9 +46,32 @@ extract( $ctx, EXTR_SKIP );
                 <label for="login_footer_text">Footer Text</label>
                 <input id="login_footer_text" name="login_footer_text" class="metis-input" type="text" value="<?php echo metis_escape_attr( $login_footer_text ); ?>">
             </div>
-            <div class="metis-field">
-                <label for="login_background_color">Background Color</label>
-                <input id="login_background_color" name="login_background_color" class="metis-input" type="text" pattern="^#[A-Fa-f0-9]{6}$" value="<?php echo metis_escape_attr( $login_background_color ); ?>">
+            <div class="metis-field metis-theme-field">
+                <label for="login_background_color_binding">Background Color</label>
+                <div class="metis-theme-color-wrap">
+                    <input id="login_background_color" name="login_background_color" class="metis-theme-color metis-is-hidden" type="color" value="<?php echo metis_escape_attr( $login_background_color ); ?>" data-settings-custom-color="login_background_color">
+                    <button type="button" class="metis-theme-color-dot" data-settings-custom-color-dot="login_background_color" style="background:<?php echo metis_escape_attr( $login_background_trigger_color ); ?>"></button>
+                    <select
+                        id="login_background_color_binding"
+                        name="login_background_color_binding"
+                        class="metis-input metis-input-sm metis-settings-color-binding"
+                        data-settings-custom-color-select="login_background_color"
+                        data-metis-ui-select="1"
+                        data-metis-select-trigger-class="metis-input metis-input-sm"
+                        data-metis-select-variant="theme-binding"
+                    >
+                        <option value="" data-metis-select-color="<?php echo metis_escape_attr( $login_background_color ); ?>"<?php echo $login_background_color_binding === '' ? ' selected' : ''; ?>>Custom / fixed</option>
+                        <?php foreach ( $theme_color_fields as $key => $field ) : ?>
+                            <option
+                                value="<?php echo metis_escape_attr( $key ); ?>"
+                                data-metis-select-color="<?php echo metis_escape_attr( (string) ( $theme_colors[ $key ] ?? $field['default'] ?? '#ffffff' ) ); ?>"
+                                <?php echo $login_background_color_binding === $key ? ' selected' : ''; ?>
+                            >
+                                <?php echo metis_escape_html( (string) ( $field['label'] ?? $key ) ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <div class="metis-field" data-settings-media-field="login_logo">
                 <label>Login Logo</label>

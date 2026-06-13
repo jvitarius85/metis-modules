@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "group": { "type": "string", "default": "staff" },
+    "layout": { "type": "string", "default": "grid" },
+    "limit": { "type": "number", "default": 12 }
+  }
+}

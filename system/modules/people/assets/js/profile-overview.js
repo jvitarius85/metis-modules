@@ -462,6 +462,43 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
     const boardPositionSelect = document.getElementById('metis-people-board-position');
     const staffPositionSelect = document.getElementById('metis-people-staff-position');
     const volunteerPositionSelect = document.getElementById('metis-people-volunteer-position');
+    const publicBioToolbar = document.querySelector('[data-rich-toolbar="people-public-bio"]');
+    const publicBioEditor = document.getElementById('metis-people-public-bio-editor');
+    const publicBioHidden = document.getElementById('metis-people-public-bio-html');
+
+    function syncPublicBio() {
+        if (!publicBioEditor || !publicBioHidden) return;
+        if (window.Metis && Metis.ui && Metis.ui.richText) {
+            publicBioEditor.innerHTML = Metis.ui.richText.normalizeHtml(String(publicBioEditor.innerHTML || ''));
+            Metis.ui.richText.bindIconFallbacks(publicBioEditor);
+        }
+        publicBioHidden.value = String(publicBioEditor.innerHTML || '');
+    }
+
+    if (publicBioToolbar && publicBioEditor && publicBioHidden) {
+        publicBioToolbar.addEventListener('click', function (event) {
+            const button = event.target.closest('[data-rich-cmd],[data-rich-action]');
+            if (!button || !(window.Metis && Metis.ui && Metis.ui.richText)) return;
+            event.preventDefault();
+            Metis.ui.richText.saveSelection(publicBioEditor);
+            if (button.hasAttribute('data-rich-action')) {
+                const action = String(button.getAttribute('data-rich-action') || '');
+                const value = action === 'link' ? window.prompt('Enter link URL', 'https://') : '';
+                if (action === 'link' && !value) return;
+                Metis.ui.richText.applyAction(publicBioEditor, action, value || '', '');
+            } else {
+                Metis.ui.richText.applyCommand(
+                    publicBioEditor,
+                    String(button.getAttribute('data-rich-cmd') || ''),
+                    String(button.getAttribute('data-rich-value') || '')
+                );
+            }
+            syncPublicBio();
+        });
+        publicBioEditor.addEventListener('input', syncPublicBio);
+        publicBioEditor.addEventListener('blur', syncPublicBio);
+        syncPublicBio();
+    }
 
     function syncPositionFieldVisibility() {
         const showBoard = !!(boardToggle && boardToggle.checked);
@@ -583,6 +620,10 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
             const personBoardTermStart = document.getElementById('metis-people-board-term-start');
             const personBoardTermEnd = document.getElementById('metis-people-board-term-end');
             const personVolunteerArea = document.getElementById('metis-people-volunteer-area');
+            const personPublicSlug = document.getElementById('metis-people-public-slug');
+            const personPublicTagline = document.getElementById('metis-people-public-tagline');
+            const personPublicVisibility = document.getElementById('metis-people-public-visibility');
+            const personPublicSortOrder = document.getElementById('metis-people-public-sort-order');
             const personEmailNotifications = document.getElementById('metis-people-email-notifications');
             const personRequires2fa = document.getElementById('metis-people-requires-2fa');
             const personMfaMethod = document.getElementById('metis-people-mfa-method');
@@ -597,6 +638,7 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
             const roleWindows = collectRoleWindows();
             const notificationPrefs = collectNotificationPrefs();
             const effectiveWorkspaceEmail = String((personWorkspaceEmail && personWorkspaceEmail.value) || '').trim();
+            syncPublicBio();
 
             post('metis_people_save_person', {
                 person_id: personId ? personId.value : '0',
@@ -618,6 +660,11 @@ window.MetisPeopleProfileModules.initPersonDetail = function (context) {
                 board_term_start: personBoardTermStart ? personBoardTermStart.value : '',
                 board_term_end: personBoardTermEnd ? personBoardTermEnd.value : '',
                 volunteer_area: personVolunteerArea ? personVolunteerArea.value : '',
+                public_slug: personPublicSlug ? personPublicSlug.value : '',
+                public_tagline: personPublicTagline ? personPublicTagline.value : '',
+                public_visibility: personPublicVisibility ? personPublicVisibility.value : 'private',
+                public_sort_order: personPublicSortOrder ? personPublicSortOrder.value : '0',
+                public_bio_html: publicBioHidden ? publicBioHidden.value : '',
                 lifecycle_status: personLifecycleStatus ? personLifecycleStatus.value : 'active',
                 email_notifications: personEmailNotifications && personEmailNotifications.checked ? '1' : '0',
                 requires_2fa: personRequires2fa && personRequires2fa.checked ? '1' : '0',

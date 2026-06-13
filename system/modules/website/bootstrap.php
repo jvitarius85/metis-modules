@@ -151,6 +151,21 @@ metis_on( 'init', static function (): void {
         [ 'route.security' ]
     );
 
+    $router->register(
+        'website.people_profile',
+        [ 'GET', 'HEAD' ],
+        static function ( \Metis_Http_Request $request ) use ( $normalize_public_path ): ?array {
+            $matches = [];
+            if ( preg_match( '#^/people/(?P<slug>[a-z0-9-]+)/?$#i', $normalize_public_path( $request ), $matches ) !== 1 ) {
+                return null;
+            }
+
+            return [ 'slug' => (string) ( $matches['slug'] ?? '' ) ];
+        },
+        'metis_website_handle_people_profile_route',
+        [ 'route.security' ]
+    );
+
     // Generic content path — lowest priority, checked last
     $router->register(
         'website.page',

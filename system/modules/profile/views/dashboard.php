@@ -153,6 +153,42 @@ $carddav_tokens = function_exists('metis_contacts_carddav_list_tokens')
                         <label class="metis-people-check"><input type="checkbox" id="metis-profile-email-notifications" <?php echo metis_attr_checked(!isset($person['email_notifications']) || (int) $person['email_notifications'] === 1, true, false); ?>> Email notifications enabled</label>
                         <label class="metis-people-check"><input type="checkbox" id="metis-profile-requires-2fa" <?php echo metis_attr_checked(!empty($person['requires_2fa']), true, false); ?>> Require MFA on login</label>
                     </div>
+                    <div class="metis-field metis-field-full">
+                        <h4 style="margin:0 0 6px;">Public Profile</h4>
+                        <div class="metis-muted">This powers your staff, board, volunteer, and article author profile.</div>
+                    </div>
+                    <div class="metis-field metis-field-half">
+                        <label for="metis-profile-public-visibility">Visibility</label>
+                        <select id="metis-profile-public-visibility" class="metis-select">
+                            <option value="private" <?php echo metis_attr_selected((string) ($person['public_visibility'] ?? 'private'), 'private', false); ?>>Keep private</option>
+                            <option value="staff" <?php echo metis_attr_selected((string) ($person['public_visibility'] ?? 'private'), 'staff', false); ?>>Staff listing</option>
+                            <option value="board" <?php echo metis_attr_selected((string) ($person['public_visibility'] ?? 'private'), 'board', false); ?>>Board listing</option>
+                            <option value="volunteer" <?php echo metis_attr_selected((string) ($person['public_visibility'] ?? 'private'), 'volunteer', false); ?>>Volunteer listing</option>
+                            <option value="all" <?php echo metis_attr_selected((string) ($person['public_visibility'] ?? 'private'), 'all', false); ?>>Anywhere I belong</option>
+                        </select>
+                    </div>
+                    <div class="metis-field metis-field-half">
+                        <label for="metis-profile-public-slug">Profile URL slug</label>
+                        <input id="metis-profile-public-slug" class="metis-input" type="text" value="<?php echo metis_escape_attr((string) ($person['public_slug'] ?? '')); ?>" placeholder="jane-doe">
+                    </div>
+                    <div class="metis-field metis-field-full">
+                        <label for="metis-profile-public-tagline">Tagline</label>
+                        <input id="metis-profile-public-tagline" class="metis-input" type="text" value="<?php echo metis_escape_attr((string) ($person['public_tagline'] ?? '')); ?>" placeholder="Director of Programs">
+                    </div>
+                    <div class="metis-field metis-field-full">
+                        <label for="metis-profile-public-bio-editor">Public bio</label>
+                        <div class="metis-shared-rich-shell">
+                            <div class="metis-se-rich-toolbar" data-rich-toolbar="profile-public-bio">
+                                <button type="button" class="metis-btn-xs" data-rich-cmd="bold">Bold</button>
+                                <button type="button" class="metis-btn-xs" data-rich-cmd="italic">Italic</button>
+                                <button type="button" class="metis-btn-xs" data-rich-cmd="insertUnorderedList">Bullets</button>
+                                <button type="button" class="metis-btn-xs" data-rich-cmd="formatBlock" data-rich-value="blockquote">Quote</button>
+                                <button type="button" class="metis-btn-xs" data-rich-action="link">Link</button>
+                            </div>
+                            <div id="metis-profile-public-bio-editor" class="metis-input metis-shared-rich-editor" contenteditable="true" data-rich-editor-input="profile-public-bio"><?php echo (string) ($person['public_bio_html'] ?? ''); ?></div>
+                            <input id="metis-profile-public-bio-html" type="hidden" value="<?php echo metis_escape_attr((string) ($person['public_bio_html'] ?? '')); ?>">
+                        </div>
+                    </div>
                     <div class="metis-form-actions">
                         <button type="submit" class="metis-btn">Save Profile</button>
                     </div>

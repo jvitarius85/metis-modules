@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Metis\Modules\Website\Services;
 
 use Metis\Core\Application;
+use Metis\Modules\People\PersonProfileService;
+use Metis\Modules\People\ReadService as PeopleReadService;
 use Metis\Modules\Website\Entities\Page;
 use Metis\Modules\Website\Entities\Post;
 use Metis\Modules\Website\Services\LayoutProfileService;
@@ -419,6 +421,8 @@ final class WebsiteRenderer {
         if ( $author_source_id < 1 ) {
             $author_source_id = (int) ( $post->updated_by ?? $post->created_by ?? 0 );
         }
+        $author_name = self::authorNameById( $author_source_id );
+        $author_url = self::authorProfileUrlByUserId( $author_source_id );
         return self::renderWithPipeline( [
             'title'       => $seo_meta['title'] ?? $post->title,
             'description' => $seo_meta['description'] ?? $post->excerpt ?? '',
@@ -432,7 +436,8 @@ final class WebsiteRenderer {
                 'title' => (string) ( $post->title ?? '' ),
                 'excerpt' => (string) ( $post->excerpt ?? '' ),
                 'publish_date' => (string) ( $post->publish_date ?? '' ),
-                'author_name' => self::authorNameById( $author_source_id ),
+                'author_name' => $author_name,
+                'author_url' => $author_url,
                 'featured_image_url' => self::mediaUrlById( (int) ( $post->featured_image_id ?? 0 ) ),
                 'featured_image_caption' => (string) ( $post->featured_image_caption ?? '' ),
                 'page_type' => 'post',
@@ -446,7 +451,8 @@ final class WebsiteRenderer {
                     'title' => (string) ( $post->title ?? '' ),
                     'excerpt' => (string) ( $post->excerpt ?? '' ),
                     'publish_date' => (string) ( $post->publish_date ?? '' ),
-                    'author_name' => self::authorNameById( $author_source_id ),
+                    'author_name' => $author_name,
+                    'author_url' => $author_url,
                     'featured_image_url' => self::mediaUrlById( (int) ( $post->featured_image_id ?? 0 ) ),
                     'featured_image_caption' => (string) ( $post->featured_image_caption ?? '' ),
                     'page_type' => 'post',
@@ -475,6 +481,61 @@ final class WebsiteRenderer {
                 'template_key' => metis_key_clean( (string) ( $template_structure['template_key'] ?? '' ) ),
             ],
         ] );
+    }
+
+    public static function renderPublicPersonProfileBySlug( string $slug ): ?string {
+        $snapshot = PeopleReadService::publicProfileSnapshotBySlug( $slug );
+        if ( ! is_array( $snapshot ) || empty( $snapshot['person'] ) ) {
+            return null;
+        }
+
+        $person = (array) $snapshot['person'];
+        $title = trim( (string) ( $snapshot['full_name'] ?? $person['display_name'] ?? 'Profile' ) );
+        $tagline = trim( (string) ( $person['public_tagline'] ?? '' ) );
+        $primary_role = trim( (string) ( $snapshot['primary_role'] ?? '' ) );
+        $groups = array_values( array_filter( array_map( 'strval', (array) ( $snapshot['groups'] ?? [] ) ) ) );
+        $avatar = trim( (string) ( $snapshot['avatar_src'] ?? '' ) );
+        $bio_html = self::sanitizePublicRichText( (string) ( $person['public_bio_html'] ?? '' ) );
+        $posts = self::publishedPostsByAuthorPersonId( (int) ( $person['id'] ?? 0 ), 12 );
+
+        $content = self::publicPeopleCssTag();
+        $content .= '<section class="metis-public-profile">';
+        $content .= '<div class="metis-public-profile__hero">';
+        if ( $avatar !== '' ) {
+            $content .= '<div class="metis-public-profile__avatar"><img src="' . metis_escape_attr( self::normalizePublicUrl( $avatar ) ) . '" alt="' . metis_escape_attr( $title ) . '"></div>';
+        }
+        $content .= '<div class="metis-public-profile__intro">';
+        $content .= '<p class="metis-public-profile__eyebrow">People</p>';
+        $content .= '<h1>' . metis_escape_html( $title ) . '</h1>';
+        if ( $tagline !== '' || $primary_role !== '' ) {
+            $content .= '<p class="metis-public-profile__tagline">' . metis_escape_html( $tagline !== '' ? $tagline : $primary_role ) . '</p>';
+        }
+        if ( $groups !== [] ) {
+            $content .= '<div class="metis-public-profile__chips">';
+            foreach ( $groups as $group ) {
+                $content .= '<span class="metis-public-profile__chip">' . metis_escape_html( $group ) . '</span>';
+            }
+            $content .= '</div>';
+        }
+        $content .= '</div></div>';
+        if ( $bio_html !== '' ) {
+            $content .= '<div class="metis-public-profile__bio">' . $bio_html . '</div>';
+        }
+        $content .= '</section>';
+        $content .= '<section class="metis-public-profile__posts-wrap">';
+        $content .= '<div class="metis-public-profile__section-head"><h2>Articles by ' . metis_escape_html( $title ) . '</h2></div>';
+        $content .= self::renderPublicPostCards( $posts, true );
+        $content .= '</section>';
+
+        return self::renderPublicDocument( $title, $content, [
+            'path' => '/people/' . trim( (string) ( $person['public_slug'] ?? $slug ), '/' ) . '/',
+            'slug' => trim( (string) ( $person['public_slug'] ?? $slug ), '/' ),
+            'content_type' => 'public_person',
+        ] );
+    }
+
+    public static function sanitizePublicRichText( string $html ): string {
+        return self::sanitizeRichTextFragment( $html );
     }
 
     private static function resolveHomepagePage(): ?Page {
@@ -1348,6 +1409,7 @@ final class WebsiteRenderer {
         $title = trim( (string) ( $page_data['title'] ?? '' ) );
         $date_raw = trim( (string) ( $page_data['publish_date'] ?? '' ) );
         $author = trim( (string) ( $page_data['author_name'] ?? '' ) );
+        $author_url = trim( (string) ( $page_data['author_url'] ?? '' ) );
 
         if ( $title === '' && $date_raw === '' && $author === '' ) {
             return '';
@@ -1360,7 +1422,9 @@ final class WebsiteRenderer {
             $meta_parts[] = 'Posted on ' . $date_label;
         }
         if ( $author !== '' ) {
-            $meta_parts[] = 'By ' . $author;
+            $meta_parts[] = $author_url !== ''
+                ? 'By <a href="' . metis_escape_attr( self::normalizePublicUrl( $author_url ) ) . '">' . metis_escape_html( $author ) . '</a>'
+                : 'By ' . metis_escape_html( $author );
         }
 
         $html = '<header class="metis-template-post-header">';
@@ -1368,7 +1432,7 @@ final class WebsiteRenderer {
             $html .= '<div class="metis-structured-section__head metis-structured-section__head--post"><h1>' . metis_escape_html( $title ) . '</h1></div>';
         }
         if ( $meta_parts !== [] ) {
-            $html .= '<p class="metis-template-post-meta">' . metis_escape_html( implode( ' ', $meta_parts ) ) . '</p>';
+            $html .= '<p class="metis-template-post-meta">' . implode( ' ', $meta_parts ) . '</p>';
         }
         $html .= '</header>';
 
@@ -1411,6 +1475,29 @@ final class WebsiteRenderer {
         }
 
         return '';
+    }
+
+    private static function authorProfileUrlByUserId( int $user_id ): string {
+        if ( $user_id < 1 || ! function_exists( 'metis_auth_find_user' ) ) {
+            return '';
+        }
+
+        $auth_user = metis_auth_find_user( 'id', $user_id );
+        if ( ! is_array( $auth_user ) ) {
+            return '';
+        }
+
+        $person_id = (int) ( $auth_user['person_id'] ?? 0 );
+        if ( $person_id < 1 ) {
+            return '';
+        }
+
+        $person = PersonProfileService::getById( $person_id );
+        if ( ! is_array( $person ) || trim( (string) ( $person['public_visibility'] ?? 'private' ) ) === 'private' ) {
+            return '';
+        }
+
+        return PersonProfileService::publicProfileUrl( $person );
     }
 
     private static function systemDateFormat(): string {
@@ -4839,6 +4926,17 @@ final class WebsiteRenderer {
             return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No posts yet.</p></div>';
         }
 
+        return self::renderPublicPostCards( $posts, true );
+    }
+
+    /**
+     * @param array<int,Post> $posts
+     */
+    private static function renderPublicPostCards( array $posts, bool $show_empty = false ): string {
+        if ( $posts === [] ) {
+            return $show_empty ? '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No posts yet.</p></div>' : '';
+        }
+
         $items = '';
         foreach ( $posts as $post ) {
             if ( ! $post instanceof Post ) {
@@ -4851,7 +4949,9 @@ final class WebsiteRenderer {
             $url = self::normalizePublicUrl( $post_path );
             $date = trim( (string) ( $post->publish_date ?? $post->created_at ?? '' ) );
             $excerpt = trim( (string) ( $post->excerpt ?? '' ) );
-            $author_name = self::authorNameById( (int) ( $post->author_id ?? $post->updated_by ?? $post->created_by ?? 0 ) );
+            $author_id = (int) ( $post->author_id ?? $post->updated_by ?? $post->created_by ?? 0 );
+            $author_name = self::authorNameById( $author_id );
+            $author_url = self::authorProfileUrlByUserId( $author_id );
             $featured_image_url = self::mediaUrlById( (int) ( $post->featured_image_id ?? 0 ) );
             $date_label = $date;
             if ( $date !== '' ) {
@@ -4881,7 +4981,9 @@ final class WebsiteRenderer {
             if ( $author_name !== '' || $date !== '' ) {
                 $items .= '<p class="metis-structured-posts-list__byline">';
                 if ( $author_name !== '' ) {
-                    $items .= 'By <span>' . metis_escape_html( $author_name ) . '</span>';
+                    $items .= 'By ' . ( $author_url !== ''
+                        ? '<a href="' . metis_escape_attr( self::normalizePublicUrl( $author_url ) ) . '">' . metis_escape_html( $author_name ) . '</a>'
+                        : '<span>' . metis_escape_html( $author_name ) . '</span>' );
                 }
                 if ( $author_name !== '' && $date !== '' ) {
                     $items .= ' <span class="metis-structured-posts-list__byline-sep">|</span> ';
@@ -4911,7 +5013,52 @@ final class WebsiteRenderer {
             $items .= '</article>';
         }
 
+        if ( $items === '' && $show_empty ) {
+            return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No posts yet.</p></div>';
+        }
+
         return '<div class="metis-structured-posts-list metis-structured-posts-list--cards">' . $items . '</div>';
+    }
+
+    /**
+     * @return array<int,Post>
+     */
+    private static function publishedPostsByAuthorPersonId( int $person_id, int $limit = 12 ): array {
+        if ( $person_id < 1 || ! function_exists( 'metis_auth_find_user' ) ) {
+            return [];
+        }
+
+        $auth_user = metis_auth_find_user( 'person_id', $person_id );
+        if ( ! is_array( $auth_user ) ) {
+            return [];
+        }
+
+        $user_id = (int) ( $auth_user['id'] ?? 0 );
+        if ( $user_id < 1 ) {
+            return [];
+        }
+
+        return array_values( array_filter(
+            PostService::getPublished( [ 'author_id' => $user_id, 'limit' => $limit ] ),
+            static fn ( $post ): bool => $post instanceof Post && self::postPublicPath( $post ) !== ''
+        ) );
+    }
+
+    private static function publicPeopleCssTag(): string {
+        static $printed = false;
+        if ( $printed ) {
+            return '';
+        }
+        $printed = true;
+
+        return '<style>'
+            . '.metis-public-profile{display:grid;gap:28px;padding:8px 0 20px}.metis-public-profile__hero{display:grid;grid-template-columns:minmax(180px,240px) minmax(0,1fr);gap:24px;align-items:center;padding:28px;border:1px solid #d8def2;border-radius:28px;background:linear-gradient(180deg,#fbfcff 0%,#f4f7ff 100%)}'
+            . '.metis-public-profile__avatar{aspect-ratio:1/1;border-radius:28px;overflow:hidden;background:#e8edf9;border:1px solid #d8def2}.metis-public-profile__avatar img{width:100%;height:100%;object-fit:cover;display:block}'
+            . '.metis-public-profile__eyebrow{margin:0 0 8px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#60708d;font-weight:700}.metis-public-profile__intro h1{margin:0;font-size:clamp(2rem,4vw,3.2rem);line-height:1.04}'
+            . '.metis-public-profile__tagline{margin:12px 0 0;font-size:1.08rem;color:#42506b}.metis-public-profile__chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.metis-public-profile__chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:999px;background:#e8eeff;color:#3347aa;font-weight:700}'
+            . '.metis-public-profile__bio{padding:26px;border:1px solid #d8def2;border-radius:24px;background:#fff;box-shadow:0 18px 40px rgba(34,52,102,.06)}.metis-public-profile__bio p:first-child{margin-top:0}.metis-public-profile__section-head h2{margin:0 0 14px}'
+            . '.metis-public-profile__posts-wrap{display:grid;gap:12px}@media (max-width:900px){.metis-public-profile__hero{grid-template-columns:1fr}.metis-public-profile__avatar{max-width:240px}}'
+            . '</style>';
     }
 
     private static function layoutSettingsFromRaw( ?string $raw ): array {

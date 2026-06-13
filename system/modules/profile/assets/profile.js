@@ -125,6 +125,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (avatar && p.avatar_url) {
             avatar.src = String(p.avatar_url);
         }
+        const publicSlug = document.getElementById('metis-profile-public-slug');
+        const publicTagline = document.getElementById('metis-profile-public-tagline');
+        const publicVisibility = document.getElementById('metis-profile-public-visibility');
+        const publicBioEditor = document.getElementById('metis-profile-public-bio-editor');
+        const publicBioHidden = document.getElementById('metis-profile-public-bio-html');
+        if (publicSlug) publicSlug.value = String(p.public_slug || '');
+        if (publicTagline) publicTagline.value = String(p.public_tagline || '');
+        if (publicVisibility) publicVisibility.value = String(p.public_visibility || 'private');
+        if (publicBioEditor) publicBioEditor.innerHTML = String(p.public_bio_html || '');
+        if (publicBioHidden) publicBioHidden.value = String(p.public_bio_html || '');
 
         const totpState = document.getElementById('metis-profile-totp-state');
         const passkeyState = document.getElementById('metis-profile-passkey-state');
@@ -215,6 +225,45 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function initSharedRichEditor(toolbarSelector, editorSelector, hiddenSelector) {
+        const toolbar = document.querySelector(toolbarSelector);
+        const editor = document.querySelector(editorSelector);
+        const hidden = document.querySelector(hiddenSelector);
+        if (!toolbar || !editor || !hidden) return;
+
+        function sync() {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                editor.innerHTML = Metis.ui.richText.normalizeHtml(String(editor.innerHTML || ''));
+                Metis.ui.richText.bindIconFallbacks(editor);
+            }
+            hidden.value = String(editor.innerHTML || '');
+        }
+
+        toolbar.addEventListener('click', function (event) {
+            const button = event.target.closest('[data-rich-cmd],[data-rich-action]');
+            if (!button || !(window.Metis && Metis.ui && Metis.ui.richText)) return;
+            event.preventDefault();
+            Metis.ui.richText.saveSelection(editor);
+            if (button.hasAttribute('data-rich-action')) {
+                const action = String(button.getAttribute('data-rich-action') || '');
+                const value = action === 'link' ? window.prompt('Enter link URL', 'https://') : '';
+                if (action === 'link' && !value) return;
+                Metis.ui.richText.applyAction(editor, action, value || '', '');
+            } else {
+                Metis.ui.richText.applyCommand(
+                    editor,
+                    String(button.getAttribute('data-rich-cmd') || ''),
+                    String(button.getAttribute('data-rich-value') || '')
+                );
+            }
+            sync();
+        });
+
+        editor.addEventListener('input', sync);
+        editor.addEventListener('blur', sync);
+        sync();
+    }
+
     const profileForm = document.getElementById('metis-profile-form');
     if (profileForm) {
         profileForm.addEventListener('submit', function (event) {
@@ -223,6 +272,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 first_name: (document.getElementById('metis-profile-first-name') || {}).value || '',
                 last_name: (document.getElementById('metis-profile-last-name') || {}).value || '',
                 display_name: (document.getElementById('metis-profile-display-name') || {}).value || '',
+                public_slug: (document.getElementById('metis-profile-public-slug') || {}).value || '',
+                public_tagline: (document.getElementById('metis-profile-public-tagline') || {}).value || '',
+                public_visibility: (document.getElementById('metis-profile-public-visibility') || {}).value || 'private',
+                public_bio_html: (document.getElementById('metis-profile-public-bio-html') || {}).value || '',
                 email_notifications: (document.getElementById('metis-profile-email-notifications') || {}).checked ? '1' : '0',
                 requires_2fa: (document.getElementById('metis-profile-requires-2fa') || {}).checked ? '1' : '0',
                 mfa_method: (document.getElementById('metis-profile-mfa-method') || {}).value || 'none',
@@ -244,6 +297,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 first_name: (document.getElementById('metis-profile-first-name') || {}).value || '',
                 last_name: (document.getElementById('metis-profile-last-name') || {}).value || '',
                 display_name: (document.getElementById('metis-profile-display-name') || {}).value || '',
+                public_slug: (document.getElementById('metis-profile-public-slug') || {}).value || '',
+                public_tagline: (document.getElementById('metis-profile-public-tagline') || {}).value || '',
+                public_visibility: (document.getElementById('metis-profile-public-visibility') || {}).value || 'private',
+                public_bio_html: (document.getElementById('metis-profile-public-bio-html') || {}).value || '',
                 email_notifications: (document.getElementById('metis-profile-email-notifications') || {}).checked ? '1' : '0',
                 requires_2fa: (document.getElementById('metis-profile-requires-2fa') || {}).checked ? '1' : '0',
                 mfa_method: (document.getElementById('metis-profile-mfa-method') || {}).value || 'none',
@@ -606,6 +663,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+
+    initSharedRichEditor('[data-rich-toolbar="profile-public-bio"]', '#metis-profile-public-bio-editor', '#metis-profile-public-bio-html');
 
     // Initial hydration ensures no stale state after ajax saves.
     loadProfile().catch(function () {

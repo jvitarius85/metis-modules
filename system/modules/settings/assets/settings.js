@@ -1,4 +1,50 @@
 document.addEventListener('DOMContentLoaded', function () {
+    function refreshSettingsColorBindingSelects(scope) {
+        if (!(window.Metis && Metis.ui && Metis.ui.select && typeof Metis.ui.select.refresh === 'function')) {
+            return;
+        }
+
+        var root = scope || document;
+        var selects = Array.prototype.slice.call(root.querySelectorAll('[data-settings-custom-color-select]'));
+        if (root instanceof HTMLSelectElement && root.hasAttribute('data-settings-custom-color-select')) {
+            selects.unshift(root);
+        }
+
+        selects.forEach(function (select) {
+            if (!(select instanceof HTMLSelectElement)) return;
+            select.dataset.metisUiSelect = '1';
+            select.dataset.metisSelectTriggerClass = select.classList.contains('metis-input-sm')
+                ? 'metis-input metis-input-sm'
+                : 'metis-input';
+            select.dataset.metisSelectVariant = 'theme-binding';
+            window.Metis.ui.select.refresh(select);
+        });
+    }
+
+    function syncSettingsCustomColorControl(key, refreshSelect) {
+        var input = document.querySelector('[data-settings-custom-color="' + key + '"]');
+        var select = document.querySelector('[data-settings-custom-color-select="' + key + '"]');
+        var dot = document.querySelector('[data-settings-custom-color-dot="' + key + '"]');
+        if (!input || !select || !dot) return;
+
+        var selectedOption = select.options[select.selectedIndex] || null;
+        var isCustom = String(select.value || '') === '';
+        var color = isCustom
+            ? String(input.value || '#ffffff')
+            : String((selectedOption && selectedOption.dataset && selectedOption.dataset.metisSelectColor) || input.value || '#ffffff');
+
+        if (select.options.length > 0) {
+            select.options[0].dataset.metisSelectColor = String(input.value || '#ffffff');
+        }
+
+        dot.style.background = color;
+        dot.title = isCustom ? 'Choose a custom color' : 'Switch to custom color';
+
+        if (refreshSelect) {
+            refreshSettingsColorBindingSelects(select);
+        }
+    }
+
     function navigate(url, options) {
         var target = String(url || '').trim();
         if (!target) return false;
@@ -209,6 +255,46 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     initSettingsMediaPicker();
+    refreshSettingsColorBindingSelects(document);
+    document.querySelectorAll('[data-settings-custom-color-select]').forEach(function (select) {
+        var key = String(select.getAttribute('data-settings-custom-color-select') || '').trim();
+        if (key) {
+            syncSettingsCustomColorControl(key, true);
+        }
+    });
+
+    document.addEventListener('change', function (event) {
+        var select = event.target.closest('[data-settings-custom-color-select]');
+        if (!select) return;
+        var key = String(select.getAttribute('data-settings-custom-color-select') || '').trim();
+        if (!key) return;
+        syncSettingsCustomColorControl(key, true);
+    });
+
+    document.addEventListener('input', function (event) {
+        var input = event.target.closest('[data-settings-custom-color]');
+        if (!input) return;
+        var key = String(input.getAttribute('data-settings-custom-color') || '').trim();
+        if (!key) return;
+        syncSettingsCustomColorControl(key, true);
+    });
+
+    document.addEventListener('click', function (event) {
+        var dot = event.target.closest('[data-settings-custom-color-dot]');
+        if (!dot) return;
+        var key = String(dot.getAttribute('data-settings-custom-color-dot') || '').trim();
+        if (!key) return;
+
+        var input = document.querySelector('[data-settings-custom-color="' + key + '"]');
+        var select = document.querySelector('[data-settings-custom-color-select="' + key + '"]');
+        if (!(input instanceof HTMLInputElement) || !(select instanceof HTMLSelectElement)) return;
+
+        if (String(select.value || '') !== '') {
+            select.value = '';
+            syncSettingsCustomColorControl(key, true);
+        }
+        input.click();
+    });
 
     function upsertCardDavNotice(form, notice) {
         if (!form) return;

@@ -2787,6 +2787,11 @@ if ( ! function_exists( 'metis_settings_save_customization_section' ) ) {
             }
         }
 
+        $login_background_color_binding = metis_key_clean( (string) ( metis_request_post()['login_background_color_binding'] ?? '' ) );
+        if ( ! array_key_exists( $login_background_color_binding, metis_settings_theme_color_fields() ) ) {
+            $login_background_color_binding = '';
+        }
+        Core_Settings_Service::set( 'login_background_color_binding', $login_background_color_binding, true );
         Core_Settings_Service::set( 'login_background_color', metis_hex_color_clean( (string) ( metis_request_post()['login_background_color'] ?? '' ) ) ?: '#edf2f7', true );
         Core_Settings_Service::set( 'login_welcome_text', metis_textarea_clean( (string) ( metis_request_post()['login_welcome_text'] ?? '' ) ), true );
         Core_Settings_Service::set( 'login_organization_name', metis_text_clean( (string) ( metis_request_post()['login_organization_name'] ?? '' ) ), true );
@@ -3693,6 +3698,10 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
         $login_background_image = Core_Settings_Service::get( 'login_background_image', [] );
         $login_background_image_src = metis_settings_asset_src( $login_background_image );
         $login_background_color = metis_hex_color_clean( (string) Core_Settings_Service::get( 'login_background_color', '#edf2f7' ) ) ?: '#edf2f7';
+        $login_background_color_binding = metis_key_clean( (string) Core_Settings_Service::get( 'login_background_color_binding', '' ) );
+        if ( ! array_key_exists( $login_background_color_binding, $theme_color_fields ) ) {
+            $login_background_color_binding = '';
+        }
         $login_welcome_text = (string) Core_Settings_Service::get( 'login_welcome_text', 'Use a passkey first, Google Workspace next, or your local password if needed.' );
         $login_organization_name = (string) Core_Settings_Service::get( 'login_organization_name', 'Metis' );
         $login_footer_text = (string) Core_Settings_Service::get( 'login_footer_text', 'Secure access powered by Metis.' );
@@ -4004,6 +4013,7 @@ if ( ! function_exists( 'metis_settings_bootstrap' ) ) {
             'login_background_image',
             'login_background_image_src',
             'login_background_color',
+            'login_background_color_binding',
             'login_welcome_text',
             'login_organization_name',
             'login_footer_text',

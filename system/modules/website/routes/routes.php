@@ -215,6 +215,26 @@ function metis_website_handle_theme_css_route( Metis_Http_Request $request ): Me
     );
 }
 
+function metis_website_handle_people_profile_route( Metis_Http_Request $request ): Metis_Http_Response {
+    $slug = metis_slug_clean( (string) $request->attribute( 'slug', '' ) );
+    if ( $slug === '' ) {
+        return metis_website_error_response( 404, 'The requested profile could not be found.', 'Profile Not Found' );
+    }
+
+    try {
+        $html = WebsiteRenderer::renderPublicPersonProfileBySlug( $slug );
+    } catch ( \Throwable $e ) {
+        metis_website_log_route_exception( 'people-profile:' . $slug, $e, $request );
+        return metis_website_error_response( 500, 'Metis could not render the requested profile.', 'Profile Render Error' );
+    }
+
+    if ( $html === null ) {
+        return metis_website_error_response( 404, 'The requested profile could not be found.', 'Profile Not Found' );
+    }
+
+    return new Metis_Http_Response( 200, metis_website_public_html_headers( true ), $html );
+}
+
 function metis_website_handle_page_route( Metis_Http_Request $request ): Metis_Http_Response {
     $normalized_path = metis_website_normalize_public_path(
         (string) $request->attribute( 'path', '' ),

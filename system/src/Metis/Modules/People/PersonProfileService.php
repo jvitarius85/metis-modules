@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Metis\Modules\People;
 
 final class PersonProfileService {
+    private const PUBLIC_VISIBILITIES = [ 'private', 'staff', 'board', 'volunteer', 'all' ];
+
     public static function getById( int $person_id ): ?array {
         if ( $person_id < 1 ) {
             return null;
@@ -20,6 +22,7 @@ final class PersonProfileService {
 
     public static function updateSelfProfile( int $person_id, array $payload ): ?array {
         $people_table = \Metis_Tables::get( 'people' );
+        $public_profile = self::normalizePublicProfilePayload( $payload );
 
         $ok = \metis_db()->update(
             $people_table,
@@ -27,6 +30,11 @@ final class PersonProfileService {
                 'first_name' => $payload['first_name'] !== '' ? $payload['first_name'] : null,
                 'last_name' => $payload['last_name'] !== '' ? $payload['last_name'] : null,
                 'display_name' => $payload['display_name'],
+                'public_slug' => $public_profile['public_slug'],
+                'public_tagline' => $public_profile['public_tagline'],
+                'public_bio_html' => $public_profile['public_bio_html'],
+                'public_visibility' => $public_profile['public_visibility'],
+                'public_updated_at' => \metis_current_time( 'mysql' ),
                 'email_notifications' => ! empty( $payload['email_notifications'] ) ? 1 : 0,
                 'requires_2fa' => ! empty( $payload['requires_2fa'] ) ? 1 : 0,
                 'mfa_method' => (string) $payload['mfa_method'],
@@ -34,7 +42,7 @@ final class PersonProfileService {
                 'updated_at' => \metis_current_time( 'mysql' ),
             ],
             [ 'id' => $person_id ],
-            [ '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s' ],
+            [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s' ],
             [ '%d' ]
         );
 
@@ -78,6 +86,7 @@ final class PersonProfileService {
         $workspace_is_protected = ! empty( $data['workspace_is_protected'] ) ? 1 : 0;
         $status = \metis_key_clean( (string) ( $data['status'] ?? 'active' ) );
         $lifecycle_status = \metis_key_clean( (string) ( $data['lifecycle_status'] ?? 'active' ) );
+        $public_profile = self::normalizePublicProfilePayload( $data, $person_id );
 
         if ( $linked_donor_id !== '' ) {
             $donor_exists = (int) $db->scalar(
@@ -155,6 +164,12 @@ final class PersonProfileService {
             'first_name' => (string) ( $data['first_name'] ?? '' ) !== '' ? (string) $data['first_name'] : null,
             'last_name' => (string) ( $data['last_name'] ?? '' ) !== '' ? (string) $data['last_name'] : null,
             'display_name' => (string) ( $data['display_name'] ?? '' ),
+            'public_slug' => $public_profile['public_slug'],
+            'public_tagline' => $public_profile['public_tagline'],
+            'public_bio_html' => $public_profile['public_bio_html'],
+            'public_visibility' => $public_profile['public_visibility'],
+            'public_sort_order' => isset( $data['public_sort_order'] ) ? (int) $data['public_sort_order'] : 0,
+            'public_updated_at' => \metis_current_time( 'mysql' ),
             'linked_donor_id' => $linked_donor_id !== '' ? $linked_donor_id : null,
             'is_workspace_user' => $is_workspace_user,
             'workspace_email' => $workspace_email !== '' ? $workspace_email : null,
@@ -180,7 +195,7 @@ final class PersonProfileService {
             'status' => $status,
             'offboarded_at' => ( $status === 'inactive' || $lifecycle_status === 'alumni' ) ? \metis_current_time( 'mysql' ) : null,
         ];
-        $format = [ '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' ];
+        $format = [ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' ];
 
         $previous_person = null;
         $previous_workspace_email = '';
@@ -526,5 +541,87 @@ final class PersonProfileService {
                 ]
             );
         }
+    }
+
+    public static function publicProfileUrl( array $person ): string {
+        $slug = trim( (string) ( $person['public_slug'] ?? '' ) );
+        if ( $slug === '' ) {
+            return '';
+        }
+
+        return \metis_home_url( '/people/' . rawurlencode( $slug ) . '/' );
+    }
+
+    private static function normalizePublicProfilePayload( array $payload, int $person_id = 0 ): array {
+        $public_slug = \metis_slug_clean( (string) ( $payload['public_slug'] ?? '' ) );
+        $display_name = trim( (string) ( $payload['display_name'] ?? '' ) );
+        if ( $public_slug === '' && $display_name !== '' ) {
+            $public_slug = \metis_slug_clean( $display_name );
+        }
+
+        $public_visibility = \metis_key_clean( (string) ( $payload['public_visibility'] ?? 'private' ) );
+        if ( ! in_array( $public_visibility, self::PUBLIC_VISIBILITIES, true ) ) {
+            $public_visibility = 'private';
+        }
+
+        $public_tagline = trim( (string) ( $payload['public_tagline'] ?? '' ) );
+        $public_tagline = $public_tagline !== '' ? mb_substr( $public_tagline, 0, 191 ) : null;
+
+        $public_bio_html = self::sanitizeRichTextHtml( (string) ( $payload['public_bio_html'] ?? '' ) );
+        if ( $public_bio_html === '' ) {
+            $public_bio_html = null;
+        }
+
+        if ( $public_visibility === 'private' ) {
+            $public_slug = $public_slug !== '' ? self::uniquePublicSlug( $public_slug, $person_id ) : null;
+        } else {
+            $public_slug = $public_slug !== '' ? self::uniquePublicSlug( $public_slug, $person_id ) : null;
+        }
+
+        return [
+            'public_slug' => $public_slug,
+            'public_tagline' => $public_tagline,
+            'public_bio_html' => $public_bio_html,
+            'public_visibility' => $public_visibility,
+        ];
+    }
+
+    private static function uniquePublicSlug( string $candidate, int $person_id = 0 ): string {
+        $candidate = \metis_slug_clean( $candidate );
+        if ( $candidate === '' ) {
+            return '';
+        }
+
+        $db = \metis_db();
+        $table = \Metis_Tables::get( 'people' );
+        $slug = $candidate;
+        $suffix = 2;
+
+        while ( true ) {
+            $existing_id = (int) $db->scalar(
+                "SELECT id FROM {$table} WHERE public_slug = %s AND id <> %d LIMIT 1",
+                [ $slug, $person_id ]
+            );
+            if ( $existing_id < 1 ) {
+                return $slug;
+            }
+            $slug = $candidate . '-' . $suffix;
+            $suffix++;
+        }
+    }
+
+    private static function sanitizeRichTextHtml( string $html ): string {
+        $html = trim( $html );
+        if ( $html === '' ) {
+            return '';
+        }
+
+        if ( class_exists( \Metis\Modules\Website\Services\WebsiteRenderer::class ) && method_exists( \Metis\Modules\Website\Services\WebsiteRenderer::class, 'sanitizePublicRichText' ) ) {
+            return (string) \Metis\Modules\Website\Services\WebsiteRenderer::sanitizePublicRichText( $html );
+        }
+
+        return function_exists( 'metis_runtime_kses_post' )
+            ? (string) \metis_runtime_kses_post( $html )
+            : strip_tags( $html, '<p><br><strong><b><em><i><u><ul><ol><li><a><span><div><h2><h3><h4><blockquote>' );
     }
 }

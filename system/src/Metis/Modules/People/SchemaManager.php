@@ -170,10 +170,19 @@ final class SchemaManager {
         self::addColumnIfMissing( $people_table, 'totp_secret_enc', 'TEXT DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'password_hash', 'VARCHAR(255) DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'avatar_url', 'VARCHAR(255) DEFAULT NULL' );
+        self::addColumnIfMissing( $people_table, 'public_slug', 'VARCHAR(160) DEFAULT NULL' );
+        self::addColumnIfMissing( $people_table, 'public_tagline', 'VARCHAR(191) DEFAULT NULL' );
+        self::addColumnIfMissing( $people_table, 'public_bio_html', 'LONGTEXT DEFAULT NULL' );
+        self::addColumnIfMissing( $people_table, 'public_visibility', "VARCHAR(24) NOT NULL DEFAULT 'private'" );
+        self::addColumnIfMissing( $people_table, 'public_sort_order', 'INT NOT NULL DEFAULT 0' );
+        self::addColumnIfMissing( $people_table, 'public_updated_at', 'DATETIME DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'last_active_at', 'DATETIME DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'offboarded_at', 'DATETIME DEFAULT NULL' );
         self::addColumnIfMissing( $people_table, 'person_uid', 'VARCHAR(16) DEFAULT NULL' );
         self::addIndexIfMissing( $people_table, 'volunteer_position', 'KEY volunteer_position (volunteer_position)' );
+        self::addIndexIfMissing( $people_table, 'public_slug', 'UNIQUE KEY public_slug (public_slug)' );
+        self::addIndexIfMissing( $people_table, 'public_visibility', 'KEY public_visibility (public_visibility)' );
+        self::addIndexIfMissing( $people_table, 'public_directory_lookup', 'KEY public_directory_lookup (public_visibility, is_staff, is_board, is_volunteer, public_sort_order, display_name)' );
         self::addColumnIfMissing( $workspace_users_table, 'is_protected', 'TINYINT(1) NOT NULL DEFAULT 0' );
         $db->execute( "UPDATE {$people_table} SET auth_provider = 'metis' WHERE auth_provider IS NULL OR auth_provider = '' OR auth_provider NOT IN ('metis', 'workspace')" );
 

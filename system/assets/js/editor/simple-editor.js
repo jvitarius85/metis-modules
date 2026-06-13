@@ -2642,8 +2642,8 @@
     }
 
     function bootStructuredEditorV2() {
-        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list'];
-        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'divider', 'spacer', 'posts_list'];
+        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list'];
+        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list'];
         var HERO_STYLES = ['split', 'centered', 'overlay'];
 
         state.sections = [];
@@ -3079,6 +3079,7 @@
             if (type === 'donation_progress') return 'Donation Progress';
             if (type === 'campaign_summary') return 'Campaign Summary';
             if (type === 'testimonials') return 'Testimonies';
+            if (type === 'people_directory') return 'People Directory';
             return s(type || 'text').replace('_', ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); });
         }
 
@@ -3101,6 +3102,7 @@
                 donation_progress: 'Campaign progress bar',
                 campaign_summary: 'Campaign content panel',
                 testimonials: 'Dynamic testimony listing',
+                people_directory: 'Staff, board, or volunteer profile listing',
                 divider: 'Horizontal rule',
                 spacer: 'Vertical spacing',
                 posts_list: 'Post listing',
@@ -3178,6 +3180,7 @@
             else if (t === 'donation_progress') base.content = { campaign_id: '', goal_amount: '', raised_amount: '', percent: '' };
             else if (t === 'campaign_summary') base.content = { campaign_id: '', title: '', content: '<p></p>', image: '' };
             else if (t === 'testimonials') base.content = { category_ids: [], limit: 6, layout: 'grid', featured_only: false, show_category: true, empty_message: '' };
+            else if (t === 'people_directory') base.content = { group: 'staff', layout: 'grid', limit: 12 };
             else if (t === 'divider') base.content = { label: '', style: 'solid' };
             else if (t === 'spacer') base.content = { height: 'medium' };
             else if (t === 'posts_list') base.content = { source: 'this_page', specific_page: 0, category_ids: [], limit: 5, sort: 'latest' };
@@ -3674,6 +3677,12 @@
                 out.content.featured_only = !!content.featured_only;
                 out.content.show_category = content.show_category !== false;
                 out.content.empty_message = repairMojibakeText(content.empty_message || '');
+            } else if (out.type === 'people_directory') {
+                var peopleGroup = s(content.group || 'staff');
+                var peopleLayout = s(content.layout || 'grid');
+                out.content.group = ['staff', 'board', 'volunteer'].indexOf(peopleGroup) === -1 ? 'staff' : peopleGroup;
+                out.content.layout = ['grid', 'list'].indexOf(peopleLayout) === -1 ? 'grid' : peopleLayout;
+                out.content.limit = Math.max(1, Math.min(48, parseInt(s(content.limit || '12'), 10) || 12));
             } else if (out.type === 'divider') {
                 var dividerStyle = s(content.style || 'solid');
                 out.content.label = repairMojibakeText(content.label || '');
@@ -3903,8 +3912,8 @@
         function blockLibraryTypes() {
             var allowed = availableSectionTypes();
             var preferred = isPostContext()
-                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials']
-                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials'];
+                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory']
+                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory'];
             return preferred.filter(function (type) {
                 if (type === 'section_header') return allowed.indexOf('heading') !== -1;
                 return allowed.indexOf(type) !== -1;
@@ -3915,7 +3924,7 @@
             if (type === 'section_header' || type === 'heading' || type === 'text' || type === 'button' || type === 'html' || type === 'transcript') return 'Content';
             if (type === 'image' || type === 'hero') return 'Media';
             if (type === 'columns' || type === 'card_grid' || type === 'feature_grid' || type === 'cta' || type === 'divider' || type === 'spacer') return 'Layout';
-            if (type === 'posts_list' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary' || type === 'testimonials') return 'Dynamic';
+            if (type === 'posts_list' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary' || type === 'testimonials' || type === 'people_directory') return 'Dynamic';
             return 'Blocks';
         }
 
@@ -3941,7 +3950,8 @@
                 donation_form: 'hand-donation',
                 donation_progress: 'progress-bar',
                 campaign_summary: 'report',
-                testimonials: 'quote'
+                testimonials: 'quote',
+                people_directory: 'users'
             };
             return map[s(type || '')] || 'box';
         }
@@ -4186,6 +4196,12 @@
                     return optionLabel(state.options.testimonyCategories, id, '');
                 }).filter(Boolean);
                 body = '<div class="metis-builder-dynamic-card"><strong>Testimonies</strong><span>' + esc(testimonyLabels.length ? testimonyLabels.join(', ') : 'All categories') + '</span><small>' + esc(String(parseInt(s(content.limit || '6'), 10) || 6)) + ' items • ' + esc(s(content.layout || 'grid')) + (content.featured_only ? ' • featured only' : '') + '</small></div>';
+            } else if (type === 'people_directory') {
+                var groupLabel = s(content.group || 'staff');
+                if (groupLabel === 'board') groupLabel = 'Board members';
+                else if (groupLabel === 'volunteer') groupLabel = 'Volunteers';
+                else groupLabel = 'Staff members';
+                body = '<div class="metis-builder-dynamic-card"><strong>People Directory</strong><span>' + esc(groupLabel) + '</span><small>' + esc(String(parseInt(s(content.limit || '12'), 10) || 12)) + ' profiles • ' + esc(s(content.layout || 'grid')) + ' layout</small></div>';
             } else if (type === 'divider') {
                 body = '<div class="metis-builder-divider"><hr class="is-' + esc(s(content.style || 'solid')) + '"><span' + editableAttr(index, 'divider_label') + '>' + esc(s(content.label || '')) + '</span></div>';
             } else if (type === 'spacer') {
@@ -4558,6 +4574,10 @@
                 html += '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-testimony-featured-only"><input id="metis-v2-testimony-featured-only" type="checkbox"' + (sec.content.featured_only ? ' checked' : '') + '> Featured only</label></div>';
                 html += '<div class="metis-se-field-row"><label class="metis-se-check-label" for="metis-v2-testimony-show-category"><input id="metis-v2-testimony-show-category" type="checkbox"' + (sec.content.show_category !== false ? ' checked' : '') + '> Show category labels</label></div>';
                 html += '<div class="metis-se-field-row"><label>Empty Message</label><input id="metis-v2-testimony-empty-message" class="metis-se-input" value="' + esc(s(sec.content.empty_message || '')) + '" placeholder="No testimonies available yet."></div>';
+            } else if (sec.type === 'people_directory') {
+                html += '<div class="metis-se-field-row"><label>People Group</label><select id="metis-v2-people-group" class="metis-se-select"><option value="staff"' + (s(sec.content.group || 'staff') === 'staff' ? ' selected' : '') + '>Staff</option><option value="board"' + (s(sec.content.group || '') === 'board' ? ' selected' : '') + '>Board</option><option value="volunteer"' + (s(sec.content.group || '') === 'volunteer' ? ' selected' : '') + '>Volunteers</option></select></div>';
+                html += '<div class="metis-se-field-row"><label>Layout</label><select id="metis-v2-people-layout" class="metis-se-select"><option value="grid"' + (s(sec.content.layout || 'grid') === 'grid' ? ' selected' : '') + '>Grid</option><option value="list"' + (s(sec.content.layout || '') === 'list' ? ' selected' : '') + '>List</option></select></div>';
+                html += '<div class="metis-se-field-row"><label>Item Limit</label><input id="metis-v2-people-limit" class="metis-se-input" type="number" min="1" max="48" value="' + esc(String(parseInt(s(sec.content.limit || '12'), 10) || 12)) + '"></div>';
             } else if (sec.type === 'divider') {
                 html += '<div class="metis-se-field-row"><label>Label</label><input id="metis-v2-divider-label" class="metis-se-input" value="' + esc(s(sec.content.label || '')) + '"></div>';
                 html += '<div class="metis-se-field-row"><label>Line Style</label><select id="metis-v2-divider-style" class="metis-se-select"><option value="solid"' + (s(sec.content.style || 'solid') === 'solid' ? ' selected' : '') + '>Solid</option><option value="dashed"' + (s(sec.content.style || '') === 'dashed' ? ' selected' : '') + '>Dashed</option><option value="dotted"' + (s(sec.content.style || '') === 'dotted' ? ' selected' : '') + '>Dotted</option></select></div>';
@@ -4843,7 +4863,8 @@
                 progress_bar_block: 'donation_progress',
                 donation_goal_summary_block: 'donation_progress',
                 campaign_description_block: 'campaign_summary',
-                testimonies_block: 'testimonials'
+                testimonies_block: 'testimonials',
+                people_directory: 'people_directory'
             };
             return map[t] || t;
         }
@@ -4876,6 +4897,7 @@
                 donation_progress: 'progress_bar_block',
                 campaign_summary: 'campaign_description_block',
                 testimonials: 'testimonies_block',
+                people_directory: 'people_directory',
                 posts_list: 'post_list',
                 events: 'events_block'
             };
@@ -6501,6 +6523,7 @@
                 if (target.id === 'metis-v2-divider-label') { sec.content.label = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-spacer-height') { sec.content.height = ['small', 'medium', 'large'].indexOf(s(target.value || 'medium')) !== -1 ? s(target.value) : 'medium'; setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-limit') { sec.content.limit = Math.max(1, Math.min(50, parseInt(s(target.value || '5'), 10) || 5)); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-people-limit') { sec.content.limit = Math.max(1, Math.min(48, parseInt(s(target.value || '12'), 10) || 12)); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-limit') { sec.content.limit = Math.max(1, Math.min(24, parseInt(s(target.value || '6'), 10) || 6)); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-specific-page') { sec.content.specific_page = Math.max(0, parseInt(s(target.value || '0'), 10) || 0); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-category-ids') { setDirtyAutosave(); return; }
@@ -6642,6 +6665,8 @@
                 }
                 if (target.id === 'metis-v2-progress-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-campaign-summary-campaign') { sec.content.campaign_id = s(target.value || ''); renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-people-group') { sec.content.group = ['staff', 'board', 'volunteer'].indexOf(s(target.value || 'staff')) === -1 ? 'staff' : s(target.value || 'staff'); renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-people-layout') { sec.content.layout = ['grid', 'list'].indexOf(s(target.value || 'grid')) === -1 ? 'grid' : s(target.value || 'grid'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-layout') { sec.content.layout = ['grid', 'list', 'rotator'].indexOf(s(target.value || 'grid')) === -1 ? 'grid' : s(target.value || 'grid'); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-featured-only') { sec.content.featured_only = !!target.checked; renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-show-category') { sec.content.show_category = !!target.checked; renderBuilderCanvas(); setDirtyAutosave(); return; }

@@ -989,6 +989,11 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
     $board_term_start = isset(metis_request_post()['board_term_start']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_term_start'])) : '';
     $board_term_end = isset(metis_request_post()['board_term_end']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['board_term_end'])) : '';
     $volunteer_area = isset(metis_request_post()['volunteer_area']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['volunteer_area'])) : '';
+    $public_slug = isset(metis_request_post()['public_slug']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['public_slug'])) : '';
+    $public_tagline = isset(metis_request_post()['public_tagline']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['public_tagline'])) : '';
+    $public_visibility = isset(metis_request_post()['public_visibility']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['public_visibility'])) : 'private';
+    $public_sort_order = isset(metis_request_post()['public_sort_order']) ? (int) metis_runtime_unslash(metis_request_post()['public_sort_order']) : 0;
+    $public_bio_html = isset(metis_request_post()['public_bio_html']) ? (string) metis_runtime_unslash(metis_request_post()['public_bio_html']) : '';
     $lifecycle_status = isset(metis_request_post()['lifecycle_status']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['lifecycle_status'])) : 'active';
     $email_notifications = isset(metis_request_post()['email_notifications']) ? (!empty(metis_request_post()['email_notifications']) ? 1 : 0) : 1;
     $sms_notifications = 0;
@@ -1142,6 +1147,11 @@ metis_ajax_register_handler( 'metis_people_save_person', function () {
         'board_term_start' => $board_term_start,
         'board_term_end' => $board_term_end,
         'volunteer_area' => $volunteer_area,
+        'public_slug' => $public_slug,
+        'public_tagline' => $public_tagline,
+        'public_visibility' => $public_visibility,
+        'public_sort_order' => $public_sort_order,
+        'public_bio_html' => $public_bio_html,
         'lifecycle_status' => $lifecycle_status,
         'email_notifications' => $email_notifications,
         'sms_notifications' => $sms_notifications,

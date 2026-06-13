@@ -94,6 +94,10 @@ function metis_profile_person_payload(array $person): array {
         'department' => (string) ($person['department'] ?? ''),
         'manager_pid' => (string) ($person['manager_pid'] ?? ''),
         'lifecycle_status' => (string) ($person['lifecycle_status'] ?? 'active'),
+        'public_slug' => (string) ($person['public_slug'] ?? ''),
+        'public_tagline' => (string) ($person['public_tagline'] ?? ''),
+        'public_bio_html' => (string) ($person['public_bio_html'] ?? ''),
+        'public_visibility' => (string) ($person['public_visibility'] ?? 'private'),
         'email_notifications' => !isset($person['email_notifications']) || (int) $person['email_notifications'] === 1,
         'requires_2fa' => !empty($person['requires_2fa']),
         'mfa_method' => (string) ($person['mfa_method'] ?? 'none'),
@@ -210,6 +214,10 @@ metis_ajax_register_handler( 'metis_profile_save', function () {
     $email_notifications = !empty(metis_request_post()['email_notifications']) ? 1 : 0;
     $requires_2fa = !empty(metis_request_post()['requires_2fa']) ? 1 : 0;
     $mfa_method = isset(metis_request_post()['mfa_method']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['mfa_method'])) : 'none';
+    $public_slug = isset(metis_request_post()['public_slug']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['public_slug'])) : '';
+    $public_tagline = isset(metis_request_post()['public_tagline']) ? metis_text_clean(metis_runtime_unslash(metis_request_post()['public_tagline'])) : '';
+    $public_visibility = isset(metis_request_post()['public_visibility']) ? metis_key_clean(metis_runtime_unslash(metis_request_post()['public_visibility'])) : 'private';
+    $public_bio_html = isset(metis_request_post()['public_bio_html']) ? (string) metis_runtime_unslash(metis_request_post()['public_bio_html']) : '';
     $allow_name_edit = (int) Core_Settings_Service::get('profile_allow_name_edit', 0) === 1;
 
     if (!in_array($mfa_method, ['none', 'totp', 'passkey', 'passkey_or_totp', 'passkey_and_totp'], true)) {
@@ -249,6 +257,10 @@ metis_ajax_register_handler( 'metis_profile_save', function () {
         'first_name' => $first_name,
         'last_name' => $last_name,
         'display_name' => $display_name,
+        'public_slug' => $public_slug,
+        'public_tagline' => $public_tagline,
+        'public_visibility' => $public_visibility,
+        'public_bio_html' => $public_bio_html,
         'email_notifications' => $email_notifications,
         'requires_2fa' => $requires_2fa,
         'mfa_method' => $mfa_method,
