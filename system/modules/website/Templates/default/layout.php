@@ -14,7 +14,7 @@ $withSidebar = !empty($with_sidebar) && trim($sidebarHtml) !== '';
 $sidebarPosition = isset($sidebar_position) ? (string) $sidebar_position : 'right';
 if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosition = 'right'; }
 ?>
-<div class="metis-template metis-template-<?php echo metis_escape_attr((string) ($template_slug ?? 'default')); ?>">
+<div class="metis-template metis-template-<?php echo metis_escape_attr((string) ($template_slug ?? 'default')); ?><?php echo $contextType === 'page' ? ' metis-template-view-page' : ''; ?>">
     <a class="metis-skip-link" href="#metis-template-main-content">Skip to main content</a>
     <header class="metis-template-header metis-template-sticky-capable" role="banner">
         <div class="metis-template-header-inner">
@@ -36,7 +36,7 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
         <?php if ($isHomepage && $heroHtml !== ''): ?>
             <section class="metis-template-region metis-template-region-hero"><?php echo $heroHtml; ?></section>
         <?php endif; ?>
-        <div class="metis-template-main-inner">
+        <div class="metis-template-main-inner<?php echo $withSidebar ? ' has-sidebar' : ''; ?>" data-sidebar-position="<?php echo metis_escape_attr($sidebarPosition); ?>">
             <?php if ($withSidebar && $sidebarPosition === 'left'): ?>
                 <aside class="metis-template-sidebar metis-template-sidebar-left"><?php echo $sidebarHtml; ?></aside>
             <?php endif; ?>
@@ -46,5 +46,5 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
             <?php endif; ?>
         </div>
     </main>
-    <footer class="metis-template-footer" role="contentinfo"><?php echo $footerHtml; ?></footer>
+    <footer class="metis-template-footer" role="contentinfo"><div class="metis-template-footer-inner-wrap"><?php echo $footerHtml; ?></div></footer>
 </div>

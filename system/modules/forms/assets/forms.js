@@ -1220,7 +1220,7 @@
         section.hidden = false;
         return;
       }
-      section.hidden = !field.conditions.every((condition) => conditionPasses(condition, context));
+      section.hidden = !field.conditions.every((condition) => conditionPasses(condition, context, schema));
     });
   }
 
@@ -1932,14 +1932,14 @@
           ${form.description ? `<p>${escapeHtml(form.description)}</p>` : ''}
         </div>
         <div class="metis-forms-preview-card__body" data-metis-forms-preview-form>
-          ${(form.schema || []).map((field) => renderPreviewField(field)).join('')}
+          ${(form.schema || []).map((field) => renderPreviewField(field, form.schema || [])).join('')}
         </div>
       </div>
     `;
   }
 
-  function renderPreviewField(field) {
-    const hiddenAttr = fieldIsInitiallyVisible(field) ? '' : ' hidden';
+  function renderPreviewField(field, schema) {
+    const hiddenAttr = fieldIsInitiallyVisible(field, schema) ? '' : ' hidden';
     if (field.type === 'payment') {
       const payment = field.payment || {};
       return `
@@ -2696,14 +2696,24 @@
       return `<input class="metis-input" type="text" value="${escapeAttr(value)}"${attrHtml} placeholder="${escapeAttr(String(placeholder || 'Value'))}">`;
     }
 
-    const selectedKnown = options.some((option) => option.value === value);
+    const canonicalValue = canonicalRuleValue(options, value);
+    const selectedKnown = options.some((option) => option.value === canonicalValue);
     return `
       <select class="metis-select"${attrHtml}>
         <option value="">${escapeHtml(String(placeholder || 'Choose value'))}</option>
         ${!selectedKnown && value ? `<option value="${escapeAttr(value)}" selected>Current: ${escapeHtml(value)}</option>` : ''}
-        ${options.map((option) => `<option value="${escapeAttr(option.value)}"${option.value === value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+        ${options.map((option) => `<option value="${escapeAttr(option.value)}"${option.value === canonicalValue ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
       </select>
     `;
+  }
+
+  function canonicalRuleValue(options, rawValue) {
+    const value = String(rawValue || '');
+    if (!value) return '';
+    const exact = (options || []).find((option) => String(option.value || '') === value);
+    if (exact) return String(exact.value || '');
+    const byLabel = (options || []).find((option) => String(option.label || '') === value);
+    return byLabel ? String(byLabel.value || value) : value;
   }
 
   function toOptionsText(options) {
@@ -2818,10 +2828,11 @@
     return data;
   }
 
-  function conditionPasses(condition, context) {
+  function conditionPasses(condition, context, schema) {
     const field = String(condition.field || '');
     const actual = String(context[field] || '');
-    const expected = String(condition.value || '');
+    const options = fieldMatchOptions(schema || [], field);
+    const expected = canonicalRuleValue(options, String(condition.value || ''));
     switch (String(condition.operator || 'equals')) {
       case 'not_equals': return actual !== expected;
       case 'contains': return actual.includes(expected);
@@ -2831,10 +2842,10 @@
     }
   }
 
-  function fieldIsInitiallyVisible(field) {
+  function fieldIsInitiallyVisible(field, schema) {
     const conditions = Array.isArray(field?.conditions) ? field.conditions : [];
     if (conditions.length === 0) return true;
-    return conditions.every((condition) => conditionPasses(condition, {}));
+    return conditions.every((condition) => conditionPasses(condition, {}, schema || []));
   }
 
   function formDataToObject(formData) {

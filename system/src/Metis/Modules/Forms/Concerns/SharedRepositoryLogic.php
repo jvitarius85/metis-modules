@@ -24,6 +24,7 @@ trait SharedRepositoryLogic {
         $version = $version_id > 0 ? self::loadVersion( $version_id ) : null;
         $settings = self::normalizeSettings( self::decodeJson( $row['settings_json'] ?? '' ) );
         $schema = self::normalizeSchema( self::decodeJson( $version['schema_json'] ?? '[]' ), $settings );
+        [ $schema, $settings ] = self::canonicalizeConditionalReferences( $schema, $settings );
         $payment_summary = self::paymentSummaryFromSchema( $schema, $settings );
         $settings['payments'] = $payment_summary;
 
@@ -54,6 +55,7 @@ trait SharedRepositoryLogic {
         $description = trim( metis_textarea_clean( (string) ( $payload['description'] ?? '' ) ) );
         $settings = self::normalizeSettings( $payload['settings'] ?? [] );
         $schema = self::normalizeSchema( $payload['schema'] ?? [], $settings );
+        [ $schema, $settings ] = self::canonicalizeConditionalReferences( $schema, $settings );
         $payment_summary = self::paymentSummaryFromSchema( $schema, $settings );
         $settings['payments'] = $payment_summary;
 
@@ -631,6 +633,122 @@ trait SharedRepositoryLogic {
         }
 
         return true;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $schema
+     * @param array<string,mixed> $settings
+     * @return array{0:array<int,array<string,mixed>>,1:array<string,mixed>}
+     */
+    private static function canonicalizeConditionalReferences( array $schema, array $settings ): array {
+        $fields_by_key = self::fieldLookupByKey( $schema );
+        $schema = self::canonicalizeFieldConditionTree( $schema, $fields_by_key );
+
+        $binding_rules = is_array( $settings['binding']['rules'] ?? null ) ? $settings['binding']['rules'] : [];
+        foreach ( $binding_rules as $index => $rule ) {
+            if ( ! is_array( $rule ) ) {
+                continue;
+            }
+            $field_key = (string) ( $rule['field'] ?? '' );
+            if ( $field_key === '' || ! isset( $fields_by_key[ $field_key ] ) ) {
+                continue;
+            }
+            $binding_rules[ $index ]['value'] = self::canonicalOptionValue(
+                $fields_by_key[ $field_key ],
+                is_scalar( $rule['value'] ?? null ) ? (string) $rule['value'] : ''
+            );
+        }
+        $settings['binding']['rules'] = $binding_rules;
+
+        $routing_field = (string) ( $settings['notifications']['internal']['routing_field'] ?? '' );
+        $routes = is_array( $settings['notifications']['internal']['routes'] ?? null ) ? $settings['notifications']['internal']['routes'] : [];
+        if ( $routing_field !== '' && isset( $fields_by_key[ $routing_field ] ) ) {
+            foreach ( $routes as $index => $route ) {
+                if ( ! is_array( $route ) ) {
+                    continue;
+                }
+                $routes[ $index ]['value'] = self::canonicalOptionValue(
+                    $fields_by_key[ $routing_field ],
+                    is_scalar( $route['value'] ?? null ) ? (string) $route['value'] : ''
+                );
+            }
+        }
+        $settings['notifications']['internal']['routes'] = $routes;
+
+        return [ $schema, $settings ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $fields
+     * @param array<string,array<string,mixed>> $fields_by_key
+     * @return array<int,array<string,mixed>>
+     */
+    private static function canonicalizeFieldConditionTree( array $fields, array $fields_by_key ): array {
+        foreach ( $fields as $index => $field ) {
+            if ( ! is_array( $field ) ) {
+                continue;
+            }
+
+            $conditions = is_array( $field['conditions'] ?? null ) ? $field['conditions'] : [];
+            foreach ( $conditions as $condition_index => $condition ) {
+                if ( ! is_array( $condition ) ) {
+                    continue;
+                }
+                $field_key = (string) ( $condition['field'] ?? '' );
+                if ( $field_key === '' || ! isset( $fields_by_key[ $field_key ] ) ) {
+                    continue;
+                }
+                $conditions[ $condition_index ]['value'] = self::canonicalOptionValue(
+                    $fields_by_key[ $field_key ],
+                    is_scalar( $condition['value'] ?? null ) ? (string) $condition['value'] : ''
+                );
+            }
+            $field['conditions'] = $conditions;
+
+            if ( ( $field['type'] ?? '' ) === 'repeater' ) {
+                $subfields = is_array( $field['subfields'] ?? null ) ? $field['subfields'] : [];
+                $field['subfields'] = self::canonicalizeFieldConditionTree( $subfields, self::fieldLookupByKey( $subfields ) );
+            }
+
+            $fields[ $index ] = $field;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $fields
+     * @return array<string,array<string,mixed>>
+     */
+    private static function fieldLookupByKey( array $fields ): array {
+        $lookup = [];
+        foreach ( $fields as $field ) {
+            if ( ! is_array( $field ) ) {
+                continue;
+            }
+            $key = (string) ( $field['key'] ?? '' );
+            if ( $key !== '' ) {
+                $lookup[ $key ] = $field;
+            }
+        }
+        return $lookup;
+    }
+
+    private static function canonicalOptionValue( array $field, string $raw_value ): string {
+        $value = trim( $raw_value );
+        if ( $value === '' ) {
+            return '';
+        }
+
+        foreach ( self::normalizeOptions( $field['options_source']['items'] ?? $field['options'] ?? [] ) as $option ) {
+            $option_value = (string) ( $option['value'] ?? '' );
+            $option_label = trim( (string) ( $option['label'] ?? '' ) );
+            if ( $option_value === $value || $option_label === $value ) {
+                return $option_value !== '' ? $option_value : $value;
+            }
+        }
+
+        return $value;
     }
 
     private static function calculatePaymentTotals( array $payment, array $payload ): array {
