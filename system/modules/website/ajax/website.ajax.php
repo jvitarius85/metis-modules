@@ -26,6 +26,7 @@ use Metis\Modules\Website\Services\BlockRenderer;
 use Metis\Modules\Website\Services\WebsiteRenderer;
 use Metis\Modules\Website\Services\StructuredWebsiteBuilderService;
 use Metis\Modules\Website\Services\EditorOptionsService;
+use Metis\Modules\Newsletter\WebsiteService as NewsletterWebsiteService;
 use Metis\Modules\Website\BlockRegistry;
 use Metis\Core\Editor\EditorAutosaveService;
 use Metis\Core\Editor\EditorVersionService;
@@ -1794,6 +1795,7 @@ metis_ajax_register_handler( 'metis_website_editor_properties_options', function
         'popups' => metis_website_ajax_popup_options(),
         'calendar_sources' => metis_website_ajax_calendar_source_options(),
         'testimony_categories' => metis_website_ajax_testimony_category_options(),
+        'newsletter_lists' => NewsletterWebsiteService::listOptions(),
         'media' => metis_website_ajax_media_options(),
         'templates' => StructuredWebsiteBuilderService::templateOptions(),
         'default_template_key' => StructuredWebsiteBuilderService::defaultTemplateForPageType( $default_page_type ),

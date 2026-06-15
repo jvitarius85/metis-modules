@@ -299,6 +299,70 @@
     color: var(--metis-forms-text);
 }
 
+.metis-forms-helper-text {
+    display: block;
+    color: var(--metis-forms-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.metis-forms-inline-tools {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.metis-forms-inline-tools .metis-select {
+    min-width: 220px;
+    flex: 1 1 220px;
+}
+
+.metis-forms-merge-suggestion {
+    position: absolute;
+    z-index: 2147483600;
+    display: grid;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--metis-forms-line);
+    border-radius: 16px;
+    background: var(--metis-surface, #fff);
+    box-shadow: 0 18px 40px rgba(31, 39, 64, 0.18);
+}
+
+.metis-forms-merge-suggestion[hidden] {
+    display: none !important;
+}
+
+.metis-forms-merge-suggestion__item {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--metis-forms-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.metis-forms-merge-suggestion__item:hover,
+.metis-forms-merge-suggestion__item.is-active {
+    background: var(--metis-forms-accent-soft);
+    color: var(--metis-forms-accent);
+}
+
+.metis-forms-merge-suggestion__label {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.metis-forms-merge-suggestion__token {
+    font-size: 12px;
+    color: var(--metis-forms-muted);
+}
+
 .metis-forms-rich {
     display: grid;
     gap: 10px;
@@ -383,6 +447,11 @@
 .metis-forms-rich .metis-se-rich-dropdown.is-open .metis-se-rich-menu {
     display: grid;
     gap: 4px;
+}
+
+.metis-forms-rich .metis-se-rich-dropdown.is-open-up .metis-se-rich-menu {
+    top: auto;
+    bottom: calc(100% + 8px);
 }
 
 .metis-forms-rich .metis-se-rich-menu-item {
@@ -550,6 +619,10 @@
     flex-direction: column;
     gap: 8px;
     color: var(--metis-forms-text);
+}
+
+.metis-forms-preview-field[hidden] {
+    display: none !important;
 }
 
 .metis-forms-preview-field.is-full {
@@ -819,6 +892,10 @@
     color: var(--metis-forms-text);
 }
 
+.metis-forms-public-field[hidden] {
+    display: none !important;
+}
+
 .metis-forms-public-field.is-error label,
 .metis-forms-public-field.is-error legend {
     color: #b42318;
@@ -941,6 +1018,13 @@
 
 .metis-forms-public-card--embed .metis-forms-public-actions {
     padding-top: 4px;
+}
+
+.metis-forms-public-card.is-submitting .metis-forms-public-form {
+    filter: blur(2px);
+    opacity: 0.58;
+    pointer-events: none;
+    transition: filter 0.18s ease, opacity 0.18s ease;
 }
 
 .metis-forms-success-overlay[hidden] {

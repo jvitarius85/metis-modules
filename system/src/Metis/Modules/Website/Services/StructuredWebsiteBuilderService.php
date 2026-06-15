@@ -11,10 +11,10 @@ final class StructuredWebsiteBuilderService {
     private const PAGE_TYPES = [ 'homepage', 'page' ];
 
     /** @var array<int,string> */
-    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'html' ];
+    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html' ];
 
     /** @var array<int,string> */
-    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
+    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html', 'transcript' ];
 
     /** @var array<int,string> */
     private const TEMPLATE_KEYS = [
@@ -568,6 +568,45 @@ final class StructuredWebsiteBuilderService {
                 'category_ids' => $category_ids,
                 'limit' => $limit,
                 'sort' => $sort,
+            ];
+        }
+
+        if ( $type === 'newsletter_signup' ) {
+            $list_ids = array_values(
+                array_unique(
+                    array_filter(
+                        array_map(
+                            'intval',
+                            is_array( $content['list_ids'] ?? null ) ? $content['list_ids'] : []
+                        ),
+                        static fn( int $id ): bool => $id > 0
+                    )
+                )
+            );
+            return [
+                'list_ids' => $list_ids,
+                'submit_label' => self::sanitizeText( (string) ( $content['submit_label'] ?? 'Subscribe' ) ) ?: 'Subscribe',
+                'success_message' => self::sanitizeText( (string) ( $content['success_message'] ?? 'Thanks for subscribing.' ) ) ?: 'Thanks for subscribing.',
+            ];
+        }
+
+        if ( $type === 'newsletter_archive' ) {
+            $list_ids = array_values(
+                array_unique(
+                    array_filter(
+                        array_map(
+                            'intval',
+                            is_array( $content['list_ids'] ?? null ) ? $content['list_ids'] : []
+                        ),
+                        static fn( int $id ): bool => $id > 0
+                    )
+                )
+            );
+            $limit = (int) ( $content['limit'] ?? 12 );
+            $limit = max( 1, min( 50, $limit ) );
+            return [
+                'list_ids' => $list_ids,
+                'limit' => $limit,
             ];
         }
 
@@ -1211,6 +1250,33 @@ final class StructuredWebsiteBuilderService {
                     'parent_page_id' => max( 0, (int) ( $content['specific_page'] ?? 0 ) ),
                     'category_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
                     'sort' => 'latest',
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'newsletter_signup' ) {
+            $modules[] = [
+                'id' => $section_id . '_newsletter_signup',
+                'type' => 'newsletter_signup',
+                'data' => [
+                    'list_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['list_ids'] ?? null ) ? $content['list_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'submit_label' => (string) ( $content['submit_label'] ?? 'Subscribe' ),
+                    'success_message' => (string) ( $content['success_message'] ?? 'Thanks for subscribing.' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'newsletter_archive' ) {
+            $modules[] = [
+                'id' => $section_id . '_newsletter_archive',
+                'type' => 'newsletter_archive',
+                'data' => [
+                    'list_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['list_ids'] ?? null ) ? $content['list_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'limit' => max( 1, min( 50, (int) ( $content['limit'] ?? 12 ) ) ),
                 ],
                 'style' => [],
             ];

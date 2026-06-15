@@ -19,7 +19,7 @@ use Metis\Modules\Website\Services\TemplateService;
  */
 final class WebsiteRenderer {
     /** @var array<int,string> */
-    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'html', 'transcript' ];
+    private const STRUCTURED_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html', 'transcript' ];
     /** @var array<string,string>|null */
     private static ?array $emoji_asset_map = null;
     private static ?string $emoji_match_pattern = null;
@@ -1374,7 +1374,7 @@ final class WebsiteRenderer {
     }
 
     private static function headerBehaviorScript(): string {
-        return '<script>(function(){var headers=document.querySelectorAll(".metis-template-header,.metis-shell-header");if(!headers.length){return;}function sync(){var scrolled=(window.scrollY||window.pageYOffset||0)>8;for(var i=0;i<headers.length;i++){headers[i].classList.toggle("is-scrolled",scrolled);}}window.addEventListener("scroll",sync,{passive:true});sync();})();</script>';
+        return '<script>(function(){var headers=document.querySelectorAll(".metis-template-header,.metis-shell-header");if(!headers.length){return;}function measure(){var maxHeight=0;for(var i=0;i<headers.length;i++){var header=headers[i];var rect=header.getBoundingClientRect();var height=Math.ceil(rect.height||header.offsetHeight||0);if(height>maxHeight){maxHeight=height;}}if(maxHeight>0){document.documentElement.style.setProperty("--metis-fixed-header-space",maxHeight+"px");}}function sync(){var scrolled=(window.scrollY||window.pageYOffset||0)>8;for(var i=0;i<headers.length;i++){headers[i].classList.toggle("is-scrolled",scrolled);}measure();}window.addEventListener("scroll",sync,{passive:true});window.addEventListener("resize",measure);if(typeof ResizeObserver==="function"){for(var i=0;i<headers.length;i++){new ResizeObserver(measure).observe(headers[i]);}}sync();window.setTimeout(measure,120);})();</script>';
     }
 
     /**
@@ -3449,6 +3449,12 @@ final class WebsiteRenderer {
         if ( $type === 'posts_list' ) {
             return self::renderStructuredPostsListSection( $content, $context );
         }
+        if ( $type === 'newsletter_signup' ) {
+            return self::renderStructuredNewsletterSignupSection( $content, $context );
+        }
+        if ( $type === 'newsletter_archive' ) {
+            return self::renderStructuredNewsletterArchiveSection( $content, $context );
+        }
         return '';
     }
 
@@ -5096,38 +5102,95 @@ final class WebsiteRenderer {
      * @param array<string,mixed> $context
      */
     private static function renderStructuredPostsListSection( array $content, array $context = [] ): string {
-        $limit = (int) ( $content['limit'] ?? 5 );
-        $limit = max( 1, min( 50, $limit ) );
-        $source = metis_key_clean( (string) ( $content['source'] ?? 'this_page' ) );
-        if ( ! in_array( $source, [ 'this_page', 'specific_page' ], true ) ) {
-            $source = 'this_page';
-        }
-        $specific_page = (int) ( $content['specific_page'] ?? 0 );
-        $query = [ 'limit' => $limit ];
-        $category_ids = array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) );
-        if ( $category_ids !== [] ) {
-            $query['post_category_ids'] = $category_ids;
-        }
-        if ( $source === 'specific_page' && $specific_page > 0 ) {
-            $query['parent_page_id'] = $specific_page;
-        } elseif (
-            $source === 'this_page'
-            && metis_key_clean( (string) ( $context['content_type'] ?? '' ) ) === 'page'
-            && (int) ( $context['content_id'] ?? 0 ) > 0
-            && empty( $context['is_homepage'] )
-        ) {
-            $query['parent_page_id'] = (int) $context['content_id'];
-        }
-
-        $posts = array_values( array_filter(
-            PostService::getPublished( $query ),
-            static fn ( $post ): bool => $post instanceof Post && self::postPublicPath( $post ) !== ''
-        ) );
+        $posts = PostsListService::getPublishedPosts( $content, $context );
         if ( ! is_array( $posts ) || $posts === [] ) {
             return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No posts yet.</p></div>';
         }
 
         return self::renderPublicPostCards( $posts, true );
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredNewsletterSignupSection( array $content, array $context = [] ): string {
+        $list_ids = \Metis\Modules\Newsletter\WebsiteService::normalizeListIds( $content['list_ids'] ?? [] );
+        $submit_label = trim( self::repairMojibakeText( (string) ( $content['submit_label'] ?? 'Subscribe' ) ) );
+        if ( $submit_label === '' ) {
+            $submit_label = 'Subscribe';
+        }
+        $success_message = trim( self::repairMojibakeText( (string) ( $content['success_message'] ?? 'Thanks for subscribing.' ) ) );
+        if ( $success_message === '' ) {
+            $success_message = 'Thanks for subscribing.';
+        }
+
+        $form = BlockRenderer::render(
+            [
+                'id' => 'structured_newsletter_signup_' . substr( sha1( (string) ( function_exists( 'metis_json_encode' ) ? metis_json_encode( $content ) : json_encode( $content ) ) ), 0, 8 ),
+                'type' => 'newsletter_signup',
+                'data' => [
+                    'list_ids' => $list_ids,
+                    'submit_label' => $submit_label,
+                    'success_message' => $success_message,
+                ],
+                'style' => [],
+            ],
+            $context
+        );
+
+        return $form !== '' ? $form : '';
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
+     */
+    private static function renderStructuredNewsletterArchiveSection( array $content, array $context = [] ): string {
+        $list_ids = \Metis\Modules\Newsletter\WebsiteService::normalizeListIds( $content['list_ids'] ?? [] );
+        $limit = max( 1, min( 50, (int) ( $content['limit'] ?? 12 ) ) );
+        $rows = \Metis\Modules\Newsletter\WebsiteService::publicArchiveCampaigns( $list_ids, $limit );
+        if ( $rows === [] ) {
+            return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No newsletters yet.</p></div>';
+        }
+
+        $items = '';
+        foreach ( $rows as $row ) {
+            $ref = trim( (string) ( $row['campaign_code'] ?? '' ) );
+            if ( $ref === '' || ! function_exists( 'metis_newsletter_public_view_url' ) ) {
+                continue;
+            }
+            $url = self::normalizePublicUrl( (string) metis_newsletter_public_view_url( $ref ) );
+            $title = trim( self::repairMojibakeText( (string) ( $row['name'] ?? '' ) ) );
+            $subject = trim( self::repairMojibakeText( (string) ( $row['subject'] ?? '' ) ) );
+            $preheader = trim( self::repairMojibakeText( (string) ( $row['preheader'] ?? '' ) ) );
+            $list_names = array_values( array_filter( array_map( 'trim', explode( '||', (string) ( $row['list_names'] ?? '' ) ) ) ) );
+            $sent_at = trim( (string) ( $row['sent_at'] ?? $row['updated_at'] ?? '' ) );
+            $date_label = $sent_at !== '' ? self::formattedPublicDate( $sent_at ) : '';
+            $headline = $title !== '' ? $title : ( $subject !== '' ? $subject : 'Newsletter' );
+            $summary = $preheader !== '' ? $preheader : $subject;
+
+            $items .= '<article class="metis-public-post-card metis-public-post-card--newsletter">';
+            $items .= '<div class="metis-public-post-card__body">';
+            if ( $date_label !== '' ) {
+                $items .= '<div class="metis-public-post-card__meta">' . metis_escape_html( $date_label ) . '</div>';
+            }
+            $items .= '<h3 class="metis-public-post-card__title"><a href="' . metis_escape_attr( $url ) . '">' . metis_escape_html( $headline ) . '</a></h3>';
+            if ( $summary !== '' ) {
+                $items .= '<p class="metis-public-post-card__excerpt">' . metis_escape_html( $summary ) . '</p>';
+            }
+            if ( $list_names !== [] ) {
+                $items .= '<p class="metis-public-post-card__meta">' . metis_escape_html( implode( ', ', $list_names ) ) . '</p>';
+            }
+            $items .= '</div>';
+            $items .= '</article>';
+        }
+
+        if ( $items === '' ) {
+            return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No newsletters yet.</p></div>';
+        }
+
+        return '<div class="metis-structured-posts-list metis-structured-posts-list--newsletter">' . $items . '</div>';
     }
 
     /**

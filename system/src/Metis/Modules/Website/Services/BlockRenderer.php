@@ -465,16 +465,13 @@ final class BlockRenderer {
     }
 
     private static function renderPostList( array $data, array $style, array $context ): string {
-        $count        = max( 1, (int) ( $data['count'] ?? 5 ) );
+        $config       = PostsListService::normalizeConfig( $data );
+        $count        = $config['limit'];
         $layout       = $data['layout'] ?? 'list';
         $show_excerpt = ! empty( $data['show_excerpt'] );
         $show_date    = ! empty( $data['show_date'] );
 
-        $posts = array_values( array_filter(
-            PostService::getPublished( [ 'limit' => $count * 3 ] ),
-            static fn ( $post ): bool => $post instanceof \Metis\Modules\Website\Entities\Post && PostService::publicPath( $post ) !== ''
-        ) );
-        $posts = array_slice( $posts, 0, $count );
+        $posts = PostsListService::getPublishedPosts( $config, $context );
         if ( empty( $posts ) ) {
             return sprintf(
                 '<div class="%s"%s><p>No posts yet.</p></div>',
@@ -1405,8 +1402,19 @@ final class BlockRenderer {
             $submit_label = 'Sign up';
         }
 
+        $success_message = trim( (string) ( $options['success_message'] ?? 'Thanks for subscribing.' ) );
+        if ( $success_message === '' ) {
+            $success_message = 'Thanks for subscribing.';
+        }
+
+        $list_ids = \Metis\Modules\Newsletter\WebsiteService::normalizeListIds( $options['list_ids'] ?? [] );
+        $hidden_list_ids = $list_ids === [] ? '' : '<input type="hidden" name="list_ids" value="' . metis_escape_attr( function_exists( 'metis_json_encode' ) ? (string) metis_json_encode( $list_ids ) : (string) json_encode( $list_ids ) ) . '">';
+        $hidden_success_message = '<input type="hidden" name="success_message" value="' . metis_escape_attr( $success_message ) . '">';
+
         return ''
             . '<form class="metis-newsletter-signup-form" data-metis-newsletter-signup-form action="' . metis_escape_url( $submit_url ) . '" method="post" novalidate>'
+            . $hidden_list_ids
+            . $hidden_success_message
             . '<div class="metis-newsletter-signup-grid">'
             . '<label><span>First name</span><input class="metis-input" name="first_name" type="text" autocomplete="given-name" required></label>'
             . '<label><span>Last name</span><input class="metis-input" name="last_name" type="text" autocomplete="family-name" required></label>'
@@ -1415,6 +1423,66 @@ final class BlockRenderer {
             . '<div class="metis-newsletter-signup-alert" data-metis-newsletter-signup-alert hidden></div>'
             . '<button class="metis-btn" type="submit" data-metis-newsletter-signup-submit>' . metis_escape_html( $submit_label ) . '</button>'
             . '</form>';
+    }
+
+    private static function renderNewsletterSignup( array $data, array $style, array $context ): string {
+        $html = self::renderNewsletterSignupFormEmbed( $data );
+        if ( $html === '' ) {
+            return '';
+        }
+
+        return sprintf(
+            '<div class="%s"%s>%s</div>',
+            metis_escape_attr( self::buildClasses( 'metis-block-newsletter-signup', $style ) ),
+            self::buildInlineStyle( $style ),
+            $html
+        );
+    }
+
+    private static function renderNewsletterArchive( array $data, array $style, array $context ): string {
+        $rows = \Metis\Modules\Newsletter\WebsiteService::publicArchiveCampaigns(
+            \Metis\Modules\Newsletter\WebsiteService::normalizeListIds( $data['list_ids'] ?? [] ),
+            max( 1, min( 50, (int) ( $data['limit'] ?? 12 ) ) )
+        );
+
+        if ( $rows === [] ) {
+            return sprintf(
+                '<div class="%s"%s><p>No newsletters yet.</p></div>',
+                metis_escape_attr( self::buildClasses( 'metis-block-newsletter-archive', $style ) ),
+                self::buildInlineStyle( $style )
+            );
+        }
+
+        $items = '';
+        foreach ( $rows as $row ) {
+            $ref = trim( (string) ( $row['campaign_code'] ?? '' ) );
+            if ( $ref === '' || ! function_exists( 'metis_newsletter_public_view_url' ) ) {
+                continue;
+            }
+            $url = metis_escape_url( (string) metis_newsletter_public_view_url( $ref ) );
+            $title = trim( (string) ( $row['name'] ?? '' ) );
+            $subject = trim( (string) ( $row['subject'] ?? '' ) );
+            $excerpt = trim( (string) ( $row['preheader'] ?? '' ) );
+            $list_names = array_values( array_filter( array_map( 'trim', explode( '||', (string) ( $row['list_names'] ?? '' ) ) ) ) );
+            $items .= '<article class="metis-public-post-card metis-public-post-card--newsletter">'
+                . '<div class="metis-public-post-card__body">'
+                . '<h3 class="metis-public-post-card__title"><a href="' . $url . '">' . metis_escape_html( $title !== '' ? $title : ( $subject !== '' ? $subject : 'Newsletter' ) ) . '</a></h3>'
+                . ( $excerpt !== '' ? '<p class="metis-public-post-card__excerpt">' . metis_escape_html( $excerpt ) . '</p>' : '' )
+                . ( $list_names !== [] ? '<p class="metis-public-post-card__meta">' . metis_escape_html( implode( ', ', $list_names ) ) . '</p>' : '' )
+                . '</div>'
+                . '</article>';
+        }
+
+        if ( $items === '' ) {
+            return '';
+        }
+
+        return sprintf(
+            '<div class="%s"%s><div class="metis-structured-posts-list metis-structured-posts-list--newsletter">%s</div></div>',
+            metis_escape_attr( self::buildClasses( 'metis-block-newsletter-archive', $style ) ),
+            self::buildInlineStyle( $style ),
+            $items
+        );
     }
 
     private static function renderDonationFormBlock( array $data, array $style, array $context ): string {

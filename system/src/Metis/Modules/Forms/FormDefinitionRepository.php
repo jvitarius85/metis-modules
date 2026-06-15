@@ -37,6 +37,7 @@ final class FormDefinitionRepository {
 
         return [
             'payment_defaults' => self::paymentDefaults(),
+            'email_defaults'   => self::emailDefaults(),
             'campaigns'        => self::campaignOptions(),
             'users'            => self::userOptions(),
             'roles'            => Support::roleOptions(),

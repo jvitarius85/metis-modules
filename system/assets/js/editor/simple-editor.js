@@ -899,6 +899,7 @@
             forms: [],
             popups: [],
             donationCampaigns: [],
+            newsletterLists: [],
             testimonyCategories: [],
             calendarSources: [],
             media: [],
@@ -955,6 +956,7 @@
             forms: Array.isArray(initialOptions.forms) ? initialOptions.forms : [],
             popups: Array.isArray(initialOptions.popups) ? initialOptions.popups : [],
             donationCampaigns: Array.isArray(initialOptions.donation_campaigns) ? initialOptions.donation_campaigns : [],
+            newsletterLists: Array.isArray(initialOptions.newsletter_lists) ? initialOptions.newsletter_lists : [],
             testimonyCategories: Array.isArray(initialOptions.testimony_categories) ? initialOptions.testimony_categories : [],
             calendarSources: Array.isArray(initialOptions.calendar_sources) ? initialOptions.calendar_sources : [],
             media: Array.isArray(initialOptions.media) ? initialOptions.media : [],
@@ -2642,8 +2644,8 @@
     }
 
     function bootStructuredEditorV2() {
-        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list'];
-        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list'];
+        var PAGE_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'html', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive'];
+        var POST_SECTION_TYPES = ['heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'html', 'transcript', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive'];
         var HERO_STYLES = ['split', 'centered', 'overlay'];
 
         state.sections = [];
@@ -2686,7 +2688,7 @@
             ':tada:': '🎉',
             ':smile:': '😊'
         };
-        var richSelections = {};
+        var richSelections = sharedRichSelections;
 
         function emojiValueFromInput(value) {
             var raw = s(value || '').trim();
@@ -3074,6 +3076,8 @@
             if (type === 'feature_grid') return 'Feature Grid';
             if (type === 'card_grid') return 'Card Grid';
             if (type === 'posts_list') return 'Posts List';
+            if (type === 'newsletter_signup') return 'Newsletter Signup';
+            if (type === 'newsletter_archive') return 'Newsletter Archive';
             if (type === 'transcript') return 'Transcript';
             if (type === 'html') return 'Embed / HTML';
             if (type === 'cta') return 'CTA';
@@ -3108,6 +3112,8 @@
                 divider: 'Horizontal rule',
                 spacer: 'Vertical spacing',
                 posts_list: 'Post listing',
+                newsletter_signup: 'Visitor newsletter signup form',
+                newsletter_archive: 'Public newsletter archive',
                 transcript: 'Speaker transcript'
             };
             return map[s(type || '')] || 'Content block';
@@ -3186,6 +3192,8 @@
             else if (t === 'divider') base.content = { label: '', style: 'solid' };
             else if (t === 'spacer') base.content = { height: 'medium' };
             else if (t === 'posts_list') base.content = { source: 'this_page', specific_page: 0, category_ids: [], limit: 5, sort: 'latest' };
+            else if (t === 'newsletter_signup') base.content = { list_ids: [], submit_label: 'Subscribe', success_message: 'Thanks for subscribing.' };
+            else if (t === 'newsletter_archive') base.content = { list_ids: [], limit: 12 };
             else base.content = { body: '<p></p>' };
             return base;
         }
@@ -3700,6 +3708,13 @@
                 if (out.content.source !== 'specific_page') out.content.specific_page = 0;
                 out.content.limit = Math.max(1, Math.min(50, parseInt(s(content.limit || '5'), 10) || 5));
                 out.content.sort = 'latest';
+            } else if (out.type === 'newsletter_signup') {
+                out.content.list_ids = normalizeIdList(content.list_ids || []);
+                out.content.submit_label = repairMojibakeText(content.submit_label || 'Subscribe') || 'Subscribe';
+                out.content.success_message = repairMojibakeText(content.success_message || 'Thanks for subscribing.') || 'Thanks for subscribing.';
+            } else if (out.type === 'newsletter_archive') {
+                out.content.list_ids = normalizeIdList(content.list_ids || []);
+                out.content.limit = Math.max(1, Math.min(50, parseInt(s(content.limit || '12'), 10) || 12));
             }
             return out;
         }
@@ -3946,8 +3961,8 @@
         function blockLibraryTypes() {
             var allowed = availableSectionTypes();
             var preferred = isPostContext()
-                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory']
-                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory'];
+                ? ['section_header', 'heading', 'text', 'button', 'html', 'transcript', 'form', 'image', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory']
+                : ['section_header', 'heading', 'text', 'button', 'html', 'form', 'image', 'hero', 'columns', 'feature_grid', 'card_grid', 'cta', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'events', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory'];
             return preferred.filter(function (type) {
                 if (type === 'section_header') return allowed.indexOf('heading') !== -1;
                 return allowed.indexOf(type) !== -1;
@@ -3958,7 +3973,7 @@
             if (type === 'section_header' || type === 'heading' || type === 'text' || type === 'button' || type === 'html' || type === 'transcript') return 'Content';
             if (type === 'image' || type === 'hero') return 'Media';
             if (type === 'columns' || type === 'card_grid' || type === 'feature_grid' || type === 'cta' || type === 'divider' || type === 'spacer') return 'Layout';
-            if (type === 'posts_list' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary' || type === 'testimonials' || type === 'people_directory') return 'Dynamic';
+            if (type === 'posts_list' || type === 'newsletter_signup' || type === 'newsletter_archive' || type === 'events' || type === 'form' || type === 'donation_form' || type === 'donation_progress' || type === 'campaign_summary' || type === 'testimonials' || type === 'people_directory') return 'Dynamic';
             return 'Blocks';
         }
 
@@ -3979,6 +3994,8 @@
                 divider: 'divider',
                 spacer: 'distribute-vertical-center',
                 posts_list: 'list',
+                newsletter_signup: 'newsletter',
+                newsletter_archive: 'newsletter',
                 events: 'event-schedule',
                 form: 'document',
                 donation_form: 'hand-donation',
@@ -4198,6 +4215,16 @@
                 }).join('') + '</div>';
             } else if (type === 'posts_list') {
                 body = '<div class="metis-builder-posts-list"><div><strong>Posts list</strong><span>' + esc(String(parseInt(s(content.limit || '5'), 10) || 5)) + ' items from ' + esc(s(content.source || 'this_page').replace('_', ' ')) + '</span></div></div>';
+            } else if (type === 'newsletter_signup') {
+                var signupLabels = normalizeIdList(content.list_ids || []).map(function (id) {
+                    return optionLabel(state.options.newsletterLists, id, '');
+                }).filter(Boolean);
+                body = '<div class="metis-builder-dynamic-card"><strong>Newsletter signup</strong><span>' + esc(signupLabels.length ? signupLabels.join(', ') : 'Default newsletter list') + '</span><small>Button: ' + esc(s(content.submit_label || 'Subscribe')) + '</small></div>';
+            } else if (type === 'newsletter_archive') {
+                var archiveLabels = normalizeIdList(content.list_ids || []).map(function (id) {
+                    return optionLabel(state.options.newsletterLists, id, '');
+                }).filter(Boolean);
+                body = '<div class="metis-builder-dynamic-card"><strong>Newsletter archive</strong><span>' + esc(archiveLabels.length ? archiveLabels.join(', ') : 'All newsletter lists') + '</span><small>' + esc(String(parseInt(s(content.limit || '12'), 10) || 12)) + ' items</small></div>';
             } else if (type === 'html') {
                 body = '<pre class="metis-builder-code-preview">' + esc(emptyText(content.html || '', '<div></div>')) + '</pre>';
             } else if (type === 'cta') {
@@ -4450,6 +4477,7 @@
                 html += '<div class="metis-se-field-row"><label>Image</label><div class="metis-featured-image-actions"><button type="button" class="metis-se-nav-btn" data-open-block-media="src">Choose from Media</button></div></div>';
                 html += '<div class="metis-se-field-row"><label>Image URL</label><input id="metis-v2-image-src" class="metis-se-input" value="' + esc(s(sec.content.src || '')) + '" placeholder="https://"></div>';
                 html += '<div class="metis-se-field-row"><label>Alt Text</label><input id="metis-v2-image-alt" class="metis-se-input" value="' + esc(s(sec.content.alt || '')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Caption</label><input id="metis-v2-image-caption" class="metis-se-input" value="' + esc(s(sec.content.caption || '')) + '" placeholder="Optional caption"></div>';
                 html += '<div class="metis-se-field-row"><label>Width</label><input id="metis-v2-image-width" class="metis-se-input" inputmode="numeric" pattern="[0-9]*" value="' + esc(s(sec.content.width || '')) + '" placeholder="Auto"></div>';
                 html += '<div class="metis-se-field-row"><label>Height</label><input id="metis-v2-image-height" class="metis-se-input" inputmode="numeric" pattern="[0-9]*" value="' + esc(s(sec.content.height || '')) + '" placeholder="Auto"></div>';
             } else if (sec.type === 'button') {
@@ -4632,6 +4660,15 @@
                 html += '<div class="metis-se-field-row"><label>Categories</label>' + categoryChipField('metis-v2-posts-category-ids', selectedCategoryIds, 'No categories available.') + '</div>';
                 html += '<div class="metis-se-field-row"><label>Item Limit</label><input id="metis-v2-posts-limit" class="metis-se-input" type="number" min="1" max="50" value="' + esc(String(parseInt(s(sec.content.limit || '5'), 10) || 5)) + '"></div>';
                 html += '<div class="metis-se-field-row"><label>Sort</label><input class="metis-se-input" value="Latest" disabled></div>';
+            } else if (sec.type === 'newsletter_signup') {
+                var selectedSignupListIds = normalizeIdList(sec.content.list_ids || []);
+                html += '<div class="metis-se-field-row"><label>Newsletter Lists</label>' + categoryChipField('metis-v2-newsletter-signup-list-ids', selectedSignupListIds, 'No newsletter lists available.', state.options.newsletterLists) + '</div>';
+                html += '<div class="metis-se-field-row"><label>Submit Label</label><input id="metis-v2-newsletter-signup-submit-label" class="metis-se-input" value="' + esc(s(sec.content.submit_label || 'Subscribe')) + '"></div>';
+                html += '<div class="metis-se-field-row"><label>Success Message</label><input id="metis-v2-newsletter-signup-success-message" class="metis-se-input" value="' + esc(s(sec.content.success_message || 'Thanks for subscribing.')) + '"></div>';
+            } else if (sec.type === 'newsletter_archive') {
+                var selectedArchiveListIds = normalizeIdList(sec.content.list_ids || []);
+                html += '<div class="metis-se-field-row"><label>Newsletter Lists</label>' + categoryChipField('metis-v2-newsletter-archive-list-ids', selectedArchiveListIds, 'No newsletter lists available.', state.options.newsletterLists) + '</div>';
+                html += '<div class="metis-se-field-row"><label>Item Limit</label><input id="metis-v2-newsletter-archive-limit" class="metis-se-input" type="number" min="1" max="50" value="' + esc(String(parseInt(s(sec.content.limit || '12'), 10) || 12)) + '"></div>';
             }
             host.innerHTML = html;
             bindIconFallbacks(host);
@@ -5622,6 +5659,7 @@
             state.options.forms = Array.isArray(resp.forms) ? resp.forms : [];
             state.options.popups = Array.isArray(resp.popups) ? resp.popups : [];
             state.options.donationCampaigns = Array.isArray(resp.donation_campaigns) ? resp.donation_campaigns : [];
+            state.options.newsletterLists = Array.isArray(resp.newsletter_lists) ? resp.newsletter_lists : [];
             state.options.testimonyCategories = Array.isArray(resp.testimony_categories) ? resp.testimony_categories : [];
             state.options.calendarSources = Array.isArray(resp.calendar_sources) ? resp.calendar_sources : [];
             state.options.media = Array.isArray(resp.media) ? resp.media : [];
@@ -6043,6 +6081,9 @@
                         setSelectedCategoryIds(fieldId, selectedIds);
                         if (fieldId === 'metis-v2-posts-category-ids' || fieldId === 'metis-v2-testimony-category-ids') {
                             activeSection().content.category_ids = selectedIds;
+                            renderBuilderCanvas();
+                        } else if (fieldId === 'metis-v2-newsletter-signup-list-ids' || fieldId === 'metis-v2-newsletter-archive-list-ids') {
+                            activeSection().content.list_ids = selectedIds;
                             renderBuilderCanvas();
                         } else if (fieldId.indexOf('metis-v2-column-testimony-category-ids-') === 0) {
                             var categorySection = activeSection();
@@ -6584,6 +6625,8 @@
                 if (target.id === 'metis-v2-posts-category-ids') { sec.content.category_ids = selectedCategoryIds('metis-v2-posts-category-ids'); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-category-ids') { sec.content.category_ids = selectedCategoryIds('metis-v2-testimony-category-ids'); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-empty-message') { sec.content.empty_message = s(target.value || ''); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-newsletter-signup-submit-label') { sec.content.submit_label = s(target.value || 'Subscribe') || 'Subscribe'; renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-newsletter-signup-success-message') { sec.content.success_message = s(target.value || 'Thanks for subscribing.') || 'Thanks for subscribing.'; setDirtyAutosave(); return; }
                 if (target.matches('[data-v2-column-tab-field="label"]')) {
                     var labelColumnIdx = parseInt(s(target.getAttribute('data-column-idx') || '-1'), 10);
                     var labelTabIdx = parseInt(s(target.getAttribute('data-tab-idx') || '-1'), 10);
@@ -6725,6 +6768,7 @@
                 if (target.id === 'metis-v2-testimony-featured-only') { sec.content.featured_only = !!target.checked; renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-testimony-show-category') { sec.content.show_category = !!target.checked; renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-divider-style') { sec.content.style = ['solid', 'dashed', 'dotted'].indexOf(s(target.value || 'solid')) === -1 ? 'solid' : s(target.value || 'solid'); renderBuilderCanvas(); setDirtyAutosave(); return; }
+                if (target.id === 'metis-v2-newsletter-archive-limit') { sec.content.limit = Math.max(1, Math.min(50, parseInt(s(target.value || '12'), 10) || 12)); renderBuilderCanvas(); setDirtyAutosave(); return; }
                 if (target.id === 'metis-v2-posts-source') {
                     sec.content.source = s(target.value || 'this_page') === 'specific_page' ? 'specific_page' : 'this_page';
                     if (sec.content.source !== 'specific_page') sec.content.specific_page = 0;

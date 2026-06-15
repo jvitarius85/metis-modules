@@ -3,6 +3,13 @@
   const builderRoot = document.querySelector('[data-metis-forms-builder="1"]');
   const entriesRoot = document.querySelector('[data-metis-forms-entries="1"]');
   const formsRichSelectionStore = {};
+  const formsMergeSuggestionState = {
+    root: null,
+    popup: null,
+    items: [],
+    activeIndex: -1,
+    context: null
+  };
   const formsRichColorOptions = [
     {value: '#1f2740', label: 'Default', color: '#1f2740'},
     {value: '#4a5ec9', label: 'Accent', color: '#4a5ec9'},
@@ -52,6 +59,7 @@
     const options = Object.assign(
       {
         payment_defaults: {fee_percent: 2.9, fee_fixed: 0.3, cover_fees_label: 'I would like to cover the processing fees.'},
+        email_defaults: {from_name: '', from_email: ''},
         field_types: [],
         users: [],
         roles: [],
@@ -64,7 +72,7 @@
     );
 
     const state = {
-      form: hydrateForm(clone(boot.form || {}), options.payment_defaults || {}),
+      form: hydrateForm(clone(boot.form || {}), options.payment_defaults || {}, options.email_defaults || {}),
       selection: null,
       step: ['build', 'settings', 'publish'].includes(String(boot.default_step || 'build')) ? String(boot.default_step || 'build') : 'build',
       editorSection: 'basics',
@@ -90,13 +98,12 @@
         event.preventDefault();
         event.stopPropagation();
         const dropdown = richToggle.closest('.metis-se-rich-dropdown');
-        root.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach((node) => {
-          if (node !== dropdown) {
-            node.classList.remove('is-open');
-          }
-        });
+        closeBuilderDropdowns(root, dropdown);
         if (dropdown) {
           dropdown.classList.toggle('is-open');
+          if (dropdown.classList.contains('is-open')) {
+            positionBuilderDropdown(dropdown);
+          }
         }
         return;
       }
@@ -359,6 +366,9 @@
 
       if (target.matches('[data-setting-path]')) {
         updateSettingProperty(target);
+        if (target.matches('[data-setting-path="notifications.submitter.subject"], [data-setting-path="notifications.internal.subject"]')) {
+          updateMergeSuggestionPopup(target, state);
+        }
         renderPreview();
         renderPublish();
         return;
@@ -421,7 +431,7 @@
 
       if (target.matches('[data-setting-path]')) {
         updateSettingProperty(target);
-        if (target.matches('[data-setting-path="access.mode"], [data-setting-path="schedule.enabled"], [data-setting-path="binding.module"], [data-setting-path="notifications.internal.routing_field"], [data-setting-path="notifications.submitter.recipient_field"]')) {
+        if (target.matches('[data-setting-path="access.mode"], [data-setting-path="schedule.enabled"], [data-setting-path="confirmation.custom_enabled"], [data-setting-path="binding.module"], [data-setting-path="notifications.internal.routing_field"], [data-setting-path="notifications.submitter.recipient_field"]')) {
           render();
         } else {
           renderPreview();
@@ -450,6 +460,11 @@
         return;
       }
 
+      if (target.matches('[data-route-value], [data-route-user], [data-notification-user]')) {
+        updateNotificationRoutes(target);
+        return;
+      }
+
       if (target.matches('[data-binding-rule-field], [data-binding-rule-operator], [data-binding-rule-value], [data-binding-rule-flow]')) {
         updateBindingRule(target);
         if (target.matches('[data-binding-rule-field], [data-binding-rule-operator]')) {
@@ -474,13 +489,30 @@
     });
 
     root.addEventListener('keyup', (event) => {
+      const input = event.target instanceof HTMLElement ? event.target.closest('[data-setting-path="notifications.submitter.subject"], [data-setting-path="notifications.internal.subject"]') : null;
+      if (input) {
+        updateMergeSuggestionPopup(input, state, event);
+        return;
+      }
       const editor = event.target instanceof HTMLElement ? event.target.closest('[data-rich-setting-path]') : null;
       if (editor) {
         saveRichSelection(editor);
+        updateMergeSuggestionPopup(editor, state, event);
       }
     });
 
     root.addEventListener('blur', (event) => {
+      const mergeTarget = event.target instanceof HTMLElement ? event.target.closest('[data-setting-path="notifications.submitter.subject"], [data-setting-path="notifications.internal.subject"], [data-rich-setting-path]') : null;
+      if (mergeTarget) {
+        window.setTimeout(() => {
+          const active = document.activeElement;
+          const popup = formsMergeSuggestionState.popup;
+          if (popup instanceof HTMLElement && active instanceof Node && popup.contains(active)) {
+            return;
+          }
+          hideMergeSuggestionPopup();
+        }, 0);
+      }
       const editor = event.target instanceof HTMLElement ? event.target.closest('[data-rich-setting-path]') : null;
       if (editor) {
         updateRichSettingProperty(editor, state);
@@ -488,8 +520,37 @@
     }, true);
 
     root.addEventListener('mousedown', (event) => {
-      if (event.target.closest('[data-rich-cmd], [data-rich-action], [data-rich-toggle="menu"]')) {
+      if (event.target.closest('[data-rich-cmd], [data-rich-action], [data-rich-toggle="menu"], [data-merge-suggestion-index]')) {
         event.preventDefault();
+      }
+    });
+
+    root.addEventListener('keydown', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches('[data-setting-path="notifications.submitter.subject"], [data-setting-path="notifications.internal.subject"], [data-rich-setting-path]')) {
+        return;
+      }
+      if (!formsMergeSuggestionState.context || !formsMergeSuggestionState.items.length) {
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveMergeSuggestion(formsMergeSuggestionState.activeIndex + 1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveMergeSuggestion(formsMergeSuggestionState.activeIndex - 1);
+        return;
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault();
+        applyMergeSuggestionSelection(formsMergeSuggestionState.activeIndex, state);
+        return;
+      }
+      if (event.key === 'Escape') {
+        hideMergeSuggestionPopup();
       }
     });
 
@@ -543,6 +604,21 @@
     });
 
     function handleDocumentClick(event) {
+      if (!(event.target instanceof Node)) {
+        hideMergeSuggestionPopup();
+        return;
+      }
+      const mergeSuggestionItem = event.target instanceof Element ? event.target.closest('[data-merge-suggestion-index]') : null;
+      if (mergeSuggestionItem) {
+        event.preventDefault();
+        applyMergeSuggestionSelection(Number(mergeSuggestionItem.getAttribute('data-merge-suggestion-index') || -1), state);
+        return;
+      }
+      const popup = formsMergeSuggestionState.popup;
+      if (popup instanceof HTMLElement && popup.contains(event.target)) {
+        return;
+      }
+      hideMergeSuggestionPopup();
       if (!root.contains(event.target)) {
         closeRichMenus(root);
       }
@@ -558,7 +634,7 @@
           form_id: payload.id ? String(payload.id) : '',
           form: JSON.stringify(payload)
         });
-        state.form = hydrateForm(clone(response.form || state.form), options.payment_defaults || {});
+        state.form = hydrateForm(clone(response.form || state.form), options.payment_defaults || {}, options.email_defaults || {});
         if (wasNew && state.form.id) {
           const url = new URL(window.location.href);
           url.searchParams.set('form_id', String(state.form.id));
@@ -605,7 +681,13 @@
 
     function updateSettingProperty(target) {
       const path = String(target.getAttribute('data-setting-path') || '');
-      const value = readElementValue(target);
+      let value = readElementValue(target);
+      if (typeof value === 'string' && usesMergeAliasResolution(path)) {
+        value = canonicalizeMergeTemplateAliases(value, buildMergeTokenOptions(state.form.schema || []));
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+          target.value = value;
+        }
+      }
       const settings = state.form.settings;
       switch (path) {
         case 'binding.module':
@@ -617,6 +699,16 @@
           return;
         case 'access.mode':
           settings.access.mode = String(value);
+          if (settings.access.mode === 'public') {
+            settings.access.password = '';
+            settings.access.roles = [];
+          }
+          if (settings.access.mode !== 'password') {
+            settings.access.password = '';
+          }
+          if (settings.access.mode !== 'role') {
+            settings.access.roles = [];
+          }
           return;
         case 'access.password':
           settings.access.password = String(value);
@@ -635,6 +727,9 @@
           return;
         case 'schedule.closed_message':
           settings.schedule.closed_message = String(value);
+          return;
+        case 'confirmation.custom_enabled':
+          settings.confirmation.custom_enabled = Boolean(value);
           return;
         case 'confirmation.message':
           settings.confirmation.message = String(value);
@@ -980,9 +1075,12 @@
         messageNode.textContent = message;
       }
       loadingOverlay.hidden = !visible;
-      root.classList.toggle('is-loading-payment', !!visible);
+      root.classList.toggle('is-submitting', !!visible);
     };
     initFieldGroup(formEl, schema);
+    if (window.Metis && Metis.ui && Metis.ui.select) {
+      Metis.ui.select.init(root);
+    }
 
     root.addEventListener('click', (event) => {
       const close = event.target.closest('[data-success-close]');
@@ -1001,6 +1099,7 @@
         event.preventDefault();
         clearPublicErrors(formEl, alertEl);
         setPublicSubmitting(submitButton, true, 'Submitting...');
+        setLoadingOverlay(true, 'Submitting...');
 
         try {
           const payload = formDataToObject(new FormData(formEl));
@@ -1018,6 +1117,7 @@
         } catch (error) {
           showPublicAlert(alertEl, error.message || 'Unable to submit the form right now.', 'error');
         } finally {
+          setLoadingOverlay(false);
           setPublicSubmitting(submitButton, false);
         }
       });
@@ -1191,6 +1291,9 @@
       if (!row) return;
       rowsHost.appendChild(row);
       initFieldGroup(row, field.subfields || []);
+      if (window.Metis && Metis.ui && Metis.ui.select) {
+        Metis.ui.select.init(row);
+      }
     };
 
     addButton.addEventListener('click', () => {
@@ -1619,6 +1722,7 @@
     const flows = options.module_flows && options.module_flows[settings.binding.module] ? options.module_flows[settings.binding.module] : [];
     const bindingRules = Array.isArray(settings.binding.rules) ? settings.binding.rules : [];
     const mergeTokens = buildMergeTokenOptions(form.schema || []);
+    const emailDefaults = options.email_defaults || {};
 
     return `
       <div class="metis-forms-settings-grid">
@@ -1637,6 +1741,66 @@
               <span>Description</span>
               <textarea class="metis-input" rows="4" data-form-prop="description">${escapeHtml(form.description || '')}</textarea>
             </label>
+            <label class="metis-forms-control">
+              <span>Who can access this form</span>
+              <select class="metis-select" data-setting-path="access.mode">
+                <option value="public"${access.mode === 'public' ? ' selected' : ''}>Public</option>
+                <option value="logged_in"${access.mode === 'logged_in' ? ' selected' : ''}>Logged in users</option>
+                <option value="password"${access.mode === 'password' ? ' selected' : ''}>Password protected</option>
+                <option value="role"${access.mode === 'role' ? ' selected' : ''}>Specific internal roles</option>
+              </select>
+            </label>
+            ${access.mode === 'password' ? `
+              <label class="metis-forms-control">
+                <span>Password</span>
+                <input class="metis-input" type="text" value="${escapeAttr(access.password || '')}" data-setting-path="access.password">
+              </label>
+            ` : ''}
+            ${access.mode === 'role' ? `
+              <div class="metis-forms-control metis-forms-control--full">
+                <span>Allowed roles</span>
+                <div class="metis-forms-check-grid">
+                  ${(options.roles || []).map((role) => {
+                    const checked = Array.isArray(access.roles) && access.roles.includes(String(role.value || ''));
+                    return `<label class="metis-forms-check"><input type="checkbox" data-setting-role="${escapeAttr(String(role.value || ''))}" ${checked ? 'checked' : ''}><span>${escapeHtml(String(role.label || ''))}</span></label>`;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+            ${access.mode !== 'public' ? `
+              <label class="metis-forms-control metis-forms-control--full">
+                <span>Closed or restricted message</span>
+                <textarea class="metis-input" rows="4" data-setting-path="access.denied_message">${escapeHtml(access.denied_message || '')}</textarea>
+              </label>
+            ` : ''}
+            <label class="metis-forms-check metis-forms-control--full">
+              <input type="checkbox" ${schedule.enabled ? 'checked' : ''} data-setting-path="schedule.enabled">
+              <span>Schedule this form</span>
+            </label>
+            ${schedule.enabled ? `
+              <label class="metis-forms-control">
+                <span>Start date</span>
+                <input class="metis-input" type="datetime-local" value="${escapeAttr(schedule.start_at || '')}" data-setting-path="schedule.start_at">
+              </label>
+              <label class="metis-forms-control">
+                <span>End date</span>
+                <input class="metis-input" type="datetime-local" value="${escapeAttr(schedule.end_at || '')}" data-setting-path="schedule.end_at">
+              </label>
+              <label class="metis-forms-control metis-forms-control--full">
+                <span>Scheduled closed message</span>
+                <textarea class="metis-input" rows="4" data-setting-path="schedule.closed_message">${escapeHtml(schedule.closed_message || '')}</textarea>
+              </label>
+            ` : ''}
+            <label class="metis-forms-check metis-forms-control--full">
+              <input type="checkbox" ${settings.confirmation.custom_enabled ? 'checked' : ''} data-setting-path="confirmation.custom_enabled">
+              <span>Use custom post-submit message</span>
+            </label>
+            ${settings.confirmation.custom_enabled ? `
+              <label class="metis-forms-control metis-forms-control--full">
+                <span>Post-submit message</span>
+                <textarea class="metis-input" rows="4" data-setting-path="confirmation.message">${escapeHtml(settings.confirmation.message || '')}</textarea>
+              </label>
+            ` : ''}
           </div>
         </section>
 
@@ -1694,66 +1858,6 @@
         </section>
 
         <section class="metis-forms-surface">
-          <div class="metis-forms-surface__head"><h2>Access</h2></div>
-          <div class="metis-forms-grid">
-            <label class="metis-forms-control">
-              <span>Who can access this form</span>
-              <select class="metis-select" data-setting-path="access.mode">
-                <option value="public"${access.mode === 'public' ? ' selected' : ''}>Public</option>
-                <option value="logged_in"${access.mode === 'logged_in' ? ' selected' : ''}>Logged in users</option>
-                <option value="password"${access.mode === 'password' ? ' selected' : ''}>Password protected</option>
-                <option value="role"${access.mode === 'role' ? ' selected' : ''}>Specific internal roles</option>
-              </select>
-            </label>
-            ${access.mode === 'password' ? `
-              <label class="metis-forms-control">
-                <span>Password</span>
-                <input class="metis-input" type="text" value="${escapeAttr(access.password || '')}" data-setting-path="access.password">
-              </label>
-            ` : ''}
-            <label class="metis-forms-control metis-forms-control--full">
-              <span>Closed or restricted message</span>
-              <textarea class="metis-input" rows="4" data-setting-path="access.denied_message">${escapeHtml(access.denied_message || '')}</textarea>
-            </label>
-            ${access.mode === 'role' ? `
-              <div class="metis-forms-control metis-forms-control--full">
-                <span>Allowed roles</span>
-                <div class="metis-forms-check-grid">
-                  ${(options.roles || []).map((role) => {
-                    const checked = Array.isArray(access.roles) && access.roles.includes(String(role.value || ''));
-                    return `<label class="metis-forms-check"><input type="checkbox" data-setting-role="${escapeAttr(String(role.value || ''))}" ${checked ? 'checked' : ''}><span>${escapeHtml(String(role.label || ''))}</span></label>`;
-                  }).join('')}
-                </div>
-              </div>
-            ` : ''}
-          </div>
-        </section>
-
-        <section class="metis-forms-surface">
-          <div class="metis-forms-surface__head"><h2>Schedule</h2></div>
-          <div class="metis-forms-grid">
-            <label class="metis-forms-check metis-forms-control--full">
-              <input type="checkbox" ${schedule.enabled ? 'checked' : ''} data-setting-path="schedule.enabled">
-              <span>Schedule this form</span>
-            </label>
-            ${schedule.enabled ? `
-              <label class="metis-forms-control">
-                <span>Start date</span>
-                <input class="metis-input" type="datetime-local" value="${escapeAttr(schedule.start_at || '')}" data-setting-path="schedule.start_at">
-              </label>
-              <label class="metis-forms-control">
-                <span>End date</span>
-                <input class="metis-input" type="datetime-local" value="${escapeAttr(schedule.end_at || '')}" data-setting-path="schedule.end_at">
-              </label>
-              <label class="metis-forms-control metis-forms-control--full">
-                <span>Scheduled closed message</span>
-                <textarea class="metis-input" rows="4" data-setting-path="schedule.closed_message">${escapeHtml(schedule.closed_message || '')}</textarea>
-              </label>
-            ` : ''}
-          </div>
-        </section>
-
-        <section class="metis-forms-surface">
           <div class="metis-forms-surface__head"><h2>Submitter confirmation</h2></div>
           <div class="metis-forms-grid">
             <label class="metis-forms-check metis-forms-control--full">
@@ -1770,15 +1874,14 @@
             <label class="metis-forms-control">
               <span>From name</span>
               <input class="metis-input" type="text" value="${escapeAttr(submitter.from_name || '')}" data-setting-path="notifications.submitter.from_name">
+              <small class="metis-forms-helper-text">Default: ${escapeHtml(emailDefaults.from_name || 'Not configured in Email Settings')}</small>
             </label>
             <label class="metis-forms-control">
               <span>From email</span>
               <input class="metis-input" type="email" value="${escapeAttr(submitter.from_email || '')}" data-setting-path="notifications.submitter.from_email">
+              <small class="metis-forms-helper-text">Default: ${escapeHtml(emailDefaults.from_email || 'Not configured in Email Settings')}</small>
             </label>
-            <label class="metis-forms-control">
-              <span>Subject</span>
-              <input class="metis-input" type="text" value="${escapeAttr(submitter.subject || '')}" data-setting-path="notifications.submitter.subject">
-            </label>
+            ${renderMergeTagTextControl('Subject', 'notifications.submitter.subject', submitter.subject || '', mergeTokens)}
             <label class="metis-forms-check metis-forms-control--full">
               <input type="checkbox" ${submitter.include_submission_data ? 'checked' : ''} data-setting-path="notifications.submitter.include_submission_data">
               <span>Include submitted information in the email</span>
@@ -1804,10 +1907,12 @@
             <label class="metis-forms-control">
               <span>From name</span>
               <input class="metis-input" type="text" value="${escapeAttr(internal.from_name || '')}" data-setting-path="notifications.internal.from_name">
+              <small class="metis-forms-helper-text">Default: ${escapeHtml(emailDefaults.from_name || 'Not configured in Email Settings')}</small>
             </label>
             <label class="metis-forms-control">
               <span>From email</span>
               <input class="metis-input" type="email" value="${escapeAttr(internal.from_email || '')}" data-setting-path="notifications.internal.from_email">
+              <small class="metis-forms-helper-text">Default: ${escapeHtml(emailDefaults.from_email || 'Not configured in Email Settings')}</small>
             </label>
             <label class="metis-forms-control">
               <span>Routing field</span>
@@ -1825,10 +1930,7 @@
                 }).join('')}
               </div>
             </div>
-            <label class="metis-forms-control">
-              <span>Subject</span>
-              <input class="metis-input" type="text" value="${escapeAttr(internal.subject || '')}" data-setting-path="notifications.internal.subject">
-            </label>
+            ${renderMergeTagTextControl('Subject', 'notifications.internal.subject', internal.subject || '', mergeTokens)}
             <label class="metis-forms-check metis-forms-control--full">
               <input type="checkbox" ${internal.include_submission_data ? 'checked' : ''} data-setting-path="notifications.internal.include_submission_data">
               <span>Include submitted information in the email</span>
@@ -2005,22 +2107,22 @@
     `;
   }
 
-  function hydrateForm(input, paymentDefaults) {
-    const defaults = defaultForm(paymentDefaults);
+  function hydrateForm(input, paymentDefaults, emailDefaults) {
+    const defaults = defaultForm(paymentDefaults, emailDefaults);
     const form = Object.assign({}, defaults, input || {});
     form.name = String(form.name || defaults.name);
     form.slug = String(form.slug || '');
     form.description = String(form.description || '');
     form.status = ['draft', 'published', 'archived'].includes(String(form.status || 'draft')) ? String(form.status || 'draft') : 'draft';
     form.public_url = String(form.public_url || '');
-    form.settings = hydrateSettings(form.settings || {}, paymentDefaults);
+    form.settings = hydrateSettings(form.settings || {}, paymentDefaults, emailDefaults);
     form.schema = Array.isArray(form.schema) ? form.schema.map((field) => hydrateField(field, paymentDefaults)) : [];
     form.versions = Array.isArray(form.versions) ? form.versions : [];
     return form;
   }
 
-  function hydrateSettings(input, paymentDefaults) {
-    const defaults = defaultForm(paymentDefaults).settings;
+  function hydrateSettings(input, paymentDefaults, emailDefaults) {
+    const defaults = defaultForm(paymentDefaults, emailDefaults).settings;
     const settings = clone(defaults);
     const source = input || {};
 
@@ -2043,18 +2145,19 @@
     settings.schedule.start_at = String(source.schedule?.start_at || '');
     settings.schedule.end_at = String(source.schedule?.end_at || '');
     settings.schedule.closed_message = String(source.schedule?.closed_message || defaults.schedule.closed_message);
+    settings.confirmation.custom_enabled = Boolean(source.confirmation?.custom_enabled);
     settings.confirmation.message = String(source.confirmation?.message || defaults.confirmation.message);
     settings.notifications.submitter.enabled = Boolean(source.notifications?.submitter?.enabled);
     settings.notifications.submitter.recipient_field = String(source.notifications?.submitter?.recipient_field || '');
-    settings.notifications.submitter.from_name = String(source.notifications?.submitter?.from_name || '');
-    settings.notifications.submitter.from_email = String(source.notifications?.submitter?.from_email || '');
+    settings.notifications.submitter.from_name = String(source.notifications?.submitter?.from_name || defaults.notifications.submitter.from_name);
+    settings.notifications.submitter.from_email = String(source.notifications?.submitter?.from_email || defaults.notifications.submitter.from_email);
     settings.notifications.submitter.include_submission_data = Boolean(source.notifications?.submitter?.include_submission_data);
     settings.notifications.submitter.subject = String(source.notifications?.submitter?.subject || defaults.notifications.submitter.subject);
     settings.notifications.submitter.message = String(source.notifications?.submitter?.message || defaults.notifications.submitter.message);
     settings.notifications.internal.enabled = Boolean(source.notifications?.internal?.enabled);
     settings.notifications.internal.general_email = String(source.notifications?.internal?.general_email || '');
-    settings.notifications.internal.from_name = String(source.notifications?.internal?.from_name || '');
-    settings.notifications.internal.from_email = String(source.notifications?.internal?.from_email || '');
+    settings.notifications.internal.from_name = String(source.notifications?.internal?.from_name || defaults.notifications.internal.from_name);
+    settings.notifications.internal.from_email = String(source.notifications?.internal?.from_email || defaults.notifications.internal.from_email);
     settings.notifications.internal.include_submission_data = Boolean(source.notifications?.internal?.include_submission_data);
     settings.notifications.internal.default_user_ids = Array.isArray(source.notifications?.internal?.default_user_ids)
       ? source.notifications.internal.default_user_ids.map((value) => Number(value || 0)).filter((value) => value > 0)
@@ -2137,7 +2240,8 @@
     };
   }
 
-  function defaultForm(paymentDefaults) {
+  function defaultForm(paymentDefaults, emailDefaults) {
+    const senderDefaults = emailDefaults || {};
     return {
       id: 0,
       form_uuid: '',
@@ -2151,10 +2255,10 @@
         binding: {module: '', flow: '', campaign_code: '', rules: []},
         access: {mode: 'public', password: '', denied_message: 'This form is not currently available.', roles: []},
         schedule: {enabled: false, start_at: '', end_at: '', closed_message: 'This form is not accepting submissions right now.'},
-        confirmation: {message: 'Thanks, your submission has been received.'},
+        confirmation: {custom_enabled: false, message: 'Thanks, your submission has been received.'},
         notifications: {
-          submitter: {enabled: false, recipient_field: '', from_name: '', from_email: '', include_submission_data: false, subject: 'We received your submission', message: '<p>Thank you for your submission.</p>'},
-          internal: {enabled: false, general_email: '', from_name: '', from_email: '', include_submission_data: true, default_user_ids: [], routing_field: '', subject: 'New form submission', message: '<p>A new form submission has been received.</p>', routes: []}
+          submitter: {enabled: false, recipient_field: '', from_name: String(senderDefaults.from_name || ''), from_email: String(senderDefaults.from_email || ''), include_submission_data: false, subject: 'We received your submission', message: '<p>Thank you for your submission.</p>'},
+          internal: {enabled: false, general_email: '', from_name: String(senderDefaults.from_name || ''), from_email: String(senderDefaults.from_email || ''), include_submission_data: true, default_user_ids: [], routing_field: '', subject: 'New form submission', message: '<p>A new form submission has been received.</p>', routes: []}
         },
         payments: defaultPayment(paymentDefaults)
       },
@@ -2264,6 +2368,16 @@
     `;
   }
 
+  function renderMergeTagTextControl(label, path, value, mergeTokens) {
+    return `
+      <div class="metis-forms-control">
+        <span>${escapeHtml(String(label || 'Value'))}</span>
+        <input class="metis-input" type="text" value="${escapeAttr(String(value || ''))}" data-setting-path="${escapeAttr(String(path || ''))}">
+        <small class="metis-forms-helper-text">Type <code>{</code> to see merge tag suggestions, or insert one from the list.</small>
+      </div>
+    `;
+  }
+
   function buildMergeTokenOptions(schema) {
     const tokens = [
       {token: '{{form_name}}', label: 'Form name'},
@@ -2309,7 +2423,11 @@
   function updateRichSettingProperty(target, state) {
     const path = String(target.getAttribute('data-rich-setting-path') || '');
     if (!path) return;
-    const normalizedHtml = normalizeRichTextCharacters(String(target.innerHTML || ''));
+    const mergeTokens = buildMergeTokenOptions(state.form.schema || []);
+    const normalizedHtml = canonicalizeMergeTemplateAliases(
+      normalizeRichTextCharacters(String(target.innerHTML || '')),
+      usesMergeAliasResolution(path) ? mergeTokens : []
+    );
     if (String(target.innerHTML || '') !== normalizedHtml) {
       target.innerHTML = normalizedHtml;
       placeCaretAtEnd(target);
@@ -2318,15 +2436,247 @@
     saveRichSelection(target);
   }
 
+  function updateMergeSuggestionPopup(target, state, event) {
+    const context = buildMergeSuggestionContext(target);
+    if (!context || context.query.includes('}')) {
+      hideMergeSuggestionPopup();
+      return;
+    }
+    const items = filterMergeSuggestionItems(buildMergeTokenOptions(state.form.schema || []), context.query);
+    if (!items.length) {
+      hideMergeSuggestionPopup();
+      return;
+    }
+    const initialIndex = event && event.key === 'ArrowUp' ? items.length - 1 : 0;
+    showMergeSuggestionPopup(target, context, items, initialIndex);
+  }
+
+  function buildMergeSuggestionContext(target) {
+    if (target instanceof HTMLInputElement) {
+      const value = String(target.value || '');
+      const caret = Number(target.selectionStart ?? value.length);
+      const triggerIndex = value.lastIndexOf('{', Math.max(0, caret - 1));
+      if (triggerIndex < 0) return null;
+      const between = value.slice(triggerIndex + 1, caret);
+      if (between.includes('{')) return null;
+      return {
+        type: 'input',
+        triggerIndex,
+        caret,
+        query: between
+      };
+    }
+    if (target instanceof HTMLElement && target.matches('[data-rich-setting-path]')) {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || !target.contains(selection.anchorNode)) {
+        return null;
+      }
+      const range = selection.getRangeAt(0);
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(target);
+      preRange.setEnd(range.endContainer, range.endOffset);
+      const text = preRange.toString();
+      const triggerIndex = text.lastIndexOf('{');
+      if (triggerIndex < 0) return null;
+      const between = text.slice(triggerIndex + 1);
+      if (between.includes('{') || between.includes('}')) return null;
+      return {
+        type: 'rich',
+        triggerIndex,
+        caret: text.length,
+        query: between
+      };
+    }
+    return null;
+  }
+
+  function filterMergeSuggestionItems(tokens, query) {
+    const normalizedQuery = normalizeMergeAlias(String(query || ''));
+    if (!normalizedQuery) {
+      return Array.isArray(tokens) ? tokens.slice() : [];
+    }
+    return (Array.isArray(tokens) ? tokens : []).filter((token) => {
+      const normalizedLabel = normalizeMergeAlias(String(token.label || ''));
+      const normalizedToken = normalizeMergeAlias(String(token.token || '').replace(/[{}]/g, ''));
+      return normalizedLabel.includes(normalizedQuery) || normalizedToken.includes(normalizedQuery);
+    });
+  }
+
+  function showMergeSuggestionPopup(target, context, items, activeIndex) {
+    formsMergeSuggestionState.root = target;
+    formsMergeSuggestionState.context = context;
+    formsMergeSuggestionState.items = items.slice();
+    formsMergeSuggestionState.activeIndex = Math.max(0, Math.min(Number(activeIndex || 0), items.length - 1));
+    const popup = ensureMergeSuggestionPopup();
+    popup.innerHTML = items.map((item, index) => `
+      <button type="button" class="metis-forms-merge-suggestion__item${index === formsMergeSuggestionState.activeIndex ? ' is-active' : ''}" data-merge-suggestion-index="${index}">
+        <span class="metis-forms-merge-suggestion__label">${escapeHtml(String(item.label || ''))}</span>
+        <span class="metis-forms-merge-suggestion__token">${escapeHtml(String(item.token || ''))}</span>
+      </button>
+    `).join('');
+    popup.hidden = false;
+    positionMergeSuggestionPopup(target, popup);
+  }
+
+  function ensureMergeSuggestionPopup() {
+    if (formsMergeSuggestionState.popup instanceof HTMLElement) {
+      return formsMergeSuggestionState.popup;
+    }
+    const popup = document.createElement('div');
+    popup.className = 'metis-forms-merge-suggestion';
+    popup.hidden = true;
+    document.body.appendChild(popup);
+    formsMergeSuggestionState.popup = popup;
+    return popup;
+  }
+
+  function positionMergeSuggestionPopup(target, popup) {
+    if (!(target instanceof HTMLElement) || !(popup instanceof HTMLElement)) return;
+    const rect = target.getBoundingClientRect();
+    const popupHeight = popup.offsetHeight || 240;
+    const roomBelow = window.innerHeight - rect.bottom;
+    const openUp = roomBelow < popupHeight + 12 && rect.top > roomBelow;
+    popup.classList.toggle('is-open-up', openUp);
+    popup.style.left = `${window.scrollX + rect.left}px`;
+    popup.style.top = openUp
+      ? `${window.scrollY + rect.top - popupHeight - 8}px`
+      : `${window.scrollY + rect.bottom + 8}px`;
+    popup.style.minWidth = `${Math.max(rect.width, 280)}px`;
+  }
+
+  function setActiveMergeSuggestion(index) {
+    const items = formsMergeSuggestionState.items || [];
+    if (!items.length) return;
+    const next = ((index % items.length) + items.length) % items.length;
+    formsMergeSuggestionState.activeIndex = next;
+    const popup = formsMergeSuggestionState.popup;
+    if (!(popup instanceof HTMLElement)) return;
+    popup.querySelectorAll('[data-merge-suggestion-index]').forEach((node, itemIndex) => {
+      node.classList.toggle('is-active', itemIndex === next);
+    });
+  }
+
+  function applyMergeSuggestionSelection(index, state) {
+    const items = formsMergeSuggestionState.items || [];
+    const item = items[index >= 0 ? index : formsMergeSuggestionState.activeIndex];
+    const context = formsMergeSuggestionState.context;
+    const target = formsMergeSuggestionState.root;
+    if (!item || !context || !(target instanceof HTMLElement)) {
+      hideMergeSuggestionPopup();
+      return;
+    }
+    if (context.type === 'input' && target instanceof HTMLInputElement) {
+      const value = String(target.value || '');
+      target.value = `${value.slice(0, context.triggerIndex)}${item.token} ${value.slice(context.caret)}`;
+      const caret = context.triggerIndex + item.token.length + 1;
+      target.setSelectionRange(caret, caret);
+      updateSettingProperty(target);
+    } else if (context.type === 'rich' && target.matches('[data-rich-setting-path]')) {
+      replaceRichMergeTrigger(target, context, String(item.token || ''));
+      updateRichSettingProperty(target, state);
+    }
+    hideMergeSuggestionPopup();
+  }
+
+  function replaceRichMergeTrigger(editor, context, token) {
+    const selection = window.getSelection();
+    if (!(editor instanceof HTMLElement) || !selection) return;
+    const start = findTextPointAtOffset(editor, context.triggerIndex);
+    const end = findTextPointAtOffset(editor, context.caret);
+    if (!start || !end) return;
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    range.deleteContents();
+    const textNode = document.createTextNode(`${token} `);
+    range.insertNode(textNode);
+    range.setStart(textNode, textNode.textContent.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    saveRichSelection(editor);
+  }
+
+  function findTextPointAtOffset(root, offset) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node = walker.nextNode();
+    let remaining = Number(offset || 0);
+    while (node) {
+      const length = node.textContent ? node.textContent.length : 0;
+      if (remaining <= length) {
+        return {node, offset: remaining};
+      }
+      remaining -= length;
+      node = walker.nextNode();
+    }
+    if (root.lastChild && root.lastChild.nodeType === Node.TEXT_NODE) {
+      const last = root.lastChild;
+      return {node: last, offset: last.textContent ? last.textContent.length : 0};
+    }
+    const fallback = document.createTextNode('');
+    root.appendChild(fallback);
+    return {node: fallback, offset: 0};
+  }
+
+  function hideMergeSuggestionPopup() {
+    const popup = formsMergeSuggestionState.popup;
+    if (popup instanceof HTMLElement) {
+      popup.hidden = true;
+      popup.innerHTML = '';
+    }
+    formsMergeSuggestionState.root = null;
+    formsMergeSuggestionState.context = null;
+    formsMergeSuggestionState.items = [];
+    formsMergeSuggestionState.activeIndex = -1;
+  }
+
   function findRichEditorForControl(target) {
     const container = target.closest('[data-rich-editor-key]');
     return container ? container.querySelector('[data-rich-setting-path]') : null;
   }
 
   function closeRichMenus(root) {
+    closeBuilderDropdowns(root || document);
+  }
+
+  function closeBuilderDropdowns(root, except) {
     (root || document).querySelectorAll('.metis-se-rich-dropdown.is-open').forEach((node) => {
-      node.classList.remove('is-open');
+      if (except && node === except) {
+        return;
+      }
+      node.classList.remove('is-open', 'is-open-up');
+      const trigger = node.querySelector('[data-rich-toggle="menu"]');
+      if (trigger instanceof HTMLElement) {
+        trigger.setAttribute('aria-expanded', 'false');
+      }
     });
+  }
+
+  function positionBuilderDropdown(dropdown) {
+    if (!(dropdown instanceof HTMLElement)) return;
+    const menu = dropdown.querySelector('.metis-se-rich-menu');
+    const trigger = dropdown.querySelector('[data-rich-toggle="menu"]');
+    if (!(menu instanceof HTMLElement)) return;
+    const triggerRect = trigger instanceof HTMLElement ? trigger.getBoundingClientRect() : dropdown.getBoundingClientRect();
+    const menuHeight = menu.offsetHeight || 240;
+    const roomBelow = window.innerHeight - triggerRect.bottom;
+    const roomAbove = triggerRect.top;
+    const openUp = roomBelow < menuHeight + 16 && roomAbove > roomBelow;
+    dropdown.classList.toggle('is-open-up', openUp);
+    if (trigger instanceof HTMLElement) {
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  function findElementByDataAttr(root, attrName, attrValue) {
+    const scope = root || document;
+    const nodes = scope.querySelectorAll(`[${attrName}]`);
+    for (const node of nodes) {
+      if (node instanceof HTMLElement && String(node.getAttribute(attrName) || '') === String(attrValue || '')) {
+        return node;
+      }
+    }
+    return null;
   }
 
   function saveRichSelection(editor) {
@@ -2713,7 +3063,13 @@
     const exact = (options || []).find((option) => String(option.value || '') === value);
     if (exact) return String(exact.value || '');
     const byLabel = (options || []).find((option) => String(option.label || '') === value);
-    return byLabel ? String(byLabel.value || value) : value;
+    if (byLabel) return String(byLabel.value || value);
+    const normalized = normalizeMergeAlias(value);
+    const normalizedMatch = (options || []).find((option) => (
+      normalizeMergeAlias(String(option.value || '')) === normalized
+      || normalizeMergeAlias(String(option.label || '')) === normalized
+    ));
+    return normalizedMatch ? String(normalizedMatch.value || value) : value;
   }
 
   function toOptionsText(options) {
@@ -2810,7 +3166,7 @@
       const checkboxGroup = inputs.filter((input) => input instanceof HTMLInputElement && input.type === 'checkbox');
       const radioGroup = inputs.filter((input) => input instanceof HTMLInputElement && input.type === 'radio');
       if (checkboxGroup.length > 1) {
-        data[key] = checkboxGroup.filter((input) => input.checked).map((input) => input.value || '1').join(',');
+        data[key] = checkboxGroup.filter((input) => input.checked).map((input) => String(input.value || '1')).filter(Boolean);
         return;
       }
       if (radioGroup.length > 0) {
@@ -2830,22 +3186,70 @@
 
   function conditionPasses(condition, context, schema) {
     const field = String(condition.field || '');
-    const actual = String(context[field] || '');
     const options = fieldMatchOptions(schema || [], field);
+    const rawActual = ownValue(context || {}, field);
+    const actual = Array.isArray(rawActual)
+      ? rawActual.map((item) => canonicalRuleValue(options, String(item || '')))
+      : canonicalRuleValue(options, String(rawActual || ''));
     const expected = canonicalRuleValue(options, String(condition.value || ''));
-    switch (String(condition.operator || 'equals')) {
-      case 'not_equals': return actual !== expected;
-      case 'contains': return actual.includes(expected);
-      case 'empty': return actual === '';
-      case 'not_empty': return actual !== '';
-      default: return actual === expected;
+    const operator = String(condition.operator || 'equals');
+    if (['equals', 'not_equals', 'contains'].includes(operator) && conditionValueIsEmpty(actual)) {
+      return false;
+    }
+    switch (operator) {
+      case 'not_equals':
+        return !conditionValueEquals(actual, expected);
+      case 'contains':
+        return conditionValueContains(actual, expected);
+      case 'empty':
+        return conditionValueIsEmpty(actual);
+      case 'not_empty':
+        return !conditionValueIsEmpty(actual);
+      default:
+        return conditionValueEquals(actual, expected);
     }
   }
 
   function fieldIsInitiallyVisible(field, schema) {
     const conditions = Array.isArray(field?.conditions) ? field.conditions : [];
-    if (conditions.length === 0) return true;
-    return conditions.every((condition) => conditionPasses(condition, {}, schema || []));
+    return conditions.length === 0;
+  }
+
+  function conditionValueEquals(actual, expected) {
+    if (Array.isArray(actual) || Array.isArray(expected)) {
+      return normalizeConditionList(actual).join('||') === normalizeConditionList(expected).join('||');
+    }
+    return normalizeConditionScalar(actual) === normalizeConditionScalar(expected);
+  }
+
+  function conditionValueContains(actual, expected) {
+    const needle = normalizeConditionScalar(expected);
+    if (!needle) return false;
+    if (Array.isArray(actual)) {
+      return normalizeConditionList(actual).includes(needle);
+    }
+    const haystack = normalizeConditionScalar(actual);
+    return haystack ? haystack.toLowerCase().includes(needle.toLowerCase()) : false;
+  }
+
+  function conditionValueIsEmpty(value) {
+    return Array.isArray(value)
+      ? normalizeConditionList(value).length === 0
+      : normalizeConditionScalar(value) === '';
+  }
+
+  function normalizeConditionList(value) {
+    if (!Array.isArray(value)) {
+      const scalar = normalizeConditionScalar(value);
+      return scalar ? [scalar] : [];
+    }
+    return value.map((item) => normalizeConditionScalar(item)).filter(Boolean);
+  }
+
+  function normalizeConditionScalar(value) {
+    if (Array.isArray(value) || value === null || value === undefined) return '';
+    if (typeof value === 'boolean') return value ? '1' : '';
+    return String(value).trim();
   }
 
   function formDataToObject(formData) {
@@ -2922,14 +3326,76 @@
     if (!(button instanceof HTMLButtonElement)) return;
     if (window.Metis && Metis.ui && Metis.ui.form && typeof Metis.ui.form.setSubmitting === 'function') {
       Metis.ui.form.setSubmitting(button, submitting, {loadingLabel: pendingLabel});
-      return;
+    } else {
+      if (!button.dataset.originalLabel) {
+        button.dataset.originalLabel = button.textContent || 'Submit';
+      }
+      button.disabled = Boolean(submitting);
+      button.setAttribute('aria-busy', submitting ? 'true' : 'false');
+      button.textContent = submitting ? pendingLabel : (button.dataset.originalLabel || 'Submit');
     }
-    if (!button.dataset.originalLabel) {
-      button.dataset.originalLabel = button.textContent || 'Submit';
+    const root = button.closest('[data-metis-forms-public="1"]');
+    if (root instanceof HTMLElement) {
+      root.classList.toggle('is-submitting', Boolean(submitting));
     }
-    button.disabled = Boolean(submitting);
-    button.setAttribute('aria-busy', submitting ? 'true' : 'false');
-    button.textContent = submitting ? pendingLabel : (button.dataset.originalLabel || 'Submit');
+  }
+
+  function insertTokenIntoInput(input, token) {
+    if (!(input instanceof HTMLInputElement)) return;
+    const source = String(input.value || '');
+    const insert = String(token || '');
+    const start = typeof input.selectionStart === 'number' ? input.selectionStart : source.length;
+    const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : start;
+    input.value = source.slice(0, start) + insert + source.slice(end);
+    const nextCursor = start + insert.length;
+    input.focus();
+    if (typeof input.setSelectionRange === 'function') {
+      input.setSelectionRange(nextCursor, nextCursor);
+    }
+  }
+
+  function usesMergeAliasResolution(path) {
+    return path === 'notifications.submitter.subject'
+      || path === 'notifications.internal.subject'
+      || path === 'notifications.submitter.message'
+      || path === 'notifications.internal.message';
+  }
+
+  function canonicalizeMergeTemplateAliases(content, mergeTokens) {
+    const source = String(content || '');
+    const aliasMap = buildMergeTokenAliasMap(mergeTokens);
+    if (aliasMap.size === 0 || !source.includes('{{')) {
+      return source;
+    }
+    return source.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, inner) => {
+      const resolved = aliasMap.get(normalizeMergeAlias(inner));
+      return resolved ? resolved : match;
+    });
+  }
+
+  function buildMergeTokenAliasMap(mergeTokens) {
+    const map = new Map();
+    const tokens = Array.isArray(mergeTokens) ? mergeTokens : [];
+    tokens.forEach((token) => {
+      const canonicalToken = String(token?.token || '').trim();
+      if (!canonicalToken) return;
+      const tokenInner = canonicalToken.replace(/^\{\{\s*|\s*\}\}$/g, '');
+      [tokenInner, token?.label, canonicalToken].forEach((candidate) => {
+        const alias = normalizeMergeAlias(candidate);
+        if (alias) {
+          map.set(alias, canonicalToken);
+        }
+      });
+    });
+    return map;
+  }
+
+  function normalizeMergeAlias(value) {
+    return String(value || '')
+      .replace(/^\{\{\s*|\s*\}\}$/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   }
 
   function showSuccessOverlay(root, message) {

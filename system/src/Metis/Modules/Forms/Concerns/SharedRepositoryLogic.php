@@ -6,6 +6,7 @@ namespace Metis\Modules\Forms\Concerns;
 use Metis\Modules\Donations\CampaignService;
 use Metis\Modules\Donations\DonationsModule;
 use Metis\Modules\Finance\FinanceV2Service;
+use Metis\Modules\Forms\FormConditionEvaluator;
 
 trait SharedRepositoryLogic {
     private static ?array $campaignOptions = null;
@@ -79,6 +80,7 @@ trait SharedRepositoryLogic {
     public static function normalizeSettings( mixed $settings ): array {
         $settings = is_array( $settings ) ? $settings : [];
         $defaults = self::defaultSettings();
+        $email_defaults = self::emailDefaults();
 
         $normalized = $defaults;
         $normalized['binding']['module'] = metis_key_clean( (string) ( $settings['binding']['module'] ?? $defaults['binding']['module'] ) );
@@ -106,12 +108,19 @@ trait SharedRepositoryLogic {
         $normalized['schedule']['end_at'] = self::normalizeDateTime( (string) ( $settings['schedule']['end_at'] ?? '' ) );
         $normalized['schedule']['closed_message'] = trim( metis_textarea_clean( (string) ( $settings['schedule']['closed_message'] ?? $defaults['schedule']['closed_message'] ) ) );
 
+        $normalized['confirmation']['custom_enabled'] = ! empty( $settings['confirmation']['custom_enabled'] );
         $normalized['confirmation']['message'] = trim( metis_textarea_clean( (string) ( $settings['confirmation']['message'] ?? $defaults['confirmation']['message'] ) ) );
 
         $normalized['notifications']['submitter']['enabled'] = ! empty( $settings['notifications']['submitter']['enabled'] );
         $normalized['notifications']['submitter']['recipient_field'] = metis_key_clean( (string) ( $settings['notifications']['submitter']['recipient_field'] ?? '' ) );
-        $normalized['notifications']['submitter']['from_name'] = trim( metis_text_clean( (string) ( $settings['notifications']['submitter']['from_name'] ?? '' ) ) );
-        $normalized['notifications']['submitter']['from_email'] = strtolower( trim( metis_email_clean( (string) ( $settings['notifications']['submitter']['from_email'] ?? '' ) ) ) );
+        $normalized['notifications']['submitter']['from_name'] = self::normalizedSenderName(
+            $settings['notifications']['submitter']['from_name'] ?? '',
+            (string) $email_defaults['from_name']
+        );
+        $normalized['notifications']['submitter']['from_email'] = self::normalizedSenderEmail(
+            $settings['notifications']['submitter']['from_email'] ?? '',
+            (string) $email_defaults['from_email']
+        );
         $normalized['notifications']['submitter']['include_submission_data'] = ! empty( $settings['notifications']['submitter']['include_submission_data'] );
         $normalized['notifications']['submitter']['subject'] = trim( metis_text_clean( (string) ( $settings['notifications']['submitter']['subject'] ?? $defaults['notifications']['submitter']['subject'] ) ) );
         $normalized['notifications']['submitter']['message'] = self::normalizeNotificationMessageHtml(
@@ -120,8 +129,14 @@ trait SharedRepositoryLogic {
 
         $normalized['notifications']['internal']['enabled'] = ! empty( $settings['notifications']['internal']['enabled'] );
         $normalized['notifications']['internal']['general_email'] = strtolower( trim( metis_email_clean( (string) ( $settings['notifications']['internal']['general_email'] ?? '' ) ) ) );
-        $normalized['notifications']['internal']['from_name'] = trim( metis_text_clean( (string) ( $settings['notifications']['internal']['from_name'] ?? '' ) ) );
-        $normalized['notifications']['internal']['from_email'] = strtolower( trim( metis_email_clean( (string) ( $settings['notifications']['internal']['from_email'] ?? '' ) ) ) );
+        $normalized['notifications']['internal']['from_name'] = self::normalizedSenderName(
+            $settings['notifications']['internal']['from_name'] ?? '',
+            (string) $email_defaults['from_name']
+        );
+        $normalized['notifications']['internal']['from_email'] = self::normalizedSenderEmail(
+            $settings['notifications']['internal']['from_email'] ?? '',
+            (string) $email_defaults['from_email']
+        );
         $normalized['notifications']['internal']['include_submission_data'] = ! empty( $settings['notifications']['internal']['include_submission_data'] );
         $normalized['notifications']['internal']['default_user_ids'] = array_values(
             array_filter(
@@ -607,32 +622,18 @@ trait SharedRepositoryLogic {
 
     private static function fieldIsVisible( array $field, array $context ): bool {
         $conditions = (array) ( $field['conditions'] ?? [] );
-        if ( $conditions === [] ) {
-            return true;
-        }
+        return FormConditionEvaluator::conditionsPass( $conditions, $context );
+    }
 
-        foreach ( $conditions as $condition ) {
-            if ( ! is_array( $condition ) ) {
-                continue;
-            }
-            $actual = $context[ (string) ( $condition['field'] ?? '' ) ] ?? null;
-            $operator = (string) ( $condition['operator'] ?? 'equals' );
-            $expected = $condition['value'] ?? '';
-
-            $passed = match ( $operator ) {
-                'not_equals' => (string) $actual !== (string) $expected,
-                'contains'   => is_array( $actual ) ? in_array( (string) $expected, array_map( 'strval', $actual ), true ) : str_contains( strtolower( (string) $actual ), strtolower( (string) $expected ) ),
-                'empty'      => $actual === null || $actual === '' || $actual === [],
-                'not_empty'  => ! ( $actual === null || $actual === '' || $actual === [] ),
-                default      => (string) $actual === (string) $expected,
-            };
-
-            if ( ! $passed ) {
-                return false;
-            }
-        }
-
-        return true;
+    private static function ruleMatches( string $field, string $operator, mixed $value, array $context ): bool {
+        return FormConditionEvaluator::conditionPasses(
+            [
+                'field'    => $field,
+                'operator' => $operator,
+                'value'    => $value,
+            ],
+            $context
+        );
     }
 
     /**
@@ -744,6 +745,22 @@ trait SharedRepositoryLogic {
             $option_value = (string) ( $option['value'] ?? '' );
             $option_label = trim( (string) ( $option['label'] ?? '' ) );
             if ( $option_value === $value || $option_label === $value ) {
+                return $option_value !== '' ? $option_value : $value;
+            }
+        }
+
+        $normalized_value = self::normalizeTemplateAlias( $value );
+        if ( $normalized_value === '' ) {
+            return $value;
+        }
+
+        foreach ( self::normalizeOptions( $field['options_source']['items'] ?? $field['options'] ?? [] ) as $option ) {
+            $option_value = (string) ( $option['value'] ?? '' );
+            $option_label = trim( (string) ( $option['label'] ?? '' ) );
+            if (
+                self::normalizeTemplateAlias( $option_value ) === $normalized_value
+                || self::normalizeTemplateAlias( $option_label ) === $normalized_value
+            ) {
                 return $option_value !== '' ? $option_value : $value;
             }
         }
@@ -965,6 +982,7 @@ trait SharedRepositoryLogic {
 
         $settings = self::normalizeSettings( $form['settings'] ?? [] );
         $vars = self::notificationVars( $form, $submission, $normalized, $binding_context );
+        $aliases = self::notificationTemplateAliases( $form );
 
         $submitter = (array) ( $settings['notifications']['submitter'] ?? [] );
         if ( ! empty( $submitter['enabled'] ) ) {
@@ -974,14 +992,15 @@ trait SharedRepositoryLogic {
                 $recipient = (string) ( $vars['submitter_email'] ?? '' );
             }
             if ( $recipient !== '' && metis_email_is_valid( $recipient ) ) {
-                $submitter_subject = self::mergeTemplate( (string) ( $submitter['subject'] ?? '' ), $vars );
+                $submitter_subject = self::mergeTemplate( (string) ( $submitter['subject'] ?? '' ), $vars, $aliases );
                 $submitter_body = self::renderNotificationBody(
                     $form,
                     (string) ( $submitter['message'] ?? '' ),
                     $vars,
                     $normalized,
                     ! empty( $submitter['include_submission_data'] ),
-                    $binding_context
+                    $binding_context,
+                    $aliases
                 );
                 $submitter_options = [ 'module' => 'forms' ];
                 $submitter_from_name = trim( (string) ( $submitter['from_name'] ?? '' ) );
@@ -1021,28 +1040,37 @@ trait SharedRepositoryLogic {
         }
 
         $emails = [];
+        $default_recipient_emails = [];
+        $routed_recipient_emails = [];
         $general = strtolower( trim( metis_email_clean( (string) ( $internal['general_email'] ?? '' ) ) ) );
-        if ( $general !== '' && metis_email_is_valid( $general ) ) {
-            $emails[] = $general;
-        }
 
         foreach ( (array) ( $internal['default_user_ids'] ?? [] ) as $user_id ) {
             $user_email = self::userEmailById( (int) $user_id );
             if ( $user_email !== '' ) {
                 $emails[] = $user_email;
+                $default_recipient_emails[] = $user_email;
             }
         }
 
         $routing_field = (string) ( $internal['routing_field'] ?? '' );
-        $routing_value = trim( (string) ( $normalized[ $routing_field ] ?? '' ) );
+        $matched_route = false;
         foreach ( (array) ( $internal['routes'] ?? [] ) as $route ) {
-            if ( ! is_array( $route ) || (string) ( $route['value'] ?? '' ) !== $routing_value ) {
+            if ( ! is_array( $route ) || $routing_field === '' ) {
                 continue;
             }
+            if ( ! self::ruleMatches( $routing_field, 'equals', $route['value'] ?? '', $normalized ) ) {
+                continue;
+            }
+            $matched_route = true;
             $user_email = self::userEmailById( (int) ( $route['user_id'] ?? 0 ) );
             if ( $user_email !== '' ) {
                 $emails[] = $user_email;
+                $routed_recipient_emails[] = $user_email;
             }
+        }
+
+        if ( ! $matched_route && $general !== '' && metis_email_is_valid( $general ) ) {
+            $emails[] = $general;
         }
 
         $emails = array_values( array_unique( array_filter( $emails ) ) );
@@ -1050,14 +1078,15 @@ trait SharedRepositoryLogic {
             return;
         }
 
-        $subject = self::mergeTemplate( (string) ( $internal['subject'] ?? '' ), $vars );
+        $subject = self::mergeTemplate( (string) ( $internal['subject'] ?? '' ), $vars, $aliases );
         $html = self::renderNotificationBody(
             $form,
             (string) ( $internal['message'] ?? '' ),
             $vars,
             $normalized,
             ! empty( $internal['include_submission_data'] ),
-            $binding_context
+            $binding_context,
+            $aliases
         );
         $internal_options = [ 'module' => 'forms' ];
         $internal_from_name = trim( (string) ( $internal['from_name'] ?? '' ) );
@@ -1067,7 +1096,21 @@ trait SharedRepositoryLogic {
         }
         if ( $internal_from_email !== '' && metis_email_is_valid( $internal_from_email ) ) {
             $internal_options['from_email'] = $internal_from_email;
-            $internal_options['reply_to'] = $internal_from_email;
+        }
+        $reply_to = [];
+        if ( $routed_recipient_emails !== [] ) {
+            $reply_to = array_merge( $reply_to, $routed_recipient_emails );
+        } elseif ( $general !== '' && metis_email_is_valid( $general ) ) {
+            $reply_to[] = $general;
+        }
+        if ( $default_recipient_emails !== [] ) {
+            $reply_to = array_merge( $reply_to, $default_recipient_emails );
+        }
+        $reply_to = array_values( array_unique( array_filter( $reply_to ) ) );
+        if ( $reply_to !== [] ) {
+            $internal_options['reply_to'] = $reply_to;
+        } elseif ( $internal_from_email !== '' && metis_email_is_valid( $internal_from_email ) ) {
+            $internal_options['reply_to'] = [ $internal_from_email ];
         }
         self::applyConversationNotificationRouting( $subject, $internal_options, $binding_context );
         $internal_reference = self::notificationInternalReference( $form, $submission, $binding_context );
@@ -1129,13 +1172,12 @@ trait SharedRepositoryLogic {
                 continue;
             }
 
-            $candidate = [
-                'field'    => (string) ( $rule['field'] ?? '' ),
-                'operator' => (string) ( $rule['operator'] ?? 'equals' ),
-                'value'    => $rule['value'] ?? '',
-            ];
-
-            if ( ! self::fieldIsVisible( [ 'conditions' => [ $candidate ] ], $context ) ) {
+            if ( ! self::ruleMatches(
+                (string) ( $rule['field'] ?? '' ),
+                (string) ( $rule['operator'] ?? 'equals' ),
+                $rule['value'] ?? '',
+                $context
+            ) ) {
                 continue;
             }
 
@@ -1534,6 +1576,16 @@ trait SharedRepositoryLogic {
         ];
     }
 
+    private static function emailDefaults(): array {
+        $from_name = trim( metis_text_clean( (string) self::setting( 'newsletter_default_from_name', '' ) ) );
+        $from_email = strtolower( trim( metis_email_clean( (string) self::setting( 'newsletter_default_from_email', '' ) ) ) );
+
+        return [
+            'from_name'  => $from_name,
+            'from_email' => $from_email,
+        ];
+    }
+
     private static function setting( string $key, mixed $default = null ): mixed {
         if ( \class_exists( '\Core_Settings_Service', false ) ) {
             return \Core_Settings_Service::get( $key, $default );
@@ -1555,6 +1607,7 @@ trait SharedRepositoryLogic {
 
     private static function defaultSettings(): array {
         $payment_defaults = self::paymentDefaults();
+        $email_defaults = self::emailDefaults();
 
         return [
             'binding' => [
@@ -1576,14 +1629,15 @@ trait SharedRepositoryLogic {
                 'closed_message' => 'This form is not accepting submissions right now.',
             ],
             'confirmation' => [
+                'custom_enabled' => false,
                 'message' => 'Thanks, your submission has been received.',
             ],
             'notifications' => [
                 'submitter' => [
                     'enabled'         => false,
                     'recipient_field' => 'email',
-                    'from_name'       => '',
-                    'from_email'      => '',
+                    'from_name'       => $email_defaults['from_name'],
+                    'from_email'      => $email_defaults['from_email'],
                     'include_submission_data' => false,
                     'subject'         => 'We received your submission',
                     'message'         => '<p>Thank you for your submission.</p>',
@@ -1591,8 +1645,8 @@ trait SharedRepositoryLogic {
                 'internal' => [
                     'enabled'          => false,
                     'general_email'    => '',
-                    'from_name'        => '',
-                    'from_email'       => '',
+                    'from_name'        => $email_defaults['from_name'],
+                    'from_email'       => $email_defaults['from_email'],
                     'include_submission_data' => true,
                     'default_user_ids' => [],
                     'routing_field'    => '',
@@ -1617,6 +1671,16 @@ trait SharedRepositoryLogic {
                 'success_message'     => 'Thanks, your payment has been received.',
             ],
         ];
+    }
+
+    private static function normalizedSenderName( mixed $value, string $default = '' ): string {
+        $clean = trim( metis_text_clean( (string) $value ) );
+        return $clean !== '' ? $clean : $default;
+    }
+
+    private static function normalizedSenderEmail( mixed $value, string $default = '' ): string {
+        $clean = strtolower( trim( metis_email_clean( (string) $value ) ) );
+        return $clean !== '' ? $clean : $default;
     }
 
     private static function campaignOptions(): array {
@@ -1789,16 +1853,16 @@ trait SharedRepositoryLogic {
         return implode( "\n", $lines );
     }
 
-    private static function mergeTemplate( string $template, array $vars ): string {
-        $output = $template;
+    private static function mergeTemplate( string $template, array $vars, array $aliases = [] ): string {
+        $output = self::canonicalizeTemplateAliases( $template, $aliases );
         foreach ( $vars as $key => $value ) {
             $output = str_replace( '{{' . $key . '}}', (string) $value, $output );
         }
         return $output;
     }
 
-    private static function mergeTemplateHtml( string $template, array $vars ): string {
-        $output = $template;
+    private static function mergeTemplateHtml( string $template, array $vars, array $aliases = [] ): string {
+        $output = self::canonicalizeTemplateAliases( $template, $aliases );
         foreach ( $vars as $key => $value ) {
             $output = str_replace( '{{' . $key . '}}', self::escapeHtmlValue( (string) $value ), $output );
         }
@@ -1823,8 +1887,8 @@ trait SharedRepositoryLogic {
         return nl2br( $escaped );
     }
 
-    private static function renderNotificationBody( array $form, string $template, array $vars, array $normalized, bool $include_submission_data, array $binding_context = [] ): string {
-        $body = trim( self::mergeTemplateHtml( $template, $vars ) );
+    private static function renderNotificationBody( array $form, string $template, array $vars, array $normalized, bool $include_submission_data, array $binding_context = [], array $aliases = [] ): string {
+        $body = trim( self::mergeTemplateHtml( $template, $vars, $aliases ) );
         if ( $body === '' ) {
             $body = '<p>&nbsp;</p>';
         }
@@ -1887,6 +1951,23 @@ trait SharedRepositoryLogic {
         }
 
         return $vars;
+    }
+
+    private static function notificationTemplateAliases( array $form ): array {
+        $aliases = [];
+        self::registerTemplateAlias( $aliases, 'Form name', 'form_name' );
+        self::registerTemplateAlias( $aliases, 'Submission key', 'submission_key' );
+        self::registerTemplateAlias( $aliases, 'Submitter email', 'submitter_email' );
+        self::registerTemplateAlias( $aliases, 'Ticket code', 'ticket_code' );
+        self::registerTemplateAlias( $aliases, 'Ticket ID', 'ticket_id' );
+
+        foreach ( (array) ( $form['schema'] ?? [] ) as $field ) {
+            if ( is_array( $field ) ) {
+                self::appendFieldTemplateAliases( $aliases, $field );
+            }
+        }
+
+        return $aliases;
     }
 
     private static function notificationInternalReference( array $form, array $submission, array $binding_context = [] ): string {
@@ -1962,7 +2043,11 @@ trait SharedRepositoryLogic {
             return;
         }
 
-        $mailbox_email = strtolower( trim( metis_email_clean( (string) ( $options['reply_to'] ?? $options['from_email'] ?? '' ) ) ) );
+        $reply_to_option = $options['reply_to'] ?? $options['from_email'] ?? '';
+        if ( is_array( $reply_to_option ) ) {
+            $reply_to_option = (string) ( array_values( $reply_to_option )[0] ?? '' );
+        }
+        $mailbox_email = strtolower( trim( metis_email_clean( (string) $reply_to_option ) ) );
         $sender_email = strtolower( trim( metis_email_clean( (string) ( $options['from_email'] ?? $mailbox_email ) ) ) );
         $recipient = strtolower( trim( metis_email_clean( $recipient ) ) );
         if ( $mailbox_email === '' || ! metis_email_is_valid( $mailbox_email ) || $recipient === '' || ! metis_email_is_valid( $recipient ) ) {
@@ -2031,6 +2116,65 @@ trait SharedRepositoryLogic {
                 $vars[ $value_key . '.' . $subkey ] = implode( '; ', $parts );
             }
         }
+    }
+
+    private static function appendFieldTemplateAliases( array &$aliases, array $field, string $prefix_label = '', string $prefix_key = '' ): void {
+        $key = (string) ( $field['key'] ?? '' );
+        if ( $key === '' ) {
+            return;
+        }
+
+        $label = trim( (string) ( $field['label'] ?? $key ) );
+        $value_key = $prefix_key !== '' ? $prefix_key . '.' . $key : $key;
+        $value_label = $prefix_label !== '' ? $prefix_label . ' - ' . $label : $label;
+
+        self::registerTemplateAlias( $aliases, $value_key, $value_key );
+        self::registerTemplateAlias( $aliases, $value_label, $value_key );
+
+        if ( (string) ( $field['type'] ?? '' ) !== 'repeater' ) {
+            return;
+        }
+
+        foreach ( (array) ( $field['subfields'] ?? [] ) as $subfield ) {
+            if ( is_array( $subfield ) ) {
+                self::appendFieldTemplateAliases( $aliases, $subfield, $value_label, $value_key );
+            }
+        }
+    }
+
+    private static function registerTemplateAlias( array &$aliases, string $alias, string $canonical_key ): void {
+        $normalized_alias = self::normalizeTemplateAlias( $alias );
+        $canonical = trim( $canonical_key );
+        if ( $normalized_alias === '' || $canonical === '' ) {
+            return;
+        }
+        $aliases[ $normalized_alias ] = $canonical;
+    }
+
+    private static function canonicalizeTemplateAliases( string $template, array $aliases ): string {
+        if ( $template === '' || $aliases === [] ) {
+            return $template;
+        }
+
+        return preg_replace_callback(
+            '/\{\{\s*([^{}]+?)\s*\}\}/',
+            static function ( array $matches ) use ( $aliases ): string {
+                $inner = trim( (string) ( $matches[1] ?? '' ) );
+                $normalized = self::normalizeTemplateAlias( $inner );
+                if ( $normalized === '' || ! isset( $aliases[ $normalized ] ) ) {
+                    return '{{' . $inner . '}}';
+                }
+
+                return '{{' . (string) $aliases[ $normalized ] . '}}';
+            },
+            $template
+        ) ?? $template;
+    }
+
+    private static function normalizeTemplateAlias( string $value ): string {
+        $normalized = strtolower( trim( $value ) );
+        $normalized = preg_replace( '/[^a-z0-9]+/', ' ', $normalized ) ?? $normalized;
+        return trim( $normalized );
     }
 
     private static function renderSubmissionRows( array $schema, array $normalized ): array {

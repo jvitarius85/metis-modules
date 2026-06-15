@@ -1500,17 +1500,20 @@ Metis.ui.select = (function() {
         var wrapper = typeof target === 'string' ? document.querySelector(target) : target;
         if (!wrapper || wrapper.classList.contains('is-disabled')) return;
         closeAll(wrapper);
-        wrapper.classList.add('is-open');
         var trigger = wrapper.querySelector('.metis-ui-select__trigger');
         var panel = wrapper.querySelector('.metis-ui-select__panel');
+        wrapper.classList.add('is-open');
         if (trigger) trigger.setAttribute('aria-expanded', 'true');
-        if (panel) panel.hidden = false;
+        if (panel) {
+            panel.hidden = false;
+            positionPanel(wrapper);
+        }
     }
 
     function close(target) {
         var wrapper = typeof target === 'string' ? document.querySelector(target) : target;
         if (!wrapper) return;
-        wrapper.classList.remove('is-open');
+        wrapper.classList.remove('is-open', 'is-open-up');
         var trigger = wrapper.querySelector('.metis-ui-select__trigger');
         var panel = wrapper.querySelector('.metis-ui-select__panel');
         if (trigger) trigger.setAttribute('aria-expanded', 'false');
@@ -1534,11 +1537,37 @@ Metis.ui.select = (function() {
         });
     }
 
+    function positionPanel(wrapper) {
+        if (!(wrapper instanceof HTMLElement)) return;
+        var panel = wrapper.querySelector('.metis-ui-select__panel');
+        var trigger = wrapper.querySelector('.metis-ui-select__trigger');
+        if (!(panel instanceof HTMLElement)) return;
+
+        wrapper.classList.remove('is-open-up');
+        var triggerRect = trigger instanceof HTMLElement ? trigger.getBoundingClientRect() : wrapper.getBoundingClientRect();
+        var panelHeight = panel.offsetHeight || panel.scrollHeight || 0;
+        if (panelHeight <= 0) return;
+
+        var spaceBelow = window.innerHeight - triggerRect.bottom;
+        var spaceAbove = triggerRect.top;
+        var shouldOpenUp = spaceBelow < (panelHeight + 16) && spaceAbove > spaceBelow;
+        wrapper.classList.toggle('is-open-up', shouldOpenUp);
+    }
+
+    function repositionOpenPanels() {
+        document.querySelectorAll('.metis-ui-select.is-open').forEach(function(wrapper) {
+            positionPanel(wrapper);
+        });
+    }
+
     document.addEventListener('click', function(event) {
         if (!event.target.closest('.metis-ui-select')) {
             closeAll();
         }
     });
+
+    window.addEventListener('resize', repositionOpenPanels);
+    document.addEventListener('scroll', repositionOpenPanels, true);
 
     return {
         init: function(root) {

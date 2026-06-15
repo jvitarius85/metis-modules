@@ -26,7 +26,8 @@ final class DeliveryService {
 
         $from_name    = trim( (string) ( $message_opts['from_name'] ?? '' ) );
         $from_email   = strtolower( trim( (string) ( $message_opts['from_email'] ?? '' ) ) );
-        $reply_to     = trim( (string) ( $message_opts['reply_to'] ?? '' ) );
+        $reply_to_list = self::normalizeReplyToList( $message_opts['reply_to'] ?? '' );
+        $reply_to      = $reply_to_list === [] ? '' : implode( ', ', $reply_to_list );
         $subject_user = strtolower( trim( (string) ( $cfg['subject'] ?? '' ) ) );
         // Prefer explicit from_email so modules can enforce configured sender identity.
         $sender_user  = ( $from_email !== '' && \metis_email_is_valid( $from_email ) ) ? $from_email : ( ( $subject_user !== '' && \metis_email_is_valid( $subject_user ) ) ? $subject_user : '' );
@@ -83,7 +84,7 @@ final class DeliveryService {
         if ( $sender_user !== '' && \metis_email_is_valid( $sender_user ) && strtolower( $sender_user ) !== strtolower( $from_address ) ) {
             $headers[] = 'Sender: ' . $sender_user;
         }
-        if ( $reply_to !== '' && \metis_email_is_valid( $reply_to ) ) {
+        if ( $reply_to !== '' ) {
             $headers[] = 'Reply-To: ' . $reply_to;
         }
 
@@ -279,6 +280,29 @@ final class DeliveryService {
         }
 
         return true;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private static function normalizeReplyToList( mixed $replyTo ): array {
+        $candidates = [];
+        if ( is_array( $replyTo ) ) {
+            $candidates = $replyTo;
+        } elseif ( is_scalar( $replyTo ) ) {
+            $candidates = preg_split( '/\s*,\s*/', (string) $replyTo ) ?: [];
+        }
+
+        $normalized = [];
+        foreach ( $candidates as $candidate ) {
+            $email = strtolower( trim( \metis_email_clean( (string) $candidate ) ) );
+            if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+                continue;
+            }
+            $normalized[] = $email;
+        }
+
+        return array_values( array_unique( $normalized ) );
     }
 
     public static function googleSyncUsageForDate( string $date_ymd = '' ): array {
@@ -623,6 +647,10 @@ final class DeliveryService {
         $first_name = trim( (string) ( $payload['first_name'] ?? '' ) );
         $last_name  = trim( (string) ( $payload['last_name'] ?? '' ) );
         $email      = strtolower( trim( (string) ( $payload['email'] ?? '' ) ) );
+        $success_message = trim( (string) ( $payload['success_message'] ?? 'Thanks for subscribing.' ) );
+        if ( $success_message === '' ) {
+            $success_message = 'Thanks for subscribing.';
+        }
 
         if ( $first_name === '' || $last_name === '' || $email === '' ) {
             return self::respondPublicSignup( $request, [
@@ -638,34 +666,62 @@ final class DeliveryService {
             ], 400 );
         }
 
-        $list_id = SubscriptionService::defaultListId();
-        if ( $list_id < 1 ) {
+        $list_ids = WebsiteService::normalizeListIds( $payload['list_ids'] ?? [] );
+        if ( $list_ids === [] ) {
+            $default_list_id = SubscriptionService::defaultListId();
+            if ( $default_list_id > 0 ) {
+                $list_ids = [ $default_list_id ];
+            }
+        }
+
+        if ( $list_ids === [] ) {
             return self::respondPublicSignup( $request, [
                 'success' => false,
-                'message' => 'The default Newsletter list is not configured yet.',
+                'message' => 'A newsletter list is not configured yet.',
             ], 503 );
         }
 
-        $result = SubscriptionService::upsert( [
-            'email' => $email,
-            'first_name' => $first_name,
-            'last_name' => $last_name,
-            'list_id' => $list_id,
-            'status' => 'subscribed',
-            'source' => 'website_popup_signup',
-        ] );
-
-        if ( empty( $result['success'] ) ) {
+        $list_rows = WebsiteService::listsByIds( $list_ids );
+        if ( $list_rows === [] ) {
             return self::respondPublicSignup( $request, [
                 'success' => false,
-                'message' => (string) ( $result['message'] ?? 'Unable to save your sign-up.' ),
-            ], (int) ( $result['status'] ?? 500 ) );
+                'message' => 'A newsletter list is not configured yet.',
+            ], 503 );
         }
+
+        foreach ( $list_rows as $list_row ) {
+            $result = SubscriptionService::upsert( [
+                'email' => $email,
+                'first_name' => $first_name,
+                'last_name' => $last_name,
+                'list_id' => (int) ( $list_row['id'] ?? 0 ),
+                'status' => 'subscribed',
+                'source' => 'website_newsletter_signup',
+            ] );
+
+            if ( empty( $result['success'] ) ) {
+                return self::respondPublicSignup( $request, [
+                    'success' => false,
+                    'message' => (string) ( $result['message'] ?? 'Unable to save your sign-up.' ),
+                ], (int) ( $result['status'] ?? 500 ) );
+            }
+        }
+
+        self::sendPublicSignupConfirmationEmail( $email, $first_name, $list_rows );
+
+        $list_names = array_values(
+            array_filter(
+                array_map(
+                    static fn( array $row ): string => trim( (string) ( $row['name'] ?? '' ) ),
+                    $list_rows
+                )
+            )
+        );
 
         return self::respondPublicSignup( $request, [
             'success' => true,
-            'message' => 'You are signed up for the Newsletter list.',
-            'list_name' => SubscriptionService::DEFAULT_LIST_NAME,
+            'message' => $success_message,
+            'list_name' => implode( ', ', $list_names ),
         ], 200 );
     }
 
@@ -849,6 +905,52 @@ final class DeliveryService {
 
     private static function db(): \Metis\Services\DatabaseService {
         return \metis_db();
+    }
+
+    /**
+     * @param array<int,array{id:int,name:string,ref:string}> $list_rows
+     */
+    private static function sendPublicSignupConfirmationEmail( string $email, string $first_name, array $list_rows ): void {
+        if ( $email === '' || ! \metis_email_is_valid( $email ) || $list_rows === [] ) {
+            return;
+        }
+
+        $safe_name = trim( $first_name );
+        $list_names = array_values(
+            array_filter(
+                array_map(
+                    static fn( array $row ): string => trim( (string) ( $row['name'] ?? '' ) ),
+                    $list_rows
+                )
+            )
+        );
+        $subject = count( $list_names ) === 1
+            ? 'You are subscribed to ' . $list_names[0]
+            : 'Your newsletter subscription is confirmed';
+        $greeting = $safe_name !== '' ? 'Hi ' . metis_escape_html( $safe_name ) . ',' : 'Hello,';
+        $body = '<p>' . $greeting . '</p>'
+            . '<p>Thanks for subscribing'
+            . ( $list_names !== [] ? ' to <strong>' . metis_escape_html( implode( ', ', $list_names ) ) . '</strong>' : '' )
+            . '.</p>';
+
+        if ( function_exists( 'metis_newsletter_public_manage_url' ) ) {
+            $contact_id = ContactService::findOrCreateContactId( $email, $first_name, '' );
+            if ( $contact_id > 0 ) {
+                $contact = self::resolvePublicContact( (string) $contact_id );
+                if ( is_array( $contact ) && trim( (string) ( $contact['ref'] ?? '' ) ) !== '' ) {
+                    $body .= '<p><a href="' . metis_escape_url( (string) metis_newsletter_public_manage_url( (string) $contact['ref'] ) ) . '">Manage your subscriptions</a></p>';
+                }
+            }
+        }
+
+        \Metis\Core\Services\EmailService::sendHtml(
+            $email,
+            $subject,
+            '<div>' . $body . '</div>',
+            [
+                'module' => 'newsletter',
+            ]
+        );
     }
 
     private static function resolvePublicContact( string $ref ): ?array {

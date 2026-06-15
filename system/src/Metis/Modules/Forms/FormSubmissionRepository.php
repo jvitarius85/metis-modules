@@ -292,7 +292,10 @@ final class FormSubmissionRepository {
         return [
             'ok'      => true,
             'status'  => 200,
-            'message' => (string) ( $form['settings']['confirmation']['message'] ?? 'Thanks, your submission has been received.' ),
+            'message' => self::confirmationMessage(
+                $form,
+                'Thanks, your submission has been received.'
+            ),
         ];
     }
 
@@ -447,7 +450,20 @@ final class FormSubmissionRepository {
         return [
             'ok'      => true,
             'status'  => 200,
-            'message' => (string) ( $form['settings']['confirmation']['message'] ?? 'Payment complete.' ),
+            'message' => self::confirmationMessage(
+                $form,
+                'Payment complete.'
+            ),
         ];
+    }
+
+    private static function confirmationMessage( array $form, string $default ): string {
+        $confirmation = (array) ( $form['settings']['confirmation'] ?? [] );
+        if ( empty( $confirmation['custom_enabled'] ) ) {
+            return $default;
+        }
+
+        $message = trim( (string) ( $confirmation['message'] ?? '' ) );
+        return $message !== '' ? $message : $default;
     }
 }

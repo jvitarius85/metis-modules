@@ -1900,6 +1900,11 @@ html[data-metis-contrast="true"] textarea:focus-visible {
     overflow: hidden;
 }
 
+.metis-ui-select.is-open-up .metis-ui-select__panel {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+
 .metis-ui-select__list {
     max-height: 280px;
     overflow-y: auto;

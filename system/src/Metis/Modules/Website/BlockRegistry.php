@@ -91,6 +91,31 @@ final class BlockRegistry {
                     ],
                 ],
             ],
+            'newsletter_signup' => [
+                'label' => 'Newsletter Signup',
+                'category' => 'dynamic',
+                'icon' => 'newsletter',
+                'schema_raw' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'list_ids' => [ 'type' => 'array', 'default' => [] ],
+                        'submit_label' => [ 'type' => 'string', 'default' => 'Subscribe' ],
+                        'success_message' => [ 'type' => 'string', 'default' => 'Thanks for subscribing.' ],
+                    ],
+                ],
+            ],
+            'newsletter_archive' => [
+                'label' => 'Newsletter Archive',
+                'category' => 'dynamic',
+                'icon' => 'newsletter',
+                'schema_raw' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'list_ids' => [ 'type' => 'array', 'default' => [] ],
+                        'limit' => [ 'type' => 'integer', 'default' => 12 ],
+                    ],
+                ],
+            ],
         ];
 
         foreach ( $definitions as $type => $definition ) {

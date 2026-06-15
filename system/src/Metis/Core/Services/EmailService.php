@@ -112,7 +112,7 @@ final class EmailService {
         $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
         $fromName = trim( (string) ( $options['from_name'] ?? '' ) );
         $fromEmail = trim( (string) ( $options['from_email'] ?? '' ) );
-        $replyTo = trim( (string) ( $options['reply_to'] ?? '' ) );
+        $replyTo = self::replyToHeaderValue( $options['reply_to'] ?? '' );
         if ( $fromEmail !== '' && \metis_email_is_valid( $fromEmail ) ) {
             $fromHeader = $fromEmail;
             if ( $fromName !== '' ) {
@@ -150,7 +150,7 @@ final class EmailService {
 
         $fromName = trim( (string) ( $options['from_name'] ?? '' ) );
         $fromEmail = strtolower( trim( \metis_email_clean( (string) ( $options['from_email'] ?? '' ) ) ) );
-        $replyTo = strtolower( trim( \metis_email_clean( (string) ( $options['reply_to'] ?? '' ) ) ) );
+        $replyTo = self::normalizeReplyToList( $options['reply_to'] ?? '' );
 
         $defaultFromName = trim( (string) \Core_Settings_Service::get( 'newsletter_default_from_name', '' ) );
         $defaultFromEmail = strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_from_email', '' ) ) ) );
@@ -162,11 +162,41 @@ final class EmailService {
         if ( ( $fromEmail === '' || ! \metis_email_is_valid( $fromEmail ) ) && $defaultFromEmail !== '' && \metis_email_is_valid( $defaultFromEmail ) ) {
             $options['from_email'] = $defaultFromEmail;
         }
-        if ( ( $replyTo === '' || ! \metis_email_is_valid( $replyTo ) ) && $defaultReplyTo !== '' && \metis_email_is_valid( $defaultReplyTo ) ) {
-            $options['reply_to'] = $defaultReplyTo;
+        if ( $replyTo === [] && $defaultReplyTo !== '' && \metis_email_is_valid( $defaultReplyTo ) ) {
+            $options['reply_to'] = [ $defaultReplyTo ];
+        } elseif ( $replyTo !== [] ) {
+            $options['reply_to'] = $replyTo;
         }
 
         return $options;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private static function normalizeReplyToList( mixed $replyTo ): array {
+        $candidates = [];
+        if ( is_array( $replyTo ) ) {
+            $candidates = $replyTo;
+        } elseif ( is_scalar( $replyTo ) ) {
+            $candidates = preg_split( '/\s*,\s*/', (string) $replyTo ) ?: [];
+        }
+
+        $normalized = [];
+        foreach ( $candidates as $candidate ) {
+            $email = strtolower( trim( \metis_email_clean( (string) $candidate ) ) );
+            if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+                continue;
+            }
+            $normalized[] = $email;
+        }
+
+        return array_values( array_unique( $normalized ) );
+    }
+
+    private static function replyToHeaderValue( mixed $replyTo ): string {
+        $emails = self::normalizeReplyToList( $replyTo );
+        return $emails === [] ? '' : implode( ', ', $emails );
     }
 
     /**
@@ -231,7 +261,7 @@ final class EmailService {
         $meta = [
             'from_name' => (string) ( $options['from_name'] ?? '' ),
             'from_email' => (string) ( $options['from_email'] ?? '' ),
-            'reply_to' => (string) ( $options['reply_to'] ?? '' ),
+            'reply_to' => self::replyToHeaderValue( $options['reply_to'] ?? '' ),
             'internal_reference' => (string) ( $options['internal_reference'] ?? '' ),
             'fallback' => (string) ( $result['fallback'] ?? '' ),
         ];
