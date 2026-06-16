@@ -4555,7 +4555,7 @@ final class WebsiteRenderer {
             $module = is_array( $column['module'] ?? null ) ? $column['module'] : [];
             $module_type = metis_key_clean( (string) ( $module['type'] ?? 'text' ) );
             $safe_body = '';
-            if ( in_array( $module_type, [ 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'button', 'image' ], true ) ) {
+            if ( in_array( $module_type, [ 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'newsletter_signup', 'newsletter_archive', 'button', 'image' ], true ) ) {
                 $module_content = is_array( $module['content'] ?? null ) ? $module['content'] : [];
                 $safe_body = self::renderStructuredSectionBody( $module_type, $module_content, $context );
             } else {

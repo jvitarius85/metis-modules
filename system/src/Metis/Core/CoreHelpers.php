@@ -222,6 +222,21 @@ function metis_navigation_svg_icon_directory(): string {
     return $directory;
 }
 
+function metis_navigation_normalize_svg_icon_slug( string $slug ): string {
+    $lookup = str_replace( '_', '-', metis_key_clean( $slug ) );
+    if ( $lookup === '' ) {
+        return '';
+    }
+
+    static $aliases = [
+        'clear-formatting' => 'text-clear-format',
+        'list-ordered'     => 'list-boxes',
+        'list-unordered'   => 'list-bulleted',
+    ];
+
+    return $aliases[ $lookup ] ?? $lookup;
+}
+
 function metis_navigation_svg_icon_path( string $slug ): string {
     static $index = null;
     if ( ! is_array( $index ) ) {
@@ -246,7 +261,7 @@ function metis_navigation_svg_icon_path( string $slug ): string {
         }
     }
 
-    $lookup = str_replace( '_', '-', metis_key_clean( $slug ) );
+    $lookup = metis_navigation_normalize_svg_icon_slug( $slug );
     if ( $lookup === '' ) {
         return '';
     }
@@ -284,7 +299,7 @@ function metis_navigation_svg_icon_keys(): array {
 }
 
 function metis_navigation_svg_icon_url( string $slug ): string {
-    $lookup = str_replace( '_', '-', metis_key_clean( $slug ) );
+    $lookup = metis_navigation_normalize_svg_icon_slug( $slug );
     if ( $lookup === '' ) {
         return '';
     }
@@ -335,7 +350,7 @@ function metis_navigation_sanitize_svg_markup( string $svg ): string {
 
 function metis_navigation_svg_icon_markup( string $slug ): string {
     static $cache = [];
-    $lookup = str_replace( '_', '-', metis_key_clean( $slug ) );
+    $lookup = metis_navigation_normalize_svg_icon_slug( $slug );
     if ( $lookup === '' ) {
         return '';
     }

@@ -619,7 +619,7 @@ final class StructuredWebsiteBuilderService {
      */
     private static function normalizeColumnModule( array $module, string $fallback_body ): array {
         $type = metis_key_clean( (string) ( $module['type'] ?? 'text' ) );
-        $allowed = [ 'text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'button', 'image' ];
+        $allowed = [ 'text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'newsletter_signup', 'newsletter_archive', 'button', 'image' ];
         if ( ! in_array( $type, $allowed, true ) ) {
             $type = 'text';
         }
@@ -777,6 +777,31 @@ final class StructuredWebsiteBuilderService {
                     'featured_only' => self::sanitizeBoolean( $content['featured_only'] ?? false ),
                     'show_category' => self::sanitizeBoolean( $content['show_category'] ?? true ),
                     'empty_message' => self::sanitizeText( (string) ( $content['empty_message'] ?? '' ) ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'newsletter_signup' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'newsletter_signup',
+                'data' => [
+                    'list_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['list_ids'] ?? null ) ? $content['list_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'submit_label' => self::sanitizeText( (string) ( $content['submit_label'] ?? 'Subscribe' ) ),
+                    'success_message' => self::sanitizeText( (string) ( $content['success_message'] ?? 'Thanks for subscribing.' ) ),
+                ],
+                'style' => [],
+            ]];
+        }
+
+        if ( $type === 'newsletter_archive' ) {
+            return [[
+                'id' => $id_prefix,
+                'type' => 'newsletter_archive',
+                'data' => [
+                    'list_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['list_ids'] ?? null ) ? $content['list_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'limit' => max( 1, min( 50, (int) ( $content['limit'] ?? 12 ) ) ),
                 ],
                 'style' => [],
             ]];

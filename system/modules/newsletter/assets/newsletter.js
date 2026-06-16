@@ -331,6 +331,111 @@
         }, 0);
     }
 
+    function announcementEditorHtml() {
+        const hidden = document.getElementById('metis-newsletter-announcement-body');
+        if (hidden) return String(hidden.value || '');
+        const editor = document.getElementById('metis-newsletter-announcement-body-editor');
+        return editor ? String(editor.innerHTML || '') : '';
+    }
+
+    function setAnnouncementEditorHtml(value) {
+        const html = String(value || '');
+        const hidden = document.getElementById('metis-newsletter-announcement-body');
+        const editor = document.getElementById('metis-newsletter-announcement-body-editor');
+        if (editor) {
+            editor.innerHTML = html;
+        }
+        if (hidden) {
+            hidden.value = html;
+        }
+    }
+
+    function initAnnouncementRichEditor() {
+        const toolbar = document.querySelector('[data-rich-toolbar="newsletter-announcement-body"]');
+        const editor = document.getElementById('metis-newsletter-announcement-body-editor');
+        const hidden = document.getElementById('metis-newsletter-announcement-body');
+        if (!toolbar || !editor || !hidden || editor.dataset.richInit === '1') return;
+        editor.dataset.richInit = '1';
+
+        function sync(options) {
+            const shouldNormalize = !!(options && options.normalize);
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                if (shouldNormalize) {
+                    editor.innerHTML = Metis.ui.richText.normalizeHtml(String(editor.innerHTML || ''));
+                }
+                Metis.ui.richText.bindIconFallbacks(toolbar.closest('.metis-rich-text') || toolbar);
+            }
+            hidden.value = String(editor.innerHTML || '');
+        }
+
+        editor.addEventListener('focus', function () {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(editor);
+            }
+        });
+        ['mouseup', 'keyup', 'blur'].forEach(function (eventName) {
+            editor.addEventListener(eventName, function () {
+                if (window.Metis && Metis.ui && Metis.ui.richText) {
+                    Metis.ui.richText.saveSelection(editor);
+                }
+                if (eventName === 'blur') {
+                    sync();
+                }
+            });
+        });
+        editor.addEventListener('input', function () {
+            if (window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.saveSelection(editor);
+            }
+            sync();
+        });
+        toolbar.addEventListener('click', async function (event) {
+            if (!(window.Metis && Metis.ui && Metis.ui.richText)) return;
+            const toggle = event.target.closest('[data-rich-toggle="menu"]');
+            if (toggle) {
+                event.preventDefault();
+                const dropdown = toggle.closest('.metis-se-rich-dropdown');
+                toolbar.querySelectorAll('.metis-se-rich-dropdown.is-open').forEach(function (node) {
+                    if (node !== dropdown) node.classList.remove('is-open');
+                });
+                if (dropdown) dropdown.classList.toggle('is-open');
+                return;
+            }
+
+            const action = event.target.closest('[data-rich-action]');
+            if (action) {
+                event.preventDefault();
+                Metis.ui.richText.applyAction(
+                    editor,
+                    String(action.getAttribute('data-rich-action') || ''),
+                    String(action.getAttribute('data-rich-value') || ''),
+                    String(action.getAttribute('data-rich-color') || '')
+                );
+                Metis.ui.richText.closeMenus(toolbar);
+                sync({ normalize: true });
+                return;
+            }
+
+            const command = event.target.closest('[data-rich-cmd]');
+            if (command) {
+                event.preventDefault();
+                await Metis.ui.richText.applyCommand(
+                    editor,
+                    String(command.getAttribute('data-rich-cmd') || ''),
+                    String(command.getAttribute('data-rich-value') || '')
+                );
+                Metis.ui.richText.closeMenus(toolbar);
+                sync({ normalize: true });
+            }
+        });
+        document.addEventListener('click', function (event) {
+            if (!toolbar.contains(event.target) && window.Metis && Metis.ui && Metis.ui.richText) {
+                Metis.ui.richText.closeMenus(toolbar);
+            }
+        });
+        sync({ normalize: true });
+    }
+
     function selectedAnnouncementListIds() {
         const ids = [];
         $('#metis-newsletter-announcement-lists').find('[data-announcement-list-id]:checked').each(function () {
@@ -1987,12 +2092,13 @@
     });
 
     $root.on('click', '#metis-newsletter-open-announcement-modal', function () {
+        initAnnouncementRichEditor();
         openAnnouncementModal();
     });
 
     $('#metis-newsletter-send-announcement').on('click', function () {
         const subject = String($('#metis-newsletter-announcement-subject').val() || '').trim();
-        const body = String($('#metis-newsletter-announcement-body').val() || '');
+        const body = announcementEditorHtml();
         const listIds = selectedAnnouncementListIds();
         if (!subject) {
             toast('Subject is required.', 'error');
@@ -2016,7 +2122,7 @@
             }
             toast('Announcement blast queued.', 'success');
             $('#metis-newsletter-announcement-subject').val('');
-            $('#metis-newsletter-announcement-body').val('');
+            setAnnouncementEditorHtml('');
             $('#metis-newsletter-announcement-lists').find('[data-announcement-list-id]').prop('checked', false);
             closeAnnouncementModal();
         }, function (msg) {
@@ -2277,6 +2383,7 @@
     });
 
     if (String(ui.view || '') === 'announcements' && String(ui.compose || '') === '1') {
+        initAnnouncementRichEditor();
         openAnnouncementModal();
     }
 

@@ -78,6 +78,56 @@ namespace {
     $assert( ( $firstModule['type'] ?? '' ) === 'testimonies_block', 'Structured builder must map testimonials sections to testimonies_block.' );
     $assert( ( $firstData['layout'] ?? '' ) === 'rotator', 'Structured builder layout_json must preserve testimony rotator layout.' );
 
+    $newsletterColumn = \Metis\Modules\Website\Services\StructuredWebsiteBuilderService::normalizeLayout(
+        [
+            'editor_meta' => [
+                'structured_builder' => [
+                    'sections' => [
+                        [
+                            'id' => 'section_1',
+                            'type' => 'columns',
+                            'content' => [
+                                'columns' => [
+                                    [
+                                        'width' => '50%',
+                                        'body' => '<p></p>',
+                                        'module' => [
+                                            'type' => 'newsletter_signup',
+                                            'content' => [
+                                                'list_ids' => [ 2, 5 ],
+                                                'submit_label' => 'Join',
+                                                'success_message' => 'Thanks',
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        [ 'page_type' => 'page', 'is_post' => false ]
+    );
+
+    $newsletterLayout = json_decode( (string) ( $newsletterColumn['layout_json'] ?? '' ), true );
+    $newsletterSections = is_array( $newsletterLayout['sections'] ?? null ) ? $newsletterLayout['sections'] : [];
+    $newsletterFirstSection = is_array( $newsletterSections[0] ?? null ) ? $newsletterSections[0] : [];
+    $newsletterColumns = is_array( $newsletterFirstSection['columns'] ?? null ) ? $newsletterFirstSection['columns'] : [];
+    $newsletterFirstColumn = is_array( $newsletterColumns[0] ?? null ) ? $newsletterColumns[0] : [];
+    $newsletterModules = is_array( $newsletterFirstColumn['modules'] ?? null ) ? $newsletterFirstColumn['modules'] : [];
+    $newsletterGridModule = is_array( $newsletterModules[0] ?? null ) ? $newsletterModules[0] : [];
+    $newsletterColumnBlocks = is_array( $newsletterGridModule['data']['col_blocks'] ?? null ) ? $newsletterGridModule['data']['col_blocks'] : [];
+    $newsletterFirstColumnGroup = is_array( $newsletterColumnBlocks[0] ?? null ) ? $newsletterColumnBlocks[0] : [];
+    $newsletterFirstModule = is_array( $newsletterFirstColumnGroup[0] ?? null ) ? $newsletterFirstColumnGroup[0] : [];
+    $newsletterData = is_array( $newsletterFirstModule['data'] ?? null ) ? $newsletterFirstModule['data'] : [];
+
+    $assert( ( $newsletterColumn['sections'][0]['content']['columns'][0]['module']['type'] ?? '' ) === 'newsletter_signup', 'Structured builder must preserve newsletter signup as a valid column module during normalization.' );
+    $assert( ( $newsletterFirstSection['type'] ?? '' ) === 'columns', 'Structured builder layout_json must preserve the structured columns section type.' );
+    $assert( ( $newsletterGridModule['type'] ?? '' ) === 'grid', 'Structured builder layout_json must emit columns sections as grid blocks.' );
+    $assert( ( $newsletterFirstModule['type'] ?? '' ) === 'newsletter_signup', 'Structured builder layout_json must emit newsletter signup blocks from column modules.' );
+    $assert( ( $newsletterData['submit_label'] ?? '' ) === 'Join', 'Structured builder layout_json must preserve newsletter signup column settings.' );
+
     if ( $failures !== [] ) {
         fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );
         exit( 1 );

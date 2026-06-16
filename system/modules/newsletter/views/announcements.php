@@ -16,6 +16,8 @@ $templates_url = metis_portal_url('newsletter', 'theme');
 $lists_url = metis_portal_url('newsletter', 'lists');
 $subscribers_url = metis_portal_url('newsletter', 'subscribers');
 $compose_mode = isset(metis_request_get()['compose']) && (string) metis_request_get()['compose'] === '1';
+$editor_icon_base = function_exists('metis_home_url') ? (string) metis_home_url('/svg') : '/svg';
+$editor_icon_fallback_base = function_exists('metis_home_url') ? (string) metis_home_url('/assets/Images/icons') : '/assets/Images/icons';
 
 $snapshot = \Metis\Modules\Newsletter\ReadService::announcementsSnapshot();
 $lists = is_array($snapshot['lists'] ?? null) ? $snapshot['lists'] : [];
@@ -157,8 +159,52 @@ $announcement_lists_map = is_array($snapshot['announcement_lists_map'] ?? null) 
                     <input id="metis-newsletter-announcement-subject" class="metis-input" type="text" maxlength="191" placeholder="Announcement subject">
                 </div>
                 <div class="metis-field metis-field-full">
-                    <label for="metis-newsletter-announcement-body">Body</label>
-                    <textarea id="metis-newsletter-announcement-body" class="metis-input" rows="10" placeholder="Write the announcement body here. Plain text or simple HTML is allowed."></textarea>
+                    <label for="metis-newsletter-announcement-body-editor">Body</label>
+                    <div class="metis-shared-rich-shell metis-rich-text metis-newsletter-announcement-rich-text">
+                        <div class="metis-se-rich-toolbar" data-rich-toolbar="newsletter-announcement-body">
+                            <div class="metis-se-rich-group">
+                                <div class="metis-se-rich-dropdown">
+                                    <button type="button" class="metis-se-toolbtn metis-se-rich-menu-trigger" data-rich-toggle="menu" aria-label="Text style">
+                                        <img src="<?php echo metis_escape_attr($editor_icon_base . '/text-scale'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/text-scale.svg'); ?>" alt="" aria-hidden="true">
+                                    </button>
+                                    <div class="metis-se-rich-menu">
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="P">Paragraph</button>
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="H2">Heading 2</button>
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="H3">Heading 3</button>
+                                        <button type="button" class="metis-se-toolbtn" data-rich-action="block" data-rich-value="BLOCKQUOTE">Quote</button>
+                                    </div>
+                                </div>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="bold" aria-label="Bold">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/text-bold'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/text-bold.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="italic" aria-label="Italic">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/italic'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/italic.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="underline" aria-label="Underline">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/text-underline'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/text-underline.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="strikeThrough" aria-label="Strikethrough">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/text-strikethrough'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/text-strikethrough.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                            </div>
+                            <div class="metis-se-rich-group">
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="insertOrderedList" aria-label="Numbered list">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/list-ordered'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/list-ordered.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="insertUnorderedList" aria-label="Bulleted list">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/list-unordered'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/list-unordered.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="createLink" aria-label="Insert link">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/link'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/link.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                                <button type="button" class="metis-se-toolbtn metis-se-rich-icon-btn" data-rich-cmd="removeFormat" aria-label="Clear formatting">
+                                    <img src="<?php echo metis_escape_attr($editor_icon_base . '/clear-formatting'); ?>" data-icon-fallback="<?php echo metis_escape_attr($editor_icon_fallback_base . '/clear-formatting.svg'); ?>" alt="" aria-hidden="true">
+                                </button>
+                            </div>
+                        </div>
+                        <div id="metis-newsletter-announcement-body-editor" class="metis-input metis-shared-rich-editor metis-se-rich-editor" contenteditable="true" spellcheck="true" data-placeholder="Write the announcement body here." data-rich-editor-input="newsletter-announcement-body"></div>
+                        <input id="metis-newsletter-announcement-body" type="hidden" value="">
+                    </div>
                 </div>
                 <div class="metis-field metis-field-full">
                     <label>Target Lists</label>

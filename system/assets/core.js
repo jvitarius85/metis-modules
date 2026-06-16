@@ -1631,12 +1631,25 @@ Metis.ui.richText = (function() {
         return '';
     }
 
+    function normalizeIconSlug(slug) {
+        var key = String(slug || '').replace(/_/g, '-').trim();
+        if (!key) return '';
+        var aliases = {
+            'clear-formatting': 'text-clear-format',
+            'list-ordered': 'list-boxes',
+            'list-unordered': 'list-bulleted'
+        };
+        return aliases[key] || key;
+    }
+
     function iconUrl(slug) {
-        return appBasePath() + '/svg/' + encodeURIComponent(String(slug || '').replace(/_/g, '-'));
+        var key = normalizeIconSlug(slug);
+        return key ? appBasePath() + '/svg/' + encodeURIComponent(key) : '';
     }
 
     function iconFallbackUrl(slug) {
-        return appBasePath() + '/assets/Images/icons/' + encodeURIComponent(String(slug || '')) + '.svg';
+        var key = normalizeIconSlug(slug);
+        return key ? appBasePath() + '/assets/Images/icons/' + encodeURIComponent(key) + '.svg' : '';
     }
 
     function iconCacheKey(img) {
