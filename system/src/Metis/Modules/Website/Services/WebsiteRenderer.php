@@ -5234,7 +5234,7 @@ final class WebsiteRenderer {
     }
 
     private static function newsletterArchivePageNumber(): int {
-        $page = isset( $_GET['newsletter_page'] ) ? (int) $_GET['newsletter_page'] : 1;
+        $page = isset( metis_request_get()['newsletter_page'] ) ? (int) metis_request_get()['newsletter_page'] : 1;
         return max( 1, $page );
     }
 

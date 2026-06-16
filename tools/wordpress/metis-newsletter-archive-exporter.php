@@ -111,8 +111,8 @@ if ( ! function_exists( 'metis_newsletter_archive_exporter_boot' ) ) {
             wp_die( esc_html__( 'Unable to read newsletters from The Newsletter Plugin.', 'metis' ) );
         }
 
-        $list_name = sanitize_text_field( wp_unslash( $_POST['metis_export_list_name'] ?? 'Imported Newsletter Archive' ) );
-        $list_ref = sanitize_key( wp_unslash( $_POST['metis_export_list_ref'] ?? 'wp_newsletter_archive' ) );
+        $list_name = sanitize_text_field( wp_unslash( (string) filter_input( INPUT_POST, 'metis_export_list_name', FILTER_UNSAFE_RAW ) ?: 'Imported Newsletter Archive' ) );
+        $list_ref = sanitize_key( wp_unslash( (string) filter_input( INPUT_POST, 'metis_export_list_ref', FILTER_UNSAFE_RAW ) ?: 'wp_newsletter_archive' ) );
         if ( $list_name === '' ) {
             $list_name = 'Imported Newsletter Archive';
         }

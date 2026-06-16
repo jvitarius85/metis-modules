@@ -718,10 +718,8 @@ metis_ajax_register_handler( 'metis_newsletter_delete_list', function () {
         metis_runtime_send_json_error('List is required.', 400);
     }
 
-    $existing = $db->fetchOne(
-        "SELECT id, name FROM {$lists_table} WHERE id = %d LIMIT 1",
-        [ $list_id ]
-    );
+    $existing_snapshot = \Metis\Modules\Newsletter\ReadService::listDetailSnapshot( $list_id );
+    $existing = is_array( $existing_snapshot['selected_list'] ?? null ) ? $existing_snapshot['selected_list'] : null;
     if (!is_array($existing) || empty($existing['id'])) {
         metis_runtime_send_json_error('List not found.', 404);
     }
@@ -1045,10 +1043,7 @@ metis_ajax_register_handler( 'metis_newsletter_send_announcement_blast', functio
 
     $saved_row = CampaignService::get($campaign_id, '');
     $saved_row = is_array($saved_row) ? $saved_row : [];
-    $list_rows = metis_db()->fetchAll(
-        "SELECT id, name FROM " . Metis_Tables::get('newsletter_lists') . " WHERE id IN (" . implode(',', array_fill(0, count($list_ids), '%d')) . ") ORDER BY name ASC",
-        $list_ids
-    ) ?: [];
+    $list_rows = \Metis\Modules\Newsletter\ReadService::listRowsByIds( $list_ids );
 
     metis_newsletter_audit_log('announcement_blast_sent', 'campaign', $campaign_id, [
         'subject' => $subject,

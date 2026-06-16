@@ -344,4 +344,40 @@ final class ReadService {
             'list_subscribers' => $list_subscribers,
         ];
     }
+
+    /**
+     * @param array<int,int> $list_ids
+     * @return array<int,array{id:int,name:string}>
+     */
+    public static function listRowsByIds( array $list_ids ): array {
+        $normalized_ids = array_values( array_filter(
+            array_map( static fn ( $value ): int => (int) $value, $list_ids ),
+            static fn ( int $value ): bool => $value > 0
+        ) );
+
+        if ( $normalized_ids === [] ) {
+            return [];
+        }
+
+        $db = \metis_db();
+        $lists_table = \Metis_Tables::get( 'newsletter_lists' );
+        $placeholders = implode( ',', array_fill( 0, count( $normalized_ids ), '%d' ) );
+        $rows = $db->fetchAll(
+            "SELECT id, name
+             FROM {$lists_table}
+             WHERE id IN ({$placeholders})
+             ORDER BY name ASC",
+            $normalized_ids
+        ) ?: [];
+
+        return array_values( array_filter( array_map(
+            static function ( array $row ): array {
+                return [
+                    'id' => (int) ( $row['id'] ?? 0 ),
+                    'name' => (string) ( $row['name'] ?? '' ),
+                ];
+            },
+            $rows
+        ), static fn ( array $row ): bool => $row['id'] > 0 ) );
+    }
 }
