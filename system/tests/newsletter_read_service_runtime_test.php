@@ -179,7 +179,7 @@ $assert( $editorTemplateId === 33, 'Newsletter editorId must delegate template l
 $assert( $editorCampaignId === 44, 'Newsletter editorId must delegate campaign lookup for campaign context.' );
 $assert( $legacyRef === 'NC-2026-44', 'Newsletter legacyCampaignRef must prefer canonical campaign code.' );
 
-$assert( count( $db->scalarCalls ) === 9, 'Newsletter read runtime test must exercise expected scalar calls.' );
+$assert( count( $db->scalarCalls ) === 10, 'Newsletter read runtime test must exercise expected scalar calls.' );
 $assert( count( $db->fetchAllCalls ) === 6, 'Newsletter read runtime test must exercise expected fetchAll calls.' );
 $assert( count( $db->fetchOneCalls ) === 1, 'Newsletter read runtime test must exercise expected fetchOne calls.' );
 

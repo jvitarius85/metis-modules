@@ -1637,7 +1637,11 @@ Metis.ui.richText = (function() {
         var aliases = {
             'clear-formatting': 'text-clear-format',
             'list-ordered': 'list-boxes',
-            'list-unordered': 'list-bulleted'
+            'list-unordered': 'list-bulleted',
+            'bold': 'text-bold',
+            'underline': 'text-underline',
+            'strike-through': 'text-strikethrough',
+            'text-format': 'text-font'
         };
         return aliases[key] || key;
     }

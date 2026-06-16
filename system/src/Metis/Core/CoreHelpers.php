@@ -232,6 +232,10 @@ function metis_navigation_normalize_svg_icon_slug( string $slug ): string {
         'clear-formatting' => 'text-clear-format',
         'list-ordered'     => 'list-boxes',
         'list-unordered'   => 'list-bulleted',
+        'bold'             => 'text-bold',
+        'underline'        => 'text-underline',
+        'strike-through'   => 'text-strikethrough',
+        'text-format'      => 'text-font',
     ];
 
     return $aliases[ $lookup ] ?? $lookup;
