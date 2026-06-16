@@ -78,7 +78,10 @@ metis_ajax_register_handler( 'metis_import_upload_parse', function (): void {
 
     if ( empty( $result['ok'] ) ) {
         $status = (int) ( $result['status'] ?? 500 );
-        $message = $status >= 500 ? 'Failed to parse import file.' : 'Import file could not be parsed.';
+        $message = trim( (string) ( $result['error'] ?? '' ) );
+        if ( $message === '' ) {
+            $message = $status >= 500 ? 'Failed to parse import file.' : 'Import file could not be parsed.';
+        }
         metis_runtime_send_json_error( $message, $status );
     }
 
@@ -95,8 +98,10 @@ metis_ajax_register_handler( 'metis_import_confirm', function (): void {
         'import_pages' => (string) ( metis_request_post()['import_pages'] ?? '' ) === '1',
         'import_posts' => (string) ( metis_request_post()['import_posts'] ?? '' ) === '1',
         'import_menus' => (string) ( metis_request_post()['import_menus'] ?? '' ) === '1',
+        'import_newsletters' => (string) ( metis_request_post()['import_newsletters'] ?? '' ) === '1',
         'selected_page_ids' => isset( metis_request_post()['selected_page_ids'] ) ? (string) metis_runtime_unslash( metis_request_post()['selected_page_ids'] ) : '[]',
         'selected_post_ids' => isset( metis_request_post()['selected_post_ids'] ) ? (string) metis_runtime_unslash( metis_request_post()['selected_post_ids'] ) : '[]',
+        'selected_newsletter_ids' => isset( metis_request_post()['selected_newsletter_ids'] ) ? (string) metis_runtime_unslash( metis_request_post()['selected_newsletter_ids'] ) : '[]',
     ];
 
     $result = ImporterPipeline::confirm( $options, $user_id );

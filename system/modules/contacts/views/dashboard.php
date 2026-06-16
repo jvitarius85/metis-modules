@@ -142,6 +142,7 @@ $duplicate_count = count( $duplicate_groups );
         <div class="metis-list-sidebar-actions">
             <button id="metis-contact-new-btn" type="button" class="metis-btn metis-btn-xs">Add Contact</button>
             <button id="metis-contact-batch-btn" type="button" class="metis-btn metis-btn-xs">Batch Add</button>
+            <button id="metis-contact-import-btn" type="button" class="metis-btn metis-btn-xs metis-btn-ghost">Import CSV</button>
         </div>
         <?php endif; ?>
     </aside>
@@ -246,6 +247,50 @@ $duplicate_count = count( $duplicate_groups );
                 <button type="submit" id="metis-contact-save" class="metis-btn">Save Contact</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="metis-contact-import-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
+    <div class="metis-modal metis-contact-import-modal">
+        <h2 class="metis-modal-title">Import Contacts CSV</h2>
+        <p class="metis-subtitle">Upload a CSV, map the contact columns, then create or update contacts and assign newsletter lists.</p>
+
+        <div id="metis-contact-import-status" class="metis-alert" style="display:none;"></div>
+
+        <div class="metis-contact-import-step" data-import-step="upload">
+            <div class="metis-field metis-field-full">
+                <label for="metis-contact-import-file">CSV File</label>
+                <input id="metis-contact-import-file" class="metis-input" type="file" accept=".csv,text/csv">
+            </div>
+            <div id="metis-contact-import-file-meta" class="metis-contact-import-meta"></div>
+            <div id="metis-contact-import-sample" class="metis-contact-import-sample" hidden></div>
+        </div>
+
+        <div class="metis-contact-import-step" data-import-step="mapping" hidden>
+            <div class="metis-contact-import-grid">
+                <div class="metis-contact-import-map">
+                    <div class="metis-contact-import-map-header">Column Mapping</div>
+                    <div id="metis-contact-import-mapping-fields" class="metis-contact-import-map-fields"></div>
+                    <label class="metis-contact-import-toggle">
+                        <input id="metis-contact-import-create-lists" type="checkbox" checked>
+                        <span>Create missing newsletter lists automatically</span>
+                    </label>
+                </div>
+                <div class="metis-contact-import-preview">
+                    <div class="metis-contact-import-map-header">Preview</div>
+                    <div id="metis-contact-import-summary" class="metis-contact-import-summary"></div>
+                    <div id="metis-contact-import-preview-table" class="metis-contact-import-preview-table"></div>
+                    <div id="metis-contact-import-errors" class="metis-contact-import-errors"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="metis-form-actions">
+            <button type="button" id="metis-contact-import-cancel" class="metis-btn metis-btn-ghost">Cancel</button>
+            <button type="button" id="metis-contact-import-back" class="metis-btn metis-btn-ghost" hidden>Back</button>
+            <button type="button" id="metis-contact-import-next" class="metis-btn">Continue</button>
+            <button type="button" id="metis-contact-import-run" class="metis-btn" hidden>Import Contacts</button>
+        </div>
     </div>
 </div>
 

@@ -11,6 +11,7 @@ metis_newsletter_ensure_schema();
 $can_manage = metis_newsletter_can_manage();
 
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
+$announcements_url = metis_portal_url('newsletter', 'announcements');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
 $templates_url = metis_portal_url('newsletter', 'theme');
 $lists_url = metis_portal_url('newsletter', 'lists');
@@ -36,6 +37,9 @@ $campaign_view = 'active';
 $edit_campaign_id = 0;
 $edit_campaign_code = '';
 $compose_mode = false;
+$compose_campaign_type = \Metis\Modules\Newsletter\CampaignService::TYPE_CAMPAIGN;
+$compose_preset = metis_key_clean((string) (metis_request_get()['preset'] ?? ''));
+$requested_campaign_type = \Metis\Modules\Newsletter\CampaignService::normalizeType((string) (metis_request_get()['campaign_type'] ?? 'campaign'));
 
 $legacy_campaign_id = isset(metis_request_get()['campaign_id']) ? (int) metis_request_get()['campaign_id'] : 0;
 $legacy_compose = isset(metis_request_get()['compose']) && (string) metis_request_get()['compose'] === '1';
@@ -74,6 +78,7 @@ if (
     } elseif ($path_token === 'new') {
         $compose_mode = true;
         $edit_campaign_id = 0;
+        $compose_campaign_type = $requested_campaign_type;
     } elseif (
         preg_match('/^[A-Za-z0-9_-]+$/', (string) ($path_parts[3] ?? ''))
         && metis_key_clean((string) ($path_parts[4] ?? '')) === 'edit'
@@ -140,6 +145,14 @@ if ($compose_mode && ($edit_campaign_code !== '' || $edit_campaign_id > 0) && !$
     $edit_campaign_id = 0;
     $edit_campaign_code = '';
 }
+if (is_array($selected_campaign) && $selected_campaign !== []) {
+    $compose_campaign_type = \Metis\Modules\Newsletter\CampaignService::normalizeType((string) ($selected_campaign['campaign_type'] ?? 'campaign'));
+}
+$is_announcement_blast = $compose_campaign_type === \Metis\Modules\Newsletter\CampaignService::TYPE_ANNOUNCEMENT_BLAST;
+$announcement_blast_url = rtrim($announcements_url, '/') . '/?compose=1';
+$blast_date_label = (new DateTimeImmutable('now', metis_newsletter_resolved_timezone()))->format('m/d/Y');
+$default_blast_name = 'Announcement Blast ' . $blast_date_label;
+$default_list_ids = $is_announcement_blast ? array_values(array_map(static fn($list) => (int) ($list['id'] ?? 0), $lists)) : [];
 
 $editor_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_newsletter' ) : '';
 $simple_editor_css = function_exists( 'metis_home_url' ) ? (string) metis_home_url( '/assets/js/editor/simple-editor.css' ) : '/assets/js/editor/simple-editor.css';
@@ -178,18 +191,26 @@ if ( $simple_editor_js_version !== '' ) {
         data-editor-nonce="<?php echo metis_escape_attr( $editor_nonce ); ?>"
         data-editor-context="newsletter"
         data-editor-kind="campaign"
+        data-editor-campaign-type="<?php echo metis_escape_attr($compose_campaign_type); ?>"
         data-editor-initial-options="<?php echo metis_escape_attr( metis_json_encode([
             'defaults' => [
-                'name' => '',
+                'name' => $is_announcement_blast ? $default_blast_name : '',
                 'from_name' => $default_from_name,
                 'from_email' => $default_from_email,
                 'reply_to' => $default_reply_to,
+                'campaign_type' => $compose_campaign_type,
+                'list_ids' => $default_list_ids,
             ],
             'media' => $newsletter_media_options,
             'theme_defaults' => $newsletter_theme_defaults,
             'theme_preview_contact' => $newsletter_theme_preview_contact,
             'theme_color_map' => $newsletter_color_map,
             'test_email_default' => $newsletter_test_email_default,
+            'compose' => [
+                'campaign_type' => $compose_campaign_type,
+                'preset' => $compose_preset,
+                'default_list_ids' => $default_list_ids,
+            ],
         ]) ); ?>"
     ></div>
     <div id="metis-editor-boot-status" class="metis-editor-boot-status">
@@ -208,6 +229,7 @@ if ( $simple_editor_js_version !== '' ) {
             <div class="metis-list-sidebar-label">Newsletter</div>
             <nav class="metis-list-sidebar-nav">
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($dashboard_url); ?>">Dashboard</a>
+                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($announcements_url); ?>">Announcements</a>
                 <a class="metis-list-sidebar-nav-item is-active" href="<?php echo metis_escape_url($campaigns_url); ?>">Campaigns</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($templates_url); ?>">Theme</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($lists_url); ?>">Lists</a>
@@ -234,6 +256,7 @@ if ( $simple_editor_js_version !== '' ) {
                 <a href="<?php echo metis_escape_url($campaigns_url); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">&larr; Back to Campaigns</a>
             <?php else : ?>
                 <button id="metis-newsletter-new-campaign" type="button" class="metis-btn metis-btn-xs">New Campaign</button>
+                <a href="<?php echo metis_escape_url($announcement_blast_url); ?>" class="metis-btn metis-btn-xs metis-btn-ghost">Announcement Blast</a>
                 <button id="metis-newsletter-run-queue" type="button" class="metis-btn metis-btn-xs metis-btn-ghost">Run Send Queue</button>
             <?php endif; ?>
         </div>
@@ -260,6 +283,7 @@ if ( $simple_editor_js_version !== '' ) {
                 $status = (string) ($campaign['status'] ?? 'draft');
                 $is_sentish = in_array($status, ['sent', 'sending', 'archived'], true);
                 $is_unsent = !$is_sentish;
+                $is_imported_archive = \Metis\Modules\Newsletter\CampaignService::isWordPressArchiveImport(is_array($campaign) ? $campaign : []);
                 $row_lists = $campaign_lists_map[$campaign_id] ?? [];
                 $search_blob = strtolower(trim(implode(' ', [
                     (string) ($campaign['name'] ?? ''),
@@ -271,10 +295,12 @@ if ( $simple_editor_js_version !== '' ) {
                      data-campaign-id="<?php echo metis_escape_attr((string) $campaign_id); ?>"
                      data-campaign-code="<?php echo metis_escape_attr((string) ($campaign['campaign_code'] ?? '')); ?>"
                      data-campaign-status="<?php echo metis_escape_attr($status); ?>"
+                     data-imported-archive="<?php echo $is_imported_archive ? '1' : '0'; ?>"
                      data-open-details="1"
                      data-campaign-json="<?php echo metis_escape_attr(metis_json_encode([
                          'id' => $campaign_id,
                          'campaign_code' => (string) ($campaign['campaign_code'] ?? ''),
+                         'campaign_type' => \Metis\Modules\Newsletter\CampaignService::normalizeType((string) ($campaign['campaign_type'] ?? 'campaign')),
                          'name' => (string) ($campaign['name'] ?? ''),
                          'subject' => (string) ($campaign['subject'] ?? ''),
                          'template_id' => (int) ($campaign['template_id'] ?? 0),
@@ -284,6 +310,7 @@ if ( $simple_editor_js_version !== '' ) {
                          'preheader' => (string) ($campaign['preheader'] ?? ''),
                          'scheduled_at' => (string) ($campaign['scheduled_at'] ?? ''),
                          'status' => $status,
+                         'is_imported_archive' => $is_imported_archive ? 1 : 0,
                          'doc_json' => (string) ($campaign['doc_json'] ?? ''),
                          'html_body' => (string) ($campaign['html_body'] ?? ''),
                          'audience_json' => (string) ($campaign['audience_json'] ?? ''),
@@ -311,6 +338,9 @@ if ( $simple_editor_js_version !== '' ) {
                         <td class="metis-premium-cell metis-newsletter-actions-cell">
                             <?php if ($status !== 'archived') : ?>
                                 <button class="metis-btn-xs metis-newsletter-test-campaign" type="button" data-campaign-id="<?php echo metis_escape_attr((string) $campaign_id); ?>">Test</button>
+                            <?php endif; ?>
+                            <?php if ($is_imported_archive) : ?>
+                                <button class="metis-btn-xs metis-newsletter-manage-import-lists" type="button" data-campaign-id="<?php echo metis_escape_attr((string) $campaign_id); ?>">Lists</button>
                             <?php endif; ?>
                             <?php if (!$is_sentish && $status !== 'queued' && $status !== 'scheduled') : ?>
                                 <button class="metis-btn-xs metis-newsletter-edit-campaign" type="button" data-campaign-code="<?php echo metis_escape_attr((string) ($campaign['campaign_code'] ?? '')); ?>" data-campaign-id="<?php echo metis_escape_attr((string) $campaign_id); ?>">Edit</button>
@@ -390,6 +420,23 @@ if ( $simple_editor_js_version !== '' ) {
         </div>
     </div>
 
+    <div id="metis-newsletter-import-lists-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
+        <div class="metis-modal metis-newsletter-modal-inner">
+            <h3 class="metis-modal-title">Imported Newsletter Lists</h3>
+            <div class="metis-form-grid">
+                <input type="hidden" id="metis-newsletter-import-lists-campaign-id" value="0">
+                <div class="metis-field metis-field-full">
+                    <label>Lists</label>
+                    <div id="metis-newsletter-import-lists-options" class="metis-newsletter-audience-mode"></div>
+                </div>
+            </div>
+            <div class="metis-form-actions">
+                <button type="button" class="metis-btn metis-btn-ghost metis-newsletter-cancel">Cancel</button>
+                <button type="button" id="metis-newsletter-import-lists-save" class="metis-btn">Save Lists</button>
+            </div>
+        </div>
+    </div>
+
     <div id="metis-newsletter-html-editor-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
         <div class="metis-modal metis-newsletter-modal-inner metis-newsletter-modal-compact">
             <h3 class="metis-modal-title">Edit HTML Block</h3>
@@ -445,6 +492,7 @@ if ( $simple_editor_js_version !== '' ) {
             'from_name' => $default_from_name,
             'from_email' => $default_from_email,
             'reply_to' => $default_reply_to,
+            'campaign_type' => \Metis\Modules\Newsletter\CampaignService::TYPE_CAMPAIGN,
         ],
         'theme_defaults' => $newsletter_theme_defaults,
         'templates_by_id' => array_values(array_map(static fn($t) => [

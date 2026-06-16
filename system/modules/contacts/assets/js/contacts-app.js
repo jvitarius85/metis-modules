@@ -55,10 +55,15 @@ document.addEventListener('DOMContentLoaded', function () {
             return res.json();
         }).then(function (response) {
             if (!response || response.success !== true) {
-                const message = response && response.data && typeof response.data === 'string'
-                    ? response.data
-                    : (response && response.data && response.data.message) || 'Request failed.';
-                throw new Error(message);
+                const data = response && response.data;
+                const message = data && typeof data === 'string'
+                    ? data
+                    : (data && data.message) || 'Request failed.';
+                const error = new Error(message);
+                if (data && typeof data === 'object') {
+                    error.details = data;
+                }
+                throw error;
             }
             return response.data || {};
         });

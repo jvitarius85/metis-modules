@@ -5149,7 +5149,9 @@ final class WebsiteRenderer {
     private static function renderStructuredNewsletterArchiveSection( array $content, array $context = [] ): string {
         $list_ids = \Metis\Modules\Newsletter\WebsiteService::normalizeListIds( $content['list_ids'] ?? [] );
         $limit = max( 1, min( 50, (int) ( $content['limit'] ?? 12 ) ) );
-        $rows = \Metis\Modules\Newsletter\WebsiteService::publicArchiveCampaigns( $list_ids, $limit );
+        $page = self::newsletterArchivePageNumber();
+        $archive_page = \Metis\Modules\Newsletter\WebsiteService::publicArchiveCampaignPage( $list_ids, $limit, $page );
+        $rows = $archive_page['rows'];
         if ( $rows === [] ) {
             return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No newsletters yet.</p></div>';
         }
@@ -5163,24 +5165,22 @@ final class WebsiteRenderer {
             $url = self::normalizePublicUrl( (string) metis_newsletter_public_view_url( $ref ) );
             $title = trim( self::repairMojibakeText( (string) ( $row['name'] ?? '' ) ) );
             $subject = trim( self::repairMojibakeText( (string) ( $row['subject'] ?? '' ) ) );
-            $preheader = trim( self::repairMojibakeText( (string) ( $row['preheader'] ?? '' ) ) );
             $list_names = array_values( array_filter( array_map( 'trim', explode( '||', (string) ( $row['list_names'] ?? '' ) ) ) ) );
             $sent_at = trim( (string) ( $row['sent_at'] ?? $row['updated_at'] ?? '' ) );
-            $date_label = $sent_at !== '' ? self::formattedPublicDate( $sent_at ) : '';
+            $sent_at_ts = $sent_at !== '' ? strtotime( $sent_at ) : false;
+            $date_label = $sent_at_ts ? self::formatSystemDate( (int) $sent_at_ts ) : '';
             $headline = $title !== '' ? $title : ( $subject !== '' ? $subject : 'Newsletter' );
-            $summary = $preheader !== '' ? $preheader : $subject;
 
             $items .= '<article class="metis-public-post-card metis-public-post-card--newsletter">';
             $items .= '<div class="metis-public-post-card__body">';
+            $items .= '<div class="metis-public-post-card__meta">';
             if ( $date_label !== '' ) {
-                $items .= '<div class="metis-public-post-card__meta">' . metis_escape_html( $date_label ) . '</div>';
+                $items .= metis_escape_html( $date_label ) . ' - ';
             }
-            $items .= '<h3 class="metis-public-post-card__title"><a href="' . metis_escape_attr( $url ) . '">' . metis_escape_html( $headline ) . '</a></h3>';
-            if ( $summary !== '' ) {
-                $items .= '<p class="metis-public-post-card__excerpt">' . metis_escape_html( $summary ) . '</p>';
-            }
+            $items .= '<a href="' . metis_escape_attr( $url ) . '">' . metis_escape_html( $headline ) . '</a>';
+            $items .= '</div>';
             if ( $list_names !== [] ) {
-                $items .= '<p class="metis-public-post-card__meta">' . metis_escape_html( implode( ', ', $list_names ) ) . '</p>';
+                $items .= '<div class="metis-public-post-card__meta">' . metis_escape_html( implode( ', ', $list_names ) ) . '</div>';
             }
             $items .= '</div>';
             $items .= '</article>';
@@ -5190,7 +5190,52 @@ final class WebsiteRenderer {
             return '<div class="metis-structured-posts-list metis-structured-posts-list--empty"><p>No newsletters yet.</p></div>';
         }
 
-        return '<div class="metis-structured-posts-list metis-structured-posts-list--newsletter">' . $items . '</div>';
+        $html = '<div class="metis-structured-posts-list metis-structured-posts-list--newsletter">' . $items . '</div>';
+        $pagination = self::renderNewsletterArchivePagination( $context, (int) $archive_page['page'], ! empty( $archive_page['has_more'] ) );
+        if ( $pagination !== '' ) {
+            $html .= $pagination;
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array<string,mixed> $context
+     */
+    private static function renderNewsletterArchivePagination( array $context, int $page, bool $has_more ): string {
+        if ( $page <= 1 && ! $has_more ) {
+            return '';
+        }
+
+        $base_path = self::normalizedPath( (string) ( $context['path'] ?? '/' ) );
+        $base_url = self::normalizePublicUrl( $base_path );
+        $links = [];
+
+        if ( $page > 1 ) {
+            $links[] = '<a class="metis-structured-posts-list__pager-link" href="' . metis_escape_attr( self::newsletterArchivePageUrl( $base_url, $page - 1 ) ) . '">Previous</a>';
+        }
+
+        $links[] = '<span class="metis-structured-posts-list__pager-status">Page ' . metis_escape_html( (string) $page ) . '</span>';
+
+        if ( $has_more ) {
+            $links[] = '<a class="metis-structured-posts-list__pager-link" href="' . metis_escape_attr( self::newsletterArchivePageUrl( $base_url, $page + 1 ) ) . '">Next</a>';
+        }
+
+        return '<nav class="metis-structured-posts-list__pager metis-structured-posts-list__pager--newsletter" aria-label="Newsletter archive pagination">' . implode( '', $links ) . '</nav>';
+    }
+
+    private static function newsletterArchivePageUrl( string $base_url, int $page ): string {
+        $page = max( 1, $page );
+        if ( function_exists( 'metis_add_query_arg' ) ) {
+            return (string) metis_add_query_arg( [ 'newsletter_page' => $page ], $base_url );
+        }
+
+        return $base_url . ( str_contains( $base_url, '?' ) ? '&' : '?' ) . 'newsletter_page=' . rawurlencode( (string) $page );
+    }
+
+    private static function newsletterArchivePageNumber(): int {
+        $page = isset( $_GET['newsletter_page'] ) ? (int) $_GET['newsletter_page'] : 1;
+        return max( 1, $page );
     }
 
     /**

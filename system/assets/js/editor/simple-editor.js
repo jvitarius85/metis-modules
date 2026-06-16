@@ -1333,6 +1333,22 @@
             };
         }
 
+        function newsletterCampaignType() {
+            return s(state.newsletter && state.newsletter.campaign_type || newsletterData && newsletterData.compose && newsletterData.compose.campaign_type || 'campaign').toLowerCase() === 'announcement_blast'
+                ? 'announcement_blast'
+                : 'campaign';
+        }
+
+        function isAnnouncementBlast() {
+            return !isTemplate && newsletterCampaignType() === 'announcement_blast';
+        }
+
+        function newsletterEntityLabel(plural) {
+            if (isTemplate) return plural ? 'Templates' : 'Template';
+            if (isAnnouncementBlast()) return plural ? 'Announcement Blasts' : 'Announcement Blast';
+            return plural ? 'Campaigns' : 'Campaign';
+        }
+
         state.step = 2;
         state.dirty = false;
         state.newsletterFocusedEditor = 'metis-nl-body-editor';
@@ -1350,8 +1366,9 @@
             reply_to: s(newsletterData && newsletterData.defaults && newsletterData.defaults.reply_to || ''),
             preheader: '',
             status: 'draft',
+            campaign_type: s(newsletterData && newsletterData.defaults && newsletterData.defaults.campaign_type || 'campaign'),
             template_id: 0,
-            list_ids: [],
+            list_ids: Array.isArray(newsletterData && newsletterData.defaults && newsletterData.defaults.list_ids) ? newsletterData.defaults.list_ids.slice() : [],
             scheduled_at: ''
         };
         state.newsletterAudience = normalizeNewsletterAudienceState({});
@@ -1477,6 +1494,7 @@
             state.newsletter.reply_to = s(resolved.reply_to || '');
             state.newsletter.preheader = s(resolved.preheader || resolved.preview_text || '');
             state.newsletter.status = s(resolved.status || 'draft');
+            state.newsletter.campaign_type = s(resolved.campaign_type || state.newsletter.campaign_type || 'campaign');
             state.newsletter.template_id = parseInt(s(resolved.template_id || '0'), 10) || 0;
             state.newsletter.list_ids = Array.isArray(resolved.list_ids) ? resolved.list_ids : [];
             state.newsletter.scheduled_at = s(resolved.scheduled_at || '');
@@ -1857,6 +1875,7 @@
                 if (state.newsletter.id) payload.template_id = state.newsletter.id;
                 return request('metis_newsletter_save_template', payload);
             }
+            payload.campaign_type = newsletterCampaignType();
             if (state.newsletter.code) payload.campaign_code = state.newsletter.code;
             if (state.newsletter.id) payload.campaign_id = state.newsletter.id;
             if (state.newsletter.template_id) payload.template_id = state.newsletter.template_id;
@@ -1872,7 +1891,7 @@
             syncNewsletterBodyFromEditor();
             if (!isTemplate && !newsletterRequiredFieldsReady()) {
                 if (!autosave && options.showError !== false) {
-                    setStatus('Campaign name and subject are required before saving.', 'error');
+                    setStatus(newsletterEntityLabel(false) + ' name and subject are required before saving.', 'error');
                 }
                 return Promise.resolve(null);
             }
@@ -1905,7 +1924,7 @@
             if (!newsletterRequiredFieldsReady()) {
                 if (state.autosaveTimer) window.clearTimeout(state.autosaveTimer);
                 if (s(state.newsletter.name).trim() || s(state.newsletter.subject).trim()) {
-                    setStatus('Enter campaign name and subject to start autosave.', 'saving');
+                    setStatus('Enter ' + newsletterEntityLabel(false).toLowerCase() + ' name and subject to start autosave.', 'saving');
                 }
                 return;
             }
@@ -1982,7 +2001,7 @@
             syncNewsletterBodyFromEditor();
             hydrateNewsletterFromInputs();
             if (!newsletterRequiredFieldsReady()) {
-                setStatus('Campaign name and subject are required before sending.', 'error');
+                setStatus(newsletterEntityLabel(false) + ' name and subject are required before sending.', 'error');
                 state.newsletterDetailsExpanded = true;
                 state.step = 2;
                 renderStep1();
@@ -2004,13 +2023,13 @@
             }
             saveNewsletterState({ autosave: false }).then(function () {
                 if (state.newsletter.status === 'scheduled') {
-                    setStatus('Campaign scheduled.', 'ok');
+                    setStatus(isAnnouncementBlast() ? 'Blast scheduled.' : 'Campaign scheduled.', 'ok');
                     return;
                 }
-                setStatus('Queueing campaign...', 'saving');
+                setStatus(isAnnouncementBlast() ? 'Queueing blast...' : 'Queueing campaign...', 'saving');
                 return request('metis_newsletter_queue_campaign', { campaign_id: state.newsletter.id }).then(function () {
                     state.newsletter.status = 'queued';
-                    setStatus('Campaign queued.', 'ok');
+                    setStatus(isAnnouncementBlast() ? 'Blast queued.' : 'Campaign queued.', 'ok');
                     renderStep1();
                     renderStep2();
                     syncStepUi();
@@ -2043,15 +2062,16 @@
         function newsletterTopTitle() {
             var name = s(state.newsletter.name || '').trim();
             if (name) return name;
-            return isTemplate ? 'Newsletter Template' : 'Newsletter Campaign';
+            return isTemplate ? 'Newsletter Template' : newsletterEntityLabel(false);
         }
 
         function renderShell() {
             var backHref = appBasePath() + (isTemplate ? '/admin/newsletter/templates/' : '/admin/newsletter/campaigns/');
+            var backLabel = isTemplate ? 'Back to Templates' : 'Back to Campaigns';
             root.innerHTML = '' +
                 '<div class="metis-se-shell">' +
                 '<div class="metis-se-topbar">' +
-                '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(backHref) + '">&larr; ' + esc(isTemplate ? 'Back to Templates' : 'Back to Campaigns') + '</a></div>' +
+                '<div class="metis-se-top-left"><a class="metis-se-nav-btn" href="' + esc(backHref) + '">&larr; ' + esc(backLabel) + '</a></div>' +
                 '<div class="metis-se-top-center"><div id="metis-se-top-title" class="metis-se-top-title">' + esc(newsletterTopTitle()) + '</div></div>' +
                 '<div class="metis-se-top-right"><span id="metis-se-save-status" class="metis-se-save-status"></span><button id="metis-nl-prev" type="button" class="metis-se-nav-btn">Back to Details</button><button id="metis-nl-next" type="button" class="metis-se-nav-btn">Continue to Content</button></div>' +
                 '</div>' +
@@ -2079,6 +2099,9 @@
         function renderStep1() {
             var wrap = document.getElementById('metis-nl-step-1');
             if (!wrap) return;
+            var sendActionLabel = state.newsletter.status === 'scheduled'
+                ? (isAnnouncementBlast() ? 'Schedule Blast' : 'Schedule Campaign')
+                : 'Send Now';
             var listOptions = (Array.isArray(newsletterData && newsletterData.lists) ? newsletterData.lists : []).map(function (row) {
                 var listId = parseInt(s(row && row.id || '0'), 10) || 0;
                 if (listId < 1) return '';
@@ -2113,7 +2136,7 @@
                 '<div class="metis-se-field-row metis-nl-details-row"><label>Audience</label><div class="metis-nl-choice-row"><label class="metis-nl-choice"><input type="radio" name="metis-nl-audience-mode" value="lists"' + (state.newsletterAudience.mode === 'lists' ? ' checked' : '') + '> Current lists</label><label class="metis-nl-choice"><input type="radio" name="metis-nl-audience-mode" value="custom"' + (state.newsletterAudience.mode === 'custom' ? ' checked' : '') + '> Custom audience</label></div></div>' +
                 '<div class="metis-se-field-row metis-nl-details-row"><label>Lists</label><div class="metis-nl-check-grid">' + (listOptions || '<div class="metis-muted">No active lists available.</div>') + '</div></div>' +
                 '<div class="metis-se-field-row metis-nl-details-row metis-nl-rules-row"' + (state.newsletterAudience.mode === 'custom' ? '' : ' hidden') + '><label>Rules</label><div class="metis-nl-rules-wrap"><div class="metis-nl-rules-list">' + rulesHtml + '</div><button type="button" class="metis-se-nav-btn" id="metis-nl-add-rule">Add Rule</button></div></div>' +
-                '<div class="metis-se-field-row metis-nl-details-row"><label>Actions</label><div class="metis-nl-delivery-actions"><button type="button" class="metis-se-nav-btn" id="metis-nl-open-test">Send Test Email</button><button type="button" class="metis-btn" id="metis-nl-deliver">' + (state.newsletter.status === 'scheduled' ? 'Schedule Campaign' : 'Send Now') + '</button></div></div>' +
+                '<div class="metis-se-field-row metis-nl-details-row"><label>Actions</label><div class="metis-nl-delivery-actions"><button type="button" class="metis-se-nav-btn" id="metis-nl-open-test">Send Test Email</button><button type="button" class="metis-btn" id="metis-nl-deliver">' + esc(sendActionLabel) + '</button></div></div>' +
                 '</div>' +
                 '</div>' +
                 '</div>';
@@ -2485,7 +2508,7 @@
                         renderStep1();
                         renderStep2();
                         syncStepUi();
-                        setStatus('Campaign name and subject are required before you can prepare delivery.', 'error');
+                        setStatus(newsletterEntityLabel(false) + ' name and subject are required before you can prepare delivery.', 'error');
                         return;
                     }
                     saveNewsletterState({ autosave: false }).then(function () {
@@ -2628,7 +2651,9 @@
                 var rulesRow = root.querySelector('.metis-nl-rules-row');
                 if (rulesRow) rulesRow.hidden = state.newsletterAudience.mode !== 'custom';
                 var deliverBtn = document.getElementById('metis-nl-deliver');
-                if (deliverBtn) deliverBtn.textContent = state.newsletter.status === 'scheduled' ? 'Schedule Campaign' : 'Send Now';
+                if (deliverBtn) deliverBtn.textContent = state.newsletter.status === 'scheduled'
+                    ? (isAnnouncementBlast() ? 'Schedule Blast' : 'Schedule Campaign')
+                    : 'Send Now';
             });
         }
 
@@ -3199,7 +3224,7 @@
         }
 
         function columnModuleTypes() {
-            return ['text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'button', 'image'];
+            return ['text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'newsletter_signup', 'newsletter_archive', 'button', 'image'];
         }
 
         function normalizeFormTabs(tabs) {
@@ -3230,6 +3255,8 @@
             if (moduleType === 'donation_progress') return { type: 'donation_progress', content: { campaign_id: '', goal_amount: '', raised_amount: '', percent: '' } };
             if (moduleType === 'campaign_summary') return { type: 'campaign_summary', content: { campaign_id: '', title: '', content: '<p></p>', image: '' } };
             if (moduleType === 'testimonials') return { type: 'testimonials', content: { category_ids: [], limit: 6, layout: 'grid', featured_only: false, show_category: true, empty_message: '' } };
+            if (moduleType === 'newsletter_signup') return { type: 'newsletter_signup', content: { list_ids: [], submit_label: 'Subscribe', success_message: 'Thanks for subscribing.' } };
+            if (moduleType === 'newsletter_archive') return { type: 'newsletter_archive', content: { list_ids: [], limit: 12 } };
             if (moduleType === 'button') return { type: 'button', content: { label: 'Learn more', url: '#', align: 'left' } };
             if (moduleType === 'image') return { type: 'image', content: { src: '', alt: '', caption: '', width: '', height: '' } };
             return { type: 'text', content: { body: '<p></p>' } };
@@ -3274,6 +3301,13 @@
                 next.content.featured_only = !!content.featured_only;
                 next.content.show_category = content.show_category !== false;
                 next.content.empty_message = repairMojibakeText(content.empty_message || '');
+            } else if (next.type === 'newsletter_signup') {
+                next.content.list_ids = normalizeIdList(content.list_ids || []);
+                next.content.submit_label = repairMojibakeText(content.submit_label || 'Subscribe') || 'Subscribe';
+                next.content.success_message = repairMojibakeText(content.success_message || 'Thanks for subscribing.') || 'Thanks for subscribing.';
+            } else if (next.type === 'newsletter_archive') {
+                next.content.list_ids = normalizeIdList(content.list_ids || []);
+                next.content.limit = Math.max(1, Math.min(50, parseInt(s(content.limit || '12'), 10) || 12));
             } else if (next.type === 'button') {
                 next.content.label = repairMojibakeText(content.label || 'Learn more');
                 next.content.action_type = s(content.action_type || 'url') === 'popup' ? 'popup' : 'url';
@@ -4152,6 +4186,18 @@
                     }).filter(Boolean);
                     return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Testimonies</strong><span>' + esc(testimonyLabels.length ? testimonyLabels.join(', ') : 'All categories') + '</span><small>' + esc(String(parseInt(s(moduleContent.limit || '6'), 10) || 6)) + ' items • ' + esc(s(moduleContent.layout || 'grid')) + (moduleContent.featured_only ? ' • featured only' : '') + '</small></div></div>';
                 }
+                if (module.type === 'newsletter_signup') {
+                    var columnSignupLabels = normalizeIdList(moduleContent.list_ids || []).map(function (id) {
+                        return optionLabel(state.options.newsletterLists, id, '');
+                    }).filter(Boolean);
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Newsletter signup</strong><span>' + esc(columnSignupLabels.length ? columnSignupLabels.join(', ') : 'Default newsletter list') + '</span><small>Button: ' + esc(s(moduleContent.submit_label || 'Subscribe')) + '</small></div></div>';
+                }
+                if (module.type === 'newsletter_archive') {
+                    var columnArchiveLabels = normalizeIdList(moduleContent.list_ids || []).map(function (id) {
+                        return optionLabel(state.options.newsletterLists, id, '');
+                    }).filter(Boolean);
+                    return '<div class="metis-builder-column"><div class="metis-builder-dynamic-card"><strong>Newsletter archive</strong><span>' + esc(columnArchiveLabels.length ? columnArchiveLabels.join(', ') : 'All newsletter lists') + '</span><small>' + esc(String(parseInt(s(moduleContent.limit || '12'), 10) || 12)) + ' items</small></div></div>';
+                }
                 if (module.type === 'button') {
                     var moduleActionType = s(moduleContent.action_type || 'url') === 'popup' ? 'popup' : 'url';
                     var moduleTargetLabel = moduleActionType === 'popup'
@@ -4518,6 +4564,8 @@
                         '<option value="donation_progress"' + (module.type === 'donation_progress' ? ' selected' : '') + '>Donation Progress</option>' +
                         '<option value="campaign_summary"' + (module.type === 'campaign_summary' ? ' selected' : '') + '>Campaign Summary</option>' +
                         '<option value="testimonials"' + (module.type === 'testimonials' ? ' selected' : '') + '>Testimonies</option>' +
+                        '<option value="newsletter_signup"' + (module.type === 'newsletter_signup' ? ' selected' : '') + '>Newsletter Signup</option>' +
+                        '<option value="newsletter_archive"' + (module.type === 'newsletter_archive' ? ' selected' : '') + '>Newsletter Archive</option>' +
                         '<option value="button"' + (module.type === 'button' ? ' selected' : '') + '>Button</option>' +
                         '<option value="image"' + (module.type === 'image' ? ' selected' : '') + '>Image</option>' +
                     '</select></div>';
@@ -4559,6 +4607,15 @@
                         html += '<div class="metis-se-field-row"><label class="metis-se-check-label"><input type="checkbox" data-v2-column-check="featured_only" data-column-idx="' + esc(String(columnIndex)) + '"' + (moduleContent.featured_only ? ' checked' : '') + '> Featured only</label></div>';
                         html += '<div class="metis-se-field-row"><label class="metis-se-check-label"><input type="checkbox" data-v2-column-check="show_category" data-column-idx="' + esc(String(columnIndex)) + '"' + (moduleContent.show_category !== false ? ' checked' : '') + '> Show category labels</label></div>';
                         html += '<div class="metis-se-field-row"><label>Empty Message</label><input class="metis-se-input" data-v2-column-field="empty_message" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.empty_message || '')) + '" placeholder="No testimonies available yet."></div>';
+                    } else if (module.type === 'newsletter_signup') {
+                        var selectedColumnSignupListIds = normalizeIdList(moduleContent.list_ids || []);
+                        html += '<div class="metis-se-field-row"><label>Newsletter Lists</label>' + categoryChipField('metis-v2-column-newsletter-signup-list-ids-' + columnIndex, selectedColumnSignupListIds, 'No newsletter lists available.', state.options.newsletterLists) + '</div>';
+                        html += '<div class="metis-se-field-row"><label>Submit Label</label><input class="metis-se-input" data-v2-column-field="submit_label" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.submit_label || 'Subscribe')) + '"></div>';
+                        html += '<div class="metis-se-field-row"><label>Success Message</label><input class="metis-se-input" data-v2-column-field="success_message" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.success_message || 'Thanks for subscribing.')) + '"></div>';
+                    } else if (module.type === 'newsletter_archive') {
+                        var selectedColumnArchiveListIds = normalizeIdList(moduleContent.list_ids || []);
+                        html += '<div class="metis-se-field-row"><label>Newsletter Lists</label>' + categoryChipField('metis-v2-column-newsletter-archive-list-ids-' + columnIndex, selectedColumnArchiveListIds, 'No newsletter lists available.', state.options.newsletterLists) + '</div>';
+                        html += '<div class="metis-se-field-row"><label>Item Limit</label><input class="metis-se-input" type="number" min="1" max="50" data-v2-column-field="limit" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(String(parseInt(s(moduleContent.limit || '12'), 10) || 12)) + '"></div>';
                     } else if (module.type === 'button') {
                         html += '<div class="metis-se-field-row"><label>Label</label><input class="metis-se-input" data-v2-column-field="label" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.label || 'Learn more')) + '"></div>';
                         html += '<div class="metis-se-field-row"><label>URL</label><input class="metis-se-input" data-v2-column-field="url" data-column-idx="' + esc(String(columnIndex)) + '" value="' + esc(s(moduleContent.url || '#')) + '"></div>';
@@ -6092,6 +6149,18 @@
                                 var categoryColumn = categorySection.content.columns[columnCategoryIdx];
                                 categoryColumn.module = normalizeColumnModule(categoryColumn.module, categoryColumn.body);
                                 categoryColumn.module.content.category_ids = selectedIds;
+                                renderBuilderCanvas();
+                            }
+                        } else if (fieldId.indexOf('metis-v2-column-newsletter-signup-list-ids-') === 0 || fieldId.indexOf('metis-v2-column-newsletter-archive-list-ids-') === 0) {
+                            var newsletterSection = activeSection();
+                            var newsletterPrefix = fieldId.indexOf('metis-v2-column-newsletter-signup-list-ids-') === 0
+                                ? 'metis-v2-column-newsletter-signup-list-ids-'
+                                : 'metis-v2-column-newsletter-archive-list-ids-';
+                            var newsletterColumnIdx = parseInt(fieldId.replace(newsletterPrefix, ''), 10);
+                            if (newsletterColumnIdx >= 0 && Array.isArray(newsletterSection.content.columns) && newsletterSection.content.columns[newsletterColumnIdx]) {
+                                var newsletterColumn = newsletterSection.content.columns[newsletterColumnIdx];
+                                newsletterColumn.module = normalizeColumnModule(newsletterColumn.module, newsletterColumn.body);
+                                newsletterColumn.module.content.list_ids = selectedIds;
                                 renderBuilderCanvas();
                             }
                         }

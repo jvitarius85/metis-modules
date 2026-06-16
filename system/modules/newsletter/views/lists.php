@@ -10,6 +10,7 @@ metis_newsletter_ensure_schema();
 $can_manage = metis_newsletter_can_manage();
 
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
+$announcements_url = metis_portal_url('newsletter', 'announcements');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
 $templates_url = metis_portal_url('newsletter', 'theme');
 $lists_url = metis_portal_url('newsletter', 'lists');
@@ -20,8 +21,6 @@ $selected_list_id = isset(metis_request_get()['list_id']) ? max(0, (int) metis_r
 
 $snapshot = \Metis\Modules\Newsletter\ReadService::listsSnapshot( $selected_list_id );
 $lists = is_array($snapshot['lists'] ?? null) ? $snapshot['lists'] : [];
-$selected_list = is_array($snapshot['selected_list'] ?? null) ? $snapshot['selected_list'] : null;
-$list_subscribers = is_array($snapshot['list_subscribers'] ?? null) ? $snapshot['list_subscribers'] : [];
 ?>
 
 <div class="metis-newsletter" data-can-manage="<?php echo metis_escape_attr($can_manage ? '1' : '0'); ?>">
@@ -31,91 +30,108 @@ $list_subscribers = is_array($snapshot['list_subscribers'] ?? null) ? $snapshot[
     <div id="metis-newsletter-alert" class="metis-alert" style="display:none;"></div>
 
     <div class="metis-list-layout">
+        <aside class="metis-list-sidebar">
+            <div class="metis-list-sidebar-section">
+                <div class="metis-list-sidebar-label">Newsletter</div>
+                <nav class="metis-list-sidebar-nav">
+                    <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($dashboard_url); ?>">Dashboard</a>
+                    <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($announcements_url); ?>">Announcements</a>
+                    <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($campaigns_url); ?>">Campaigns</a>
+                    <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($templates_url); ?>">Theme</a>
+                    <a class="metis-list-sidebar-nav-item is-active" href="<?php echo metis_escape_url($lists_url); ?>">Lists</a>
+                    <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($subscribers_url); ?>">Subscribers</a>
+                </nav>
+            </div>
+            <div class="metis-list-sidebar-section">
+                <div class="metis-list-sidebar-label">Search</div>
+                <input id="metis-newsletter-list-search" class="metis-input" type="text" placeholder="List name or description">
+            </div>
+            <?php if ($can_manage) : ?>
+            <div class="metis-list-sidebar-actions">
+                <button id="metis-newsletter-new-list" type="button" class="metis-btn metis-btn-xs">New List</button>
+            </div>
+            <?php endif; ?>
+        </aside>
 
-    <!-- Sidebar -->
-    <aside class="metis-list-sidebar">
-        <div class="metis-list-sidebar-section">
-            <div class="metis-list-sidebar-label">Newsletter</div>
-            <nav class="metis-list-sidebar-nav">
-                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($dashboard_url); ?>">Dashboard</a>
-                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($campaigns_url); ?>">Campaigns</a>
-                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($templates_url); ?>">Theme</a>
-                <a class="metis-list-sidebar-nav-item is-active" href="<?php echo metis_escape_url($lists_url); ?>">Lists</a>
-                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($subscribers_url); ?>">Subscribers</a>
-            </nav>
-        </div>
-        <div class="metis-list-sidebar-section">
-            <div class="metis-list-sidebar-label">Search</div>
-            <input id="metis-newsletter-list-search" class="metis-input" type="text" placeholder="List name or description">
-        </div>
-        <?php if ($can_manage) : ?>
-        <div class="metis-list-sidebar-actions">
-            <button id="metis-newsletter-new-list" type="button" class="metis-btn metis-btn-xs">New List</button>
-        </div>
-        <?php endif; ?>
-    </aside>
+        <div class="metis-list-content">
+            <table class="metis-premium-table metis-newsletter-table" id="metis-newsletter-lists-panel">
+                <thead>
+                    <tr class="metis-premium-row metis-premium-header">
+                        <th class="metis-premium-cell" scope="col">List</th>
+                        <th class="metis-premium-cell" scope="col">Subscribers</th>
+                        <th class="metis-premium-cell" scope="col">Blocked</th>
+                        <th class="metis-premium-cell" scope="col">Status</th>
+                        <th class="metis-premium-cell" scope="col">Updated</th>
+                    </tr>
+                </thead>
+                <tbody id="metis-newsletter-list-rows">
+                    <?php foreach ($lists as $list) :
+                        $list_id = (int) ($list['id'] ?? 0);
+                        $search_blob = strtolower(trim(implode(' ', [
+                            (string) ($list['name'] ?? ''),
+                            (string) ($list['description'] ?? ''),
+                        ])));
+                    ?>
+                        <tr class="metis-premium-row metis-newsletter-row"
+                            data-list-id="<?php echo metis_escape_attr((string) $list_id); ?>"
+                            data-search="<?php echo metis_escape_attr($search_blob); ?>">
+                            <td class="metis-premium-cell">
+                                <div><strong><?php echo metis_escape_html((string) ($list['name'] ?? '')); ?></strong></div>
+                                <div class="metis-muted"><?php echo metis_escape_html((string) ($list['description'] ?? '')); ?></div>
+                            </td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html((string) ((int) ($list['subscribed_count'] ?? 0))); ?></td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html((string) ((int) ($list['blocked_count'] ?? 0))); ?></td>
+                            <td class="metis-premium-cell"><span class="metis-chip <?php echo !empty($list['is_active']) ? 'metis-chip-success' : ''; ?>"><?php echo !empty($list['is_active']) ? 'active' : 'inactive'; ?></span></td>
+                            <td class="metis-premium-cell"><?php echo metis_escape_html(metis_newsletter_format_datetime((string) ($list['updated_at'] ?? ''))); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($lists)) : ?><tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="5">No lists yet.</td></tr><?php endif; ?>
+                </tbody>
+            </table>
 
-    <!-- Main content -->
-    <div class="metis-list-content">
-    <table class="metis-premium-table metis-newsletter-table" id="metis-newsletter-lists-panel">
-        <thead>
-            <tr class="metis-premium-row metis-premium-header">
-                <th class="metis-premium-cell" scope="col">List</th>
-                <th class="metis-premium-cell" scope="col">Subscribers</th>
-                <th class="metis-premium-cell" scope="col">Blocked</th>
-                <th class="metis-premium-cell" scope="col">Status</th>
-                <th class="metis-premium-cell" scope="col">Updated</th>
-            </tr>
-        </thead>
-        <tbody id="metis-newsletter-list-rows">
-            <?php foreach ($lists as $list) :
-                $list_id = (int) ($list['id'] ?? 0);
-                $search_blob = strtolower(trim(implode(' ', [
-                    (string) ($list['name'] ?? ''),
-                    (string) ($list['description'] ?? ''),
-                ])));
-                $href = metis_add_query_arg(['list_id' => $list_id], $lists_url);
-            ?>
-                <tr class="metis-premium-row metis-newsletter-row" data-search="<?php echo metis_escape_attr($search_blob); ?>" data-row-href="<?php echo metis_escape_url($href); ?>">
-                    <td class="metis-premium-cell">
-                        <div><strong><?php echo metis_escape_html((string) ($list['name'] ?? '')); ?></strong></div>
-                        <div class="metis-muted"><?php echo metis_escape_html((string) ($list['description'] ?? '')); ?></div>
-                    </td>
-                    <td class="metis-premium-cell"><?php echo metis_escape_html((string) ((int) ($list['subscribed_count'] ?? 0))); ?></td>
-                    <td class="metis-premium-cell"><?php echo metis_escape_html((string) ((int) ($list['blocked_count'] ?? 0))); ?></td>
-                    <td class="metis-premium-cell"><span class="metis-chip <?php echo !empty($list['is_active']) ? 'metis-chip-success' : ''; ?>"><?php echo !empty($list['is_active']) ? 'active' : 'inactive'; ?></span></td>
-                    <td class="metis-premium-cell"><?php echo metis_escape_html(metis_newsletter_format_datetime((string) ($list['updated_at'] ?? ''))); ?></td>
-                </tr>
-            <?php endforeach; ?>
-            <?php if (empty($lists)) : ?><tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="5">No lists yet.</td></tr><?php endif; ?>
-        </tbody>
-    </table>
+            <section class="metis-premium-wrap">
+                <div class="metis-muted">Click a list row to edit it and manage subscribers in a modal.</div>
+            </section>
+        </div>
+    </div>
 
-    <?php if ($selected_list) : ?>
-        <section class="metis-premium-wrap">
-            <h3 class="metis-people-section-title" style="margin:0 0 12px;"><?php echo metis_escape_html((string) ($selected_list['name'] ?? '')); ?>: Subscribers</h3>
+    <script id="metis-newsletter-data" type="application/json"><?php echo metis_json_encode([
+        'ui' => [
+            'view' => 'lists',
+            'lists_url' => $lists_url,
+            'selected_list_id' => $selected_list_id,
+            'contact_url_base' => $contact_url_base,
+        ],
+    ]); ?></script>
+
+    <?php if ($can_manage) : ?>
+    <div id="metis-newsletter-list-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
+        <div class="metis-modal metis-newsletter-modal-inner">
+            <h3 class="metis-modal-title" id="metis-newsletter-selected-list-title">Newsletter List</h3>
             <div class="metis-form-grid">
                 <div class="metis-field metis-field-third">
                     <label>List Name</label>
-                    <input id="metis-newsletter-list-name" class="metis-input" type="text" maxlength="191" value="<?php echo metis_escape_attr((string) ($selected_list['name'] ?? '')); ?>">
+                    <input id="metis-newsletter-list-name" class="metis-input" type="text" maxlength="191" value="">
                 </div>
                 <div class="metis-field metis-field-third">
                     <label>Description</label>
-                    <input id="metis-newsletter-list-description" class="metis-input" type="text" maxlength="255" value="<?php echo metis_escape_attr((string) ($selected_list['description'] ?? '')); ?>">
+                    <input id="metis-newsletter-list-description" class="metis-input" type="text" maxlength="255" value="">
                 </div>
                 <div class="metis-field metis-field-third">
                     <label>Status</label>
                     <select id="metis-newsletter-list-active" class="metis-select">
-                        <option value="1" <?php metis_attr_selected((int) ($selected_list['is_active'] ?? 0), 1); ?>>Active</option>
-                        <option value="0" <?php metis_attr_selected((int) ($selected_list['is_active'] ?? 0), 0); ?>>Inactive</option>
+                        <option value="1">Active</option>
+                        <option value="0">Inactive</option>
                     </select>
                 </div>
             </div>
-            <?php if ($can_manage) : ?>
-                <div class="metis-form-actions" style="margin-top:10px;">
-                    <button type="button" class="metis-btn" id="metis-newsletter-save-selected-list" data-list-id="<?php echo metis_escape_attr((string) $selected_list_id); ?>">Save List</button>
+
+            <div class="metis-newsletter-bulk-head" style="margin-top:12px;">
+                <div class="metis-muted" id="metis-newsletter-list-stats">Loading…</div>
+                <div class="metis-newsletter-bulk-actions">
+                    <button type="button" class="metis-btn metis-btn-xs" id="metis-newsletter-open-bulk-modal">Add Contacts</button>
                 </div>
-            <?php endif; ?>
+            </div>
 
             <table class="metis-premium-table metis-newsletter-table" id="metis-newsletter-selected-list-subs-panel" style="margin-top:10px;">
                 <thead>
@@ -127,34 +143,64 @@ $list_subscribers = is_array($snapshot['list_subscribers'] ?? null) ? $snapshot[
                     </tr>
                 </thead>
                 <tbody id="metis-newsletter-selected-list-subs-rows">
-                    <?php foreach ($list_subscribers as $sub_row) :
-                        $cid = (string) ($sub_row['cid'] ?? '');
-                        $name = trim((string) ($sub_row['first_name'] ?? '') . ' ' . (string) ($sub_row['last_name'] ?? ''));
-                        $href = $cid !== '' ? ($contact_url_base . '?cid=' . rawurlencode($cid)) : '';
-                        $email = strtolower(trim((string) ($sub_row['email'] ?? '')));
-                    ?>
-                        <tr class="metis-premium-row metis-newsletter-row">
-                            <td class="metis-premium-cell"><?php echo metis_escape_html($name !== '' ? $name : '—'); ?></td>
-                            <td class="metis-premium-cell"><?php echo metis_escape_html($email); ?></td>
-                            <td class="metis-premium-cell">
-                                <?php if ($href !== '') : ?><a href="<?php echo metis_escape_url($href); ?>"><?php echo metis_escape_html($cid); ?></a><?php else : ?>—<?php endif; ?>
-                            </td>
-                            <td class="metis-premium-cell"><?php echo metis_escape_html(metis_newsletter_format_datetime((string) ($sub_row['updated_at'] ?? ''))); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <?php if (empty($list_subscribers)) : ?><tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="4">No active subscribers in this list.</td></tr><?php endif; ?>
+                    <tr class="metis-premium-row">
+                        <td class="metis-premium-cell metis-muted" colspan="4">Select a list to load subscribers.</td>
+                    </tr>
                 </tbody>
             </table>
-        </section>
+
+            <div class="metis-form-actions">
+                <button type="button" class="metis-btn metis-btn-ghost metis-newsletter-cancel">Close</button>
+                <button type="button" class="metis-btn metis-btn-danger" id="metis-newsletter-delete-selected-list" data-list-id="0">Delete List</button>
+                <button type="button" class="metis-btn" id="metis-newsletter-save-selected-list" data-list-id="0">Save List</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="metis-newsletter-bulk-add-modal" class="metis-modal-backdrop" aria-hidden="true" hidden>
+        <div class="metis-modal metis-newsletter-modal-inner">
+            <h3 class="metis-modal-title">Add Contacts To List</h3>
+            <p class="metis-muted" style="margin:0 0 12px;">Browse contacts with email addresses that are not already subscribed to this list.</p>
+
+            <div class="metis-newsletter-bulk-toolbar">
+                <div class="metis-field" style="margin:0;">
+                    <label for="metis-newsletter-bulk-contact-search">Search Contacts</label>
+                    <input id="metis-newsletter-bulk-contact-search" class="metis-input" type="text" placeholder="Name or email">
+                </div>
+                <div class="metis-newsletter-bulk-summary" id="metis-newsletter-bulk-summary">Loading contacts…</div>
+            </div>
+
+            <table class="metis-premium-table metis-newsletter-table" id="metis-newsletter-bulk-contacts-panel">
+                <thead>
+                    <tr class="metis-premium-row metis-premium-header">
+                        <th class="metis-premium-cell" scope="col">
+                            <label class="metis-newsletter-checkbox">
+                                <input type="checkbox" id="metis-newsletter-bulk-select-page">
+                            </label>
+                        </th>
+                        <th class="metis-premium-cell" scope="col">Contact</th>
+                        <th class="metis-premium-cell" scope="col">Email</th>
+                    </tr>
+                </thead>
+                <tbody id="metis-newsletter-bulk-contact-rows">
+                    <tr class="metis-premium-row">
+                        <td class="metis-premium-cell metis-muted" colspan="3">Select a list to load contacts.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="metis-newsletter-bulk-pagination">
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-newsletter-bulk-prev">Prev</button>
+                <span class="metis-muted" id="metis-newsletter-bulk-page-label">Page 1 of 1</span>
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-newsletter-bulk-next">Next</button>
+            </div>
+
+            <div class="metis-form-actions">
+                <button type="button" class="metis-btn metis-btn-ghost metis-newsletter-cancel">Cancel</button>
+                <button type="button" class="metis-btn metis-btn-ghost" id="metis-newsletter-bulk-clear-selection">Clear Selection</button>
+                <button type="button" class="metis-btn" id="metis-newsletter-bulk-add-selected" data-list-id="0">Add Selected Contacts</button>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
-
-    </div><!-- /metis-list-content -->
-    </div><!-- /metis-list-layout -->
-
-    <script id="metis-newsletter-data" type="application/json"><?php echo metis_json_encode([
-        'ui' => [
-            'view' => 'lists',
-            'lists_url' => $lists_url,
-        ],
-    ]); ?></script>
 </div>

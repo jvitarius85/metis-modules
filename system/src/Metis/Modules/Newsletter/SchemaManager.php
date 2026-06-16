@@ -119,6 +119,7 @@ final class SchemaManager {
         \metis_db_delta( "CREATE TABLE {$campaigns_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             campaign_code VARCHAR(16) NOT NULL,
+            campaign_type VARCHAR(32) NOT NULL DEFAULT 'campaign',
             template_id BIGINT UNSIGNED DEFAULT NULL,
             name VARCHAR(255) NOT NULL,
             subject VARCHAR(255) NOT NULL,
@@ -149,10 +150,12 @@ final class SchemaManager {
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY campaign_code (campaign_code),
+            KEY campaign_type (campaign_type),
             KEY status (status),
             KEY scheduled_at (scheduled_at)
         ) {$charset_collate};" );
 
+        self::addColumnIfMissing( $campaigns_table, 'campaign_type', "VARCHAR(32) NOT NULL DEFAULT 'campaign'" );
         self::addColumnIfMissing( $campaigns_table, 'doc_json', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'editor_body_html', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'html_body', 'LONGTEXT DEFAULT NULL' );
@@ -161,6 +164,7 @@ final class SchemaManager {
         self::addColumnIfMissing( $campaigns_table, 'attachments_json', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'test_sent_at', 'DATETIME DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'archived_at', 'DATETIME DEFAULT NULL' );
+        self::addIndexIfMissing( $campaigns_table, 'campaign_type', 'KEY campaign_type (campaign_type)' );
         self::addIndexIfMissing( $campaigns_table, 'status_scheduled', 'KEY status_scheduled (status, scheduled_at)' );
         self::addColumnIfMissing( $templates_table, 'doc_json', 'LONGTEXT DEFAULT NULL' );
 
@@ -307,6 +311,8 @@ final class SchemaManager {
         self::addColumnIfMissing( $subs_table, 'last_event_at', 'DATETIME DEFAULT NULL' );
         self::addColumnIfMissing( $subs_table, 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP' );
         self::addColumnIfMissing( $subs_table, 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' );
+        self::addIndexIfMissing( $subs_table, 'combo', 'UNIQUE KEY combo (contact_id, list_id)' );
+        self::addIndexIfMissing( $subs_table, 'list_id', 'KEY list_id (list_id)' );
         self::addIndexIfMissing( $subs_table, 'status', 'KEY status (status)' );
 
         $has_lists = (int) $db->scalar( "SELECT COUNT(*) FROM {$lists_table}" );

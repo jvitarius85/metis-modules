@@ -123,6 +123,11 @@
     grid-template-columns: 1.5fr 1.6fr 0.85fr 0.95fr;
 }
 
+.metis-newsletter-table#metis-newsletter-bulk-contacts-panel .metis-premium-header,
+.metis-newsletter-table#metis-newsletter-bulk-contacts-panel .metis-premium-row {
+    grid-template-columns: 0.34fr 1.05fr 1.9fr;
+}
+
 .metis-newsletter-table .metis-premium-header:hover {
     transform: none;
 }
@@ -257,6 +262,58 @@
     gap: 8px;
 }
 
+.metis-newsletter-bulk-head,
+.metis-newsletter-bulk-toolbar,
+.metis-newsletter-bulk-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.metis-newsletter-bulk-head,
+.metis-newsletter-bulk-toolbar {
+    margin-bottom: 12px;
+}
+
+.metis-newsletter-bulk-head {
+    flex-wrap: wrap;
+}
+
+.metis-newsletter-bulk-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.metis-newsletter-bulk-toolbar .metis-field {
+    flex: 1 1 320px;
+}
+
+.metis-newsletter-bulk-summary {
+    color: var(--metis-text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.metis-newsletter-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+@media (max-width: 900px) {
+    .metis-newsletter-bulk-toolbar,
+    .metis-newsletter-bulk-pagination {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .metis-newsletter-bulk-summary {
+        white-space: normal;
+    }
+}
+
 .metis-newsletter-rate-chip {
     display: inline-flex;
     align-items: center;
@@ -278,8 +335,48 @@
 
 .metis-newsletter-modal-inner {
     width: min(980px, 95vw);
-    max-height: 90vh;
+    max-height: calc(100vh - 120px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#metis-newsletter-list-modal,
+#metis-newsletter-bulk-add-modal {
+    z-index: 13000;
+    align-items: flex-start;
+    padding-top: 72px;
+    padding-bottom: 24px;
+}
+
+#metis-newsletter-bulk-add-modal .metis-newsletter-modal-inner {
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100vh - 140px);
+}
+
+#metis-newsletter-bulk-add-modal .metis-newsletter-table {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
+}
+
+#metis-newsletter-bulk-contacts-panel .metis-premium-cell:nth-child(3) {
+    white-space: nowrap;
+}
+
+@media (max-height: 820px) {
+    #metis-newsletter-list-modal,
+    #metis-newsletter-bulk-add-modal {
+        padding-top: 56px;
+    }
+
+    .metis-newsletter-modal-inner {
+        max-height: calc(100vh - 96px);
+    }
+
+    #metis-newsletter-bulk-add-modal .metis-newsletter-modal-inner {
+        max-height: calc(100vh - 112px);
+    }
 }
 
 /* Modal, form, and toolbar patterns come from core.css */

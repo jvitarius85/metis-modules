@@ -10,6 +10,7 @@ metis_newsletter_ensure_schema();
 $can_manage = metis_newsletter_can_manage();
 
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
+$announcements_url = metis_portal_url('newsletter', 'announcements');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
 $templates_url = metis_portal_url('newsletter', 'theme');
 $lists_url = metis_portal_url('newsletter', 'lists');
@@ -35,6 +36,7 @@ $rows = is_array($snapshot['rows'] ?? null) ? $snapshot['rows'] : [];
             <div class="metis-list-sidebar-label">Newsletter</div>
             <nav class="metis-list-sidebar-nav">
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($dashboard_url); ?>">Dashboard</a>
+                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($announcements_url); ?>">Announcements</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($campaigns_url); ?>">Campaigns</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($templates_url); ?>">Theme</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($lists_url); ?>">Lists</a>

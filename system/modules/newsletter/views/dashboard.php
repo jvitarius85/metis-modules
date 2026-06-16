@@ -8,16 +8,19 @@ if (!metis_newsletter_can_view()) {
 
 metis_newsletter_ensure_schema();
 $dashboard_url = metis_portal_url('newsletter', 'dashboard');
+$announcements_url = metis_portal_url('newsletter', 'announcements');
 $campaigns_url = metis_portal_url('newsletter', 'campaigns');
 $templates_url = metis_portal_url('newsletter', 'theme');
 $lists_url = metis_portal_url('newsletter', 'lists');
 $subscribers_url = metis_portal_url('newsletter', 'subscribers');
+$announcement_blast_url = rtrim($announcements_url, '/') . '/?compose=1';
 $contact_url_base = metis_portal_url('contacts', 'contact');
 $portal_usage_url = metis_portal_url('settings', 'email');
 
 $snapshot = \Metis\Modules\Newsletter\ReadService::dashboardSnapshot();
 $kpi_lists = (int) ($snapshot['kpi_lists'] ?? 0);
 $kpi_campaigns = (int) ($snapshot['kpi_campaigns'] ?? 0);
+$kpi_blasts = (int) ($snapshot['kpi_blasts'] ?? 0);
 $kpi_subscribers = (int) ($snapshot['kpi_subscribers'] ?? 0);
 $kpi_queued = (int) ($snapshot['kpi_queued'] ?? 0);
 $kpi_sent_total = (int) ($snapshot['kpi_sent_total'] ?? 0);
@@ -30,12 +33,13 @@ $recent_campaigns = is_array($snapshot['recent_campaigns'] ?? null) ? $snapshot[
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_label( 'Newsletter' ) ); ?></h1>
     <p class="metis-subtitle">Campaign operations, audience growth, and delivery monitoring.</p>
 <?php metis_render_sidebar_layout([
-    'sidebar' => static function () use ($dashboard_url, $campaigns_url, $templates_url, $lists_url, $subscribers_url) { ?>
+    'sidebar' => static function () use ($dashboard_url, $announcements_url, $campaigns_url, $templates_url, $lists_url, $subscribers_url) { ?>
         <?php if ( metis_people_can_manage('settings','edit' ) ) : ?>
         <div class="metis-list-sidebar-actions">
             <div class="metis-list-sidebar-label">Newsletter</div>
             <nav class="metis-list-sidebar-nav">
                 <a class="metis-list-sidebar-nav-item is-active" href="<?php echo metis_escape_url($dashboard_url); ?>">Dashboard</a>
+                <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($announcements_url); ?>">Announcements</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($campaigns_url); ?>">Campaigns</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($templates_url); ?>">Theme</a>
                 <a class="metis-list-sidebar-nav-item" href="<?php echo metis_escape_url($lists_url); ?>">Lists</a>
@@ -44,7 +48,7 @@ $recent_campaigns = is_array($snapshot['recent_campaigns'] ?? null) ? $snapshot[
         </div>
         <?php endif; ?>
     <?php },
-    'content' => static function () use ($kpi_subscribers, $kpi_30d, $kpi_queued, $kpi_sent_total, $kpi_lists, $kpi_campaigns, $lists_url, $portal_usage_url, $recent_subscribers, $contact_url_base, $recent_campaigns, $campaigns_url, $subscribers_url) { ?>
+    'content' => static function () use ($kpi_subscribers, $kpi_30d, $kpi_queued, $kpi_sent_total, $kpi_lists, $kpi_campaigns, $kpi_blasts, $lists_url, $portal_usage_url, $recent_subscribers, $contact_url_base, $recent_campaigns, $campaigns_url, $subscribers_url, $announcement_blast_url) { ?>
     <div class="kpi-card-grid">
         <article class="kpi-card"><div class="kpi-label">Subscribers</div><div class="kpi-value"><?php echo metis_escape_html((string) $kpi_subscribers); ?></div><div class="kpi-trend">Confirmed subscribers</div></article>
         <article class="kpi-card"><div class="kpi-label">Last 30 days</div><div class="kpi-value"><?php echo metis_escape_html((string) $kpi_30d); ?></div><div class="kpi-trend">Delivered messages</div></article>
@@ -52,6 +56,7 @@ $recent_campaigns = is_array($snapshot['recent_campaigns'] ?? null) ? $snapshot[
         <article class="kpi-card"><div class="kpi-label">Total sent emails</div><div class="kpi-value"><?php echo metis_escape_html((string) $kpi_sent_total); ?></div><div class="kpi-trend">All-time newsletter sends</div></article>
         <article class="kpi-card"><div class="kpi-label">Active lists</div><div class="kpi-value"><?php echo metis_escape_html((string) $kpi_lists); ?></div><div class="kpi-trend"><a href="<?php echo metis_escape_url($lists_url); ?>">Manage lists</a></div></article>
         <article class="kpi-card"><div class="kpi-label">Campaigns</div><div class="kpi-value"><?php echo metis_escape_html((string) $kpi_campaigns); ?></div><div class="kpi-trend"><a href="<?php echo metis_escape_url($portal_usage_url); ?>">Email settings + usage</a></div></article>
+        <article class="kpi-card"><div class="kpi-label">Announcement blasts</div><div class="kpi-value"><?php echo metis_escape_html((string) $kpi_blasts); ?></div><div class="kpi-trend"><a href="<?php echo metis_escape_url($announcement_blast_url); ?>">Send announcement blast</a></div></article>
     </div>
 
     <div class="metis-newsletter-grid metis-newsletter-grid-halves">
@@ -88,7 +93,10 @@ $recent_campaigns = is_array($snapshot['recent_campaigns'] ?? null) ? $snapshot[
         <section class="metis-premium-wrap metis-newsletter-dashboard-card">
             <div class="metis-newsletter-card-head">
                 <h3 class="metis-people-section-title">Newsletters</h3>
-                <a class="metis-newsletter-folder-link" href="<?php echo metis_escape_url($campaigns_url); ?>" title="Open campaigns">📁</a>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <a class="metis-btn metis-btn-xs" href="<?php echo metis_escape_url($announcement_blast_url); ?>">Announcement Blast</a>
+                    <a class="metis-newsletter-folder-link" href="<?php echo metis_escape_url($campaigns_url); ?>" title="Open campaigns">📁</a>
+                </div>
             </div>
             <div class="metis-newsletter-dashboard-list">
                 <?php foreach ($recent_campaigns as $campaign) :

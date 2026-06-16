@@ -101,9 +101,38 @@ final class WebsiteService {
      * @return array<int,array<string,mixed>>
      */
     public static function publicArchiveCampaigns( array $list_ids, int $limit = 12 ): array {
+        return self::fetchArchiveCampaignRows( $list_ids, $limit, 0 );
+    }
+
+    /**
+     * @return array{rows: array<int,array<string,mixed>>, page: int, per_page: int, has_more: bool}
+     */
+    public static function publicArchiveCampaignPage( array $list_ids, int $per_page = 12, int $page = 1 ): array {
+        $per_page = max( 1, min( 50, $per_page ) );
+        $page = max( 1, $page );
+        $offset = ( $page - 1 ) * $per_page;
+        $rows = self::fetchArchiveCampaignRows( $list_ids, $per_page + 1, $offset );
+        $has_more = count( $rows ) > $per_page;
+        if ( $has_more ) {
+            $rows = array_slice( $rows, 0, $per_page );
+        }
+
+        return [
+            'rows' => $rows,
+            'page' => $page,
+            'per_page' => $per_page,
+            'has_more' => $has_more,
+        ];
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function fetchArchiveCampaignRows( array $list_ids, int $limit = 12, int $offset = 0 ): array {
         NewsletterModule::ensureSchema();
 
-        $limit = max( 1, min( 50, $limit ) );
+        $limit = max( 1, min( 51, $limit ) );
+        $offset = max( 0, $offset );
         $campaigns_table = \Metis_Tables::get( 'newsletter_campaigns' );
         $campaign_lists_table = \Metis_Tables::get( 'newsletter_campaign_lists' );
         $lists_table = \Metis_Tables::get( 'newsletter_lists' );
@@ -123,6 +152,7 @@ final class WebsiteService {
         }
 
         $params[] = $limit;
+        $params[] = $offset;
         $query = \metis_db()->prepare(
             "SELECT c.id, c.campaign_code, c.name, c.subject, c.preheader, c.sent_at, c.updated_at,
                     GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR '||') AS list_names
@@ -131,7 +161,7 @@ final class WebsiteService {
              {$where}
              {$group}
              ORDER BY COALESCE(c.sent_at, c.updated_at, c.created_at) DESC, c.id DESC
-             LIMIT %d",
+             LIMIT %d OFFSET %d",
             ...$params
         );
 

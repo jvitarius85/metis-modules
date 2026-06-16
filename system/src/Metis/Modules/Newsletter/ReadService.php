@@ -41,7 +41,7 @@ final class ReadService {
             "SELECT id, template_code, name, subject, from_name, from_email, reply_to, doc_json, html_body FROM {$templates_table} WHERE is_active = 1 ORDER BY updated_at DESC, id DESC"
         ) ?: [];
 
-        $campaign_where = "WHERE 1=1";
+        $campaign_where = "WHERE c.campaign_type = 'campaign'";
         if ($campaign_view === 'active') {
             $campaign_where .= " AND c.status <> 'archived'";
         } elseif ($campaign_view === 'archived') {
@@ -111,6 +111,64 @@ final class ReadService {
         ];
     }
 
+    public static function announcementsSnapshot(): array {
+        $db = \metis_db();
+        $lists_table = \Metis_Tables::get('newsletter_lists');
+        $campaigns_table = \Metis_Tables::get('newsletter_campaigns');
+        $campaign_lists_table = \Metis_Tables::get('newsletter_campaign_lists');
+
+        $lists = $db->fetchAll(
+            "SELECT id, name, description, is_active FROM {$lists_table} WHERE is_active = 1 ORDER BY name ASC"
+        ) ?: [];
+
+        $announcements = $db->fetchAll(
+            "SELECT id, campaign_code, campaign_type, name, subject, status, queued_at, sent_at, updated_at, total_recipients, sent_count, open_count, click_count
+             FROM {$campaigns_table}
+             WHERE campaign_type = %s
+             ORDER BY created_at DESC, id DESC
+             LIMIT 200",
+            [ CampaignService::TYPE_ANNOUNCEMENT_BLAST ]
+        ) ?: [];
+
+        $announcement_ids = array_values(array_filter(array_map(
+            static fn(array $row): int => (int) ($row['id'] ?? 0),
+            $announcements
+        )));
+
+        $announcement_lists_map = [];
+        if (!empty($announcement_ids)) {
+            $placeholders = implode(',', array_fill(0, count($announcement_ids), '%d'));
+            $campaign_lists = $db->fetchAll(
+                "SELECT cl.campaign_id, cl.list_id, l.name
+                 FROM {$campaign_lists_table} cl
+                 INNER JOIN {$lists_table} l ON l.id = cl.list_id
+                 WHERE cl.campaign_id IN ({$placeholders})
+                 ORDER BY cl.campaign_id ASC, l.name ASC",
+                $announcement_ids
+            ) ?: [];
+
+            foreach ($campaign_lists as $cl) {
+                $cid = (int) ($cl['campaign_id'] ?? 0);
+                if ($cid < 1) {
+                    continue;
+                }
+                if (!isset($announcement_lists_map[$cid])) {
+                    $announcement_lists_map[$cid] = [];
+                }
+                $announcement_lists_map[$cid][] = [
+                    'id' => (int) ($cl['list_id'] ?? 0),
+                    'name' => (string) ($cl['name'] ?? ''),
+                ];
+            }
+        }
+
+        return [
+            'lists' => $lists,
+            'announcements' => $announcements,
+            'announcement_lists_map' => $announcement_lists_map,
+        ];
+    }
+
     public static function dashboardSnapshot(): array {
         $db = \metis_db();
         $lists_table = \Metis_Tables::get('newsletter_lists');
@@ -121,7 +179,14 @@ final class ReadService {
 
         return [
             'kpi_lists' => (int) $db->scalar("SELECT COUNT(*) FROM {$lists_table} WHERE is_active = 1"),
-            'kpi_campaigns' => (int) $db->scalar("SELECT COUNT(*) FROM {$campaigns_table}"),
+            'kpi_campaigns' => (int) $db->scalar(
+                "SELECT COUNT(*) FROM {$campaigns_table} WHERE campaign_type = %s",
+                [ CampaignService::TYPE_CAMPAIGN ]
+            ),
+            'kpi_blasts' => (int) $db->scalar(
+                "SELECT COUNT(*) FROM {$campaigns_table} WHERE campaign_type = %s",
+                [ CampaignService::TYPE_ANNOUNCEMENT_BLAST ]
+            ),
             'kpi_subscribers' => (int) $db->scalar("SELECT COUNT(*) FROM {$subs_table} WHERE status = 'subscribed'"),
             'kpi_queued' => (int) $db->scalar("SELECT COUNT(*) FROM {$messages_table} WHERE status = 'queued'"),
             'kpi_sent_total' => (int) $db->scalar("SELECT COUNT(*) FROM {$messages_table} WHERE status = 'sent'"),
@@ -148,8 +213,10 @@ final class ReadService {
             'recent_campaigns' => $db->fetchAll(
                 "SELECT c.id, c.campaign_code, c.name, c.status, c.updated_at, c.sent_count, c.total_recipients, c.open_count, c.click_count
                  FROM {$campaigns_table} c
+                 WHERE c.campaign_type = %s
                  ORDER BY c.updated_at DESC, c.id DESC
-                 LIMIT 7"
+                 LIMIT 7",
+                [ CampaignService::TYPE_CAMPAIGN ]
             ) ?: [],
         ];
     }
@@ -224,6 +291,55 @@ final class ReadService {
 
         return [
             'lists' => $lists,
+            'selected_list' => $selected_list,
+            'list_subscribers' => $list_subscribers,
+        ];
+    }
+
+    public static function listDetailSnapshot( int $list_id ): array {
+        $db = \metis_db();
+        $lists_table = \Metis_Tables::get('newsletter_lists');
+        $subs_table = \Metis_Tables::get('newsletter_subs');
+        $contacts_table = \Metis_Tables::get('contacts');
+
+        if ( $list_id < 1 ) {
+            return [
+                'selected_list' => null,
+                'list_subscribers' => [],
+            ];
+        }
+
+        $selected_list = $db->fetchOne(
+            "SELECT l.id, l.list_key, l.name, l.description, l.is_active, l.updated_at,
+                    COALESCE(SUM(CASE WHEN s.status='subscribed' THEN 1 ELSE 0 END), 0) AS subscribed_count,
+                    COALESCE(SUM(CASE WHEN s.status IN ('bounced','rejected') THEN 1 ELSE 0 END), 0) AS blocked_count
+             FROM {$lists_table} l
+             LEFT JOIN {$subs_table} s ON s.list_id = l.id
+             WHERE l.id = %d
+             GROUP BY l.id
+             LIMIT 1",
+            [ $list_id ]
+        );
+
+        if ( ! is_array( $selected_list ) || $selected_list === [] ) {
+            return [
+                'selected_list' => null,
+                'list_subscribers' => [],
+            ];
+        }
+
+        $list_subscribers = $db->fetchAll(
+            "SELECT c.id AS contact_id, s.id, s.status, s.updated_at, c.cid, c.first_name, c.last_name, c.email
+             FROM {$subs_table} s
+             INNER JOIN {$contacts_table} c ON c.id = s.contact_id
+             WHERE s.list_id = %d
+               AND s.status = 'subscribed'
+             ORDER BY c.first_name ASC, c.last_name ASC, c.email ASC
+             LIMIT 500",
+            [ $list_id ]
+        ) ?: [];
+
+        return [
             'selected_list' => $selected_list,
             'list_subscribers' => $list_subscribers,
         ];

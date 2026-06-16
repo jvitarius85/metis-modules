@@ -45,6 +45,7 @@
         "type": "dropdown",
         "items": {
             "dashboard": "Dashboard",
+            "announcements": "Announcements",
             "campaigns": "Campaigns",
             "theme": "Theme",
             "lists": "Lists",
@@ -72,6 +73,7 @@
     },
     "views": {
         "dashboard": "dashboard.php",
+        "announcements": "announcements.php",
         "campaigns": "campaigns.php",
         "theme": "theme.php",
         "editor": "editor.php",
@@ -80,6 +82,7 @@
     },
     "help_topics": [
         "newsletter.dashboard",
+        "newsletter.announcements",
         "newsletter.campaigns",
         "newsletter.theme",
         "newsletter.lists",
@@ -166,6 +169,15 @@
             "icon": "mail-plus",
             "type": "route",
             "route": "/admin/newsletter/campaigns/new/",
+            "permission": "newsletter.create",
+            "group": "communications"
+        },
+        {
+            "key": "communications_send_announcement_blast",
+            "label": "Announcement Blast",
+            "icon": "megaphone",
+            "type": "route",
+            "route": "/admin/newsletter/announcements/?compose=1",
             "permission": "newsletter.create",
             "group": "communications"
         }

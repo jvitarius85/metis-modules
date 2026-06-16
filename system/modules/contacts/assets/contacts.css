@@ -57,6 +57,7 @@
 #metis-contact-detail-modal .metis-modal { max-width: 720px; max-height: 88vh; overflow-y: auto; overflow-x: hidden; }
 #metis-relationship-modal .metis-modal   { max-width: 1200px; width: calc(100vw - 48px); }
 #metis-duplicates-modal .metis-modal     { max-height: 78vh; overflow: hidden; display: flex; flex-direction: column; }
+#metis-contact-import-modal .metis-modal { max-width: 1100px; width: calc(100vw - 48px); max-height: 84vh; overflow: hidden; display: flex; flex-direction: column; }
 #metis-duplicates-modal .metis-form-actions          { margin-top: 12px; }
 
 /* ── Contact tabs (inside modal) ──────────────────────── */
@@ -143,6 +144,42 @@
 
 .metis-newsletter-list { display: flex; flex-direction: column; gap: 8px; }
 .metis-newsletter-list-item { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--metis-text); }
+
+/* ── Contact import wizard ─────────────────────────────── */
+
+.metis-contact-import-modal .metis-subtitle { margin-top: -4px; margin-bottom: 8px; }
+.metis-contact-import-step { min-height: 0; }
+.metis-contact-import-meta { margin: 8px 0 0; color: #5b647a; font-size: 14px; font-weight: 600; }
+.metis-contact-import-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: 16px;
+    min-height: 0;
+    overflow: hidden;
+}
+.metis-contact-import-map,
+.metis-contact-import-preview {
+    border: 1px solid var(--metis-border);
+    border-radius: 12px;
+    background: #fbfcff;
+    padding: 14px;
+    min-height: 0;
+}
+.metis-contact-import-preview { overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+.metis-contact-import-map-header { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #5b647a; margin-bottom: 10px; }
+.metis-contact-import-map-fields { display: flex; flex-direction: column; gap: 10px; }
+.metis-contact-import-map-row { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--metis-text); }
+.metis-contact-import-map-row .metis-select { width: 100%; }
+.metis-contact-import-toggle { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; font-size: 14px; color: var(--metis-text); }
+.metis-contact-import-summary { display: grid; gap: 4px; font-size: 14px; color: var(--metis-text); }
+.metis-contact-import-sample { margin-top: 14px; }
+.metis-contact-import-table-wrap { overflow: auto; max-height: 44vh; border: 1px solid #dde3f1; border-radius: 10px; background: #fff; }
+.metis-contact-import-table { width: 100%; border-collapse: collapse; }
+.metis-contact-import-table th,
+.metis-contact-import-table td { padding: 9px 10px; border-bottom: 1px solid #e6ebf6; text-align: left; font-size: 14px; vertical-align: top; }
+.metis-contact-import-table th { position: sticky; top: 0; background: #eef2ff; z-index: 1; }
+.metis-contact-import-errors { overflow: auto; }
+.metis-contact-import-error-list { margin: 0; padding-left: 18px; color: #991b1b; font-size: 14px; }
 
 /* ── Phone/email editor rows ────────────────────────────── */
 
@@ -259,6 +296,7 @@
 @media (max-width: 1100px) {
     .metis-duplicate-actions.metis-duplicate-dnd { grid-template-columns: 1fr; align-items: stretch; }
     .metis-dup-merge-btn { justify-self: end; }
+    .metis-contact-import-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 860px) {

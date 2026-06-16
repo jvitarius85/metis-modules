@@ -4,6 +4,32 @@ declare(strict_types=1);
 namespace Metis\Modules\Newsletter;
 
 final class CampaignService {
+    public const TYPE_CAMPAIGN = 'campaign';
+    public const TYPE_ANNOUNCEMENT_BLAST = 'announcement_blast';
+
+    public static function normalizeType( string $campaign_type ): string {
+        $campaign_type = trim( strtolower( $campaign_type ) );
+        return $campaign_type === self::TYPE_ANNOUNCEMENT_BLAST ? self::TYPE_ANNOUNCEMENT_BLAST : self::TYPE_CAMPAIGN;
+    }
+
+    public static function isAnnouncementBlast( array $campaign ): bool {
+        return self::normalizeType( (string) ( $campaign['campaign_type'] ?? '' ) ) === self::TYPE_ANNOUNCEMENT_BLAST;
+    }
+
+    public static function isWordPressArchiveImport( array $campaign ): bool {
+        $audience = trim( (string) ( $campaign['audience_json'] ?? '' ) );
+        if ( $audience === '' ) {
+            return false;
+        }
+
+        $decoded = json_decode( $audience, true );
+        if ( ! is_array( $decoded ) ) {
+            return false;
+        }
+
+        return trim( (string) ( $decoded['source'] ?? '' ) ) === 'wordpress_newsletter_archive_import';
+    }
+
     public static function codeById( int $campaign_id ): string {
         if ( $campaign_id < 1 ) {
             return '';
@@ -65,6 +91,7 @@ final class CampaignService {
 
             $payload_formats = [];
             $field_formats = [
+                'campaign_type' => '%s',
                 'template_id' => '%d',
                 'name' => '%s',
                 'subject' => '%s',
@@ -124,13 +151,49 @@ final class CampaignService {
         ];
     }
 
+    /**
+     * @param array<int,int> $list_ids
+     */
+    public static function replaceListIds( int $campaign_id, array $list_ids ): array {
+        if ( $campaign_id < 1 ) {
+            return [ 'success' => false, 'campaign_id' => 0 ];
+        }
+
+        $db = \metis_db();
+        $campaign_lists_table = \Metis_Tables::get( 'newsletter_campaign_lists' );
+        $list_ids = self::normalizeListIds( $list_ids );
+
+        $delete_ok = $db->delete( $campaign_lists_table, [ 'campaign_id' => $campaign_id ], [ '%d' ] );
+        if ( $delete_ok === false ) {
+            return [ 'success' => false, 'campaign_id' => 0 ];
+        }
+
+        foreach ( $list_ids as $list_id ) {
+            $ok = $db->insert(
+                $campaign_lists_table,
+                [ 'campaign_id' => $campaign_id, 'list_id' => $list_id ],
+                [ '%d', '%d' ]
+            );
+            if ( $ok === false ) {
+                return [ 'success' => false, 'campaign_id' => 0 ];
+            }
+        }
+
+        return [
+            'success' => true,
+            'campaign_id' => $campaign_id,
+            'campaign' => self::get( $campaign_id, '' ),
+            'list_ids' => self::listIds( $campaign_id ),
+        ];
+    }
+
     public static function get( int $campaign_id, string $campaign_code = '' ): ?array {
         $campaigns_table = \Metis_Tables::get( 'newsletter_campaigns' );
         $templates_table = \Metis_Tables::get( 'newsletter_templates' );
 
         if ( trim( $campaign_code ) !== '' ) {
             $row = \metis_db()->fetchOne(
-                "SELECT c.id, c.campaign_code, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
+                "SELECT c.id, c.campaign_code, c.campaign_type, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
                         c.doc_json, c.editor_body_html, c.html_body, c.text_body, c.status, c.scheduled_at, c.audience_json, c.attachments_json, c.updated_at,
                         t.template_code
                  FROM {$campaigns_table} c
@@ -141,7 +204,7 @@ final class CampaignService {
             );
         } else {
             $row = \metis_db()->fetchOne(
-                "SELECT c.id, c.campaign_code, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
+                "SELECT c.id, c.campaign_code, c.campaign_type, c.template_id, c.name, c.subject, c.from_name, c.from_email, c.reply_to, c.preheader,
                         c.doc_json, c.editor_body_html, c.html_body, c.text_body, c.status, c.scheduled_at, c.audience_json, c.attachments_json, c.updated_at,
                         t.template_code
                  FROM {$campaigns_table} c

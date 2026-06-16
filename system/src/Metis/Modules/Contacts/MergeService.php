@@ -105,6 +105,13 @@ final class MergeService {
                     $where_format[] = '%d';
                 }
             }
+            if ( \metis_contacts_column_exists( $details_table, 'cid' ) ) {
+                $value = trim( (string) ( $row->cid ?? '' ) );
+                if ( $value !== '' ) {
+                    $where['cid'] = $value;
+                    $where_format[] = '%s';
+                }
+            }
             if ( \metis_contacts_column_exists( $details_table, 'did' ) ) {
                 $value = trim( (string) ( $row->did ?? '' ) );
                 if ( $value !== '' ) {
@@ -114,6 +121,16 @@ final class MergeService {
             }
 
             return [ $where, $where_format ];
+        };
+
+        $detail_row_key = static function ( ?object $row ): string {
+            if ( ! $row ) {
+                return '';
+            }
+            if ( isset( $row->id ) && (int) $row->id > 0 ) {
+                return 'id:' . (int) $row->id;
+            }
+            return 'hash:' . md5( \metis_json_encode( $row ) );
         };
 
         $db->execute( 'START TRANSACTION' );
@@ -194,7 +211,7 @@ final class MergeService {
                     'first_name' => $primary_first,
                     'last_name' => $primary_last,
                     'email' => strtolower( trim( $primary_email ) ),
-                    'did' => $primary_did !== '' ? $primary_did : '',
+                    'did' => $primary_did !== '' ? $primary_did : null,
                 ],
                 [ 'id' => $primary_id ],
                 [ '%s', '%s', '%s', '%s' ],
@@ -205,11 +222,16 @@ final class MergeService {
             }
 
             if ( \metis_contacts_table_exists( $details_table ) ) {
-                $detail_payload = [
-                    'additional_emails_json' => \metis_json_encode( $merged_emails ),
-                    'relationships_json' => \metis_json_encode( $merged_relationships ),
-                ];
-                $detail_format = [ '%s', '%s' ];
+                $detail_payload = [];
+                $detail_format = [];
+                if ( \metis_contacts_column_exists( $details_table, 'additional_emails_json' ) ) {
+                    $detail_payload['additional_emails_json'] = \metis_json_encode( $merged_emails );
+                    $detail_format[] = '%s';
+                }
+                if ( \metis_contacts_column_exists( $details_table, 'relationships_json' ) ) {
+                    $detail_payload['relationships_json'] = \metis_json_encode( $merged_relationships );
+                    $detail_format[] = '%s';
+                }
                 $detail_seed = $primary_detail ?: $dup_detail;
                 if ( \metis_contacts_column_exists( $details_table, 'contact_cid' ) ) {
                     $detail_payload['contact_cid'] = $primary_cid;
@@ -219,8 +241,12 @@ final class MergeService {
                     $detail_payload['contact_id'] = $primary_id;
                     $detail_format[] = '%d';
                 }
+                if ( \metis_contacts_column_exists( $details_table, 'cid' ) ) {
+                    $detail_payload['cid'] = $primary_cid;
+                    $detail_format[] = '%s';
+                }
                 if ( \metis_contacts_column_exists( $details_table, 'did' ) ) {
-                    $detail_payload['did'] = $primary_did !== '' ? $primary_did : '';
+                    $detail_payload['did'] = $primary_did !== '' ? $primary_did : null;
                     $detail_format[] = '%s';
                 }
                 if ( \metis_contacts_column_exists( $details_table, 'phone' ) ) {
@@ -267,39 +293,44 @@ final class MergeService {
                     $detail_format[] = '%s';
                 }
 
-                if ( $primary_detail_rows !== [] ) {
-                    foreach ( $primary_detail_rows as $detail_row ) {
-                        [ $detail_where, $detail_where_format ] = $detail_where_from_row( $detail_row );
-                        if ( $detail_where === [] ) {
-                            $rollback( 'Failed to identify primary detail row during merge.', [
-                                'primary_cid' => $primary_cid,
-                                'duplicate_cid' => $duplicate_cid,
-                            ] );
+                $target_detail_row = $primary_detail_rows[0] ?? $dup_detail_rows[0] ?? null;
+                if ( $target_detail_row ) {
+                    $target_key = $detail_row_key( $target_detail_row );
+                    $extra_rows = [];
+                    foreach ( array_merge( $primary_detail_rows, $dup_detail_rows ) as $extra_row ) {
+                        $extra_key = $detail_row_key( $extra_row );
+                        if ( $extra_key === '' || $extra_key === $target_key ) {
+                            continue;
                         }
-                        $res = $db->update( $details_table, $detail_payload, $detail_where, $detail_format, $detail_where_format );
+                        $extra_rows[ $extra_key ] = $extra_row;
+                    }
+                    foreach ( $extra_rows as $extra_row ) {
+                        [ $extra_where, $extra_where_format ] = $detail_where_from_row( $extra_row );
+                        if ( $extra_where === [] ) {
+                            continue;
+                        }
+                        $res = $db->delete( $details_table, $extra_where, $extra_where_format );
                         if ( $res === false ) {
-                            $rollback( 'Failed to update primary detail during merge.', [
+                            $rollback( 'Failed to remove extra detail row during merge.', [
                                 'primary_cid' => $primary_cid,
                                 'duplicate_cid' => $duplicate_cid,
                             ] );
                         }
                     }
-                } elseif ( $dup_detail_rows !== [] ) {
-                    foreach ( $dup_detail_rows as $detail_row ) {
-                        [ $detail_where, $detail_where_format ] = $detail_where_from_row( $detail_row );
-                        if ( $detail_where === [] ) {
-                            $rollback( 'Failed to identify duplicate detail row during merge.', [
-                                'primary_cid' => $primary_cid,
-                                'duplicate_cid' => $duplicate_cid,
-                            ] );
-                        }
-                        $res = $db->update( $details_table, $detail_payload, $detail_where, $detail_format, $detail_where_format );
-                        if ( $res === false ) {
-                            $rollback( 'Failed to repoint duplicate detail during merge.', [
-                                'primary_cid' => $primary_cid,
-                                'duplicate_cid' => $duplicate_cid,
-                            ] );
-                        }
+
+                    [ $detail_where, $detail_where_format ] = $detail_where_from_row( $target_detail_row );
+                    if ( $detail_where === [] ) {
+                        $rollback( 'Failed to identify detail row during merge.', [
+                            'primary_cid' => $primary_cid,
+                            'duplicate_cid' => $duplicate_cid,
+                        ] );
+                    }
+                    $res = $db->update( $details_table, $detail_payload, $detail_where, $detail_format, $detail_where_format );
+                    if ( $res === false ) {
+                        $rollback( 'Failed to update primary detail during merge.', [
+                            'primary_cid' => $primary_cid,
+                            'duplicate_cid' => $duplicate_cid,
+                        ] );
                     }
                 } else {
                     $res = $db->insert( $details_table, $detail_payload, $detail_format );

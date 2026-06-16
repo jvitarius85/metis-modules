@@ -281,10 +281,341 @@ window.MetisContactsModules.initList = function (context) {
                             closeModal(modal);
                             clearForm();
                             showAlert('Contact added.', 'success');
-                        })
+                    })
                         .catch(function (err) {
                             showAlert(err.message || 'Save failed.', 'error');
                         });
+                });
+            }
+        }
+
+        if (canManage) {
+            const importModal = document.getElementById('metis-contact-import-modal');
+            const importOpenBtn = document.getElementById('metis-contact-import-btn');
+            const importCancelBtn = document.getElementById('metis-contact-import-cancel');
+            const importBackBtn = document.getElementById('metis-contact-import-back');
+            const importNextBtn = document.getElementById('metis-contact-import-next');
+            const importRunBtn = document.getElementById('metis-contact-import-run');
+            const importFileInput = document.getElementById('metis-contact-import-file');
+            const importFileMeta = document.getElementById('metis-contact-import-file-meta');
+            const importSample = document.getElementById('metis-contact-import-sample');
+            const importMappingFields = document.getElementById('metis-contact-import-mapping-fields');
+            const importCreateLists = document.getElementById('metis-contact-import-create-lists');
+            const importSummary = document.getElementById('metis-contact-import-summary');
+            const importPreviewTable = document.getElementById('metis-contact-import-preview-table');
+            const importErrors = document.getElementById('metis-contact-import-errors');
+            const importStatus = document.getElementById('metis-contact-import-status');
+            const importSteps = Array.from(document.querySelectorAll('#metis-contact-import-modal [data-import-step]'));
+            const importFieldDefs = [
+                { key: 'cid', label: 'Contact ID (optional)' },
+                { key: 'first_name', label: 'First Name' },
+                { key: 'last_name', label: 'Last Name' },
+                { key: 'full_name', label: 'Full Name' },
+                { key: 'email', label: 'Email' },
+                { key: 'phone', label: 'Phone' },
+                { key: 'newsletter_lists', label: 'Newsletter List(s)' }
+            ];
+            const importState = {
+                token: '',
+                headers: [],
+                mapping: {},
+                filename: '',
+                rowCount: 0,
+                sampleRows: [],
+                summary: null,
+                previewRows: [],
+                errors: [],
+                step: 'upload',
+                busy: false,
+                createMissingLists: true
+            };
+
+            function setImportBusy(isBusy) {
+                importState.busy = !!isBusy;
+                if (importOpenBtn) importOpenBtn.disabled = !!isBusy;
+                if (importCancelBtn) importCancelBtn.disabled = !!isBusy;
+                if (importBackBtn) importBackBtn.disabled = !!isBusy;
+                if (importNextBtn) importNextBtn.disabled = !!isBusy;
+                if (importRunBtn) importRunBtn.disabled = !!isBusy;
+                if (importFileInput) importFileInput.disabled = !!isBusy;
+                if (importCreateLists) importCreateLists.disabled = !!isBusy;
+                const mappingInputs = importMappingFields ? importMappingFields.querySelectorAll('select') : [];
+                mappingInputs.forEach(function (select) { select.disabled = !!isBusy; });
+            }
+
+            function setImportStatus(message, type) {
+                if (!importStatus) return;
+                const text = String(message || '').trim();
+                if (!text) {
+                    importStatus.style.display = 'none';
+                    importStatus.className = 'metis-alert';
+                    importStatus.textContent = '';
+                    return;
+                }
+                importStatus.style.display = '';
+                importStatus.className = 'metis-alert ' + (type === 'error' ? 'metis-alert-error' : type === 'success' ? 'metis-alert-success' : 'metis-alert-info');
+                importStatus.textContent = text;
+            }
+
+            function setImportStep(step) {
+                importState.step = step === 'mapping' ? 'mapping' : 'upload';
+                importSteps.forEach(function (panel) {
+                    const isActive = panel.getAttribute('data-import-step') === importState.step;
+                    panel.hidden = !isActive;
+                });
+                if (importBackBtn) importBackBtn.hidden = importState.step !== 'mapping';
+                if (importNextBtn) importNextBtn.hidden = importState.step !== 'upload';
+                if (importRunBtn) importRunBtn.hidden = importState.step !== 'mapping';
+            }
+
+            function resetImportState() {
+                importState.token = '';
+                importState.headers = [];
+                importState.mapping = {};
+                importState.filename = '';
+                importState.rowCount = 0;
+                importState.sampleRows = [];
+                importState.summary = null;
+                importState.previewRows = [];
+                importState.errors = [];
+                importState.createMissingLists = true;
+                if (importFileInput) importFileInput.value = '';
+                if (importCreateLists) importCreateLists.checked = true;
+                if (importFileMeta) importFileMeta.textContent = '';
+                if (importSample) {
+                    importSample.hidden = true;
+                    importSample.innerHTML = '';
+                }
+                if (importMappingFields) importMappingFields.innerHTML = '';
+                if (importSummary) importSummary.innerHTML = '';
+                if (importPreviewTable) importPreviewTable.innerHTML = '';
+                if (importErrors) importErrors.innerHTML = '';
+                setImportStatus('', '');
+                setImportStep('upload');
+                setImportBusy(false);
+            }
+
+            function renderImportSample() {
+                if (!importSample) return;
+                if (!importState.sampleRows.length || !importState.headers.length) {
+                    importSample.hidden = true;
+                    importSample.innerHTML = '';
+                    return;
+                }
+                const head = importState.headers.map(function (header) {
+                    return '<th>' + escapeHtml(header) + '</th>';
+                }).join('');
+                const rows = importState.sampleRows.map(function (row) {
+                    const cells = importState.headers.map(function (header) {
+                        return '<td>' + escapeHtml(String(row[header] || '')) + '</td>';
+                    }).join('');
+                    return '<tr>' + cells + '</tr>';
+                }).join('');
+                importSample.hidden = false;
+                importSample.innerHTML = '<div class="metis-contact-import-map-header">Sample Rows</div><div class="metis-contact-import-table-wrap"><table class="metis-contact-import-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+            }
+
+            function renderImportMappingFields() {
+                if (!importMappingFields) return;
+                const options = ['<option value="">Not mapped</option>'].concat(importState.headers.map(function (header) {
+                    return '<option value="' + escapeHtml(header) + '">' + escapeHtml(header) + '</option>';
+                })).join('');
+                importMappingFields.innerHTML = importFieldDefs.map(function (field) {
+                    const value = String(importState.mapping[field.key] || '');
+                    return '<label class="metis-contact-import-map-row">' +
+                        '<span>' + escapeHtml(field.label) + '</span>' +
+                        '<select class="metis-select" data-import-map="' + escapeHtml(field.key) + '">' + options + '</select>' +
+                        '</label>';
+                }).join('');
+                importFieldDefs.forEach(function (field) {
+                    const select = importMappingFields.querySelector('[data-import-map="' + field.key + '"]');
+                    if (select) select.value = String(importState.mapping[field.key] || '');
+                });
+            }
+
+            function renderImportAnalysis() {
+                if (importSummary) {
+                    const summary = importState.summary || {};
+                    const missingLists = Array.isArray(summary.missing_lists) ? summary.missing_lists : [];
+                    importSummary.innerHTML =
+                        '<div><strong>' + escapeHtml(String(summary.filename || importState.filename || '')) + '</strong></div>' +
+                        '<div>' + escapeHtml(String(summary.total_rows || 0)) + ' rows uploaded</div>' +
+                        '<div>' + escapeHtml(String(summary.valid_rows || 0)) + ' valid, ' + escapeHtml(String(summary.skipped_rows || 0)) + ' skipped</div>' +
+                        '<div>' + escapeHtml(String(summary.create_count || 0)) + ' new, ' + escapeHtml(String(summary.update_count || 0)) + ' updates</div>' +
+                        (missingLists.length ? '<div>Missing lists: ' + escapeHtml(missingLists.join(', ')) + '</div>' : '');
+                }
+
+                if (importPreviewTable) {
+                    if (!importState.previewRows.length) {
+                        importPreviewTable.innerHTML = '<div class="metis-muted">No preview rows available yet.</div>';
+                    } else {
+                        const rows = importState.previewRows.map(function (row) {
+                            return '<tr>' +
+                                '<td>' + escapeHtml(String(row.row_number || '')) + '</td>' +
+                                '<td>' + escapeHtml(String(row.action || '')) + '</td>' +
+                                '<td>' + escapeHtml(String(row.name || '')) + '</td>' +
+                                '<td>' + escapeHtml(String(row.email || '')) + '</td>' +
+                                '<td>' + escapeHtml(Array.isArray(row.lists) ? row.lists.join(', ') : '') + '</td>' +
+                                '</tr>';
+                        }).join('');
+                        importPreviewTable.innerHTML = '<div class="metis-contact-import-table-wrap"><table class="metis-contact-import-table"><thead><tr><th>Row</th><th>Action</th><th>Name</th><th>Email</th><th>Lists</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+                    }
+                }
+
+                if (importErrors) {
+                    if (!importState.errors.length) {
+                        importErrors.innerHTML = '';
+                    } else {
+                        importErrors.innerHTML = '<div class="metis-contact-import-map-header">Issues</div><ul class="metis-contact-import-error-list">' + importState.errors.map(function (error) {
+                            return '<li>' + escapeHtml(String(error || '')) + '</li>';
+                        }).join('') + '</ul>';
+                    }
+                }
+            }
+
+            function currentImportMapping() {
+                const mapping = {};
+                importFieldDefs.forEach(function (field) {
+                    const select = importMappingFields ? importMappingFields.querySelector('[data-import-map="' + field.key + '"]') : null;
+                    mapping[field.key] = select ? String(select.value || '') : '';
+                });
+                importState.mapping = mapping;
+                return mapping;
+            }
+
+            function analyzeImportStage() {
+                if (!importState.token) {
+                    return Promise.reject(new Error('Upload a CSV file first.'));
+                }
+                const mapping = currentImportMapping();
+                importState.createMissingLists = !!(importCreateLists && importCreateLists.checked);
+                setImportBusy(true);
+                setImportStatus('Analyzing import…', 'info');
+                return request('metis_contacts_import_csv_analyze', {
+                    token: importState.token,
+                    mapping: JSON.stringify(mapping),
+                    create_missing_lists: importState.createMissingLists ? '1' : '0'
+                }).then(function (data) {
+                    importState.summary = data.summary || null;
+                    importState.previewRows = Array.isArray(data.preview_rows) ? data.preview_rows : [];
+                    importState.errors = Array.isArray(data.errors) ? data.errors : [];
+                    importState.mapping = data.mapping || mapping;
+                    renderImportMappingFields();
+                    renderImportAnalysis();
+                    setImportStatus(importState.errors.length ? 'Review the import issues before proceeding.' : 'Import analysis is ready.', importState.errors.length ? 'error' : 'success');
+                    return data;
+                }).finally(function () {
+                    setImportBusy(false);
+                });
+            }
+
+            if (importOpenBtn && importModal) {
+                importOpenBtn.addEventListener('click', function () {
+                    resetImportState();
+                    openModal(importModal);
+                });
+            }
+            if (importCancelBtn && importModal) {
+                importCancelBtn.addEventListener('click', function () {
+                    closeModal(importModal);
+                    resetImportState();
+                });
+            }
+            if (importModal) {
+                importModal.addEventListener('click', function (event) {
+                    if (event.target === importModal && !importState.busy) {
+                        closeModal(importModal);
+                        resetImportState();
+                    }
+                });
+            }
+            if (importBackBtn) {
+                importBackBtn.addEventListener('click', function () {
+                    setImportStatus('', '');
+                    setImportStep('upload');
+                });
+            }
+            if (importNextBtn) {
+                importNextBtn.addEventListener('click', function () {
+                    const file = importFileInput && importFileInput.files ? importFileInput.files[0] : null;
+                    if (!file) {
+                        setImportStatus('Choose a CSV file first.', 'error');
+                        return;
+                    }
+                    setImportBusy(true);
+                    setImportStatus('Uploading CSV…', 'info');
+                    request('metis_contacts_import_csv_stage', {
+                        import_file: file
+                    }).then(function (data) {
+                        importState.token = String(data.token || '');
+                        importState.filename = String(data.filename || file.name || '');
+                        importState.headers = Array.isArray(data.headers) ? data.headers : [];
+                        importState.rowCount = parseInt(String(data.row_count || '0'), 10) || 0;
+                        importState.mapping = data.mapping || {};
+                        importState.sampleRows = Array.isArray(data.sample_rows) ? data.sample_rows : [];
+                        if (importFileMeta) {
+                            importFileMeta.textContent = importState.filename + ' • ' + importState.rowCount + ' rows';
+                        }
+                        renderImportSample();
+                        renderImportMappingFields();
+                        setImportStep('mapping');
+                        return analyzeImportStage();
+                    }).catch(function (err) {
+                        setImportStatus(err.message || 'Failed to stage CSV.', 'error');
+                    }).finally(function () {
+                        setImportBusy(false);
+                    });
+                });
+            }
+            if (importMappingFields) {
+                importMappingFields.addEventListener('change', function (event) {
+                    const target = event.target;
+                    if (!target || !target.matches('[data-import-map]')) return;
+                    analyzeImportStage().catch(function (err) {
+                        setImportStatus(err.message || 'Failed to analyze import.', 'error');
+                    });
+                });
+            }
+            if (importCreateLists) {
+                importCreateLists.addEventListener('change', function () {
+                    analyzeImportStage().catch(function (err) {
+                        setImportStatus(err.message || 'Failed to analyze import.', 'error');
+                    });
+                });
+            }
+            if (importRunBtn) {
+                importRunBtn.addEventListener('click', function () {
+                    if (!importState.token) {
+                        setImportStatus('Upload a CSV file first.', 'error');
+                        return;
+                    }
+                    const mapping = currentImportMapping();
+                    importState.createMissingLists = !!(importCreateLists && importCreateLists.checked);
+                    setImportBusy(true);
+                    setImportStatus('Importing contacts…', 'info');
+                    request('metis_contacts_import_csv_run', {
+                        token: importState.token,
+                        mapping: JSON.stringify(mapping),
+                        create_missing_lists: importState.createMissingLists ? '1' : '0'
+                    }).then(function (data) {
+                        const imported = parseInt(String(data.imported_count || '0'), 10) || 0;
+                        const created = parseInt(String(data.created_count || '0'), 10) || 0;
+                        const updated = parseInt(String(data.updated_count || '0'), 10) || 0;
+                        const skipped = parseInt(String(data.skipped_count || '0'), 10) || 0;
+                        const errors = Array.isArray(data.errors) ? data.errors : [];
+                        if (errors.length) {
+                            importState.errors = errors;
+                            renderImportAnalysis();
+                        }
+                        showAlert('Imported ' + imported + ' contacts (' + created + ' new, ' + updated + ' updated, ' + skipped + ' skipped).', errors.length ? 'warning' : 'success');
+                        closeModal(importModal);
+                        resetImportState();
+                        window.location.reload();
+                    }).catch(function (err) {
+                        setImportStatus(err.message || 'Import failed.', 'error');
+                    }).finally(function () {
+                        setImportBusy(false);
+                    });
                 });
             }
         }

@@ -22,7 +22,8 @@ final class ImportService {
 
         $runtime_dir = self::runtimeDir();
         $tmp_name = (string) ( $file['tmp_name'] ?? '' );
-        $tmp_path = $runtime_dir . '/upload-' . gmdate( 'YmdHis' ) . '-' . bin2hex( random_bytes( 6 ) ) . '.xml';
+        $extension = strtolower( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_EXTENSION ) );
+        $tmp_path = $runtime_dir . '/upload-' . gmdate( 'YmdHis' ) . '-' . bin2hex( random_bytes( 6 ) ) . '.' . ( $extension !== '' ? $extension : 'tmp' );
 
         $moved = is_uploaded_file( $tmp_name )
             ? @move_uploaded_file( $tmp_name, $tmp_path )
@@ -32,40 +33,51 @@ final class ImportService {
             return [ 'ok' => false, 'status' => 500, 'error' => 'Unable to store uploaded file for parsing.' ];
         }
 
-        $parsed = \Metis\Modules\Import\Parsers\WxrXmlParser::parse( $tmp_path );
+        $parsed = self::parseUploadFile( $tmp_path, (string) ( $file['name'] ?? '' ) );
         @unlink( $tmp_path );
 
         if ( empty( $parsed['success'] ) ) {
             return [
                 'ok' => false,
                 'status' => 422,
-                'error' => 'Unable to parse XML export.',
+                'error' => (string) ( $parsed['error'] ?? 'Unable to parse import export.' ),
             ];
         }
 
-        $parsed['menu_groups'] = \Metis\Modules\Import\Parsers\WxrXmlParser::extractMenus( $parsed );
-        $parsed['menus_count'] = count( (array) $parsed['menu_groups'] );
+        $import_type = (string) ( $parsed['import_type'] ?? 'wxr' );
+        if ( $import_type === 'wxr' ) {
+            $parsed['menu_groups'] = \Metis\Modules\Import\Parsers\WxrXmlParser::extractMenus( $parsed );
+            $parsed['menus_count'] = count( (array) $parsed['menu_groups'] );
+        } else {
+            $parsed['menu_groups'] = [];
+            $parsed['menus_count'] = 0;
+        }
 
         $stats = is_array( $parsed['stats'] ?? null ) ? $parsed['stats'] : [];
         $pages_count = (int) ( $stats['pages'] ?? 0 );
         $posts_count = (int) ( $stats['posts'] ?? 0 );
         $media_count = (int) ( $stats['media'] ?? 0 );
         $menus_count = (int) ( $parsed['menus_count'] ?? 0 );
+        $newsletters_count = (int) ( $stats['newsletters'] ?? 0 );
         $total_items = (int) ( $stats['total_items'] ?? 0 );
 
         if ( $total_items < 1 ) {
             return [
                 'ok' => false,
                 'status' => 422,
-                'error' => 'No WXR content items were found in this XML export. Re-export using WXR (All content).',
+                'error' => $import_type === 'wordpress_newsletter_archive'
+                    ? 'No archived newsletters were found in this export.'
+                    : 'No WXR content items were found in this XML export. Re-export using WXR (All content).',
             ];
         }
 
-        if ( $pages_count < 1 && $posts_count < 1 && $media_count < 1 && $menus_count < 1 ) {
+        if ( $pages_count < 1 && $posts_count < 1 && $media_count < 1 && $menus_count < 1 && $newsletters_count < 1 ) {
             return [
                 'ok' => false,
                 'status' => 422,
-                'error' => 'Export parsed, but no supported content types were found (pages, posts, media, menus).',
+                'error' => $import_type === 'wordpress_newsletter_archive'
+                    ? 'Export parsed, but no archived newsletters were found.'
+                    : 'Export parsed, but no supported content types were found (pages, posts, media, menus).',
             ];
         }
 
@@ -93,9 +105,32 @@ final class ImportService {
         $import_pages = ! empty( $options['import_pages'] );
         $import_posts = ! empty( $options['import_posts'] );
         $import_menus = ! empty( $options['import_menus'] );
+        $import_newsletters = ! empty( $options['import_newsletters'] );
 
         $selected_page_ids = self::parseIdSelection( $options['selected_page_ids'] ?? [] );
         $selected_post_ids = self::parseIdSelection( $options['selected_post_ids'] ?? [] );
+        $selected_newsletter_ids = self::parseIdSelection( $options['selected_newsletter_ids'] ?? [] );
+
+        if ( (string) ( $parsed['import_type'] ?? '' ) === 'wordpress_newsletter_archive' ) {
+            if ( ! $import_newsletters ) {
+                return [
+                    'ok' => true,
+                    'results' => [
+                        'newsletters' => 0,
+                        'lists' => 0,
+                        'skipped' => 0,
+                        'errors' => [],
+                    ],
+                ];
+            }
+
+            return metis_newsletter_import_wordpress_archive(
+                $parsed,
+                [
+                    'selected_newsletter_ids' => $selected_newsletter_ids,
+                ]
+            );
+        }
 
         $results = [
             'pages' => 0,
@@ -288,11 +323,13 @@ final class ImportService {
             return;
         }
 
-        $root = defined( 'METIS_PATH' ) ? rtrim( (string) METIS_PATH, '/\\' ) . '/' : dirname( __DIR__, 3 ) . '/';
+        $system_root = dirname( __DIR__, 3 ) . '/';
 
-        require_once $root . 'modules/import/parsers/WxrXmlParser.php';
-        require_once $root . 'modules/import/converters/BeaverBuilderConverter.php';
-        require_once $root . 'modules/import/converters/HtmlToBlockConverter.php';
+        require_once $system_root . 'modules/import/parsers/WxrXmlParser.php';
+        require_once $system_root . 'modules/import/parsers/WordPressNewsletterArchiveParser.php';
+        require_once $system_root . 'modules/import/converters/BeaverBuilderConverter.php';
+        require_once $system_root . 'modules/import/converters/HtmlToBlockConverter.php';
+        require_once $system_root . 'modules/newsletter/services/import.php';
 
         $loaded = true;
     }
@@ -320,8 +357,8 @@ final class ImportService {
         }
 
         $ext = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
-        if ( ! in_array( $ext, [ 'xml', 'wxr' ], true ) ) {
-            return [ 'ok' => false, 'error' => 'Only .xml and .wxr exports are supported.' ];
+        if ( ! in_array( $ext, [ 'xml', 'wxr', 'json' ], true ) ) {
+            return [ 'ok' => false, 'error' => 'Only .xml, .wxr, and .json exports are supported.' ];
         }
 
         return [ 'ok' => true ];
@@ -398,6 +435,34 @@ final class ImportService {
     }
 
     private static function buildPreview( array $parsed ): array {
+        if ( (string) ( $parsed['import_type'] ?? '' ) === 'wordpress_newsletter_archive' ) {
+            $newsletters = [];
+            foreach ( (array) ( $parsed['newsletters'] ?? [] ) as $item ) {
+                if ( ! is_array( $item ) ) {
+                    continue;
+                }
+
+                $newsletters[] = [
+                    'source_id' => (int) ( $item['source_id'] ?? 0 ),
+                    'title' => (string) ( $item['title'] ?? '' ),
+                    'subject' => (string) ( $item['subject'] ?? '' ),
+                    'sent_at' => (string) ( $item['sent_at'] ?? '' ),
+                    'list_names' => array_values( array_map( 'strval', (array) ( $item['list_names'] ?? [] ) ) ),
+                ];
+            }
+
+            return [
+                'import_type' => 'wordpress_newsletter_archive',
+                'site_info' => (array) ( $parsed['site_info'] ?? [] ),
+                'stats' => (array) ( $parsed['stats'] ?? [ 'newsletters' => count( $newsletters ) ] ),
+                'default_list' => (array) ( $parsed['default_list'] ?? [] ),
+                'newsletters' => array_slice( $newsletters, 0, 200 ),
+                'menus_count' => 0,
+                'pages' => [],
+                'posts' => [],
+            ];
+        }
+
         $pages = [];
         foreach ( (array) ( $parsed['pages'] ?? [] ) as $item ) {
             if ( ! is_array( $item ) ) {
@@ -427,11 +492,28 @@ final class ImportService {
         }
 
         return [
+            'import_type' => 'wxr',
             'site_info' => (array) ( $parsed['site_info'] ?? [] ),
             'stats' => (array) ( $parsed['stats'] ?? [ 'pages' => count( $pages ), 'posts' => count( $posts ), 'media' => 0 ] ),
             'menus_count' => (int) ( $parsed['menus_count'] ?? 0 ),
             'pages' => array_slice( $pages, 0, 200 ),
             'posts' => array_slice( $posts, 0, 200 ),
+        ];
+    }
+
+    private static function parseUploadFile( string $tmp_path, string $original_name ): array {
+        $ext = strtolower( pathinfo( $original_name, PATHINFO_EXTENSION ) );
+        if ( in_array( $ext, [ 'xml', 'wxr' ], true ) ) {
+            return \Metis\Modules\Import\Parsers\WxrXmlParser::parse( $tmp_path ) + [ 'import_type' => 'wxr' ];
+        }
+
+        if ( $ext === 'json' ) {
+            return \Metis\Modules\Import\Parsers\WordPressNewsletterArchiveParser::parse( $tmp_path );
+        }
+
+        return [
+            'success' => false,
+            'error' => 'Unsupported import file type.',
         ];
     }
 

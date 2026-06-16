@@ -20,6 +20,17 @@
     })();
 
     const ui            = pageData.ui       || {};
+    const initialSelectedListId = parseInt(String(ui.selected_list_id || '0'), 10) || 0;
+    let currentListId = initialSelectedListId;
+    const bulkPickerState = {
+        search: '',
+        page: 1,
+        perPage: 25,
+        total: 0,
+        pages: 1,
+        selected: new Set(),
+        rowMap: new Map()
+    };
     if (Array.isArray(ui.allowed_blocks)) {
         window.metisNewsletterAllowedBlocks = ui.allowed_blocks;
     }
@@ -92,6 +103,202 @@
         return true;
     }
 
+    function listPageUrl(listId) {
+        const base = String(ui.lists_url || window.location.pathname).trim();
+        if (!base) return '';
+        if (!listId) return base;
+        return base + (base.includes('?') ? '&' : '?') + 'list_id=' + encodeURIComponent(String(listId));
+    }
+
+    function listPageReload(listId) {
+        const url = listPageUrl(listId);
+        if (url) navigate(url);
+    }
+
+    function selectedListRow() {
+        if (!currentListId) return $();
+        return $root.find('#metis-newsletter-lists-panel .metis-newsletter-row[data-list-id="' + String(currentListId) + '"]').first();
+    }
+
+    function selectedListSubscriberRows() {
+        return $('#metis-newsletter-selected-list-subs-rows');
+    }
+
+    function formatSubscriberUpdated(value) {
+        return String(value || '').trim() || 'Just now';
+    }
+
+    function buildSubscriberRow(contact) {
+        const cid = String(contact && contact.cid || '').trim();
+        const hrefBase = String(ui.contact_url_base || '').trim();
+        const href = cid && hrefBase ? hrefBase + '?cid=' + encodeURIComponent(cid) : '';
+        return '<tr class="metis-premium-row metis-newsletter-row" data-contact-id="' + escAttr(String(contact && contact.id || '0')) + '">'
+            + '<td class="metis-premium-cell">' + escHtml(String(contact && contact.name || '—')) + '</td>'
+            + '<td class="metis-premium-cell">' + escHtml(String(contact && contact.email || '')) + '</td>'
+            + '<td class="metis-premium-cell">' + (href ? '<a href="' + escAttr(href) + '">' + escHtml(cid) + '</a>' : '—') + '</td>'
+            + '<td class="metis-premium-cell">' + escHtml(formatSubscriberUpdated(contact && contact.updated_at)) + '</td>'
+            + '</tr>';
+    }
+
+    function prependSubscribers(contacts) {
+        const $tbody = selectedListSubscriberRows();
+        if (!$tbody.length || !Array.isArray(contacts) || !contacts.length) return;
+        $tbody.find('.metis-muted').closest('.metis-premium-row').remove();
+        const seen = new Set();
+        contacts.forEach(function (contact) {
+            const contactId = parseInt(String(contact && contact.id || '0'), 10) || 0;
+            if (!contactId || seen.has(contactId)) return;
+            seen.add(contactId);
+            $tbody.find('tr[data-contact-id="' + contactId + '"]').remove();
+            $tbody.prepend(buildSubscriberRow(contact));
+        });
+    }
+
+    function incrementSelectedListCount(delta) {
+        const amount = parseInt(String(delta || '0'), 10) || 0;
+        if (!amount) return;
+        const $row = selectedListRow();
+        if (!$row.length) return;
+        const $countCell = $row.children('.metis-premium-cell').eq(1);
+        const current = parseInt(String($countCell.text() || '0'), 10) || 0;
+        $countCell.text(String(Math.max(0, current + amount)));
+    }
+
+    function updateSelectedListMetadata() {
+        const name = String($('#metis-newsletter-list-name').val() || '').trim();
+        const description = String($('#metis-newsletter-list-description').val() || '').trim();
+        const isActive = String($('#metis-newsletter-list-active').val() || '1') === '1';
+        const $row = selectedListRow();
+        if ($row.length) {
+            $row.attr('data-search', (name + ' ' + description).toLowerCase());
+            $row.find('.metis-premium-cell').eq(0).html(
+                '<div><strong>' + escHtml(name || 'Untitled List') + '</strong></div>'
+                + '<div class="metis-muted">' + escHtml(description) + '</div>'
+            );
+            $row.find('.metis-premium-cell').eq(3).html(
+                '<span class="metis-chip ' + (isActive ? 'metis-chip-success' : '') + '">' + (isActive ? 'active' : 'inactive') + '</span>'
+            );
+        }
+        $('#metis-newsletter-selected-list-title').text(name || 'Untitled List');
+    }
+
+    function appendListRow(listId, name, description) {
+        const $tbody = $('#metis-newsletter-list-rows');
+        if (!$tbody.length || !listId) return;
+        $tbody.find('.metis-muted').closest('.metis-premium-row').remove();
+        const searchBlob = (name + ' ' + description).toLowerCase();
+        const href = listPageUrl(listId);
+        const html = '<tr class="metis-premium-row metis-newsletter-row" data-list-id="' + escAttr(String(listId)) + '" data-search="' + escAttr(searchBlob) + '" data-row-href="' + escAttr(href) + '">'
+            + '<td class="metis-premium-cell"><div><strong>' + escHtml(name || 'Untitled List') + '</strong></div><div class="metis-muted">' + escHtml(description || '') + '</div></td>'
+            + '<td class="metis-premium-cell">0</td>'
+            + '<td class="metis-premium-cell">0</td>'
+            + '<td class="metis-premium-cell"><span class="metis-chip metis-chip-success">active</span></td>'
+            + '<td class="metis-premium-cell">Just now</td>'
+            + '</tr>';
+        $tbody.prepend(html);
+    }
+
+    function removeListRow(listId) {
+        const parsedListId = parseInt(String(listId || '0'), 10) || 0;
+        if (!parsedListId) return;
+        const $tbody = $('#metis-newsletter-list-rows');
+        const $row = $tbody.find('.metis-newsletter-row[data-list-id="' + String(parsedListId) + '"]');
+        if ($row.length) {
+            $row.remove();
+        }
+        if (!$tbody.find('.metis-newsletter-row').length) {
+            $tbody.html('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="5">No lists yet.</td></tr>');
+        }
+    }
+
+    function closeBulkModal() {
+        const $modal = $('#metis-newsletter-bulk-add-modal');
+        $modal.removeClass('is-open metis-open').attr('aria-hidden', 'true').attr('hidden', true);
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.close === 'function') {
+            Metis.ui.modal.close('metis-newsletter-bulk-add-modal');
+        }
+    }
+
+    function openBulkModal() {
+        const $modal = $('#metis-newsletter-bulk-add-modal');
+        $modal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-open metis-open');
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.form === 'function') {
+            Metis.ui.modal.form('metis-newsletter-bulk-add-modal');
+        }
+        window.setTimeout(function () {
+            const input = document.getElementById('metis-newsletter-bulk-contact-search');
+            if (input) input.focus();
+        }, 0);
+    }
+
+    function closeListModal() {
+        const $modal = $('#metis-newsletter-list-modal');
+        $modal.removeClass('is-open metis-open').attr('aria-hidden', 'true').attr('hidden', true);
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.close === 'function') {
+            Metis.ui.modal.close('metis-newsletter-list-modal');
+        }
+    }
+
+    function openListModal() {
+        const $modal = $('#metis-newsletter-list-modal');
+        $modal.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-open metis-open');
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.form === 'function') {
+            Metis.ui.modal.form('metis-newsletter-list-modal');
+        }
+    }
+
+    function renderListSubscribers(rows) {
+        const $tbody = selectedListSubscriberRows();
+        if (!$tbody.length) return;
+        if (!Array.isArray(rows) || !rows.length) {
+            $tbody.html('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="4">No active subscribers in this list.</td></tr>');
+            return;
+        }
+        const html = rows.map(function (row) {
+            const contact = {
+                id: parseInt(String(row && (row.contact_id || row.id) || '0'), 10) || 0,
+                cid: String(row && row.cid || ''),
+                name: [String(row && row.first_name || '').trim(), String(row && row.last_name || '').trim()].filter(Boolean).join(' ') || String(row && row.email || '—'),
+                email: String(row && row.email || ''),
+                updated_at: String(row && row.updated_at || '')
+            };
+            return buildSubscriberRow(contact);
+        }).join('');
+        $tbody.html(html);
+    }
+
+    function updateListStats(list) {
+        const subscribed = parseInt(String(list && list.subscribed_count || '0'), 10) || 0;
+        const blocked = parseInt(String(list && list.blocked_count || '0'), 10) || 0;
+        $('#metis-newsletter-list-stats').text(subscribed + ' subscribers | ' + blocked + ' blocked');
+    }
+
+    function loadListModal(listId) {
+        const parsedListId = parseInt(String(listId || '0'), 10) || 0;
+        if (!parsedListId) return;
+        currentListId = parsedListId;
+        $('#metis-newsletter-save-selected-list').attr('data-list-id', String(parsedListId));
+        $('#metis-newsletter-delete-selected-list').attr('data-list-id', String(parsedListId));
+        $('#metis-newsletter-bulk-add-selected').attr('data-list-id', String(parsedListId));
+        $('#metis-newsletter-selected-list-subs-rows').html('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="4">Loading subscribers…</td></tr>');
+        $('#metis-newsletter-list-stats').text('Loading…');
+        openListModal();
+        metisAjax('metis_newsletter_get_list', {
+            list_id: parsedListId
+        }, function (data) {
+            const list = data.list || {};
+            $('#metis-newsletter-list-name').val(String(list.name || ''));
+            $('#metis-newsletter-list-description').val(String(list.description || ''));
+            $('#metis-newsletter-list-active').val(String(parseInt(String(list.is_active || '1'), 10) || 0 ? '1' : '0'));
+            $('#metis-newsletter-selected-list-title').text(String(list.name || 'Newsletter List'));
+            updateListStats(list);
+            renderListSubscribers(Array.isArray(data.subscribers) ? data.subscribers : []);
+        }, function (msg) {
+            toast(msg || 'Failed to load list.', 'error');
+            closeListModal();
+        });
+    }
+
     function campaignRow(campaignId) {
         return $root.find('.metis-newsletter-row[data-campaign-id="' + String(campaignId || '') + '"]').first();
     }
@@ -101,6 +308,7 @@
         if (!$row.length) return;
         const nextStatus = String(status || '').trim().toLowerCase();
         const isSentish = nextStatus === 'sent' || nextStatus === 'sending' || nextStatus === 'archived';
+        const isImportedArchive = String($row.attr('data-imported-archive') || '') === '1';
         const $statusChip = $row.children('.metis-premium-cell').eq(3).find('.metis-chip').first();
         const $actionsCell = $row.find('.metis-newsletter-actions-cell');
 
@@ -116,6 +324,9 @@
             if (nextStatus !== 'archived') {
                 $actionsCell.append('<button class="metis-btn-xs metis-newsletter-test-campaign" type="button" data-campaign-id="' + Metis.util.escapeHtml(String(campaignId || '')) + '">Test</button>');
             }
+            if (isImportedArchive) {
+                $actionsCell.append('<button class="metis-btn-xs metis-newsletter-manage-import-lists" type="button" data-campaign-id="' + Metis.util.escapeHtml(String(campaignId || '')) + '">Lists</button>');
+            }
             if (!isSentish) {
                 if (nextStatus !== 'queued' && nextStatus !== 'scheduled') {
                     $actionsCell.append('<button class="metis-btn-xs metis-newsletter-edit-campaign" type="button" data-campaign-code="' + Metis.util.escapeHtml(campaignCode) + '" data-campaign-id="' + Metis.util.escapeHtml(String(campaignId || '')) + '">Edit</button>');
@@ -128,6 +339,31 @@
         }
     }
 
+    function updateCampaignRowLists(campaignId, listIds) {
+        const $row = campaignRow(campaignId);
+        if (!$row.length) return;
+        const ids = Array.isArray(listIds) ? listIds.map(function (value) { return parseInt(value, 10) || 0; }).filter(function (value) { return value > 0; }) : [];
+        const lists = Array.isArray(pageData.lists) ? pageData.lists : [];
+        const selected = ids.map(function (listId) {
+            return lists.find(function (row) {
+                return (parseInt(row && row.id || '0', 10) || 0) === listId;
+            }) || null;
+        }).filter(Boolean);
+        const $cell = $row.children('.metis-premium-cell').eq(2);
+        const chipsHtml = selected.length
+            ? '<div class="metis-newsletter-chip-wrap">' + selected.map(function (row) {
+                return '<span class="metis-chip">' + escHtml(String(row.name || '')) + '</span>';
+            }).join('') + '</div>'
+            : '<span class="metis-muted">—</span>';
+        $cell.html(chipsHtml);
+
+        try {
+            const payload = JSON.parse(String($row.attr('data-campaign-json') || '{}'));
+            payload.list_ids = ids.slice();
+            $row.attr('data-campaign-json', JSON.stringify(payload));
+        } catch (_err) {}
+    }
+
     function removeCampaignRow(campaignId) {
         const $row = campaignRow(campaignId);
         if (!$row.length) return;
@@ -138,6 +374,291 @@
         }).remove();
         if (!$rowsWrap.find('.metis-newsletter-row').length) {
             $rowsWrap.append('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="7">No campaigns yet.</td></tr>');
+        }
+    }
+
+    function setBulkPickerSummary(summary) {
+        $('#metis-newsletter-bulk-summary').text(String(summary || ''));
+    }
+
+    function renderBulkContactRows(rows) {
+        const $tbody = $('#metis-newsletter-bulk-contact-rows');
+        if (!$tbody.length) return;
+        bulkPickerState.rowMap.clear();
+
+        if (!Array.isArray(rows) || !rows.length) {
+            $tbody.html('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="3">No matching contacts available to add.</td></tr>');
+            $('#metis-newsletter-bulk-select-page').prop('checked', false).prop('disabled', true);
+            return;
+        }
+
+        const html = rows.map(function (row) {
+            const contactId = parseInt(String(row && row.id || '0'), 10) || 0;
+            if (contactId) {
+                bulkPickerState.rowMap.set(contactId, row);
+            }
+            const checked = bulkPickerState.selected.has(contactId) ? ' checked' : '';
+            return '<tr class="metis-premium-row">'
+                + '<td class="metis-premium-cell"><label class="metis-newsletter-checkbox"><input type="checkbox" class="metis-newsletter-bulk-contact-checkbox" data-contact-id="' + escAttr(String(contactId)) + '"' + checked + '><span></span></label></td>'
+                + '<td class="metis-premium-cell">' + escHtml(String(row && row.name || '—')) + '</td>'
+                + '<td class="metis-premium-cell">' + escHtml(String(row && row.email || '')) + '</td>'
+                + '</tr>';
+        }).join('');
+
+        $tbody.html(html);
+        $('#metis-newsletter-bulk-select-page').prop('disabled', false);
+        syncBulkSelectPageCheckbox();
+    }
+
+    function syncBulkSelectPageCheckbox() {
+        const $selectPage = $('#metis-newsletter-bulk-select-page');
+        if (!$selectPage.length) return;
+        const $checks = $('#metis-newsletter-bulk-contact-rows').find('.metis-newsletter-bulk-contact-checkbox');
+        if (!$checks.length) {
+            $selectPage.prop('checked', false);
+            return;
+        }
+        let allChecked = true;
+        $checks.each(function () {
+            const contactId = parseInt(String($(this).data('contact-id') || '0'), 10) || 0;
+            if (!bulkPickerState.selected.has(contactId)) {
+                allChecked = false;
+            }
+        });
+        $selectPage.prop('checked', allChecked);
+    }
+
+    function updateBulkPagination() {
+        $('#metis-newsletter-bulk-page-label').text('Page ' + bulkPickerState.page + ' of ' + bulkPickerState.pages);
+        $('#metis-newsletter-bulk-prev').prop('disabled', bulkPickerState.page <= 1);
+        $('#metis-newsletter-bulk-next').prop('disabled', bulkPickerState.page >= bulkPickerState.pages);
+        const selectedCount = bulkPickerState.selected.size;
+        const totalText = bulkPickerState.total === 1 ? '1 contact available' : String(bulkPickerState.total) + ' contacts available';
+        const selectedText = selectedCount > 0 ? ' | ' + selectedCount + ' selected' : '';
+        setBulkPickerSummary(totalText + selectedText);
+    }
+
+    function loadBulkContacts() {
+        if (!currentListId || !$('#metis-newsletter-bulk-contact-rows').length) return;
+
+        setBulkPickerSummary('Loading contacts…');
+        $('#metis-newsletter-bulk-contact-rows').html('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="3">Loading contacts…</td></tr>');
+
+        metisAjax('metis_newsletter_list_contacts', {
+            list_id: currentListId,
+            query: bulkPickerState.search,
+            page: bulkPickerState.page,
+            per_page: bulkPickerState.perPage
+        }, function (data) {
+            const pagination = data.pagination || {};
+            bulkPickerState.total = parseInt(String(pagination.total || '0'), 10) || 0;
+            bulkPickerState.pages = Math.max(1, parseInt(String(pagination.pages || '1'), 10) || 1);
+            bulkPickerState.page = Math.min(Math.max(1, parseInt(String(pagination.page || bulkPickerState.page), 10) || 1), bulkPickerState.pages);
+            renderBulkContactRows(Array.isArray(data.rows) ? data.rows : []);
+            updateBulkPagination();
+        }, function (msg) {
+            $('#metis-newsletter-bulk-contact-rows').html('<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="3">' + escHtml(String(msg || 'Failed to load contacts.')) + '</td></tr>');
+            setBulkPickerSummary('Unable to load contacts.');
+        });
+    }
+
+    function initListsView() {
+        if (String(ui.view || '') !== 'lists') return;
+
+        $('#metis-newsletter-list-search').on('input', function () {
+            const q = String($(this).val() || '').toLowerCase().trim();
+            $('#metis-newsletter-list-rows').find('.metis-newsletter-row').each(function () {
+                const search = String($(this).data('search') || '').toLowerCase();
+                $(this).toggle(!q || search.indexOf(q) !== -1);
+            });
+        });
+
+        $root.on('click', '#metis-newsletter-lists-panel .metis-newsletter-row', function (e) {
+            if ($(e.target).is('a, button, input, select, label')) return;
+            const listId = parseInt(String($(this).attr('data-list-id') || '0'), 10) || 0;
+            if (listId) loadListModal(listId);
+        });
+
+        $root.on('click', '#metis-newsletter-save-selected-list', function () {
+            const listId = parseInt(String($(this).data('list-id') || '0'), 10) || 0;
+            metisAjax('metis_newsletter_save_list', {
+                list_id: listId,
+                name: $('#metis-newsletter-list-name').val() || '',
+                description: $('#metis-newsletter-list-description').val() || '',
+                is_active: $('#metis-newsletter-list-active').val() || '1'
+            }, function () {
+                updateSelectedListMetadata();
+                toast('List saved.', 'success');
+            }, function (msg) {
+                toast(msg || 'Failed to save list.', 'error');
+            });
+        });
+
+        $root.on('click', '#metis-newsletter-new-list', function () {
+            promptAction({
+                title: 'Create Newsletter List',
+                label: 'List name',
+                placeholder: 'Weekly supporters',
+                confirmLabel: 'Create'
+            }).then(function (name) {
+                name = String(name || '').trim();
+                if (!name) return;
+                metisAjax('metis_newsletter_save_list', {
+                    name: name,
+                    description: '',
+                    is_active: 1
+                }, function (data) {
+                    const listId = parseInt(String(data.list_id || '0'), 10) || 0;
+                    appendListRow(listId, name, '');
+                    toast('List created.', 'success');
+                }, function (msg) {
+                    toast(msg || 'Failed to create list.', 'error');
+                });
+            });
+        });
+
+        $root.on('click', '#metis-newsletter-delete-selected-list', function () {
+            const listId = parseInt(String($(this).data('list-id') || '0'), 10) || 0;
+            if (!listId) {
+                toast('Select a saved list first.', 'error');
+                return;
+            }
+
+            confirmAction('Delete this newsletter list? This removes its subscriber memberships and campaign list links.', {
+                confirmLabel: 'Delete List',
+                danger: true
+            }).then(function (confirmed) {
+                if (!confirmed) return;
+
+                metisAjax('metis_newsletter_delete_list', {
+                    list_id: listId
+                }, function (data) {
+                    removeListRow(listId);
+                    if (currentListId === listId) {
+                        currentListId = 0;
+                    }
+                    closeListModal();
+                    toast('List deleted.', 'success');
+                }, function (msg) {
+                    toast(msg || 'Failed to delete list.', 'error');
+                });
+            });
+        });
+
+        if (!$('#metis-newsletter-bulk-contact-rows').length) {
+            return;
+        }
+
+        let bulkSearchTimer = null;
+        $('#metis-newsletter-bulk-contact-search').on('input', function () {
+            clearTimeout(bulkSearchTimer);
+            bulkPickerState.search = String($(this).val() || '').trim();
+            bulkPickerState.page = 1;
+            bulkSearchTimer = setTimeout(loadBulkContacts, 250);
+        });
+
+        $('#metis-newsletter-open-bulk-modal').on('click', function () {
+            if (!currentListId) {
+                toast('Select a list first.', 'error');
+                return;
+            }
+            openBulkModal();
+            loadBulkContacts();
+        });
+
+        $('#metis-newsletter-list-modal').on('click', function (event) {
+            if (event.target === this) {
+                closeListModal();
+            }
+        });
+
+        $('#metis-newsletter-bulk-add-modal').on('click', function (event) {
+            if (event.target === this) {
+                closeBulkModal();
+            }
+        });
+
+        $('#metis-newsletter-bulk-prev').on('click', function () {
+            if (bulkPickerState.page <= 1) return;
+            bulkPickerState.page -= 1;
+            loadBulkContacts();
+        });
+
+        $('#metis-newsletter-bulk-next').on('click', function () {
+            if (bulkPickerState.page >= bulkPickerState.pages) return;
+            bulkPickerState.page += 1;
+            loadBulkContacts();
+        });
+
+        $('#metis-newsletter-bulk-select-page').on('change', function () {
+            const checked = $(this).is(':checked');
+            $('#metis-newsletter-bulk-contact-rows').find('.metis-newsletter-bulk-contact-checkbox').each(function () {
+                const contactId = parseInt(String($(this).data('contact-id') || '0'), 10) || 0;
+                if (!contactId) return;
+                if (checked) {
+                    bulkPickerState.selected.add(contactId);
+                } else {
+                    bulkPickerState.selected.delete(contactId);
+                }
+                $(this).prop('checked', checked);
+            });
+            updateBulkPagination();
+        });
+
+        $root.on('change', '.metis-newsletter-bulk-contact-checkbox', function () {
+            const contactId = parseInt(String($(this).data('contact-id') || '0'), 10) || 0;
+            if (!contactId) return;
+            if ($(this).is(':checked')) {
+                bulkPickerState.selected.add(contactId);
+            } else {
+                bulkPickerState.selected.delete(contactId);
+            }
+            syncBulkSelectPageCheckbox();
+            updateBulkPagination();
+        });
+
+        $('#metis-newsletter-bulk-clear-selection').on('click', function () {
+            bulkPickerState.selected.clear();
+            $('#metis-newsletter-bulk-contact-rows').find('.metis-newsletter-bulk-contact-checkbox').prop('checked', false);
+            $('#metis-newsletter-bulk-select-page').prop('checked', false);
+            updateBulkPagination();
+        });
+
+        $('#metis-newsletter-bulk-add-selected').on('click', function () {
+            const listId = parseInt(String($(this).data('list-id') || currentListId), 10) || 0;
+            const ids = Array.from(bulkPickerState.selected.values());
+            if (!listId || !ids.length) {
+                toast('Select at least one contact to add.', 'error');
+                return;
+            }
+            const addedContacts = ids.map(function (id) {
+                return bulkPickerState.rowMap.get(id) || null;
+            }).filter(Boolean);
+            metisAjax('metis_newsletter_bulk_add_contacts_to_list', {
+                list_id: listId,
+                contact_ids: JSON.stringify(ids)
+            }, function (data) {
+                const processed = parseInt(String(data.processed_count || ids.length), 10) || ids.length;
+                prependSubscribers(addedContacts);
+                incrementSelectedListCount(processed);
+                updateListStats({
+                    subscribed_count: (parseInt(String(selectedListRow().children('.metis-premium-cell').eq(1).text() || '0'), 10) || 0),
+                    blocked_count: (parseInt(String(selectedListRow().children('.metis-premium-cell').eq(2).text() || '0'), 10) || 0)
+                });
+                bulkPickerState.selected.clear();
+                $('#metis-newsletter-bulk-contact-search').val('');
+                bulkPickerState.search = '';
+                bulkPickerState.page = 1;
+                closeBulkModal();
+                loadBulkContacts();
+                toast(processed === 1 ? '1 contact added to the list.' : processed + ' contacts added to the list.', 'success');
+            }, function (msg) {
+                toast(msg || 'Failed to add contacts to the list.', 'error');
+            });
+        });
+
+        if (initialSelectedListId > 0) {
+            loadListModal(initialSelectedListId);
         }
     }
 
@@ -1365,6 +1886,8 @@
         navigate(ui.editor_template_new_url || ui.theme_url || '');
     });
 
+    initListsView();
+
     $root.on('click', '.metis-newsletter-edit-template', function () {
         const code = String($(this).data('template-code') || '').trim();
         if (!code) {
@@ -1468,10 +1991,13 @@
         $('#metis-newsletter-campaign-detail-title').text($(this).find('.metis-premium-cell strong').first().text() || 'Campaign Details');
         Metis.ui.modal.form('metis-newsletter-campaign-detail-modal');
 
-        metisAjax('metis_newsletter_get_campaign_detail', { campaign_id: id }, function (data) {
-            const rows = data.recipients || [];
-            const total = data.total || rows.length, sent = data.sent || 0;
-            const opened = data.opened || 0, clicked = data.clicked || 0;
+        metisAjax('metis_newsletter_campaign_status', { campaign_id: id }, function (data) {
+            const summary = data.summary || {};
+            const rows = Array.isArray(data.messages) ? data.messages : [];
+            const total = Number(summary.total || rows.length || 0);
+            const sent = Number(summary.sent || 0);
+            const opened = rows.reduce((count, row) => count + (row && row.opened_at ? 1 : 0), 0);
+            const clicked = rows.reduce((count, row) => count + (row && row.clicked_at ? 1 : 0), 0);
             const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
             $('#metis-newsletter-progress-summary').text('Recipients: ' + total + ' | Sent: ' + sent + ' | Opened: ' + opened + ' | Clicked: ' + clicked);
             $('#metis-newsletter-progress-current').text(pct + '%');
@@ -1482,8 +2008,9 @@
             }
             let html = '';
             rows.forEach(r => {
+                const displayName = [String(r.first_name || '').trim(), String(r.last_name || '').trim()].filter(Boolean).join(' ') || '—';
                 html += '<tr class="metis-premium-row">'
-                    + '<td class="metis-premium-cell">' + escHtml(r.display_name||'—') + '</td>'
+                    + '<td class="metis-premium-cell">' + escHtml(displayName) + '</td>'
                     + '<td class="metis-premium-cell">' + escHtml(r.email||'—') + '</td>'
                     + '<td class="metis-premium-cell">' + escHtml(r.cid||'—') + '</td>'
                     + '<td class="metis-premium-cell"><span class="metis-chip">' + escHtml(r.status||'—') + '</span></td>'
@@ -1501,7 +2028,56 @@
     /*  Test Send modal                                                     */
     /* ------------------------------------------------------------------ */
     const $testModal = $('#metis-newsletter-test-send-modal');
+    const $importListsModal = $('#metis-newsletter-import-lists-modal');
     let testContactId = null;
+
+    function openImportedListsModal(campaignId) {
+        const $row = campaignRow(campaignId);
+        if (!$row.length) return;
+        const raw = String($row.attr('data-campaign-json') || '{}');
+        let campaign = {};
+        try { campaign = JSON.parse(raw); } catch (_err) { campaign = {}; }
+        const selectedIds = Array.isArray(campaign.list_ids) ? campaign.list_ids.map(function (value) { return parseInt(value, 10) || 0; }).filter(function (value) { return value > 0; }) : [];
+        const lists = Array.isArray(pageData.lists) ? pageData.lists : [];
+        const optionsHtml = lists.length
+            ? lists.map(function (row) {
+                const listId = parseInt(row && row.id || '0', 10) || 0;
+                if (listId < 1) return '';
+                const checked = selectedIds.indexOf(listId) !== -1 ? ' checked' : '';
+                return '<label><input type="checkbox" data-import-list-id="' + escAttr(String(listId)) + '"' + checked + '> ' + escHtml(String(row && row.name || 'List ' + listId)) + '</label>';
+            }).join('')
+            : '<div class="metis-muted">No active lists available.</div>';
+        $('#metis-newsletter-import-lists-campaign-id').val(String(campaignId || '0'));
+        $('#metis-newsletter-import-lists-options').html(optionsHtml);
+        Metis.ui.modal.form('metis-newsletter-import-lists-modal');
+    }
+
+    $root.on('click', '.metis-newsletter-manage-import-lists', function (e) {
+        e.stopPropagation();
+        const campaignId = $(this).data('campaign-id');
+        if (!campaignId) return;
+        openImportedListsModal(campaignId);
+    });
+
+    $('#metis-newsletter-import-lists-save').on('click', function () {
+        const campaignId = parseInt(String($('#metis-newsletter-import-lists-campaign-id').val() || '0'), 10) || 0;
+        if (campaignId < 1) return;
+        const listIds = [];
+        $importListsModal.find('[data-import-list-id]:checked').each(function () {
+            const listId = parseInt(String($(this).attr('data-import-list-id') || '0'), 10) || 0;
+            if (listId > 0) listIds.push(listId);
+        });
+        metisAjax('metis_newsletter_reassign_import_lists', {
+            campaign_id: campaignId,
+            list_ids: JSON.stringify(listIds)
+        }, function (data) {
+            updateCampaignRowLists(campaignId, Array.isArray(data.list_ids) ? data.list_ids : listIds);
+            toast('Imported newsletter lists updated.', 'success');
+            Metis.ui.modal.close('metis-newsletter-import-lists-modal');
+        }, function (msg) {
+            toast(msg || 'Unable to update imported newsletter lists.', 'error');
+        });
+    });
 
     $root.on('click', '.metis-newsletter-test-campaign, #metis-newsletter-campaign-test-send', function (e) {
         e.stopPropagation();

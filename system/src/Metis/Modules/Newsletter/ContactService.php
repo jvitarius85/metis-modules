@@ -159,4 +159,95 @@ final class ContactService {
             ];
         }, $rows ?: [] ), static fn( array $row ): bool => $row !== [] ) );
     }
+
+    public static function contactsForListPicker( int $list_id, string $query = '', int $page = 1, int $per_page = 50 ): array {
+        if ( $list_id < 1 ) {
+            return [
+                'rows' => [],
+                'pagination' => [
+                    'page' => 1,
+                    'per_page' => 50,
+                    'total' => 0,
+                    'pages' => 1,
+                ],
+            ];
+        }
+
+        $db = \metis_db();
+        $contacts_table = \Metis_Tables::get( 'contacts' );
+        $subs_table = \Metis_Tables::get( 'newsletter_subs' );
+        $query = trim( \metis_text_clean( $query ) );
+        $page = max( 1, $page );
+        $per_page = max( 1, min( 100, $per_page ) );
+        $offset = ( $page - 1 ) * $per_page;
+
+        $where = [
+            'c.email IS NOT NULL',
+            "TRIM(c.email) <> ''",
+            "NOT EXISTS (
+                SELECT 1
+                FROM {$subs_table} s
+                WHERE s.contact_id = c.id
+                  AND s.list_id = %d
+                  AND s.status = 'subscribed'
+            )",
+        ];
+        $params = [ $list_id ];
+
+        if ( $query !== '' ) {
+            $like = '%' . $db->escapeLike( strtolower( $query ) ) . '%';
+            $where[] = "(LOWER(CONCAT(COALESCE(c.first_name,''), ' ', COALESCE(c.last_name,''))) LIKE %s
+                OR LOWER(COALESCE(c.email,'')) LIKE %s
+                OR LOWER(COALESCE(c.cid,'')) LIKE %s)";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $where_sql = implode( ' AND ', $where );
+        $total = (int) $db->scalar(
+            "SELECT COUNT(*)
+             FROM {$contacts_table} c
+             WHERE {$where_sql}",
+            $params
+        );
+        $pages = max( 1, (int) ceil( max( 0, $total ) / $per_page ) );
+        $page = min( $page, $pages );
+        $offset = ( $page - 1 ) * $per_page;
+
+        $rows = $db->fetchAll(
+            "SELECT c.id, c.cid, c.first_name, c.last_name, c.email, c.updated_at
+             FROM {$contacts_table} c
+             WHERE {$where_sql}
+             ORDER BY c.first_name ASC, c.last_name ASC, c.email ASC, c.id ASC
+             LIMIT %d OFFSET %d",
+            array_merge( $params, [ $per_page, $offset ] )
+        ) ?: [];
+
+        return [
+            'rows' => array_values( array_filter( array_map( static function ( array $row ): array {
+                $email = strtolower( trim( (string) ( $row['email'] ?? '' ) ) );
+                if ( $email === '' || ! \metis_email_is_valid( $email ) ) {
+                    return [];
+                }
+
+                $name = trim( (string) ( $row['first_name'] ?? '' ) . ' ' . (string) ( $row['last_name'] ?? '' ) );
+                return [
+                    'id' => (int) ( $row['id'] ?? 0 ),
+                    'cid' => (string) ( $row['cid'] ?? '' ),
+                    'first_name' => (string) ( $row['first_name'] ?? '' ),
+                    'last_name' => (string) ( $row['last_name'] ?? '' ),
+                    'email' => $email,
+                    'name' => $name !== '' ? $name : $email,
+                    'updated_at' => (string) ( $row['updated_at'] ?? '' ),
+                ];
+            }, $rows ), static fn( array $row ): bool => $row !== [] ) ),
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $per_page,
+                'total' => max( 0, $total ),
+                'pages' => $pages,
+            ],
+        ];
+    }
 }

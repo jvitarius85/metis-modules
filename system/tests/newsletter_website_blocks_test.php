@@ -153,6 +153,7 @@ namespace {
     $normalizedListIds = \Metis\Modules\Newsletter\WebsiteService::normalizeListIds( '2,5,99,bad,2' );
     $listRows = \Metis\Modules\Newsletter\WebsiteService::listsByIds( [ 2, 5, 99 ] );
     $archiveRows = \Metis\Modules\Newsletter\WebsiteService::publicArchiveCampaigns( [ 2, 5 ], 9 );
+    $archivePage = \Metis\Modules\Newsletter\WebsiteService::publicArchiveCampaignPage( [ 2, 5 ], 9, 1 );
 
     \Metis\Modules\Website\BlockRegistry::boot();
     $signupDefinition = \Metis\Modules\Website\BlockRegistry::get( 'newsletter_signup' );
@@ -191,6 +192,7 @@ namespace {
     $assert( $normalizedListIds === [ 2, 5 ], 'Newsletter website service must normalize and validate configured list IDs.' );
     $assert( count( $listRows ) === 2 && ( $listRows[0]['ref'] ?? '' ) === 'NL-members', 'Newsletter website service must return canonical list rows with public refs.' );
     $assert( count( $archiveRows ) === 1 && ( $archiveRows[0]['campaign_code'] ?? '' ) === 'NC-88', 'Newsletter website service must load sent archive campaigns for selected lists.' );
+    $assert( count( $archivePage['rows'] ?? [] ) === 1 && empty( $archivePage['has_more'] ), 'Newsletter archive pagination must return the current page rows and has_more state.' );
 
     $assert( is_array( $signupDefinition ) && ( $signupDefinition['label'] ?? '' ) === 'Newsletter Signup', 'Website block registry must register the newsletter signup block.' );
     $assert( is_array( $archiveDefinition ) && ( $archiveDefinition['label'] ?? '' ) === 'Newsletter Archive', 'Website block registry must register the newsletter archive block.' );
@@ -203,12 +205,15 @@ namespace {
     $assert( str_contains( $archiveHtml, 'June Update' ), 'Newsletter archive block must render public newsletter headlines.' );
     $assert( str_contains( $archiveHtml, 'Members, Volunteers' ), 'Newsletter archive block must render associated newsletter list names.' );
     $assert( str_contains( $archiveHtml, 'https://example.test/n/view/NC-88/' ), 'Newsletter archive block must link to the public newsletter view route.' );
+    $assert( ! str_contains( $archiveHtml, 'June updates and volunteer notes' ), 'Newsletter archive block must not render preheader or subject excerpts in the compact archive list.' );
 
     $assert( str_contains( $editorSource, "newsletter_signup: 'Visitor newsletter signup form'" ), 'Simple editor must expose the newsletter signup section type.' );
     $assert( str_contains( $editorSource, "newsletter_archive: 'Public newsletter archive'" ), 'Simple editor must expose the newsletter archive section type.' );
     $assert( str_contains( $editorSource, "'posts_list', 'newsletter_signup', 'newsletter_archive'" ), 'Simple editor block picker must include newsletter blocks in the visible library ordering.' );
     $assert( str_contains( $editorSource, "newsletter_signup: 'newsletter'" ), 'Simple editor block picker must map the newsletter signup icon.' );
     $assert( str_contains( $editorSource, "newsletter_archive: 'newsletter'" ), 'Simple editor block picker must map the newsletter archive icon.' );
+    $assert( str_contains( $editorSource, "return ['text', 'form', 'form_tabs', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'newsletter_signup', 'newsletter_archive', 'button', 'image'];" ), 'Column modules must include newsletter signup and archive block types.' );
+    $assert( str_contains( $editorSource, ">Newsletter Signup</option>") && str_contains( $editorSource, ">Newsletter Archive</option>"), 'Column content picker must expose newsletter signup and archive options.' );
     $assert( str_contains( $websiteAjaxSource, "'newsletter_lists' => NewsletterWebsiteService::listOptions()" ), 'Website editor options must expose newsletter list choices through the shared newsletter website service.' );
 
     $archivePrepareCall = null;
@@ -219,7 +224,7 @@ namespace {
         }
     }
     $assert( is_array( $archivePrepareCall ), 'Newsletter archive query must be prepared through the shared database layer.' );
-    $assert( is_array( $archivePrepareCall ) && ( $archivePrepareCall['args'] ?? [] ) === [ 2, 5, 9 ], 'Newsletter archive query must pass selected list IDs and the configured limit to the shared query.' );
+    $assert( is_array( $archivePrepareCall ) && ( $archivePrepareCall['args'] ?? [] ) === [ 2, 5, 9, 0 ], 'Newsletter archive query must pass selected list IDs, the configured limit, and the offset to the shared query.' );
 
     if ( $failures !== [] ) {
         fwrite( STDERR, implode( PHP_EOL, $failures ) . PHP_EOL );

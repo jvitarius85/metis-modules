@@ -8,6 +8,7 @@ var currentStep = 1;
 var selectedFile = null;
 var selectedPageIds = [];
 var selectedPostIds = [];
+var selectedNewsletterIds = [];
 var openingFileDialog = false;
 
 function notify(message, level) {
@@ -248,6 +249,7 @@ function renderPreview(preview) {
     var html = '';
     selectedPageIds = Array.isArray(preview.pages) ? preview.pages.map(function(p){ return Number(p.post_id || 0); }).filter(function(id){ return id > 0; }) : [];
     selectedPostIds = Array.isArray(preview.posts) ? preview.posts.map(function(p){ return Number(p.post_id || 0); }).filter(function(id){ return id > 0; }) : [];
+    selectedNewsletterIds = Array.isArray(preview.newsletters) ? preview.newsletters.map(function(n){ return Number(n.source_id || 0); }).filter(function(id){ return id > 0; }) : [];
 
     // Site info
     if (preview.site_info && preview.site_info.title) {
@@ -264,8 +266,10 @@ function renderPreview(preview) {
         { label: 'Posts',  count: preview.stats.posts,   key: 'posts' },
         { label: 'Media',  count: preview.stats.media,   key: 'media' },
         { label: 'Menus',  count: preview.menus_count || 0, key: 'menus' },
+        { label: 'Newsletters', count: preview.stats.newsletters || 0, key: 'newsletters' }
     ];
     stats.forEach(function(s) {
+        if (!s.count) return;
         html += '<div style="text-align:center;padding:12px;background:var(--metis-surface,#fff);border:1px solid var(--metis-border,#e2e6ea);border-radius:6px;">';
         html += '<div style="font-size:24px;font-weight:700;color:var(--metis-primary,#0d6efd);">' + s.count + '</div>';
         html += '<div style="font-size:12px;color:var(--metis-text-muted,#888);">' + s.label + '</div>';
@@ -294,6 +298,15 @@ function renderPreview(preview) {
         html += '<input type="checkbox" id="metis-import-menus-cb" checked style="margin-top:2px;width:16px;height:16px;">';
         html += '<div><strong style="font-size:13px;">Menus</strong> <span class="metis-import-section-count">' + preview.menus_count + '</span><div style="font-size:12px;color:#888;margin-top:2px;">Navigation menus will be recreated</div></div>';
         html += '</label>';
+    }
+    if ((preview.stats.newsletters || 0) > 0) {
+        html += '<label style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;cursor:pointer;">';
+        html += '<input type="checkbox" id="metis-import-newsletters-cb" checked style="margin-top:2px;width:16px;height:16px;">';
+        html += '<div><strong style="font-size:13px;">Archived newsletters</strong> <span class="metis-import-section-count">' + (preview.stats.newsletters || 0) + '</span><div style="font-size:12px;color:#888;margin-top:2px;">Imported into the shared newsletter archive as sent campaigns</div></div>';
+        html += '</label>';
+        if (preview.default_list && preview.default_list.name) {
+            html += '<div style="padding:8px 0 0 26px;color:#888;font-size:12px;">Default list: ' + $('<div>').text(preview.default_list.name).html() + '</div>';
+        }
     }
     if (preview.stats.media > 0) {
         html += '<div style="padding:8px 0;color:#888;font-size:13px;">&#9432; <strong>Media files</strong> (' + preview.stats.media + ') — media download is not yet supported. Image references will be preserved as external URLs.</div>';
@@ -331,6 +344,21 @@ function renderPreview(preview) {
         html += '</div></div>';
     }
 
+    if (preview.newsletters && preview.newsletters.length > 0) {
+        html += '<div class="metis-import-section"><div class="metis-import-section-title">Archived Newsletters Preview <span class="metis-import-section-count">' + preview.newsletters.length + ((preview.stats.newsletters || 0) > preview.newsletters.length ? '+' : '') + '</span></div>';
+        html += '<div class="metis-import-item-list">';
+        preview.newsletters.forEach(function(n) {
+            var nid = Number(n.source_id || 0);
+            var labelId = 'metis-import-newsletter-item-' + nid;
+            html += '<div class="metis-import-item"><label for="' + labelId + '" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="' + labelId + '" class="metis-import-newsletter-item-cb" type="checkbox" data-id="' + nid + '" checked> <span>' + $('<div>').text(n.subject || n.title || ('Newsletter ' + nid)).html() + '</span></label>';
+            html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';
+            if (n.sent_at) html += '<span style="font-size:11px;color:#888;">' + $('<div>').text(n.sent_at).html() + '</span>';
+            if (Array.isArray(n.list_names) && n.list_names.length) html += '<span style="font-size:11px;color:#888;">' + $('<div>').text(n.list_names.join(', ')).html() + '</span>';
+            html += '</span></div>';
+        });
+        html += '</div></div>';
+    }
+
     $('#metis-import-preview-content').html(html);
     if (window.Metis && Metis.a11y && typeof Metis.a11y.enhance === 'function') {
         Metis.a11y.enhance(document.getElementById('metis-import-preview-content'));
@@ -357,6 +385,16 @@ $(document).off('change.metisImport', '.metis-import-post-item-cb').on('change.m
     }
 });
 
+$(document).off('change.metisImport', '.metis-import-newsletter-item-cb').on('change.metisImport', '.metis-import-newsletter-item-cb', function() {
+    var id = Number($(this).data('id') || 0);
+    if (id < 1) return;
+    if ($(this).is(':checked')) {
+        if (selectedNewsletterIds.indexOf(id) === -1) selectedNewsletterIds.push(id);
+    } else {
+        selectedNewsletterIds = selectedNewsletterIds.filter(function(x){ return x !== id; });
+    }
+});
+
 // Back to upload
 $(document).off('click.metisImport', '#metis-import-back-btn').on('click.metisImport', '#metis-import-back-btn', function() {
     selectedFile = null;
@@ -375,8 +413,9 @@ $(document).off('click.metisImport', '#metis-import-confirm-btn').on('click.meti
     var importPages = $('#metis-import-pages-cb').is(':checked') ? 1 : 0;
     var importPosts = $('#metis-import-posts-cb').is(':checked') ? 1 : 0;
     var importMenus = $('#metis-import-menus-cb').is(':checked') ? 1 : 0;
+    var importNewsletters = $('#metis-import-newsletters-cb').is(':checked') ? 1 : 0;
 
-    if (!importPages && !importPosts && !importMenus) {
+    if (!importPages && !importPosts && !importMenus && !importNewsletters) {
         notify('Please select at least one item type to import.', 'warning');
         return;
     }
@@ -394,8 +433,10 @@ $(document).off('click.metisImport', '#metis-import-confirm-btn').on('click.meti
             import_pages: importPages,
             import_posts: importPosts,
             import_menus: importMenus,
+            import_newsletters: importNewsletters,
             selected_page_ids: JSON.stringify(selectedPageIds),
-            selected_post_ids: JSON.stringify(selectedPostIds)
+            selected_post_ids: JSON.stringify(selectedPostIds),
+            selected_newsletter_ids: JSON.stringify(selectedNewsletterIds)
         },
         success: function(r) {
             if (r.success) {
@@ -404,6 +445,7 @@ $(document).off('click.metisImport', '#metis-import-confirm-btn').on('click.meti
                 if (res.pages)   summary.push(res.pages + ' page' + (res.pages !== 1 ? 's' : '') + ' created');
                 if (res.posts)   summary.push(res.posts + ' post' + (res.posts !== 1 ? 's' : '') + ' created');
                 if (res.menus)   summary.push(res.menus + ' menu' + (res.menus !== 1 ? 's' : '') + ' created');
+                if (res.newsletters) summary.push(res.newsletters + ' newsletter' + (res.newsletters !== 1 ? 's' : '') + ' imported');
                 if (res.skipped) summary.push(res.skipped + ' skipped (may already exist)');
                 $('#metis-import-results-summary').text(summary.join(' · ') || 'Nothing was imported.');
 

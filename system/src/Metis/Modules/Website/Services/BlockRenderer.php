@@ -1462,13 +1462,22 @@ final class BlockRenderer {
             $url = metis_escape_url( (string) metis_newsletter_public_view_url( $ref ) );
             $title = trim( (string) ( $row['name'] ?? '' ) );
             $subject = trim( (string) ( $row['subject'] ?? '' ) );
-            $excerpt = trim( (string) ( $row['preheader'] ?? '' ) );
             $list_names = array_values( array_filter( array_map( 'trim', explode( '||', (string) ( $row['list_names'] ?? '' ) ) ) ) );
+            $sent_at = trim( (string) ( $row['sent_at'] ?? $row['updated_at'] ?? '' ) );
+            $date_label = $sent_at;
+            if ( $sent_at !== '' && function_exists( 'metis_runtime_format_date' ) ) {
+                $ts = strtotime( $sent_at );
+                if ( $ts !== false && $ts > 0 ) {
+                    $date_label = (string) metis_runtime_format_date( (int) $ts, function_exists( 'metis_runtime_date_format' ) ? metis_runtime_date_format() : 'M j, Y' );
+                }
+            }
             $items .= '<article class="metis-public-post-card metis-public-post-card--newsletter">'
                 . '<div class="metis-public-post-card__body">'
-                . '<h3 class="metis-public-post-card__title"><a href="' . $url . '">' . metis_escape_html( $title !== '' ? $title : ( $subject !== '' ? $subject : 'Newsletter' ) ) . '</a></h3>'
-                . ( $excerpt !== '' ? '<p class="metis-public-post-card__excerpt">' . metis_escape_html( $excerpt ) . '</p>' : '' )
-                . ( $list_names !== [] ? '<p class="metis-public-post-card__meta">' . metis_escape_html( implode( ', ', $list_names ) ) . '</p>' : '' )
+                . '<div class="metis-public-post-card__meta">'
+                . ( $date_label !== '' ? metis_escape_html( $date_label ) . ' - ' : '' )
+                . '<a href="' . $url . '">' . metis_escape_html( $title !== '' ? $title : ( $subject !== '' ? $subject : 'Newsletter' ) ) . '</a>'
+                . '</div>'
+                . ( $list_names !== [] ? '<div class="metis-public-post-card__meta">' . metis_escape_html( implode( ', ', $list_names ) ) . '</div>' : '' )
                 . '</div>'
                 . '</article>';
         }

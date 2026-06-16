@@ -28,9 +28,9 @@ $can_execute = function_exists( 'metis_security_user_can' ) && metis_security_us
         <?php else : ?>
         <div style="border:2px dashed var(--metis-border,#e2e6ea);border-radius:8px;padding:40px;text-align:center;background:var(--metis-surface,#fff);cursor:pointer;" id="metis-import-drop-zone" tabindex="0" role="button" aria-controls="metis-import-file-input" aria-describedby="metis-import-drop-help">
             <div style="font-size:48px;margin-bottom:16px;opacity:.4;">&#8681;</div>
-            <div style="font-size:16px;font-weight:600;margin-bottom:8px;color:var(--metis-text,#1a1f2b);">Upload WXR Export</div>
-            <div id="metis-import-drop-help" style="font-size:13px;color:var(--metis-text-muted,#888);margin-bottom:20px;">Drag &amp; drop a <code>.xml</code> file here, or click to browse.<br>Maximum file size: 32 MB.</div>
-            <input type="file" id="metis-import-file-input" accept=".xml,.wxr" style="display:none;" onchange="if(window.metisImportHandleFileInput){window.metisImportHandleFileInput(this);}">
+            <div style="font-size:16px;font-weight:600;margin-bottom:8px;color:var(--metis-text,#1a1f2b);">Upload Import Export</div>
+            <div id="metis-import-drop-help" style="font-size:13px;color:var(--metis-text-muted,#888);margin-bottom:20px;">Drag &amp; drop a <code>.xml</code>, <code>.wxr</code>, or WordPress newsletter archive <code>.json</code> file here, or click to browse.<br>Maximum file size: 32 MB.</div>
+            <input type="file" id="metis-import-file-input" accept=".xml,.wxr,.json" style="display:none;" onchange="if(window.metisImportHandleFileInput){window.metisImportHandleFileInput(this);}">
             <button class="metis-btn metis-btn-secondary" id="metis-import-choose-file-btn" type="button">Choose File</button>
         </div>
         <div id="metis-import-file-selected" style="display:none;margin-top:12px;padding:12px 16px;background:var(--metis-surface,#fff);border:1px solid var(--metis-border,#e2e6ea);border-radius:6px;align-items:center;gap:12px;" role="status" aria-live="polite">
