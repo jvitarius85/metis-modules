@@ -37,10 +37,13 @@ function metis_grandys_stash_register_ajax_controllers(): void {
         'metis_grandys_stash_search_groups' => 'view',
         'metis_grandys_stash_link_group' => 'assign',
         'metis_grandys_stash_merge_groups' => 'assign',
+        'metis_grandys_stash_save_group' => 'assign',
+        'metis_grandys_stash_save_organization' => 'settings',
         'metis_grandys_stash_get_inventory' => 'view',
         'metis_grandys_stash_update_inventory' => 'inventory',
         'metis_grandys_stash_set_email_pref' => 'settings',
         'metis_grandys_stash_export' => 'export',
+        'metis_grandys_stash_delete_ticket' => 'delete',
         'metis_grandys_stash_save_routing_defaults' => 'settings',
         'metis_grandys_stash_report' => 'view',
         'metis_grandys_stash_get_email_prefs' => 'settings',
@@ -214,6 +217,32 @@ metis_ajax_register_handler( 'metis_grandys_stash_merge_groups', function (): vo
     metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
 } );
 
+metis_ajax_register_handler( 'metis_grandys_stash_save_group', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.assign' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid group payload.', 422 );
+    }
+    $result = GrandyStashRepository::saveGroup( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error( (string) ( $result['error'] ?? 'Unable to save group.' ), metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
+    }
+    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_save_organization', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid organization payload.', 422 );
+    }
+    $result = GrandyStashRepository::saveOrganization( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error( (string) ( $result['error'] ?? 'Unable to save organization.' ), metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
+    }
+    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
 // ─── Create ticket (manual staff intake) ────────────
 
 metis_ajax_register_handler( 'metis_grandys_stash_create_ticket', function (): void {
@@ -262,6 +291,19 @@ metis_ajax_register_handler( 'metis_grandys_stash_export', function (): void {
     ];
     $rows = GrandyStashRepository::exportTickets( $filters );
     metis_runtime_send_json_success( [ 'rows' => $rows, 'count' => count( $rows ) ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_delete_ticket', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.delete' );
+    $ticket_id = (int) ( metis_request_post()['ticket_id'] ?? 0 );
+    if ( $ticket_id < 1 ) {
+        metis_runtime_send_json_error( 'Ticket ID is required.', 422 );
+    }
+    $result = GrandyStashRepository::deleteTicket( $ticket_id );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error( (string) ( $result['error'] ?? 'Unable to delete ticket.' ), metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
+    }
+    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData(), 'deleted_code' => $result['deleted_code'] ?? '' ] );
 } );
 
 // ─── Save routing defaults ──────────────────────────

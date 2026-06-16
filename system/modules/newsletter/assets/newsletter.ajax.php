@@ -144,23 +144,47 @@ function metis_newsletter_announcement_footer_html(string $existing_footer_html)
     return $has_links ? $existing_footer_html : ($existing_footer_html . $links_html);
 }
 
-function metis_newsletter_announcement_doc_json(string $body_html): string {
-    $settings = metis_newsletter_announcement_theme_defaults();
-    $settings['body_html'] = $body_html;
-    $settings['closing_html'] = '<p style="margin:0;">-- ' . metis_escape_html(metis_newsletter_announcement_org_name()) . '</p>';
-    $settings['footer_html'] = metis_newsletter_announcement_footer_html((string) ($settings['footer_html'] ?? ''));
+function metis_newsletter_announcement_logo_url(): string {
+    if (function_exists('metis_portal_logo_url')) {
+        $url = trim((string) metis_portal_logo_url());
+        if ($url !== '') {
+            return $url;
+        }
+    }
+    return '';
+}
 
-    return metis_json_encode([
-        'version' => 1,
-        'settings' => $settings,
-        'blocks' => [[
-            'id' => 'announcement-body',
-            'type' => 'text',
-            'data' => [
-                'body' => $body_html,
-            ],
-        ]],
-    ]);
+function metis_newsletter_announcement_email_html(string $body_html): string {
+    $org_name = metis_newsletter_announcement_org_name();
+    $logo_url = metis_newsletter_announcement_logo_url();
+    $logo_html = $logo_url !== ''
+        ? '<tr><td style="padding:26px 30px 0"><img src="' . metis_escape_url($logo_url) . '" alt="' . metis_escape_attr($org_name) . '" style="display:block;max-width:210px;max-height:82px;width:auto;height:auto;border:0"></td></tr>'
+        : '<tr><td style="padding:28px 30px 0;color:#172033;font-size:24px;font-weight:700;line-height:1.2;">' . metis_escape_html($org_name) . '</td></tr>';
+    $footer_html = metis_newsletter_announcement_footer_html('');
+    $closing_html = '<p style="margin:0;">-- ' . metis_escape_html($org_name) . '</p>';
+
+    return '<div style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#172033">'
+        . '<table role="presentation" data-metis-newsletter-shell="1" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f5f7fb"><tr><td align="center" style="padding:32px 16px">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;border-collapse:collapse;background:#ffffff;border:1px solid #dfe5f1;border-radius:10px;overflow:hidden">'
+        . $logo_html
+        . '<tr><td style="padding:24px 30px 12px;color:#172033;font-size:16px;line-height:1.7;">' . $body_html . '</td></tr>'
+        . '<tr><td style="padding:0 30px 18px;color:#172033;font-size:15px;line-height:1.6;">' . $closing_html . '</td></tr>'
+        . '<tr><td style="padding:0 30px 28px;color:#596579;font-size:13px;line-height:1.6;">' . $footer_html . '</td></tr>'
+        . '</table></td></tr></table></div>';
+}
+
+function metis_newsletter_announcement_email_text(string $body_html): string {
+    $org_name = metis_newsletter_announcement_org_name();
+    $parts = [];
+    $plain_body = \Metis\Modules\Newsletter\Support::plainTextFromHtml($body_html);
+    if ($plain_body !== '') {
+        $parts[] = $plain_body;
+    }
+    $parts[] = '-- ' . $org_name;
+    $parts[] = 'Manage Preferences: {{manage_subscription_url}}';
+    $parts[] = 'Unsubscribe: {{unsubscribe_url}}';
+    $parts[] = 'View online: {{view_online_url}}';
+    return trim(implode("\n\n", array_filter($parts, static fn($value) => trim((string) $value) !== '')));
 }
 
 function metis_newsletter_default_klipy_search_url(): string {
@@ -1000,10 +1024,10 @@ metis_ajax_register_handler( 'metis_newsletter_send_announcement_blast', functio
     $default_from_name = trim((string) Core_Settings_Service::get('newsletter_default_from_name', ''));
     $default_from_email = trim((string) Core_Settings_Service::get('newsletter_default_from_email', ''));
     $default_reply_to = trim((string) Core_Settings_Service::get('newsletter_default_reply_to', ''));
-    $doc_json = metis_newsletter_announcement_doc_json($body_html);
-    $compiled = metis_newsletter_doc_compile($doc_json);
     $name = 'Announcement Blast: ' . $subject;
     $now = metis_current_time('mysql');
+    $html_body = metis_newsletter_announcement_email_html($body_html);
+    $text_body = metis_newsletter_announcement_email_text($body_html);
 
     $payload = [
         'campaign_type' => CampaignService::TYPE_ANNOUNCEMENT_BLAST,
@@ -1014,10 +1038,10 @@ metis_ajax_register_handler( 'metis_newsletter_send_announcement_blast', functio
         'from_email' => $default_from_email,
         'reply_to' => $default_reply_to,
         'preheader' => '',
-        'doc_json' => $doc_json,
+        'doc_json' => '',
         'editor_body_html' => $body_html,
-        'html_body' => (string) ($compiled['html'] ?? ''),
-        'text_body' => (string) ($compiled['text'] ?? ''),
+        'html_body' => $html_body,
+        'text_body' => $text_body,
         'status' => 'draft',
         'scheduled_at' => null,
         'audience_json' => metis_json_encode([
@@ -1195,16 +1219,19 @@ metis_ajax_register_handler( 'metis_newsletter_test_send_campaign', function () 
     $campaign = CampaignService::rawById($campaign_id);
     if (!$campaign) metis_runtime_send_json_error('Campaign not found.', 404);
 
-    $doc_json = metis_newsletter_normalize_campaign_doc_json(
-        (string) ($campaign['doc_json'] ?? ''),
-        array_key_exists('editor_body_html', $campaign) ? (string) ($campaign['editor_body_html'] ?? '') : null
-    );
     $html_body = (string) ($campaign['html_body'] ?? '');
     $text_body = (string) ($campaign['text_body'] ?? '');
-    if ($doc_json !== '') {
-        $compiled = metis_newsletter_doc_compile($doc_json);
-        $html_body = (string) ($compiled['html'] ?? $html_body);
-        $text_body = (string) ($compiled['text'] ?? $text_body);
+    $is_announcement_blast = \Metis\Modules\Newsletter\CampaignService::normalizeType((string) ($campaign['campaign_type'] ?? '')) === \Metis\Modules\Newsletter\CampaignService::TYPE_ANNOUNCEMENT_BLAST;
+    if (!$is_announcement_blast) {
+        $doc_json = metis_newsletter_normalize_campaign_doc_json(
+            (string) ($campaign['doc_json'] ?? ''),
+            array_key_exists('editor_body_html', $campaign) ? (string) ($campaign['editor_body_html'] ?? '') : null
+        );
+        if ($doc_json !== '') {
+            $compiled = metis_newsletter_doc_compile($doc_json);
+            $html_body = (string) ($compiled['html'] ?? $html_body);
+            $text_body = (string) ($compiled['text'] ?? $text_body);
+        }
     }
     $html_body = metis_newsletter_ensure_email_container($html_body);
     $preview_contact = metis_newsletter_preview_contact_payload();

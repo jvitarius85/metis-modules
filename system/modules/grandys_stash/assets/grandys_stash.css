@@ -45,12 +45,12 @@
 
 .metis-stash-table--manageable .metis-premium-header,
 .metis-stash-table--manageable .metis-premium-row {
-    grid-template-columns: minmax(110px, 130px) minmax(0, 1.2fr) 90px 105px 95px minmax(0, 1fr) 70px 105px 90px;
+    grid-template-columns: minmax(120px, 132px) minmax(150px, 1.1fr) minmax(150px, 1.15fr) 92px 108px 96px minmax(100px, 0.85fr) 64px 104px 90px;
 }
 
 .metis-stash-table--readonly .metis-premium-header,
 .metis-stash-table--readonly .metis-premium-row {
-    grid-template-columns: minmax(110px, 130px) minmax(0, 1.2fr) 90px 105px 95px minmax(0, 1fr) 70px 105px;
+    grid-template-columns: minmax(120px, 132px) minmax(150px, 1.1fr) minmax(150px, 1.15fr) 92px 108px 96px minmax(100px, 0.85fr) 64px 104px;
 }
 
 
@@ -126,6 +126,86 @@
 
 .metis-stash-ticket-shell {
     margin-top: 10px;
+}
+
+.metis-stash-manager-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.metis-stash-manager-list,
+.metis-stash-manager-card {
+    background: #fff;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 10px 24px rgba(18, 41, 58, 0.06);
+}
+
+.metis-stash-manager-card h2 {
+    margin: 0 0 6px;
+    font-size: 20px;
+}
+
+.metis-stash-manager-table .metis-premium-header,
+.metis-stash-manager-table .metis-premium-row {
+    grid-template-columns: minmax(0, 1.6fr) 84px 84px 120px;
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-manager-row {
+    cursor: pointer;
+}
+
+.metis-stash-manager-row.is-selected,
+.metis-stash-manager-row:hover {
+    background: #f7f9ff;
+}
+
+.metis-stash-manager-ticket-list {
+    margin-top: 18px;
+}
+
+.metis-stash-linked-tickets {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.metis-stash-linked-ticket {
+    display: grid;
+    gap: 2px;
+    padding: 12px 14px;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 12px;
+    color: inherit;
+    text-decoration: none;
+    background: #fff;
+}
+
+.metis-stash-linked-ticket.is-current,
+.metis-stash-linked-ticket:hover {
+    border-color: #b8c6ff;
+    background: #f7f9ff;
+}
+
+.metis-stash-group-card summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.metis-stash-group-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.metis-stash-group-card-body {
+    margin-top: 14px;
 }
 
 /* Reuse People stat strip */
@@ -461,6 +541,20 @@
     column-gap: 0;
 }
 
+.metis-stash-report-wide-table .metis-premium-header,
+.metis-stash-report-wide-table .metis-premium-row {
+    grid-template-columns: minmax(0, 1.5fr) minmax(150px, 1fr) 100px 100px;
+    align-items: center;
+    column-gap: 0;
+}
+
+.metis-stash-report-equipment-table .metis-premium-header,
+.metis-stash-report-equipment-table .metis-premium-row {
+    grid-template-columns: minmax(0, 1.5fr) minmax(140px, 1fr) 100px 100px 100px;
+    align-items: center;
+    column-gap: 0;
+}
+
 .metis-stash-report-split {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -470,5 +564,11 @@
 @media (max-width: 720px) {
     .metis-stash-report-split {
         grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 1100px) {
+    .metis-stash-manager-layout {
+        grid-template-columns: 1fr;
     }
 }

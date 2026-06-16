@@ -164,6 +164,8 @@ final class SchemaManager {
         self::addColumnIfMissing( $campaigns_table, 'attachments_json', 'LONGTEXT DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'test_sent_at', 'DATETIME DEFAULT NULL' );
         self::addColumnIfMissing( $campaigns_table, 'archived_at', 'DATETIME DEFAULT NULL' );
+        self::addColumnIfMissing( $campaigns_table, 'open_count', 'INT UNSIGNED NOT NULL DEFAULT 0' );
+        self::addColumnIfMissing( $campaigns_table, 'click_count', 'INT UNSIGNED NOT NULL DEFAULT 0' );
         self::addIndexIfMissing( $campaigns_table, 'campaign_type', 'KEY campaign_type (campaign_type)' );
         self::addIndexIfMissing( $campaigns_table, 'status_scheduled', 'KEY status_scheduled (status, scheduled_at)' );
         self::addColumnIfMissing( $templates_table, 'doc_json', 'LONGTEXT DEFAULT NULL' );

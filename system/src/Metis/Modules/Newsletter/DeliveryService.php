@@ -8,6 +8,44 @@ use Metis\Http\Request;
 use Metis\Http\Response;
 
 final class DeliveryService {
+    private static function cleanMessageCode( string $value ): string {
+        $value = trim( $value );
+        if ( $value === '' ) {
+            return '';
+        }
+
+        return preg_replace( '/[^A-Za-z0-9_-]/', '', $value ) ?? '';
+    }
+
+    private static function messageCodeFromRequest( Request $request, string $kind ): string {
+        $code = self::cleanMessageCode( (string) $request->attribute( 'code', '' ) );
+        if ( $code !== '' ) {
+            return $code;
+        }
+
+        $path = (string) $request->path();
+        if ( $path === '' ) {
+            return '';
+        }
+
+        $patterns = [
+            'open'        => '#/metis/v1/newsletter/open/([A-Za-z0-9\-_]+)\.gif$#',
+            'click'       => '#/metis/v1/newsletter/click/([A-Za-z0-9\-_]+)$#',
+            'unsubscribe' => '#/metis/v1/newsletter/unsubscribe/([A-Za-z0-9\-_]+)$#',
+        ];
+        $pattern = $patterns[ $kind ] ?? '';
+        if ( $pattern !== '' && preg_match( $pattern, $path, $matches ) === 1 ) {
+            return self::cleanMessageCode( (string) ( $matches[1] ?? '' ) );
+        }
+
+        $route_params = $request->attribute( 'route_params', [] );
+        if ( is_array( $route_params ) ) {
+            return self::cleanMessageCode( (string) ( $route_params['code'] ?? '' ) );
+        }
+
+        return '';
+    }
+
     public static function gmailSend( string $to_email, string $subject, string $html_body, array $message_opts = [] ): array {
         if ( ! function_exists( 'metis_people_workspace_sync_settings' ) || ! function_exists( 'metis_people_workspace_google_access_token' ) ) {
             return [ 'ok' => false, 'error' => 'Workspace API service is not available.' ];
@@ -521,7 +559,7 @@ final class DeliveryService {
     }
 
     public static function handleOpenRoute( Request $request ): Response {
-        $code = (string) $request->attribute( 'code', '' );
+        $code = self::messageCodeFromRequest( $request, 'open' );
         if ( $code !== '' ) {
             \metis_newsletter_track_event_for_message( $code, 'open' );
         }
@@ -535,7 +573,7 @@ final class DeliveryService {
     }
 
     public static function handleClickRoute( Request $request ): Response {
-        $code    = (string) $request->attribute( 'code', '' );
+        $code    = self::messageCodeFromRequest( $request, 'click' );
         $raw     = (string) ( $request->query()['u'] ?? '' );
         $decoded = base64_decode( rawurldecode( $raw ), true );
         $url     = is_string( $decoded ) ? metis_url_clean( $decoded ) : '';
@@ -548,7 +586,7 @@ final class DeliveryService {
     }
 
     public static function handleUnsubscribeRoute( Request $request ): Response {
-        $code = (string) $request->attribute( 'code', '' );
+        $code = self::messageCodeFromRequest( $request, 'unsubscribe' );
         $ok   = $code !== '' ? \metis_newsletter_track_event_for_message( $code, 'unsubscribe', 'Unsubscribed via link' ) : false;
         $html = '<html><body style="font-family:Arial,sans-serif;padding:24px;"><h2>' . ( $ok ? 'You are unsubscribed.' : 'Unable to process unsubscribe.' ) . '</h2><p>You can close this tab.</p></body></html>';
         return Response::html( $html, $ok ? 200 : 400 );
@@ -870,7 +908,7 @@ final class DeliveryService {
 
         $campaigns_table = \Metis_Tables::get( 'newsletter_campaigns' );
         $campaign = $db->fetchOne(
-            "SELECT id, campaign_code, status, doc_json, editor_body_html, html_body, text_body, name
+            "SELECT id, campaign_code, campaign_type, status, doc_json, editor_body_html, html_body, text_body, name
              FROM {$campaigns_table}
              WHERE id = %d
              LIMIT 1",
@@ -885,12 +923,16 @@ final class DeliveryService {
             return Response::html( '<html><body style="font-family:Arial,sans-serif;padding:24px;"><h2>Newsletter is not public.</h2></body></html>', 404 );
         }
 
-        $doc_json = \metis_newsletter_normalize_campaign_doc_json(
-            (string) ( $campaign['doc_json'] ?? '' ),
-            array_key_exists( 'editor_body_html', $campaign ) ? (string) ( $campaign['editor_body_html'] ?? '' ) : null
-        );
-        $compiled = $doc_json !== '' ? \metis_newsletter_doc_compile( $doc_json ) : [ 'html' => '', 'text' => '' ];
-        $html_body = (string) ( $compiled['html'] ?? '' );
+        $html_body = '';
+        $is_announcement_blast = CampaignService::normalizeType( (string) ( $campaign['campaign_type'] ?? '' ) ) === CampaignService::TYPE_ANNOUNCEMENT_BLAST;
+        if ( ! $is_announcement_blast ) {
+            $doc_json = \metis_newsletter_normalize_campaign_doc_json(
+                (string) ( $campaign['doc_json'] ?? '' ),
+                array_key_exists( 'editor_body_html', $campaign ) ? (string) ( $campaign['editor_body_html'] ?? '' ) : null
+            );
+            $compiled = $doc_json !== '' ? \metis_newsletter_doc_compile( $doc_json ) : [ 'html' => '', 'text' => '' ];
+            $html_body = (string) ( $compiled['html'] ?? '' );
+        }
         if ( $html_body === '' ) {
             $html_body = (string) ( $campaign['html_body'] ?? '' );
         }

@@ -64,18 +64,7 @@ final class Support {
         $unsubscribe_url = trim( (string) ( $contact['unsubscribe_url'] ?? '' ) );
         $manage_url      = trim( (string) ( $contact['manage_subscription_url'] ?? '' ) );
         $view_url        = trim( (string) ( $contact['view_online_url'] ?? $contact['view_newsletter_url'] ?? '' ) );
-        if ( strpos( $html, '<' ) !== false ) {
-            $html = str_replace(
-                [ '{{unsubscribe_url}}', '{{manage_subscription_url}}', '{{view_online_url}}', '{{view_newsletter_url}}' ],
-                [
-                    '<a href="{{unsubscribe_url}}">Unsubscribe</a>',
-                    '<a href="{{manage_subscription_url}}">Manage Preferences</a>',
-                    '<a href="{{view_online_url}}">View online</a>',
-                    '<a href="{{view_newsletter_url}}">View online</a>',
-                ],
-                $html
-            );
-        } else {
+        if ( strpos( $html, '<' ) === false ) {
             $html = str_replace(
                 [ '{{unsubscribe_url}}', '{{manage_subscription_url}}', '{{view_online_url}}', '{{view_newsletter_url}}' ],
                 [

@@ -140,7 +140,7 @@ final class QueueService {
         $now             = \metis_current_time( 'mysql' );
 
         $rows = $db->fetchAll(
-            "SELECT m.*, c.campaign_code, c.name AS campaign_name, c.subject, c.from_name, c.from_email, c.reply_to, c.template_id, c.scheduled_at, c.doc_json AS campaign_doc_json, c.editor_body_html AS campaign_editor_body_html, c.html_body AS campaign_html_body, c.text_body AS campaign_text_body, c.attachments_json, t.doc_json AS template_doc_json, t.html_body, t.text_body
+            "SELECT m.*, c.campaign_type, c.campaign_code, c.name AS campaign_name, c.subject, c.from_name, c.from_email, c.reply_to, c.template_id, c.scheduled_at, c.doc_json AS campaign_doc_json, c.editor_body_html AS campaign_editor_body_html, c.html_body AS campaign_html_body, c.text_body AS campaign_text_body, c.attachments_json, t.doc_json AS template_doc_json, t.html_body, t.text_body
              FROM {$messages_table} m
              INNER JOIN {$campaigns_table} c ON c.id = m.campaign_id
              LEFT JOIN {$templates_table} t ON t.id = c.template_id
@@ -195,22 +195,24 @@ final class QueueService {
             $contact_payload['campaign_name'] = (string) ( $row['campaign_name'] ?? '' );
 
             $subject  = (string) ( $row['subject'] ?? 'Newsletter' );
-            $doc_json = (string) ( $row['campaign_doc_json'] ?? '' );
-            $editor_body_html = array_key_exists( 'campaign_editor_body_html', $row )
-                ? (string) ( $row['campaign_editor_body_html'] ?? '' )
-                : null;
-            if ( $doc_json === '' ) {
-                $doc_json = (string) ( $row['template_doc_json'] ?? '' );
-                $editor_body_html = null;
-            }
-            $doc_json = \metis_newsletter_normalize_campaign_doc_json( $doc_json, $editor_body_html );
-
             $html_body = '';
             $text_body = '';
-            if ( $doc_json !== '' ) {
-                $compiled  = \metis_newsletter_doc_compile( $doc_json );
-                $html_body = (string) ( $compiled['html'] ?? '' );
-                $text_body = (string) ( $compiled['text'] ?? '' );
+            $is_announcement_blast = CampaignService::normalizeType( (string) ( $row['campaign_type'] ?? '' ) ) === CampaignService::TYPE_ANNOUNCEMENT_BLAST;
+            if ( ! $is_announcement_blast ) {
+                $doc_json = (string) ( $row['campaign_doc_json'] ?? '' );
+                $editor_body_html = array_key_exists( 'campaign_editor_body_html', $row )
+                    ? (string) ( $row['campaign_editor_body_html'] ?? '' )
+                    : null;
+                if ( $doc_json === '' ) {
+                    $doc_json = (string) ( $row['template_doc_json'] ?? '' );
+                    $editor_body_html = null;
+                }
+                $doc_json = \metis_newsletter_normalize_campaign_doc_json( $doc_json, $editor_body_html );
+                if ( $doc_json !== '' ) {
+                    $compiled  = \metis_newsletter_doc_compile( $doc_json );
+                    $html_body = (string) ( $compiled['html'] ?? '' );
+                    $text_body = (string) ( $compiled['text'] ?? '' );
+                }
             }
             if ( $html_body === '' ) { $html_body = (string) ( $row['campaign_html_body'] ?? '' ); }
             if ( $text_body === '' ) { $text_body = (string) ( $row['campaign_text_body'] ?? '' ); }
@@ -281,11 +283,12 @@ final class QueueService {
                 }
             }
 
-            $send = DeliveryService::gmailSend(
+            $send = \Metis\Core\Services\EmailService::sendHtml(
                 (string) ( $row['email'] ?? '' ),
                 $subject,
                 $body,
                 [
+                    'module'             => 'newsletter',
                     'from_name'          => $from_name,
                     'from_email'         => $from_email,
                     'reply_to'           => $reply_to,
@@ -299,14 +302,15 @@ final class QueueService {
                 $db->update(
                     $messages_table,
                     [
-                        'status'     => 'sent',
-                        'sent_at'    => $now,
-                        'provider'   => 'gmail_api',
-                        'attempts'   => (int) ( $row['attempts'] ?? 0 ) + 1,
-                        'last_error' => null,
+                        'status'              => 'sent',
+                        'sent_at'             => $now,
+                        'provider'            => 'gmail_api',
+                        'provider_message_id' => (string) ( $send['gmail_id'] ?? '' ),
+                        'attempts'            => (int) ( $row['attempts'] ?? 0 ) + 1,
+                        'last_error'          => null,
                     ],
                     [ 'id' => $message_id ],
-                    [ '%s', '%s', '%s', '%d', '%s' ],
+                    [ '%s', '%s', '%s', '%s', '%d', '%s' ],
                     [ '%d' ]
                 );
                 \metis_newsletter_track_event_for_message( $message_code, 'delivered', 'Gmail accepted' );

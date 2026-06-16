@@ -38,25 +38,35 @@ function metis_newsletter_collect_recipients(int $campaign_id, array $audience =
             LOWER(TRIM(c.email)) AS email,
             c.first_name,
             c.last_name,
-            d.city,
-            d.state,
-            d.zip,
-            d.do_not_contact,
-            d.preferred_contact_method,
-            d.volunteer_status,
-            d.anonymous_donor
+            COALESCE(d_id.city, d_cid.city) AS city,
+            COALESCE(d_id.state, d_cid.state) AS state,
+            COALESCE(d_id.zip, d_cid.zip) AS zip,
+            COALESCE(d_id.do_not_contact, d_cid.do_not_contact) AS do_not_contact,
+            COALESCE(d_id.preferred_contact_method, d_cid.preferred_contact_method) AS preferred_contact_method,
+            COALESCE(d_id.volunteer_status, d_cid.volunteer_status) AS volunteer_status,
+            COALESCE(d_id.anonymous_donor, d_cid.anonymous_donor) AS anonymous_donor
          FROM {$subs_table} s
          INNER JOIN {$contacts_table} c ON c.id = s.contact_id
          INNER JOIN {$lists_table} l ON l.id = s.list_id
-         LEFT JOIN {$details_table} d ON d.contact_id = c.id OR d.contact_cid = c.cid
-         LEFT JOIN {$suppressions_table} sup ON (sup.contact_id = c.id OR sup.email = LOWER(TRIM(c.email))) AND sup.is_active = 1
+         LEFT JOIN {$details_table} d_id ON d_id.contact_id = c.id
+         LEFT JOIN {$details_table} d_cid
+                ON d_cid.contact_id IS NULL
+               AND d_cid.contact_cid COLLATE utf8mb4_general_ci = c.cid COLLATE utf8mb4_general_ci
+         LEFT JOIN {$suppressions_table} sup_id
+                ON sup_id.contact_id = c.id
+               AND sup_id.is_active = 1
+         LEFT JOIN {$suppressions_table} sup_email
+                ON sup_email.contact_id IS NULL
+               AND sup_email.email COLLATE utf8mb4_general_ci = LOWER(TRIM(c.email)) COLLATE utf8mb4_general_ci
+               AND sup_email.is_active = 1
          WHERE s.list_id IN ({$placeholders})
            AND s.status = 'subscribed'
            AND l.is_active = 1
            AND c.email IS NOT NULL
            AND TRIM(c.email) <> ''
-           AND (d.do_not_contact IS NULL OR d.do_not_contact = 0)
-           AND sup.id IS NULL",
+           AND COALESCE(d_id.do_not_contact, d_cid.do_not_contact, 0) = 0
+           AND sup_id.id IS NULL
+           AND sup_email.id IS NULL",
         $query_params
     ) ?: [];
     if (empty($rows)) return [];

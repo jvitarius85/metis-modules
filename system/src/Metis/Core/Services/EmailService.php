@@ -286,25 +286,33 @@ final class EmailService {
                 throw new \RuntimeException( $lastError );
             }
 
+            $lastSentValue = $sent > 0 ? '%s' : 'NULL';
+            $lastFailedValue = $failed > 0 ? '%s' : 'NULL';
+            $upsertParams = [
+                $date,
+                $moduleSlug,
+                $sent,
+                $failed,
+                $provider,
+            ];
+            if ( $sent > 0 ) {
+                $upsertParams[] = $timestamp;
+            }
+            if ( $failed > 0 ) {
+                $upsertParams[] = $timestamp;
+            }
+
             $upserted = $db->executePrepared(
                 "INSERT INTO {$table} (
                     usage_date, module_slug, sent_count, failed_count, last_provider, last_sent_at, last_failed_at
-                 ) VALUES (%s, %s, %d, %d, %s, %s, %s)
+                 ) VALUES (%s, %s, %d, %d, %s, {$lastSentValue}, {$lastFailedValue})
                  ON DUPLICATE KEY UPDATE
                     sent_count = sent_count + VALUES(sent_count),
                     failed_count = failed_count + VALUES(failed_count),
                     last_provider = VALUES(last_provider),
                     last_sent_at = CASE WHEN VALUES(sent_count) > 0 THEN VALUES(last_sent_at) ELSE last_sent_at END,
                     last_failed_at = CASE WHEN VALUES(failed_count) > 0 THEN VALUES(last_failed_at) ELSE last_failed_at END",
-                [
-                    $date,
-                    $moduleSlug,
-                    $sent,
-                    $failed,
-                    $provider,
-                    $sent > 0 ? $timestamp : null,
-                    $failed > 0 ? $timestamp : null,
-                ]
+                $upsertParams
             );
             if ( $upserted === false ) {
                 $lastError = $db->lastError() !== '' ? $db->lastError() : 'Unknown email usage upsert failure.';

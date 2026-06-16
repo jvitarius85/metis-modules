@@ -346,9 +346,9 @@ function metis_security_register_route_policies(): void {
     $register( new Metis_Security_Policy( 'route.auth_passkeys_begin', null, 'create', false, false, false, null, 180, 60 ) );
     $register( new Metis_Security_Policy( 'route.auth_passkeys_complete', null, 'create', false, false, false, null, 180, 60 ) );
     $register( new Metis_Security_Policy( 'route.auth_session_keepalive', null, 'view', true, true, false, null, 240, 60 ) );
-    $register( new Metis_Security_Policy( 'route.newsletter_open.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
-    $register( new Metis_Security_Policy( 'route.newsletter_click.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
-    $register( new Metis_Security_Policy( 'route.newsletter_unsubscribe.newsletter.view', 'newsletter', 'view', false, false, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.newsletter_open', null, 'view', false, false, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.newsletter_click', null, 'view', false, false, false, null, 240, 60 ) );
+    $register( new Metis_Security_Policy( 'route.newsletter_unsubscribe', null, 'view', false, false, false, null, 240, 60 ) );
     $register( new Metis_Security_Policy( 'route.website_theme_css', null, 'view', false, false, false, null, 300, 60 ) );
     $register( new Metis_Security_Policy( 'route.website_homepage', null, 'view', false, false, false, null, 300, 60 ) );
     $register( new Metis_Security_Policy( 'route.website_page', null, 'view', false, false, false, null, 300, 60 ) );

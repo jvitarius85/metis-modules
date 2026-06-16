@@ -8,6 +8,23 @@ final class GrandyStashRepository {
     // Settings keys
     private const REQUEST_ASSIGNEE_SETTING  = 'grandys_stash_default_request_assignee_user_id';
     private const DONATION_ASSIGNEE_SETTING = 'grandys_stash_default_donation_assignee_user_id';
+    private const PUBLIC_EMAIL_DOMAINS = [
+        'gmail.com',
+        'googlemail.com',
+        'yahoo.com',
+        'outlook.com',
+        'hotmail.com',
+        'live.com',
+        'icloud.com',
+        'me.com',
+        'aol.com',
+        'msn.com',
+        'comcast.net',
+        'att.net',
+        'sbcglobal.net',
+        'proton.me',
+        'protonmail.com',
+    ];
 
     // Locked statuses
     public const STATUSES = ['NEW', 'REVIEWING', 'WAITLIST', 'READY', 'COMPLETED', 'CLOSED'];
@@ -96,6 +113,49 @@ final class GrandyStashRepository {
     private static function nullableTextArea( mixed $value ): ?string {
         $value = trim( \metis_textarea_clean( (string) $value ) );
         return $value !== '' ? $value : null;
+    }
+
+    private static function normalizeDomain( string $value ): string {
+        $value = strtolower( trim( $value ) );
+        if ( $value === '' ) {
+            return '';
+        }
+
+        $value = preg_replace( '/^https?:\/\//', '', $value ) ?? $value;
+        $value = preg_replace( '/^www\./', '', $value ) ?? $value;
+        $value = explode( '/', $value )[0] ?? $value;
+        $value = explode( '?', $value )[0] ?? $value;
+
+        return filter_var( $value, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME ) ? $value : '';
+    }
+
+    private static function domainFromEmail( string $email ): string {
+        $email = strtolower( trim( \metis_email_clean( $email ) ) );
+        if ( $email === '' || ! str_contains( $email, '@' ) ) {
+            return '';
+        }
+
+        $domain = self::normalizeDomain( (string) substr( $email, strrpos( $email, '@' ) + 1 ) );
+        if ( $domain === '' || in_array( $domain, self::PUBLIC_EMAIL_DOMAINS, true ) ) {
+            return '';
+        }
+
+        return $domain;
+    }
+
+    private static function organizationNameFromDomain( string $domain ): string {
+        $domain = self::normalizeDomain( $domain );
+        if ( $domain === '' ) {
+            return '';
+        }
+
+        $parts = explode( '.', $domain );
+        $base = (string) ( $parts[0] ?? '' );
+        if ( $base === '' ) {
+            return '';
+        }
+
+        return ucwords( str_replace( [ '-', '_' ], ' ', $base ) );
     }
 
     private static function normalizeDatetime( string $value ): ?string {
@@ -659,6 +719,48 @@ final class GrandyStashRepository {
 
     // ─── Auto-grouping ───────────────────────────────────
 
+    public static function findOrCreateOrganization( string $name = '', string $domain = '' ): int {
+        $db    = self::db();
+        $table = \Metis_Tables::get( 'grandys_stash_organizations' );
+
+        $name = trim( \metis_text_clean( $name ) );
+        $domain = self::normalizeDomain( $domain );
+        if ( $name === '' && $domain === '' ) {
+            return 0;
+        }
+
+        $organization = null;
+        if ( $domain !== '' ) {
+            $organization = $db->fetchOne( "SELECT * FROM {$table} WHERE domain = %s LIMIT 1", [ $domain ] );
+        }
+        if ( ! $organization && $name !== '' ) {
+            $organization = $db->fetchOne( "SELECT * FROM {$table} WHERE name = %s LIMIT 1", [ $name ] );
+        }
+
+        if ( is_array( $organization ) ) {
+            $update = [];
+            if ( $name !== '' && (string) ( $organization['name'] ?? '' ) === '' ) {
+                $update['name'] = $name;
+            }
+            if ( $domain !== '' && (string) ( $organization['domain'] ?? '' ) === '' ) {
+                $update['domain'] = $domain;
+            }
+            if ( $update !== [] ) {
+                $db->update( $table, $update, [ 'id' => (int) $organization['id'] ] );
+            }
+
+            return (int) $organization['id'];
+        }
+
+        $db->insert( $table, [
+            'code'   => self::generateCode( 'GSO', $table, 'code' ),
+            'name'   => $name !== '' ? $name : self::organizationNameFromDomain( $domain ),
+            'domain' => $domain !== '' ? $domain : null,
+        ] );
+
+        return (int) $db->lastInsertId();
+    }
+
     public static function findOrCreateGroup( string $name, string $email, string $phone, string $contact_cid = '' ): int {
         $db    = self::db();
         $table = \Metis_Tables::get( 'grandys_stash_groups' );
@@ -702,6 +804,94 @@ final class GrandyStashRepository {
         ] );
 
         return $db->lastInsertId();
+    }
+
+    public static function searchGroups( string $query ): array {
+        $db = self::db();
+        $groups_table = \Metis_Tables::get( 'grandys_stash_groups' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $query = trim( $query );
+
+        $sql = "SELECT g.id, g.code, g.name, g.email, g.phone,
+                       COUNT(t.id) AS ticket_count,
+                       MAX(t.submitted_at) AS last_ticket_at
+                FROM {$groups_table} g
+                LEFT JOIN {$tickets_table} t ON t.group_id = g.id";
+        $params = [];
+        if ( $query !== '' ) {
+            $like = '%' . $db->escapeLike( $query ) . '%';
+            $sql .= " WHERE g.code LIKE %s OR g.name LIKE %s OR g.email LIKE %s OR g.phone LIKE %s";
+            $params = [ $like, $like, $like, $like ];
+        }
+
+        $sql .= " GROUP BY g.id ORDER BY ticket_count DESC, g.updated_at DESC, g.id DESC LIMIT 50";
+        return $db->fetchAll( $sql, $params ) ?: [];
+    }
+
+    public static function searchOrganizations( string $query ): array {
+        $db = self::db();
+        $orgs_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $query = trim( $query );
+
+        $sql = "SELECT o.id, o.code, o.name, o.domain, o.notes, o.is_active,
+                       COUNT(t.id) AS ticket_count,
+                       MAX(t.submitted_at) AS last_ticket_at
+                FROM {$orgs_table} o
+                LEFT JOIN {$tickets_table} t ON t.organization_id = o.id";
+        $params = [];
+        if ( $query !== '' ) {
+            $like = '%' . $db->escapeLike( $query ) . '%';
+            $sql .= " WHERE o.code LIKE %s OR o.name LIKE %s OR o.domain LIKE %s";
+            $params = [ $like, $like, $like ];
+        }
+
+        $sql .= " GROUP BY o.id ORDER BY ticket_count DESC, o.updated_at DESC, o.id DESC LIMIT 50";
+        return $db->fetchAll( $sql, $params ) ?: [];
+    }
+
+    public static function linkTicketToGroup( int $ticket_id, int $group_id ): array {
+        $db = self::db();
+        $ticket = self::getTicket( $ticket_id );
+        if ( ! $ticket ) {
+            return [ 'ok' => false, 'status' => 404 ];
+        }
+
+        $group = $db->fetchOne(
+            "SELECT id, code, name FROM " . \Metis_Tables::get( 'grandys_stash_groups' ) . " WHERE id = %d LIMIT 1",
+            [ $group_id ]
+        );
+        if ( ! is_array( $group ) ) {
+            return [ 'ok' => false, 'status' => 404 ];
+        }
+
+        $db->update( \Metis_Tables::get( 'grandys_stash_tickets' ), [ 'group_id' => $group_id ], [ 'id' => $ticket_id ] );
+        self::logActivity( $ticket_id, 'grouped', 'Linked to person group ' . (string) ( $group['code'] ?? '#' . $group_id ) . '.' );
+
+        return [ 'ok' => true ];
+    }
+
+    public static function mergeGroups( int $source_id, int $target_id ): array {
+        if ( $source_id < 1 || $target_id < 1 || $source_id === $target_id ) {
+            return [ 'ok' => false, 'status' => 422 ];
+        }
+
+        $db = self::db();
+        $groups_table = \Metis_Tables::get( 'grandys_stash_groups' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $source = $db->fetchOne( "SELECT id, code FROM {$groups_table} WHERE id = %d LIMIT 1", [ $source_id ] );
+        $target = $db->fetchOne( "SELECT id, code FROM {$groups_table} WHERE id = %d LIMIT 1", [ $target_id ] );
+        if ( ! is_array( $source ) || ! is_array( $target ) ) {
+            return [ 'ok' => false, 'status' => 404 ];
+        }
+
+        $ticket_ids = $db->fetchAll( "SELECT id FROM {$tickets_table} WHERE group_id = %d", [ $source_id ] ) ?: [];
+        $db->update( $tickets_table, [ 'group_id' => $target_id ], [ 'group_id' => $source_id ] );
+        foreach ( $ticket_ids as $row ) {
+            self::logActivity( (int) ( $row['id'] ?? 0 ), 'grouped', 'Merged from person group ' . (string) $source['code'] . ' into ' . (string) $target['code'] . '.' );
+        }
+
+        return [ 'ok' => true ];
     }
 
     public static function unlinkTicketFromGroup( int $ticket_id ): array {
@@ -1354,7 +1544,97 @@ final class GrandyStashRepository {
         return array_map( [ self::class, 'resolveTicketItemRow' ], is_array( $rows ) ? $rows : [] );
     }
 
+    public static function listGroupSummaries(): array {
+        $db = self::db();
+        $groups_table = \Metis_Tables::get( 'grandys_stash_groups' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+
+        return $db->fetchAll(
+            "SELECT g.id, g.code, g.name, g.email, g.phone, g.notes,
+                    COUNT(t.id) AS ticket_count,
+                    SUM(CASE WHEN t.status IN ('NEW', 'REVIEWING', 'WAITLIST', 'READY') THEN 1 ELSE 0 END) AS open_count,
+                    MAX(t.submitted_at) AS last_ticket_at
+             FROM {$groups_table} g
+             LEFT JOIN {$tickets_table} t ON t.group_id = g.id
+             GROUP BY g.id
+             ORDER BY ticket_count DESC, g.updated_at DESC, g.id DESC
+             LIMIT 250"
+        ) ?: [];
+    }
+
+    public static function listOrganizationSummaries(): array {
+        $db = self::db();
+        $orgs_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+
+        return $db->fetchAll(
+            "SELECT o.id, o.code, o.name, o.domain, o.notes, o.is_active,
+                    COUNT(t.id) AS ticket_count,
+                    SUM(CASE WHEN t.status IN ('NEW', 'REVIEWING', 'WAITLIST', 'READY') THEN 1 ELSE 0 END) AS open_count,
+                    MAX(t.submitted_at) AS last_ticket_at
+             FROM {$orgs_table} o
+             LEFT JOIN {$tickets_table} t ON t.organization_id = o.id
+             GROUP BY o.id
+             ORDER BY ticket_count DESC, o.updated_at DESC, o.id DESC
+             LIMIT 250"
+        ) ?: [];
+    }
+
     // ─── Group for ticket ────────────────────────────────
+
+    public static function getOrganizationForTicket( int $ticket_id ): ?array {
+        $db = self::db();
+        $ticket = self::getTicket( $ticket_id );
+        if ( ! $ticket ) {
+            return null;
+        }
+
+        $organization_id = (int) ( $ticket['organization_id'] ?? 0 );
+        if ( $organization_id < 1 ) {
+            $domain = self::domainFromEmail( (string) ( $ticket['submit_email'] ?? '' ) );
+            if ( $domain === '' ) {
+                return null;
+            }
+
+            $organization_id = self::findOrCreateOrganization(
+                trim( (string) ( $ticket['organization_name'] ?? '' ) ) !== '' ? (string) $ticket['organization_name'] : self::organizationNameFromDomain( $domain ),
+                $domain
+            );
+            if ( $organization_id > 0 ) {
+                self::db()->update(
+                    \Metis_Tables::get( 'grandys_stash_tickets' ),
+                    [
+                        'organization_id' => $organization_id,
+                        'organization_name' => self::organizationNameFromDomain( $domain ),
+                    ],
+                    [ 'id' => $ticket_id ]
+                );
+                $ticket = self::getTicket( $ticket_id ) ?? $ticket;
+            }
+        }
+
+        if ( $organization_id < 1 ) {
+            return null;
+        }
+
+        $orgs_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $organization = $db->fetchOne( "SELECT * FROM {$orgs_table} WHERE id = %d LIMIT 1", [ $organization_id ] );
+        if ( ! is_array( $organization ) ) {
+            return null;
+        }
+
+        $organization['tickets'] = $db->fetchAll(
+            "SELECT id, code, type, status, submit_name, submitted_at
+             FROM {$tickets_table}
+             WHERE organization_id = %d
+             ORDER BY submitted_at DESC, id DESC",
+            [ $organization_id ]
+        ) ?: [];
+        $organization['ticket_count'] = count( $organization['tickets'] );
+
+        return $organization;
+    }
 
     public static function getGroupForTicket( int $ticket_id ): ?array {
         $db    = self::db();
@@ -1378,6 +1658,7 @@ final class GrandyStashRepository {
              ORDER BY submitted_at DESC",
             [ (int) $group['id'] ]
         );
+        $group['ticket_count'] = count( $group['tickets'] );
         return $group;
     }
 
@@ -1402,6 +1683,7 @@ final class GrandyStashRepository {
             'messages' => self::getTicketMessages( $ticket_id ),
             'notes'    => self::getTicketNotes( $ticket_id ),
             'activity' => self::getTicketActivity( $ticket_id ),
+            'organization' => self::getOrganizationForTicket( $ticket_id ),
             'group'    => self::getGroupForTicket( $ticket_id ),
         ];
     }
@@ -1439,6 +1721,78 @@ final class GrandyStashRepository {
         }
 
         return [ 'ok' => true, 'ticket' => self::getTicket( $id ) ];
+    }
+
+    public static function deleteTicket( int $ticket_id ): array {
+        $ticket = self::getTicket( $ticket_id );
+        if ( ! $ticket ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Ticket not found.' ];
+        }
+
+        $db = self::db();
+        $db->delete( \Metis_Tables::get( 'grandys_stash_ticket_items' ), [ 'ticket_id' => $ticket_id ] );
+        $db->delete( \Metis_Tables::get( 'grandys_stash_notes' ), [ 'ticket_id' => $ticket_id ] );
+        $db->delete( \Metis_Tables::get( 'grandys_stash_activity' ), [ 'ticket_id' => $ticket_id ] );
+        $db->delete( \Metis_Tables::get( 'grandys_stash_messages' ), [ 'ticket_id' => $ticket_id ] );
+        $db->delete( \Metis_Tables::get( 'grandys_stash_tickets' ), [ 'id' => $ticket_id ] );
+
+        return [ 'ok' => true, 'deleted_code' => (string) ( $ticket['code'] ?? '' ) ];
+    }
+
+    public static function saveOrganization( array $payload ): array {
+        $db = self::db();
+        $table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $id = (int) ( $payload['id'] ?? 0 );
+        $name = trim( \metis_text_clean( (string) ( $payload['name'] ?? '' ) ) );
+        $domain = self::normalizeDomain( (string) ( $payload['domain'] ?? '' ) );
+        $notes = self::nullableTextArea( $payload['notes'] ?? '' );
+        $is_active = ! isset( $payload['is_active'] ) || (string) $payload['is_active'] !== '0';
+
+        if ( $name === '' && $domain === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Organization name or domain is required.' ];
+        }
+
+        if ( $name === '' ) {
+            $name = self::organizationNameFromDomain( $domain );
+        }
+
+        $row = [
+            'name' => $name,
+            'domain' => $domain !== '' ? $domain : null,
+            'notes' => $notes,
+            'is_active' => $is_active ? 1 : 0,
+        ];
+        if ( $id > 0 ) {
+            $db->update( $table, $row, [ 'id' => $id ] );
+        } else {
+            $row['code'] = self::generateCode( 'GSO', $table, 'code' );
+            $db->insert( $table, $row );
+            $id = (int) $db->lastInsertId();
+        }
+
+        return [ 'ok' => true, 'organization_id' => $id ];
+    }
+
+    public static function saveGroup( array $payload ): array {
+        $db = self::db();
+        $table = \Metis_Tables::get( 'grandys_stash_groups' );
+        $id = (int) ( $payload['id'] ?? 0 );
+        if ( $id < 1 ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Group ID is required.' ];
+        }
+
+        $row = [
+            'name' => trim( \metis_text_clean( (string) ( $payload['name'] ?? '' ) ) ),
+            'email' => self::nullableText( $payload['email'] ?? '' ),
+            'phone' => self::nullableText( $payload['phone'] ?? '' ),
+            'notes' => self::nullableTextArea( $payload['notes'] ?? '' ),
+        ];
+        if ( $row['name'] === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Group name is required.' ];
+        }
+
+        $db->update( $table, $row, [ 'id' => $id ] );
+        return [ 'ok' => true, 'group_id' => $id ];
     }
 
     // ─── Ticket items CRUD ───────────────────────────────
@@ -1526,6 +1880,7 @@ final class GrandyStashRepository {
         $tickets = \Metis_Tables::get( 'grandys_stash_tickets' );
         $items   = \Metis_Tables::get( 'grandys_stash_ticket_items' );
         $groups  = \Metis_Tables::get( 'grandys_stash_groups' );
+        $organizations = \Metis_Tables::get( 'grandys_stash_organizations' );
 
         $where = "1=1";
         $params = [];
@@ -1582,6 +1937,7 @@ final class GrandyStashRepository {
         // Monthly breakdown
         $monthly = $db->fetchAll(
             "SELECT DATE_FORMAT(t.submitted_at, '%%Y-%%m') AS month,
+                    DATE_FORMAT(t.submitted_at, '%%b %%Y') AS month_label,
                     COUNT(*) AS tickets,
                     SUM(CASE WHEN t.type = 'request' THEN 1 ELSE 0 END) AS requests,
                     SUM(CASE WHEN t.type = 'donation' THEN 1 ELSE 0 END) AS donations,
@@ -1591,6 +1947,52 @@ final class GrandyStashRepository {
              GROUP BY DATE_FORMAT(t.submitted_at, '%%Y-%%m')
              ORDER BY month DESC
              LIMIT 24",
+            $params
+        ) ?: [];
+
+        $by_organization = $db->fetchAll(
+            "SELECT COALESCE(NULLIF(t.organization_name, ''), o.name, 'Independent') AS organization_name,
+                    COALESCE(NULLIF(o.domain, ''), '') AS organization_domain,
+                    COUNT(*) AS ticket_count,
+                    SUM(CASE WHEN t.type = 'request' THEN 1 ELSE 0 END) AS request_count,
+                    SUM(CASE WHEN t.type = 'donation' THEN 1 ELSE 0 END) AS donation_count
+             FROM {$tickets} t
+             LEFT JOIN {$organizations} o ON o.id = t.organization_id
+             WHERE {$where}
+             GROUP BY COALESCE(t.organization_id, 0), organization_name, organization_domain
+             ORDER BY request_count DESC, ticket_count DESC, organization_name ASC
+             LIMIT 50",
+            $params
+        ) ?: [];
+
+        $by_person = $db->fetchAll(
+            "SELECT COALESCE(NULLIF(g.name, ''), NULLIF(t.submit_name, ''), 'Unknown') AS person_name,
+                    COALESCE(NULLIF(g.email, ''), NULLIF(t.submit_email, ''), '') AS person_email,
+                    COUNT(*) AS ticket_count,
+                    SUM(CASE WHEN t.type = 'request' THEN 1 ELSE 0 END) AS request_count,
+                    SUM(CASE WHEN t.type = 'donation' THEN 1 ELSE 0 END) AS donation_count
+             FROM {$tickets} t
+             LEFT JOIN {$groups} g ON g.id = t.group_id
+             WHERE {$where}
+             GROUP BY COALESCE(t.group_id, 0), person_name, person_email
+             ORDER BY request_count DESC, ticket_count DESC, person_name ASC
+             LIMIT 50",
+            $params
+        ) ?: [];
+
+        $by_equipment = $db->fetchAll(
+            "SELECT COALESCE(NULLIF(i.item_name, ''), NULLIF(i.description, ''), 'Other') AS equipment_name,
+                    COALESCE(NULLIF(i.category, ''), 'other') AS category,
+                    SUM(CASE WHEN t.type = 'request' THEN i.quantity ELSE 0 END) AS request_quantity,
+                    SUM(CASE WHEN t.type = 'donation' THEN i.quantity ELSE 0 END) AS donation_quantity,
+                    SUM(i.quantity) AS total_quantity,
+                    SUM(CASE WHEN i.status = 'fulfilled' THEN i.quantity ELSE 0 END) AS fulfilled_quantity
+             FROM {$items} i
+             INNER JOIN {$tickets} t ON t.id = i.ticket_id
+             WHERE {$where}
+             GROUP BY equipment_name, category
+             ORDER BY request_quantity DESC, total_quantity DESC, equipment_name ASC
+             LIMIT 100",
             $params
         ) ?: [];
 
@@ -1632,6 +2034,9 @@ final class GrandyStashRepository {
             'monthly'         => $monthly,
             'by_urgency'      => $by_urgency,
             'by_source'       => $by_source,
+            'by_organization' => $by_organization,
+            'by_person'       => $by_person,
+            'by_equipment'    => $by_equipment,
             'avg_days_to_complete' => round( (float) ( $avg_completion['avg_days'] ?? 0 ), 1 ),
         ];
     }
@@ -1687,6 +2092,14 @@ final class GrandyStashRepository {
         $email      = strtolower( trim( \metis_email_clean( (string) ( $payload['email'] ?? '' ) ) ) );
         $phone      = trim( \metis_text_clean( (string) ( $payload['phone'] ?? '' ) ) );
         $name       = trim( $first_name . ' ' . $last_name );
+        $organization_name = trim( \metis_text_clean( (string) ( $payload['organization_name'] ?? '' ) ) );
+        $organization_domain = self::normalizeDomain( (string) ( $payload['organization_domain'] ?? '' ) );
+        if ( $organization_domain === '' ) {
+            $organization_domain = self::domainFromEmail( $email );
+        }
+        if ( $organization_name === '' ) {
+            $organization_name = self::organizationNameFromDomain( $organization_domain );
+        }
 
         if ( $name === '' && $email === '' ) {
             return [ 'ok' => false, 'status' => 422, 'error' => 'Name or email is required.' ];
@@ -1705,6 +2118,7 @@ final class GrandyStashRepository {
             $phone,
             $contact_cid
         );
+        $organization_id = self::findOrCreateOrganization( $organization_name, $organization_domain );
 
         $assignee_id = self::normalizeAssigneeUserId( $payload['assigned_to'] ?? 0 );
 
@@ -1721,6 +2135,8 @@ final class GrandyStashRepository {
             'submit_name'     => $name !== '' ? $name : 'Unknown',
             'submit_email'    => $email !== '' ? $email : null,
             'submit_phone'    => $phone !== '' ? $phone : null,
+            'organization_id' => $organization_id > 0 ? $organization_id : null,
+            'organization_name'=> $organization_name !== '' ? $organization_name : null,
             'submit_notes'    => self::nullableTextArea( $payload['notes'] ?? '' ),
         ] );
 
@@ -1759,6 +2175,14 @@ final class GrandyStashRepository {
         $email       = strtolower( trim( \metis_email_clean( (string) ( $payload['email'] ?? '' ) ) ) );
         $phone       = trim( \metis_text_clean( (string) ( $payload['phone'] ?? '' ) ) );
         $name        = trim( $first_name . ' ' . $last_name );
+        $organization_name = trim( \metis_text_clean( (string) ( $payload['organization_name'] ?? '' ) ) );
+        $organization_domain = self::normalizeDomain( (string) ( $payload['organization_domain'] ?? '' ) );
+        if ( $organization_domain === '' ) {
+            $organization_domain = self::domainFromEmail( $email );
+        }
+        if ( $organization_name === '' ) {
+            $organization_name = self::organizationNameFromDomain( $organization_domain );
+        }
 
         if ( $name === '' && $email === '' ) {
             return [ 'ok' => false, 'status' => 422, 'error' => 'Name or email is required.' ];
@@ -1785,6 +2209,7 @@ final class GrandyStashRepository {
             $phone,
             $contact_cid
         );
+        $organization_id = self::findOrCreateOrganization( $organization_name, $organization_domain );
 
         $assignee_id = self::defaultAssigneeUserId( $type );
         $db->insert( $tickets, [
@@ -1800,6 +2225,8 @@ final class GrandyStashRepository {
             'submit_name'        => $name !== '' ? $name : ( $email !== '' ? $email : 'Unknown' ),
             'submit_email'       => $email !== '' ? $email : null,
             'submit_phone'       => $phone !== '' ? $phone : null,
+            'organization_id'    => $organization_id > 0 ? $organization_id : null,
+            'organization_name'  => $organization_name !== '' ? $organization_name : null,
             'submit_notes'       => self::nullableTextArea( $payload['notes'] ?? '' ),
             'form_id'            => $form_id > 0 ? $form_id : null,
             'form_submission_id' => $form_submission_id > 0 ? $form_submission_id : null,
@@ -1826,7 +2253,8 @@ final class GrandyStashRepository {
             'assignees'        => self::assigneeOptions(),
             'routing_defaults' => self::routingDefaults(),
             'tickets'          => self::listTickets(),
-            'groups'           => [],
+            'groups'           => self::listGroupSummaries(),
+            'organizations'    => self::listOrganizationSummaries(),
         ];
     }
 
@@ -1877,11 +2305,15 @@ final class GrandyStashRepository {
             "SELECT t.*,
                     g.name AS group_name,
                     g.code AS group_code,
+                    o.name AS organization_label,
+                    o.code AS organization_code,
+                    o.domain AS organization_domain,
                     (SELECT GROUP_CONCAT(ti.item_name SEPARATOR ', ')
                      FROM {$items_table} ti WHERE ti.ticket_id = t.id LIMIT 5) AS items_summary,
                     (SELECT COUNT(*) FROM {$items_table} ti2 WHERE ti2.ticket_id = t.id) AS item_count
              FROM {$table} t
              LEFT JOIN {$groups_table} g ON g.id = t.group_id
+             LEFT JOIN " . \Metis_Tables::get( 'grandys_stash_organizations' ) . " o ON o.id = t.organization_id
              ORDER BY FIELD(t.status, 'NEW', 'REVIEWING', 'WAITLIST', 'READY', 'COMPLETED', 'CLOSED'),
                       t.submitted_at DESC, t.id DESC
              LIMIT 200"

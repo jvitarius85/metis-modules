@@ -25,6 +25,7 @@ $can_comment = function_exists( 'metis_grandys_stash_can_comment' ) && metis_gra
 $can_reply = function_exists( 'metis_grandys_stash_can_reply' ) && metis_grandys_stash_can_reply();
 $can_inventory = function_exists( 'metis_grandys_stash_can_inventory' ) && metis_grandys_stash_can_inventory();
 $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_grandys_stash_can_settings();
+$can_delete = function_exists( 'metis_grandys_stash_can_delete' ) && metis_grandys_stash_can_delete();
 metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_name !== '' ? ' - ' . $submit_name : '' ) );
 ?>
 
@@ -34,6 +35,7 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
      data-can-comment="<?php echo metis_escape_attr( $can_comment ? '1' : '0' ); ?>"
      data-can-reply="<?php echo metis_escape_attr( $can_reply ? '1' : '0' ); ?>"
      data-can-inventory="<?php echo metis_escape_attr( $can_inventory ? '1' : '0' ); ?>"
+     data-can-delete="<?php echo metis_escape_attr( $can_delete ? '1' : '0' ); ?>"
      data-ticket-page="1"
      data-ticket-id="<?php echo metis_escape_attr( (string) $ticket_id ); ?>"
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
@@ -55,6 +57,8 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
                 <div class="metis-list-sidebar-label">Navigation</div>
                 <nav class="metis-list-sidebar-nav" aria-label="Grandy's Stash navigation">
                     <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-list-sidebar-nav-item is-active">Inbox</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/groups/' ); ?>" class="metis-list-sidebar-nav-item">People Groups</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/organizations/' ); ?>" class="metis-list-sidebar-nav-item">Organizations</a>
                     <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-list-sidebar-nav-item">Reports</a>
                     <?php if ( $can_settings ) : ?>
                     <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-list-sidebar-nav-item">Settings</a>
@@ -100,6 +104,10 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
         </div>
 
         <aside class="metis-stash-ticket-sidebar">
+            <div class="metis-stash-ticket-section metis-stash-ticket-sidecard" id="metis-stash-ticket-organization-section" style="display:none;">
+                <h3>Organization Group</h3>
+                <div id="metis-stash-ticket-organization"></div>
+            </div>
             <div class="metis-stash-ticket-section metis-stash-ticket-sidecard" id="metis-stash-ticket-group-section" style="display:none;">
                 <h3>Person Group</h3>
                 <div id="metis-stash-ticket-group"></div>
@@ -143,6 +151,11 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
                     <div class="metis-stash-form-actions">
                         <button type="submit" class="metis-btn">Save ticket</button>
                     </div>
+                    <?php if ( $can_delete ) : ?>
+                    <div class="metis-stash-form-actions">
+                        <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-ticket-delete">Delete ticket</button>
+                    </div>
+                    <?php endif; ?>
                 </form>
             </div>
             <?php endif; ?>

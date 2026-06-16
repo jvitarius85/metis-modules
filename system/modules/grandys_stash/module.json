@@ -17,6 +17,8 @@
         "type": "dropdown",
         "items": {
             "dashboard": "Inbox",
+            "groups": "People Groups",
+            "organizations": "Organizations",
             "reports": "Reports",
             "settings": "Settings"
         }
@@ -120,11 +122,21 @@
                 "donor_admin",
                 "newsletter_admin"
             ]
+        },
+        "delete": {
+            "key": "grandys_stash.delete",
+            "action": "delete",
+            "name": "Grandy's Stash Delete Tickets",
+            "roles": [
+                "administrator"
+            ]
         }
     },
     "views": {
         "dashboard": "dashboard.php",
         "ticket": "ticket.php",
+        "groups": "groups.php",
+        "organizations": "organizations.php",
         "reports": "report.php",
         "settings": "settings.php"
     },

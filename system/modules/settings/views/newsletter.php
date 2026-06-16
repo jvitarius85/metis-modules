@@ -31,23 +31,6 @@ extract( $ctx, EXTR_SKIP );
                 <input type="number" id="newsletter_google_daily_limit" name="newsletter_google_daily_limit" class="metis-input metis-input-wide" min="100" max="100000" step="1" value="<?php echo metis_escape_attr( (string) $newsletter_google_daily_limit ); ?>">
                 <p class="metis-help">Used by Newsletter usage monitoring to warn as you approach the configured send limit.</p>
             </div>
-            <div class="metis-field">
-                <label for="newsletter_klipy_credential_id">Klipy API Credential</label>
-                <select id="newsletter_klipy_credential_id" name="newsletter_klipy_credential_id" class="metis-input metis-input-wide">
-                    <option value="">Select credential</option>
-                    <?php foreach ( (array) $klipy_credentials as $credential ) : ?>
-                        <option value="<?php echo metis_escape_attr( (string) ( $credential['id'] ?? '' ) ); ?>" <?php metis_attr_selected( (string) $newsletter_klipy_credential_id, (string) ( $credential['id'] ?? '' ) ); ?>>
-                            <?php echo metis_escape_html( (string) ( $credential['label'] ?? $credential['id'] ?? '' ) ); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <p class="metis-help">Credentials are managed under Developers → API & Endpoints.</p>
-            </div>
-            <div class="metis-field">
-                <label for="newsletter_klipy_search_url">Klipy Search Endpoint</label>
-                <input type="url" id="newsletter_klipy_search_url" name="newsletter_klipy_search_url" class="metis-input metis-input-wide" value="<?php echo metis_escape_attr( (string) $newsletter_klipy_search_url ); ?>" autocomplete="off" placeholder="https://api.klipy.com/...">
-                <p class="metis-help">Search endpoint used by the Klipy picker. Defaults to <code>https://api.klipy.com/v1/gifs/search</code>.</p>
-            </div>
         </div>
     </div>
     <?php $usage = is_array( $email_usage_snapshot ?? null ) ? $email_usage_snapshot : []; ?>

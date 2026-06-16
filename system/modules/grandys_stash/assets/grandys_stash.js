@@ -4,18 +4,22 @@
   const ajax = window.metisGrandyStashAjax || {};
   if (!root || !bootNode) return;
 
-  let state = parseJson(bootNode.textContent, { stats: {}, tickets: [], assignees: [] });
+  let state = parseJson(bootNode.textContent, { stats: {}, tickets: [], assignees: [], groups: [], organizations: [] });
   let currentFilter = 'action';
-  let searchQuery = '';
   let currentTicketId = 0;
+  let selectedManagerId = 0;
+  let selectedManagerKind = '';
+
   const canManage = root.dataset.canManage === '1';
   const canCreate = root.dataset.canCreate === '1';
   const canAssign = root.dataset.canAssign === '1';
   const canComment = root.dataset.canComment === '1';
   const canReply = root.dataset.canReply === '1';
   const canInventory = root.dataset.canInventory === '1';
+  const canDelete = root.dataset.canDelete === '1';
   const currentUserId = parseInt(ajax.user_id || '0', 10);
   const isTicketPage = root.dataset.ticketPage === '1';
+  const stashView = String(root.dataset.stashView || '');
   const viewBaseUrl = String(root.dataset.viewBaseUrl || '');
 
   const ui = {
@@ -27,10 +31,12 @@
     ticketConversation: qs('#metis-stash-ticket-conversation'),
     ticketNotes: qs('#metis-stash-ticket-notes'),
     ticketActivity: qs('#metis-stash-ticket-activity'),
+    ticketOrganizationSection: qs('#metis-stash-ticket-organization-section'),
+    ticketOrganization: qs('#metis-stash-ticket-organization'),
     ticketGroupSection: qs('#metis-stash-ticket-group-section'),
     ticketGroup: qs('#metis-stash-ticket-group'),
     ticketForm: qs('#metis-stash-ticket-form'),
-    ticketAssignee: qs('#metis-stash-ticket-assignee'),
+    ticketDelete: qs('#metis-stash-ticket-delete'),
     replySubject: qs('#metis-stash-reply-subject'),
     replyInput: qs('#metis-stash-reply-input'),
     replySubmit: qs('#metis-stash-reply-submit'),
@@ -38,39 +44,85 @@
     noteSubmit: qs('#metis-stash-note-submit'),
     newTicketModal: qs('#metis-stash-new-ticket-modal'),
     newTicketForm: qs('#metis-stash-new-ticket-form'),
+    routingForm: qs('#metis-stash-routing-form'),
+    reportRunBtn: qs('#metis-stash-report-run'),
+    reportFrom: qs('#metis-stash-report-from'),
+    reportTo: qs('#metis-stash-report-to'),
+    reportContent: qs('#metis-stash-report-content'),
+    groupRows: qs('#metis-stash-group-rows'),
+    groupSearch: qs('#metis-stash-group-search'),
+    groupForm: qs('#metis-stash-group-form'),
+    groupTicketList: qs('#metis-stash-group-ticket-list'),
+    organizationRows: qs('#metis-stash-organization-rows'),
+    organizationSearch: qs('#metis-stash-organization-search'),
+    organizationForm: qs('#metis-stash-organization-form'),
+    organizationTicketList: qs('#metis-stash-organization-ticket-list'),
   };
 
-  filterRows();
-  if (isTicketPage) {
-    const initialTicketId = parseInt(root.dataset.ticketId || '0', 10);
-    if (initialTicketId > 0) {
-      openTicketDetail(initialTicketId);
+  initialize();
+
+  function initialize() {
+    filterRows();
+    filterManagerRows();
+    hydrateReportDateInputs();
+
+    if (isTicketPage) {
+      const initialTicketId = parseInt(root.dataset.ticketId || '0', 10);
+      if (initialTicketId > 0) {
+        openTicketDetail(initialTicketId);
+      }
+    }
+
+    if (stashView === 'groups' && state.groups && state.groups.length) {
+      selectManagerRow('group', Number(state.groups[0].id || 0));
+    }
+    if (stashView === 'organizations' && state.organizations && state.organizations.length) {
+      selectManagerRow('organization', Number(state.organizations[0].id || 0));
     }
   }
 
-  // ─── Events ────────────────────────────────────────
-
   root.addEventListener('click', async function (e) {
     const close = e.target.closest('[data-close-modal]');
-    if (close) { closeModal(qs('#' + close.dataset.closeModal)); return; }
+    if (close) {
+      closeModal(qs('#' + close.dataset.closeModal));
+      return;
+    }
 
     if (e.target.closest('#metis-stash-new-ticket-open')) {
       if (!canCreate) return;
-      if (ui.newTicketForm) ui.newTicketForm.reset();
+      ui.newTicketForm?.reset();
       openModal(ui.newTicketModal);
       return;
     }
 
     const filterBtn = e.target.closest('[data-filter]');
     if (filterBtn) {
-      qsa('.metis-stash-sidebar-filter').forEach(b => {
-        b.classList.remove('is-active');
-        b.classList.add('metis-btn-ghost');
+      qsa('.metis-stash-sidebar-filter').forEach(function (button) {
+        button.classList.remove('is-active');
+        button.classList.add('metis-btn-ghost');
       });
       filterBtn.classList.add('is-active');
       filterBtn.classList.remove('metis-btn-ghost');
-      currentFilter = filterBtn.dataset.filter;
+      currentFilter = String(filterBtn.dataset.filter || 'all');
       filterRows();
+      return;
+    }
+
+    const managerFilterBtn = e.target.closest('[data-manager-filter]');
+    if (managerFilterBtn) {
+      qsa('.metis-stash-manager-filter').forEach(function (button) {
+        button.classList.remove('is-active');
+        button.classList.add('metis-btn-ghost');
+      });
+      managerFilterBtn.classList.add('is-active');
+      managerFilterBtn.classList.remove('metis-btn-ghost');
+      filterManagerRows();
+      return;
+    }
+
+    const managerRow = e.target.closest('.metis-stash-manager-row[data-manager-kind]');
+    if (managerRow) {
+      selectManagerRow(String(managerRow.dataset.managerKind || ''), Number(managerRow.dataset.id || 0));
       return;
     }
 
@@ -81,69 +133,85 @@
         window.location.href = ticketUrl;
         return;
       }
-      await openTicketDetail(parseInt(reviewBtn.dataset.ticketId, 10));
+      const ticketId = parseInt(reviewBtn.dataset.ticketId || '0', 10);
+      if (ticketId > 0) await openTicketDetail(ticketId);
       return;
     }
 
     const ticketRow = e.target.closest('.metis-stash-row[data-ticket-url]');
-    if (ticketRow && !e.target.closest('a, button, input, select, textarea, label')) {
+    if (ticketRow && !e.target.closest('a, button, input, select, textarea, label, summary')) {
       const ticketUrl = String(ticketRow.dataset.ticketUrl || '');
-      if (ticketUrl) {
-        window.location.href = ticketUrl;
-      }
+      if (ticketUrl) window.location.href = ticketUrl;
       return;
     }
 
     const itemAction = e.target.closest('[data-item-action]');
     if (itemAction && canInventory) {
-      await updateItemStatus(parseInt(itemAction.dataset.itemId, 10), itemAction.dataset.itemAction);
+      await updateItemStatus(parseInt(itemAction.dataset.itemId || '0', 10), String(itemAction.dataset.itemAction || ''));
       return;
+    }
+
+    const unlinkBtn = e.target.closest('[data-unlink-group]');
+    if (unlinkBtn && canAssign && currentTicketId > 0) {
+      try {
+        await request('metis_grandys_stash_unlink_group', { ticket_id: currentTicketId });
+        await handlePostTicketMutation('Ticket unlinked.');
+      } catch (err) {
+        showAlert(err.message, 'error');
+      }
     }
   });
 
-  ui.search?.addEventListener('input', function () {
-    searchQuery = (ui.search.value || '').toLowerCase().trim();
-    filterRows();
-  });
+  ui.search?.addEventListener('input', filterRows);
+  ui.groupSearch?.addEventListener('input', filterManagerRows);
+  ui.organizationSearch?.addEventListener('input', filterManagerRows);
 
   ui.ticketForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
     if (!canAssign) return;
     try {
       await request('metis_grandys_stash_save_ticket', { payload: JSON.stringify(formToObject(ui.ticketForm)) });
-      if (isTicketPage && currentTicketId > 0) {
-        await openTicketDetail(currentTicketId);
-        showAlert('Ticket updated.');
-      } else {
-        await refreshState('Ticket updated.');
-      }
-    } catch (err) { showAlert(err.message, 'error'); }
+      await handlePostTicketMutation('Ticket updated.');
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.ticketDelete?.addEventListener('click', async function () {
+    if (!canDelete || currentTicketId < 1) return;
+    if (!window.confirm('Delete this ticket and its conversation history? This cannot be undone.')) return;
+    try {
+      const data = await request('metis_grandys_stash_delete_ticket', { ticket_id: currentTicketId });
+      showAlert(data.deleted_code ? 'Deleted ' + data.deleted_code + '.' : 'Ticket deleted.');
+      window.location.href = root.dataset.viewBaseUrl ? root.dataset.viewBaseUrl.replace(/view\/?$/, '') : window.location.origin;
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
   });
 
   ui.noteSubmit?.addEventListener('click', async function () {
-    if (!canComment || !ui.noteInput) return;
+    if (!canComment || !ui.noteInput || currentTicketId < 1) return;
     const content = ui.noteInput.value.trim();
-    if (!content || currentTicketId < 1) return;
+    if (!content) return;
     try {
       const data = await request('metis_grandys_stash_add_note', { ticket_id: currentTicketId, content: content });
       ui.noteInput.value = '';
       renderNotes(data.notes || []);
       renderActivity(data.activity || []);
-    } catch (err) { showAlert(err.message, 'error'); }
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
   });
 
   ui.replySubmit?.addEventListener('click', async function () {
-    if (!canReply || !ui.replyInput) return;
+    if (!canReply || !ui.replyInput || currentTicketId < 1) return;
     const content = ui.replyInput.value.trim();
     const subject = ui.replySubject?.value?.trim() || '';
-    if (!content || currentTicketId < 1) return;
+    if (!content) return;
+
     try {
       ui.replySubmit.disabled = true;
-      const data = await request('metis_grandys_stash_send_reply', {
-        ticket_id: currentTicketId,
-        subject: subject,
-        content: content
-      });
+      const data = await request('metis_grandys_stash_send_reply', { ticket_id: currentTicketId, subject: subject, content: content });
       ui.replyInput.value = '';
       renderConversation(data.messages || []);
       renderActivity(data.activity || []);
@@ -162,35 +230,123 @@
       await request('metis_grandys_stash_create_ticket', { payload: JSON.stringify(formToObject(ui.newTicketForm)) });
       closeModal(ui.newTicketModal);
       await refreshState('Ticket created.');
-    } catch (err) { showAlert(err.message, 'error'); }
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
   });
 
-  // ─── Filter rows ───────────────────────────────────
+  ui.groupForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canAssign) return;
+    try {
+      await request('metis_grandys_stash_save_group', { payload: JSON.stringify(formToObject(ui.groupForm)) });
+      await refreshState('Group saved.');
+      selectManagerRow('group', Number(ui.groupForm.elements.namedItem('id')?.value || '0'));
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.organizationForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    try {
+      await request('metis_grandys_stash_save_organization', { payload: JSON.stringify(formToObject(ui.organizationForm)) });
+      await refreshState('Organization saved.');
+      selectManagerRow('organization', Number(ui.organizationForm.elements.namedItem('id')?.value || '0'));
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.routingForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    try {
+      await request('metis_grandys_stash_save_routing_defaults', { payload: JSON.stringify(formToObject(ui.routingForm)) });
+      showAlert('Routing defaults saved.');
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  root.addEventListener('change', async function (e) {
+    const toggle = e.target.closest('.metis-stash-email-toggle');
+    if (!toggle || !canManage) return;
+    try {
+      await request('metis_grandys_stash_set_email_pref', {
+        user_id: String(toggle.dataset.userId || ''),
+        enabled: toggle.checked ? '1' : '0'
+      });
+      const label = toggle.parentElement?.querySelector('span');
+      if (label) label.textContent = toggle.checked ? 'Yes' : 'No';
+      showAlert('Email preference updated.');
+    } catch (err) {
+      toggle.checked = !toggle.checked;
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.reportRunBtn?.addEventListener('click', async function () {
+    const from = ui.reportFrom?.value || '';
+    const to = ui.reportTo?.value || '';
+    try {
+      ui.reportRunBtn.disabled = true;
+      ui.reportRunBtn.textContent = 'Loading...';
+      const data = await request('metis_grandys_stash_report', { from: from, to: to });
+      if (ui.reportContent) {
+        ui.reportContent.innerHTML = buildReportHTML(data.report || {});
+      }
+      const params = new URLSearchParams(window.location.search);
+      if (from) params.set('from', from); else params.delete('from');
+      if (to) params.set('to', to); else params.delete('to');
+      history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+      showAlert('Report updated.');
+    } catch (err) {
+      showAlert(err.message, 'error');
+    } finally {
+      ui.reportRunBtn.disabled = false;
+      ui.reportRunBtn.textContent = 'Run Report';
+    }
+  });
+
+  async function openTicketDetail(ticketId) {
+    currentTicketId = ticketId;
+    try {
+      const data = await request('metis_grandys_stash_ticket_detail', { ticket_id: ticketId });
+      const ticket = data.ticket || {};
+      renderTicketHeader(ticket);
+      renderTicketItems(data.items || []);
+      renderConversation(data.messages || []);
+      renderNotes(data.notes || []);
+      renderActivity(data.activity || []);
+      renderOrganization(data.organization || null);
+      renderGroup(data.group || null);
+      populateTicketForm(ticket);
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  }
 
   function filterRows() {
     if (!ui.rows) return;
-    const rows = qsa('.metis-stash-row');
-    rows.forEach(function (row) {
-      const status = row.dataset.status || '';
-      const type = row.dataset.type || '';
-      const assigned = row.dataset.assigned || '';
-      const searchBlob = row.dataset.search || '';
-
+    const searchQuery = String(ui.search?.value || '').toLowerCase().trim();
+    qsa('.metis-stash-row').forEach(function (row) {
+      const status = String(row.dataset.status || '');
+      const assigned = parseInt(row.dataset.assigned || '0', 10);
+      const searchBlob = String(row.dataset.search || '');
       let visible = true;
 
       if (searchQuery && !searchBlob.includes(searchQuery)) {
         visible = false;
       }
-
       if (visible && currentFilter !== 'all') {
         if (currentFilter === 'action') {
           visible = status === 'NEW' || status === 'REVIEWING';
         } else if (currentFilter === 'waitlist') {
           visible = status === 'WAITLIST';
         } else if (currentFilter === 'mine') {
-          visible = parseInt(assigned || '0', 10) === currentUserId && !['COMPLETED', 'CLOSED'].includes(status);
-        } else if (currentFilter === 'recent') {
-          visible = true;
+          visible = assigned === currentUserId && !['COMPLETED', 'CLOSED'].includes(status);
         }
       }
 
@@ -198,52 +354,116 @@
     });
   }
 
-  // ─── Ticket detail ─────────────────────────────────
+  function filterManagerRows() {
+    const filterBtn = root.querySelector('.metis-stash-manager-filter.is-active');
+    const filter = String(filterBtn?.dataset.managerFilter || 'all');
+    const rows = qsa('.metis-stash-manager-row');
+    const searchQuery = String(ui.groupSearch?.value || ui.organizationSearch?.value || '').toLowerCase().trim();
+    rows.forEach(function (row) {
+      let visible = true;
+      const openCount = parseInt(row.dataset.openCount || '0', 10);
+      const lastTicket = String(row.dataset.lastTicket || '');
+      const isActive = row.dataset.isActive !== '0';
+      const searchBlob = String(row.dataset.search || '');
 
-  async function openTicketDetail(ticketId) {
-    currentTicketId = ticketId;
-    try {
-      const data = await request('metis_grandys_stash_ticket_detail', { ticket_id: ticketId });
-      const ticket = data.ticket || {};
+      if (searchQuery && !searchBlob.includes(searchQuery)) visible = false;
+      if (visible && filter === 'open') visible = openCount > 0;
+      if (visible && filter === 'active') visible = isActive;
+      if (visible && filter === 'recent') visible = lastTicket !== '';
 
-      renderTicketHeader(ticket);
-      renderTicketItems(data.items || []);
-      renderConversation(data.messages || []);
-      renderNotes(data.notes || []);
-      renderActivity(data.activity || []);
-      renderGroup(data.group || null);
-      populateTicketForm(ticket);
-    } catch (err) { showAlert(err.message, 'error'); }
+      row.style.display = visible ? '' : 'none';
+    });
   }
 
-  function renderTicketHeader(t) {
+  function selectManagerRow(kind, id) {
+    if (!kind || id < 1) return;
+    selectedManagerKind = kind;
+    selectedManagerId = id;
+
+    qsa('.metis-stash-manager-row').forEach(function (row) {
+      row.classList.toggle('is-selected', String(row.dataset.managerKind || '') === kind && Number(row.dataset.id || 0) === id);
+    });
+
+    if (kind === 'group') {
+      const group = (state.groups || []).find(function (entry) { return Number(entry.id || 0) === id; });
+      if (!group || !ui.groupTicketList) return;
+      fillForm(ui.groupForm, group);
+      ui.groupTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForGroup(id));
+    } else if (kind === 'organization') {
+      const organization = (state.organizations || []).find(function (entry) { return Number(entry.id || 0) === id; });
+      if (!organization || !ui.organizationTicketList) return;
+      fillForm(ui.organizationForm, organization);
+      ui.organizationTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForOrganization(id));
+    }
+  }
+
+  function ticketsForGroup(groupId) {
+    return (state.tickets || []).filter(function (ticket) {
+      return Number(ticket.group_id || 0) === groupId;
+    });
+  }
+
+  function ticketsForOrganization(organizationId) {
+    return (state.tickets || []).filter(function (ticket) {
+      return Number(ticket.organization_id || 0) === organizationId;
+    });
+  }
+
+  function buildManagerTicketList(title, tickets) {
+    if (!tickets.length) {
+      return '<div class="metis-stash-ticket-section"><h3>' + esc(title) + '</h3><div class="metis-muted">No linked tickets.</div></div>';
+    }
+    return '<div class="metis-stash-ticket-section"><h3>' + esc(title) + '</h3><div class="metis-stash-linked-tickets">' +
+      tickets.map(function (ticket) {
+        const url = buildTicketUrl(ticket.code || '');
+        return '<a class="metis-stash-linked-ticket" href="' + esc(url) + '" data-ticket-url="' + esc(url) + '">' +
+          '<strong>' + esc(ticket.code || '') + '</strong>' +
+          '<span>' + esc(ticket.submit_name || 'Unknown') + '</span>' +
+          '<span class="metis-muted">' + esc(labelize(ticket.type || 'request')) + ' · ' + esc(ticket.status || 'NEW') + ' · ' + esc(shortDate(ticket.submitted_at || '')) + '</span>' +
+        '</a>';
+      }).join('') + '</div></div>';
+  }
+
+  function renderTicketHeader(ticket) {
     if (!ui.ticketHeader) return;
     const rows = [
-      kv('Name', t.submit_name), kv('Email', t.submit_email), kv('Phone', t.submit_phone),
-      kv('Type', labelize(t.type)), kv('Status', t.status), kv('Urgency', labelize(t.urgency)),
-      kv('Source', labelize(t.source)), kv('Coordination', labelize(t.pickup_delivery)),
-      kv('Submitted', shortDate(t.submitted_at)), t.closed_at ? kv('Closed', shortDate(t.closed_at)) : '',
+      kv('Name', ticket.submit_name),
+      kv('Email', ticket.submit_email),
+      kv('Phone', ticket.submit_phone),
+      kv('Organization', ticket.organization_name),
+      kv('Type', labelize(ticket.type)),
+      kv('Status', ticket.status),
+      kv('Urgency', labelize(ticket.urgency)),
+      kv('Source', labelize(ticket.source)),
+      kv('Coordination', labelize(ticket.pickup_delivery)),
+      kv('Submitted', shortDate(ticket.submitted_at)),
+      ticket.closed_at ? kv('Closed', shortDate(ticket.closed_at)) : ''
     ].filter(Boolean).join('');
-    const notes = t.submit_notes ? '<div style="margin-top:8px;"><strong class="metis-muted" style="font-size:12px;">Submitter notes</strong><p style="margin:4px 0 0;">' + esc(t.submit_notes) + '</p></div>' : '';
+    const notes = ticket.submit_notes ? '<div style="margin-top:8px;"><strong class="metis-muted" style="font-size:12px;">Submitter notes</strong><p style="margin:4px 0 0;">' + esc(ticket.submit_notes) + '</p></div>' : '';
     ui.ticketHeader.innerHTML = '<div class="metis-stash-detail-grid">' + rows + '</div>' + notes;
   }
 
   function renderTicketItems(items) {
     if (!ui.ticketItems) return;
-    if (!items.length) { ui.ticketItems.innerHTML = '<div class="metis-muted">No line items.</div>'; return; }
+    if (!items.length) {
+      ui.ticketItems.innerHTML = '<div class="metis-muted">No line items.</div>';
+      return;
+    }
+
     ui.ticketItems.innerHTML = '<table class="metis-premium-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Item</th><th class="metis-premium-cell" scope="col">Category</th><th class="metis-premium-cell" scope="col">Qty</th><th class="metis-premium-cell" scope="col">Status</th>' + (canInventory ? '<th class="metis-premium-cell" scope="col">Actions</th>' : '') + '</tr></thead><tbody>' +
       items.map(function (item) {
         const actions = canInventory ? '<td class="metis-premium-cell"><div class="metis-stash-item-actions">' +
           (item.status !== 'available' ? '<button class="metis-btn-xs metis-btn-ghost" data-item-id="' + item.id + '" data-item-action="available">Available</button>' : '') +
           (item.status !== 'fulfilled' ? '<button class="metis-btn-xs metis-btn-ghost" data-item-id="' + item.id + '" data-item-action="fulfilled">Fulfilled</button>' : '') +
           (item.status !== 'unavailable' ? '<button class="metis-btn-xs metis-btn-ghost" data-item-id="' + item.id + '" data-item-action="unavailable">Unavailable</button>' : '') +
-          '</div>' +
-          '</td>' : '';
-        return '<tr class="metis-premium-row"><td class="metis-premium-cell"><strong>' + esc(item.item_name || item.category) + '</strong>' + (item.condition_status ? '<div class="metis-muted">' + labelize(item.condition_status) + '</div>' : '') + '</td>' +
+          '</div></td>' : '';
+        return '<tr class="metis-premium-row">' +
+          '<td class="metis-premium-cell"><strong>' + esc(item.item_name || item.category || 'Other') + '</strong>' + (item.condition_status ? '<div class="metis-muted">' + esc(labelize(item.condition_status)) + '</div>' : '') + '</td>' +
           '<td class="metis-premium-cell">' + esc(item.category || 'Other') + '</td>' +
-          '<td class="metis-premium-cell">' + (item.quantity || 1) + '</td>' +
-          '<td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-' + (item.status || 'pending') + '">' + esc(item.status) + '</span>' + (item.waitlist_at ? '<div class="metis-muted">Since ' + shortDate(item.waitlist_at) + '</div>' : '') + '</td>' +
-          actions + '</tr>';
+          '<td class="metis-premium-cell">' + Number(item.quantity || 1) + '</td>' +
+          '<td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-' + esc(String(item.status || 'pending').toLowerCase()) + '">' + esc(item.status || 'pending') + '</span></td>' +
+          actions +
+        '</tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -257,10 +477,9 @@
     ui.ticketConversation.innerHTML = messages.map(function (message) {
       const direction = String(message.direction || 'inbound');
       const status = String(message.delivery_status || (direction === 'outbound' ? 'sent' : 'received'));
-      const title = esc(message.subject || '(No subject)');
       const author = esc(message.author_label || message.sender_email || 'System');
       const recipient = esc(message.recipient_email || '');
-      const when = shortDate(message.timeline_at || message.message_at || message.sent_at || message.received_at || message.created_at);
+      const when = esc(shortDate(message.timeline_at || message.message_at || message.sent_at || message.received_at || message.created_at));
       const body = esc(message.body_text_display || '').replace(/\n/g, '<br>');
       const attachments = Array.isArray(message.attachments) ? message.attachments : [];
       const attachmentLinks = attachments.filter(function (attachment) {
@@ -270,68 +489,101 @@
         const name = esc(String(attachment.file_name || attachment.filename || 'Attachment'));
         return '<a class="metis-stash-conversation-attachment" href="' + url + '" target="_blank" rel="noopener">' + name + '</a>';
       }).join('');
-      const attachmentCount = attachments.length;
-
       return '<article class="metis-stash-conversation-entry metis-stash-conversation-' + direction + '">' +
-        '<div class="metis-stash-conversation-head">' +
-          '<div class="metis-stash-conversation-meta">' +
-            '<span class="metis-stash-status-badge">' + esc(direction === 'outbound' ? 'Staff Reply' : 'Public Reply') + '</span>' +
-            '<strong>' + author + '</strong>' +
-            (direction === 'outbound' && recipient ? '<span class="metis-muted">to ' + recipient + '</span>' : '') +
-            (direction === 'inbound' && recipient ? '<span class="metis-muted">to ' + recipient + '</span>' : '') +
-          '</div>' +
-          '<div class="metis-muted">' + when + '</div>' +
-        '</div>' +
-        '<div class="metis-stash-conversation-subject">' + title + '</div>' +
+        '<div class="metis-stash-conversation-head"><div class="metis-stash-conversation-meta">' +
+          '<span class="metis-stash-status-badge">' + esc(direction === 'outbound' ? 'Staff Reply' : 'Public Reply') + '</span>' +
+          '<strong>' + author + '</strong>' +
+          (recipient ? '<span class="metis-muted">to ' + recipient + '</span>' : '') +
+        '</div><div class="metis-muted">' + when + '</div></div>' +
+        '<div class="metis-stash-conversation-subject">' + esc(message.subject || '(No subject)') + '</div>' +
         '<div class="metis-stash-conversation-body">' + (body || '<span class="metis-muted">No message body.</span>') + '</div>' +
         (attachmentLinks ? '<div class="metis-stash-conversation-attachments">' + attachmentLinks + '</div>' : '') +
-        '<div class="metis-stash-conversation-foot">' +
-          '<span class="metis-muted">Status: ' + esc(labelize(status)) + '</span>' +
-          (attachmentCount ? '<span class="metis-muted">' + attachmentCount + ' attachment' + (attachmentCount === 1 ? '' : 's') + '</span>' : '') +
-          (message.error_message ? '<span class="metis-muted">Error: ' + esc(message.error_message) + '</span>' : '') +
-        '</div>' +
+        '<div class="metis-stash-conversation-foot"><span class="metis-muted">Status: ' + esc(labelize(status)) + '</span></div>' +
       '</article>';
     }).join('');
   }
 
   function renderNotes(notes) {
     if (!ui.ticketNotes) return;
-    if (!notes.length) { ui.ticketNotes.innerHTML = '<div class="metis-muted">No notes yet.</div>'; return; }
-    ui.ticketNotes.innerHTML = notes.map(function (n) {
-      return '<div class="metis-stash-note-entry"><div class="metis-muted" style="font-size:12px;">' + esc(n.author_name || 'System') + ' · ' + shortDate(n.created_at) + '</div><p style="margin:4px 0 0;">' + esc(n.content) + '</p></div>';
+    if (!notes.length) {
+      ui.ticketNotes.innerHTML = '<div class="metis-muted">No notes yet.</div>';
+      return;
+    }
+    ui.ticketNotes.innerHTML = notes.map(function (note) {
+      return '<div class="metis-stash-note-entry"><div class="metis-muted" style="font-size:12px;">' + esc(note.author_name || 'System') + ' · ' + esc(shortDate(note.created_at)) + '</div><p style="margin:4px 0 0;">' + esc(note.content || '') + '</p></div>';
     }).join('');
   }
 
   function renderActivity(activity) {
     if (!ui.ticketActivity) return;
-    if (!activity.length) { ui.ticketActivity.innerHTML = '<div class="metis-muted">No activity.</div>'; return; }
-    ui.ticketActivity.innerHTML = activity.map(function (a) {
-      return '<div class="metis-stash-activity-entry"><span class="metis-stash-status-badge">' + labelize(a.action) + '</span> <span class="metis-muted">' + (a.detail ? esc(a.detail) + ' · ' : '') + (a.author_name || 'System') + ' · ' + shortDate(a.created_at) + '</span></div>';
+    if (!activity.length) {
+      ui.ticketActivity.innerHTML = '<div class="metis-muted">No activity.</div>';
+      return;
+    }
+    ui.ticketActivity.innerHTML = activity.map(function (entry) {
+      return '<div class="metis-stash-activity-entry"><span class="metis-stash-status-badge">' + esc(labelize(entry.action || 'activity')) + '</span><span class="metis-muted">' + esc(entry.detail || '') + (entry.detail ? ' · ' : '') + esc(entry.author_name || 'System') + ' · ' + esc(shortDate(entry.created_at)) + '</span></div>';
     }).join('');
+  }
+
+  function renderOrganization(organization) {
+    if (!ui.ticketOrganizationSection || !ui.ticketOrganization) return;
+    if (!organization) {
+      ui.ticketOrganizationSection.style.display = 'none';
+      return;
+    }
+    ui.ticketOrganizationSection.style.display = '';
+    ui.ticketOrganization.innerHTML = buildGroupCard({
+      title: organization.name || organization.domain || 'Organization',
+      count: organization.ticket_count || (organization.tickets || []).length,
+      code: organization.code || '',
+      fields: [
+        kv('Domain', organization.domain),
+        kv('Tickets', String(organization.ticket_count || (organization.tickets || []).length || 0))
+      ],
+      tickets: organization.tickets || []
+    });
   }
 
   function renderGroup(group) {
     if (!ui.ticketGroupSection || !ui.ticketGroup) return;
-    if (!group) { ui.ticketGroupSection.style.display = 'none'; return; }
+    if (!group) {
+      ui.ticketGroupSection.style.display = 'none';
+      return;
+    }
     ui.ticketGroupSection.style.display = '';
-    const others = (group.tickets || []).filter(t => t.id !== currentTicketId);
-    ui.ticketGroup.innerHTML = '<div class="metis-stash-detail-grid">' + kv('Group', group.code) + kv('Name', group.name) + kv('Email', group.email) + kv('Phone', group.phone) + '</div>' +
-      (others.length ? '<div style="margin-top:8px;"><strong class="metis-muted" style="font-size:12px;">Other tickets</strong>' +
-        others.map(t => '<div class="metis-muted" style="margin-top:4px;">' + esc(t.code) + ' · ' + labelize(t.type) + ' · ' + t.status + ' · ' + shortDate(t.submitted_at) + '</div>').join('') +
-      '</div>' : '') +
-      (canAssign ? '<div style="margin-top:8px;"><button class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-unlink-group">Unlink from group</button></div>' : '');
-
-    qs('#metis-stash-unlink-group')?.addEventListener('click', async function () {
-      try {
-        await request('metis_grandys_stash_unlink_group', { ticket_id: currentTicketId });
-        if (isTicketPage && currentTicketId > 0) {
-          await openTicketDetail(currentTicketId);
-          showAlert('Ticket unlinked.');
-        } else {
-          await refreshState('Ticket unlinked.');
-        }
-      } catch (err) { showAlert(err.message, 'error'); }
+    ui.ticketGroup.innerHTML = buildGroupCard({
+      title: group.name || 'Person Group',
+      count: group.ticket_count || (group.tickets || []).length,
+      code: group.code || '',
+      fields: [
+        kv('Email', group.email),
+        kv('Phone', group.phone),
+        kv('Tickets', String(group.ticket_count || (group.tickets || []).length || 0))
+      ],
+      tickets: group.tickets || [],
+      footer: canAssign ? '<div style="margin-top:8px;"><button class="metis-btn metis-btn-xs metis-btn-ghost" data-unlink-group="1">Unlink from group</button></div>' : ''
     });
+  }
+
+  function buildGroupCard(config) {
+    const tickets = Array.isArray(config.tickets) ? config.tickets : [];
+    const currentCode = String((state.tickets || []).find(function (ticket) { return Number(ticket.id || 0) === currentTicketId; })?.code || '');
+    return '<details class="metis-stash-group-card">' +
+      '<summary><strong>' + esc(config.title || 'Group') + '</strong><span class="metis-muted">' + Number(config.count || tickets.length || 0) + ' tickets</span></summary>' +
+      '<div class="metis-stash-group-card-body">' +
+      (config.code ? '<div class="metis-muted" style="margin-bottom:8px;">' + esc(config.code) + '</div>' : '') +
+      '<div class="metis-stash-detail-grid">' + (config.fields || []).filter(Boolean).join('') + '</div>' +
+      '<div class="metis-stash-linked-tickets">' + tickets.map(function (ticket) {
+        const url = buildTicketUrl(ticket.code || '');
+        const current = String(ticket.code || '') === currentCode ? ' is-current' : '';
+        return '<a class="metis-stash-linked-ticket' + current + '" href="' + esc(url) + '" data-ticket-url="' + esc(url) + '">' +
+          '<strong>' + esc(ticket.code || '') + '</strong>' +
+          '<span>' + esc(ticket.submit_name || '') + '</span>' +
+          '<span class="metis-muted">' + esc(labelize(ticket.type || 'request')) + ' · ' + esc(ticket.status || 'NEW') + ' · ' + esc(shortDate(ticket.submitted_at || '')) + '</span>' +
+        '</a>';
+      }).join('') + '</div>' +
+      (config.footer || '') +
+      '</div></details>';
   }
 
   function populateTicketForm(ticket) {
@@ -340,12 +592,210 @@
     setField(ui.ticketForm, 'status', ticket.status);
     setField(ui.ticketForm, 'assigned_to', ticket.assigned_to || '');
     setField(ui.ticketForm, 'urgency', ticket.urgency || 'standard');
-    if (ui.replySubject) {
-      ui.replySubject.value = defaultReplySubject(ticket);
+    if (ui.replySubject) ui.replySubject.value = defaultReplySubject(ticket);
+    if (ui.replyInput) ui.replyInput.value = '';
+  }
+
+  async function updateItemStatus(itemId, status) {
+    if (itemId < 1 || !status) return;
+    try {
+      await request('metis_grandys_stash_update_item_status', { item_id: itemId, status: status });
+      await openTicketDetail(currentTicketId);
+      showAlert('Item updated.');
+    } catch (err) {
+      showAlert(err.message, 'error');
     }
-    if (ui.replyInput) {
-      ui.replyInput.value = '';
+  }
+
+  async function handlePostTicketMutation(message) {
+    if (isTicketPage && currentTicketId > 0) {
+      await openTicketDetail(currentTicketId);
+      await refreshState();
+    } else {
+      await refreshState();
     }
+    if (message) showAlert(message);
+  }
+
+  async function refreshState(message) {
+    try {
+      const data = await request('metis_grandys_stash_state');
+      state = data.state || state;
+      rebuildRows();
+      rebuildManagerSelections();
+      if (message) showAlert(message);
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  }
+
+  function rebuildRows() {
+    if (ui.rows) {
+      ui.rows.innerHTML = (state.tickets || []).map(function (ticket) {
+        const typeLabel = ticket.type === 'donation' ? 'Donation' : 'Request';
+        const status = String(ticket.status || 'NEW');
+        const code = esc(ticket.code || '');
+        const organization = ticket.organization_name || ticket.organization_label || ticket.organization_domain || '';
+        const organizationCell = organization ? esc(organization) : '<span class="metis-muted">Independent</span>';
+        const name = esc(ticket.submit_name || 'Unknown');
+        const assigned = esc(ticket.assigned_name || '\u2014');
+        const urgency = esc(labelize(ticket.urgency || 'standard'));
+        const items = Number(ticket.item_count || 0);
+        const date = esc(shortDate(ticket.submitted_at || ''));
+        const search = [ticket.code || '', ticket.submit_name || '', typeLabel, status, assigned, organization, ticket.submit_email || '', ticket.items_summary || ''].join(' ').toLowerCase();
+        const ticketUrl = buildTicketUrl(ticket.code || '');
+
+        return '<tr class="metis-premium-row metis-stash-row" data-id="' + Number(ticket.id || 0) + '" data-ticket-url="' + esc(ticketUrl) + '" data-status="' + esc(status) + '" data-type="' + esc(ticket.type || 'request') + '" data-assigned="' + Number(ticket.assigned_to || 0) + '" data-search="' + esc(search) + '">' +
+          '<td class="metis-premium-cell"><strong>' + code + '</strong></td>' +
+          '<td class="metis-premium-cell">' + organizationCell + '</td>' +
+          '<td class="metis-premium-cell">' + name + '</td>' +
+          '<td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-' + esc(ticket.type || 'request') + '">' + esc(typeLabel) + '</span></td>' +
+          '<td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-' + esc(status.toLowerCase()) + '">' + esc(status) + '</span></td>' +
+          '<td class="metis-premium-cell">' + urgency + '</td>' +
+          '<td class="metis-premium-cell">' + assigned + '</td>' +
+          '<td class="metis-premium-cell">' + items + '</td>' +
+          '<td class="metis-premium-cell">' + date + '</td>' +
+          (canManage ? '<td class="metis-premium-cell"><a class="metis-btn-xs" href="' + esc(ticketUrl) + '" data-ticket-url="' + esc(ticketUrl) + '">Review</a></td>' : '') +
+        '</tr>';
+      }).join('');
+      filterRows();
+    }
+  }
+
+  function rebuildManagerSelections() {
+    if (selectedManagerKind && selectedManagerId > 0) {
+      selectManagerRow(selectedManagerKind, selectedManagerId);
+    }
+    filterManagerRows();
+  }
+
+  function buildReportHTML(report) {
+    const summary = report.summary || {};
+    updateReportKpis(summary, report);
+    return [
+      buildCategoryTable(report.by_category || []),
+      buildMonthlyTable(report.monthly || []),
+      buildSmallReportSplit(report.by_urgency || [], report.by_source || []),
+      buildOrganizationReport(report.by_organization || []),
+      buildPersonReport(report.by_person || []),
+      buildEquipmentReport(report.by_equipment || [])
+    ].join('');
+  }
+
+  function updateReportKpis(summary, report) {
+    const values = qsa('.metis-people-stat-value');
+    if (values.length < 6) return;
+    values[0].textContent = String(summary.total_tickets || 0);
+    values[1].textContent = String(report.people_served || 0);
+    values[2].textContent = String(report.items_fulfilled || 0);
+    values[3].textContent = String(summary.completed || 0);
+    values[4].textContent = String(report.avg_days_to_complete || '\u2014');
+    values[5].textContent = String(summary.open_tickets || 0);
+  }
+
+  function buildCategoryTable(rows) {
+    return '<section style="margin-bottom:28px;"><h2 style="font-size:16px;margin:0 0 12px;">Items by Category</h2>' +
+      buildTable('metis-stash-report-cat-table', ['Category', 'Total Items', 'Fulfilled'], rows.map(function (row) {
+        return [labelize(row.category || 'other'), Number(row.item_count || 0), Number(row.fulfilled || 0)];
+      }), 3) + '</section>';
+  }
+
+  function buildMonthlyTable(rows) {
+    return '<section style="margin-bottom:28px;"><h2 style="font-size:16px;margin:0 0 12px;">Monthly Breakdown</h2>' +
+      buildTable('metis-stash-report-month-table', ['Month', 'Tickets', 'Requests', 'Donations', 'Completed'], rows.map(function (row) {
+        return [row.month_label || row.month || '', Number(row.tickets || 0), Number(row.requests || 0), Number(row.donations || 0), Number(row.completed || 0)];
+      }), 5) + '</section>';
+  }
+
+  function buildSmallReportSplit(urgencyRows, sourceRows) {
+    return '<div class="metis-stash-report-split">' +
+      '<section><h2 style="font-size:16px;margin:0 0 12px;">By Urgency</h2>' +
+      buildTable('metis-stash-report-small-table', ['Urgency', 'Count'], urgencyRows.map(function (row) {
+        return [labelize(row.urgency || ''), Number(row.count || 0)];
+      }), 2) + '</section>' +
+      '<section><h2 style="font-size:16px;margin:0 0 12px;">By Source</h2>' +
+      buildTable('metis-stash-report-small-table', ['Source', 'Count'], sourceRows.map(function (row) {
+        return [labelize(row.source || ''), Number(row.count || 0)];
+      }), 2) + '</section>' +
+      '</div>';
+  }
+
+  function buildOrganizationReport(rows) {
+    return '<section style="margin:28px 0;"><h2 style="font-size:16px;margin:0 0 12px;">Requests by Organization</h2>' +
+      buildTable('metis-stash-report-wide-table', ['Organization', 'Domain', 'Requests', 'Tickets'], rows.map(function (row) {
+        return [row.organization_name || 'Independent', row.organization_domain || '\u2014', Number(row.request_count || 0), Number(row.ticket_count || 0)];
+      }), 4) + '</section>';
+  }
+
+  function buildPersonReport(rows) {
+    return '<section style="margin:28px 0;"><h2 style="font-size:16px;margin:0 0 12px;">Requests by Person</h2>' +
+      buildTable('metis-stash-report-wide-table', ['Person', 'Email', 'Requests', 'Tickets'], rows.map(function (row) {
+        return [row.person_name || 'Unknown', row.person_email || '\u2014', Number(row.request_count || 0), Number(row.ticket_count || 0)];
+      }), 4) + '</section>';
+  }
+
+  function buildEquipmentReport(rows) {
+    return '<section style="margin:28px 0 0;"><h2 style="font-size:16px;margin:0 0 12px;">Equipment Requested</h2>' +
+      buildTable('metis-stash-report-equipment-table', ['Equipment', 'Category', 'Requests', 'Donations', 'Fulfilled'], rows.map(function (row) {
+        return [row.equipment_name || 'Other', labelize(row.category || 'other'), Number(row.request_quantity || 0), Number(row.donation_quantity || 0), Number(row.fulfilled_quantity || 0)];
+      }), 5) + '</section>';
+  }
+
+  function buildTable(className, headers, rows, colspan) {
+    const body = rows.length ? rows.map(function (row) {
+      return '<tr class="metis-premium-row">' + row.map(function (cell) {
+        return '<td class="metis-premium-cell">' + esc(String(cell)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('') : '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="' + colspan + '">No data for selected period.</td></tr>';
+    return '<table class="metis-premium-table ' + className + '"><thead><tr class="metis-premium-row metis-premium-header">' +
+      headers.map(function (header) { return '<th class="metis-premium-cell" scope="col">' + esc(header) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + body + '</tbody></table>';
+  }
+
+  function hydrateReportDateInputs() {
+    const params = new URLSearchParams(window.location.search);
+    if (ui.reportFrom && params.get('from')) ui.reportFrom.value = String(params.get('from'));
+    if (ui.reportTo && params.get('to')) ui.reportTo.value = String(params.get('to'));
+  }
+
+  function request(action, body) {
+    const params = new URLSearchParams({ action: action, nonce: ajax.nonce || '' });
+    Object.entries(body || {}).forEach(function (entry) {
+      params.append(entry[0], entry[1]);
+    });
+    return fetch(ajax.ajax_url, { method: 'POST', credentials: 'same-origin', body: params })
+      .then(function (response) { return response.json(); })
+      .then(function (payload) {
+        if (!payload || !payload.success) {
+          throw new Error(payload?.data?.message || 'Request failed');
+        }
+        return payload.data || {};
+      });
+  }
+
+  function fillForm(form, values) {
+    if (!form || !values) return;
+    Object.keys(values).forEach(function (key) {
+      setField(form, key, values[key]);
+    });
+  }
+
+  function formToObject(form) {
+    const data = {};
+    Array.from(new FormData(form).entries()).forEach(function (entry) {
+      data[entry[0]] = entry[1];
+    });
+    return data;
+  }
+
+  function setField(form, name, value) {
+    const element = form?.elements?.namedItem(name);
+    if (element) element.value = value == null ? '' : String(value);
+  }
+
+  function kv(label, value) {
+    if (!value) return '';
+    return '<div><strong class="metis-muted" style="font-size:12px;">' + esc(label) + '</strong><div>' + esc(String(value)) + '</div></div>';
   }
 
   function defaultReplySubject(ticket) {
@@ -356,215 +806,65 @@
     return 'Grandy\'s Stash Update';
   }
 
-  // ─── Actions ───────────────────────────────────────
-
-  async function updateItemStatus(itemId, status) {
-    try {
-      await request('metis_grandys_stash_update_item_status', { item_id: itemId, status: status });
-      await openTicketDetail(currentTicketId);
-      showAlert('Item updated.');
-    } catch (err) { showAlert(err.message, 'error'); }
-  }
-
-  async function refreshState(message) {
-    try {
-      const data = await request('metis_grandys_stash_state');
-      state = data.state || state;
-      rebuildRows();
-      if (message) showAlert(message);
-    } catch (err) { showAlert(err.message, 'error'); }
-  }
-
-  function rebuildRows() {
-    if (!ui.rows) return;
-    const tickets = state.tickets || [];
-    ui.rows.innerHTML = tickets.map(function (t) {
-      const typeLabel = t.type === 'donation' ? 'Donation' : 'Request';
-      const status = t.status || 'NEW';
-      const name = esc(t.submit_name || 'Unknown');
-      const code = esc(t.code || '');
-      const urgency = labelize(t.urgency);
-      const assigned = esc(t.assigned_name || '\u2014');
-      const items = t.item_count || 0;
-      const date = shortDate(t.submitted_at);
-      const groupCode = t.group_code ? esc(t.group_code) : '';
-      const search = [code, name, typeLabel, status, assigned, groupCode, t.submit_email || '', t.items_summary || ''].join(' ').toLowerCase();
-
-      const ticketUrl = buildTicketUrl(t.code || '');
-      return '<tr class="metis-premium-row metis-stash-row" data-id="' + t.id + '" data-ticket-url="' + esc(ticketUrl) + '" data-status="' + status + '" data-type="' + t.type + '" data-assigned="' + (t.assigned_to || '') + '" data-search="' + esc(search) + '">' +
-        '<td class="metis-premium-cell"><strong>' + code + '</strong>' + (groupCode ? '<div class="metis-muted">' + groupCode + '</div>' : '') + '</td>' +
-        '<td class="metis-premium-cell">' + name + '</td>' +
-        '<td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-' + t.type + '">' + typeLabel + '</span></td>' +
-        '<td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-' + status.toLowerCase() + '">' + status + '</span></td>' +
-        '<td class="metis-premium-cell">' + urgency + '</td>' +
-        '<td class="metis-premium-cell">' + assigned + '</td>' +
-        '<td class="metis-premium-cell">' + items + '</td>' +
-        '<td class="metis-premium-cell">' + date + '</td>' +
-        (canManage ? '<td class="metis-premium-cell"><a class="metis-btn-xs" href="' + esc(ticketUrl) + '" data-ticket-url="' + esc(ticketUrl) + '">Review</a></td>' : '') +
-      '</tr>';
-    }).join('');
-    filterRows();
-  }
-
-  // ─── Helpers ───────────────────────────────────────
-
-  function request(action, body) {
-    const params = new URLSearchParams({ action: action, nonce: ajax.nonce || '' });
-    Object.entries(body || {}).forEach(([k, v]) => params.append(k, v));
-    return fetch(ajax.ajax_url, { method: 'POST', credentials: 'same-origin', body: params })
-      .then(r => r.json())
-      .then(d => {
-        if (!d || !d.success) throw new Error(d?.data?.message || 'Request failed');
-        return d.data || {};
-      });
-  }
-
-  function kv(label, value) {
+  function shortDate(value) {
     if (!value) return '';
-    return '<div><strong class="metis-muted" style="font-size:12px;">' + esc(label) + '</strong><div>' + esc(String(value)) + '</div></div>';
+    if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') {
+      return Metis.time.formatDate(value, { empty: String(value) }) || String(value);
+    }
+    const date = new Date(String(value).replace(' ', 'T') + 'Z');
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
-  function openModal(n) { n?.classList.add('metis-open'); if (n) n.setAttribute('aria-hidden', 'false'); }
-  function closeModal(n) { n?.classList.remove('metis-open'); if (n) n.setAttribute('aria-hidden', 'true'); }
   function buildTicketUrl(code) {
     const normalized = String(code || '').trim();
     if (!normalized) return '#';
     return viewBaseUrl + encodeURIComponent(normalized);
   }
-  function formToObject(f) { const d = {}; Array.from(new FormData(f).entries()).forEach(([k,v]) => d[k]=v); return d; }
-  function setField(f, n, v) { const el = f?.elements?.namedItem(n); if (el) el.value = v || ''; }
-  function shortDate(v) { if (!v) return ''; if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') return Metis.time.formatDate(v, { empty: String(v) }) || String(v); const d = new Date(String(v).replace(' ','T')+'Z'); if (isNaN(d.getTime())) return String(v); return d.toLocaleString('default',{month:'short'})+' '+d.getDate()+', '+d.getFullYear(); }
-  function labelize(v) { return String(v||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
-  function showAlert(m,t) { if(!ui.alert)return; ui.alert.className='metis-alert '+(t==='error'?'metis-alert-error':'metis-alert-success'); ui.alert.textContent=m; ui.alert.style.display='block'; setTimeout(()=>{ui.alert.style.display='none';},4000); }
-  function parseJson(r,f) { try{return JSON.parse(r||'');}catch(e){return f;} }
-  function qs(s) { return root.querySelector(s); }
-  function qsa(s) { return Array.from(root.querySelectorAll(s)); }
-  function esc(v) { return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 
-  // ─── Settings page handlers ────────────────────────
-
-  const routingForm = qs('#metis-stash-routing-form');
-  routingForm?.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    if (!canManage) return;
+  function parseJson(raw, fallback) {
     try {
-      await request('metis_grandys_stash_save_routing_defaults', { payload: JSON.stringify(formToObject(routingForm)) });
-      showAlert('Routing defaults saved.');
-    } catch (err) { showAlert(err.message, 'error'); }
-  });
-
-  root.addEventListener('change', async function (e) {
-    const toggle = e.target.closest('.metis-stash-email-toggle');
-    if (!toggle || !canManage) return;
-    const userId = toggle.dataset.userId;
-    const enabled = toggle.checked ? '1' : '0';
-    try {
-      await request('metis_grandys_stash_set_email_pref', { user_id: userId, enabled: enabled });
-      const label = toggle.parentElement?.querySelector('span');
-      if (label) label.textContent = toggle.checked ? 'Yes' : 'No';
-      showAlert('Email preference updated.');
+      return JSON.parse(raw || '');
     } catch (err) {
-      toggle.checked = !toggle.checked;
-      showAlert(err.message, 'error');
+      return fallback;
     }
-  });
-
-
-  // ─── Report page handlers ─────────────────────────
-
-  const reportRunBtn = qs('#metis-stash-report-run');
-  const reportFrom = qs('#metis-stash-report-from');
-  const reportTo = qs('#metis-stash-report-to');
-  const reportContent = qs('#metis-stash-report-content');
-
-  reportRunBtn?.addEventListener('click', async function () {
-    const from = reportFrom?.value || '';
-    const to = reportTo?.value || '';
-    try {
-      reportRunBtn.textContent = 'Loading...';
-      reportRunBtn.disabled = true;
-      const data = await request('metis_grandys_stash_report', { from: from, to: to });
-      const r = data.report || {};
-      if (reportContent) {
-        reportContent.innerHTML = buildReportHTML(r);
-      }
-      showAlert('Report updated.');
-    } catch (err) {
-      showAlert(err.message, 'error');
-    } finally {
-      reportRunBtn.textContent = 'Run Report';
-      reportRunBtn.disabled = false;
-    }
-  });
-
-  function buildReportHTML(r) {
-    const s = r.summary || {};
-    let html = '';
-
-    // Update KPI strip if present
-    const kpis = root.querySelectorAll('.metis-people-stat-value');
-    if (kpis.length >= 6) {
-      kpis[0].textContent = s.total_tickets || 0;
-      kpis[1].textContent = r.people_served || 0;
-      kpis[2].textContent = r.items_fulfilled || 0;
-      kpis[3].textContent = s.completed || 0;
-      kpis[4].textContent = r.avg_days_to_complete || '\u2014';
-      kpis[5].textContent = s.open_tickets || 0;
-    }
-
-    // By Category
-    html += '<section style="margin-bottom:28px;"><h2 style="font-size:16px;margin:0 0 12px;">Items by Category</h2>';
-    html += '<table class="metis-premium-table metis-stash-report-cat-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Category</th><th class="metis-premium-cell" scope="col">Total Items</th><th class="metis-premium-cell" scope="col">Fulfilled</th></tr></thead><tbody>';
-    (r.by_category || []).forEach(function (c) {
-      html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(labelize(c.category)) + '</td><td class="metis-premium-cell">' + (c.item_count || 0) + '</td><td class="metis-premium-cell">' + (c.fulfilled || 0) + '</td></tr>';
-    });
-    if (!r.by_category || !r.by_category.length) html += '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="3">No data for selected period.</td></tr>';
-    html += '</tbody></table></section>';
-
-    // Monthly
-    html += '<section style="margin-bottom:28px;"><h2 style="font-size:16px;margin:0 0 12px;">Monthly Breakdown</h2>';
-    html += '<table class="metis-premium-table metis-stash-report-month-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Month</th><th class="metis-premium-cell" scope="col">Tickets</th><th class="metis-premium-cell" scope="col">Requests</th><th class="metis-premium-cell" scope="col">Donations</th><th class="metis-premium-cell" scope="col">Completed</th></tr></thead><tbody>';
-    (r.monthly || []).forEach(function (m) {
-      html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(m.month || '') + '</td><td class="metis-premium-cell">' + (m.tickets || 0) + '</td><td class="metis-premium-cell">' + (m.requests || 0) + '</td><td class="metis-premium-cell">' + (m.donations || 0) + '</td><td class="metis-premium-cell">' + (m.completed || 0) + '</td></tr>';
-    });
-    if (!r.monthly || !r.monthly.length) html += '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="5">No data for selected period.</td></tr>';
-    html += '</tbody></table></section>';
-
-    // Urgency + Source side by side
-    html += '<div class="metis-stash-report-split">';
-    html += '<section><h2 style="font-size:16px;margin:0 0 12px;">By Urgency</h2><table class="metis-premium-table metis-stash-report-small-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Urgency</th><th class="metis-premium-cell" scope="col">Count</th></tr></thead><tbody>';
-    (r.by_urgency || []).forEach(function (u) {
-      html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(labelize(u.urgency)) + '</td><td class="metis-premium-cell">' + (u.count || 0) + '</td></tr>';
-    });
-    html += '</tbody></table></section>';
-    html += '<section><h2 style="font-size:16px;margin:0 0 12px;">By Source</h2><table class="metis-premium-table metis-stash-report-small-table"><thead><tr class="metis-premium-row metis-premium-header"><th class="metis-premium-cell" scope="col">Source</th><th class="metis-premium-cell" scope="col">Count</th></tr></thead><tbody>';
-    (r.by_source || []).forEach(function (src) {
-      html += '<tr class="metis-premium-row"><td class="metis-premium-cell">' + esc(labelize(src.source)) + '</td><td class="metis-premium-cell">' + (src.count || 0) + '</td></tr>';
-    });
-    html += '</tbody></table></section>';
-    html += '</div>';
-
-    return html;
   }
 
+  function labelize(value) {
+    return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, function (char) { return char.toUpperCase(); });
+  }
 
-  // ─── Reports page handler ─────────────────────────
+  function openModal(node) {
+    node?.classList.add('metis-open');
+    if (node) node.setAttribute('aria-hidden', 'false');
+  }
 
-  const reportBtn = qs('#metis-stash-report-run');
-  reportBtn?.addEventListener('click', function () {
-    const from = qs('#metis-stash-report-from')?.value || '';
-    const to = qs('#metis-stash-report-to')?.value || '';
-    const params = new URLSearchParams(window.location.search);
-    if (from) params.set('from', from); else params.delete('from');
-    if (to) params.set('to', to); else params.delete('to');
-    window.location.search = params.toString();
-  });
+  function closeModal(node) {
+    node?.classList.remove('metis-open');
+    if (node) node.setAttribute('aria-hidden', 'true');
+  }
 
-  // Pre-fill date inputs from URL params
-  const urlParams = new URLSearchParams(window.location.search);
-  const fromInput = qs('#metis-stash-report-from');
-  const toInput = qs('#metis-stash-report-to');
-  if (fromInput && urlParams.get('from')) fromInput.value = urlParams.get('from');
-  if (toInput && urlParams.get('to')) toInput.value = urlParams.get('to');
+  function showAlert(message, type) {
+    if (!ui.alert) return;
+    ui.alert.className = 'metis-alert ' + (type === 'error' ? 'metis-alert-error' : 'metis-alert-success');
+    ui.alert.textContent = message;
+    ui.alert.style.display = 'block';
+    window.setTimeout(function () {
+      if (ui.alert) ui.alert.style.display = 'none';
+    }, 4000);
+  }
 
+  function qs(selector) {
+    return root.querySelector(selector);
+  }
+
+  function qsa(selector) {
+    return Array.from(root.querySelectorAll(selector));
+  }
+
+  function esc(value) {
+    return String(value || '').replace(/[&<>"']/g, function (char) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+    });
+  }
 }());

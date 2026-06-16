@@ -43,6 +43,8 @@ $summary = $report['summary'] ?? [];
                 <div class="metis-list-sidebar-label">Navigation</div>
                 <nav class="metis-list-sidebar-nav" aria-label="Grandy's Stash navigation">
                     <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() ); ?>" class="metis-list-sidebar-nav-item">Inbox</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/groups/' ); ?>" class="metis-list-sidebar-nav-item">People Groups</a>
+                    <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/organizations/' ); ?>" class="metis-list-sidebar-nav-item">Organizations</a>
                     <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-list-sidebar-nav-item is-active">Reports</a>
                     <a href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/settings/' ); ?>" class="metis-list-sidebar-nav-item">Settings</a>
                 </nav>
@@ -94,7 +96,7 @@ $summary = $report['summary'] ?? [];
             <tbody>
             <?php foreach ( ($report['monthly'] ?? []) as $m ) : ?>
             <tr class="metis-premium-row">
-                <td class="metis-premium-cell"><?php echo metis_escape_html( metis_runtime_format_date( (string)($m['month'] ?? '') . '-01', 'M Y' ) ); ?></td>
+                <td class="metis-premium-cell"><?php echo metis_escape_html( (string)($m['month_label'] ?? $m['month'] ?? '') ); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($m['tickets'] ?? 0); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($m['requests'] ?? 0); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($m['donations'] ?? 0); ?></td>
@@ -149,6 +151,89 @@ $summary = $report['summary'] ?? [];
             </table>
             </section>
         </div>
+
+        <section style="margin:28px 0;">
+            <h2 style="font-size:16px;margin:0 0 12px;">Requests by Organization</h2>
+            <table class="metis-premium-table metis-stash-report-wide-table">
+                <thead>
+                    <tr class="metis-premium-row metis-premium-header">
+                        <th class="metis-premium-cell" scope="col">Organization</th>
+                        <th class="metis-premium-cell" scope="col">Domain</th>
+                        <th class="metis-premium-cell" scope="col">Requests</th>
+                        <th class="metis-premium-cell" scope="col">Tickets</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( ($report['by_organization'] ?? []) as $row ) : ?>
+                <tr class="metis-premium-row">
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['organization_name'] ?? 'Independent' ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['organization_domain'] ?? '—' ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['request_count'] ?? 0 ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['ticket_count'] ?? 0 ); ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php if ( empty( $report['by_organization'] ) ) : ?>
+                <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="4">No data for selected period.</td></tr>
+                <?php endif; ?>
+                </tbody>
+            </table>
+        </section>
+
+        <section style="margin:28px 0;">
+            <h2 style="font-size:16px;margin:0 0 12px;">Requests by Person</h2>
+            <table class="metis-premium-table metis-stash-report-wide-table">
+                <thead>
+                    <tr class="metis-premium-row metis-premium-header">
+                        <th class="metis-premium-cell" scope="col">Person</th>
+                        <th class="metis-premium-cell" scope="col">Email</th>
+                        <th class="metis-premium-cell" scope="col">Requests</th>
+                        <th class="metis-premium-cell" scope="col">Tickets</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( ($report['by_person'] ?? []) as $row ) : ?>
+                <tr class="metis-premium-row">
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['person_name'] ?? 'Unknown' ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['person_email'] ?? '—' ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['request_count'] ?? 0 ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['ticket_count'] ?? 0 ); ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php if ( empty( $report['by_person'] ) ) : ?>
+                <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="4">No data for selected period.</td></tr>
+                <?php endif; ?>
+                </tbody>
+            </table>
+        </section>
+
+        <section style="margin:28px 0 0;">
+            <h2 style="font-size:16px;margin:0 0 12px;">Equipment Requested</h2>
+            <table class="metis-premium-table metis-stash-report-equipment-table">
+                <thead>
+                    <tr class="metis-premium-row metis-premium-header">
+                        <th class="metis-premium-cell" scope="col">Equipment</th>
+                        <th class="metis-premium-cell" scope="col">Category</th>
+                        <th class="metis-premium-cell" scope="col">Requests</th>
+                        <th class="metis-premium-cell" scope="col">Donations</th>
+                        <th class="metis-premium-cell" scope="col">Fulfilled</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( ($report['by_equipment'] ?? []) as $row ) : ?>
+                <tr class="metis-premium-row">
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['equipment_name'] ?? 'Other' ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( ucfirst( str_replace( '_', ' ', (string) ( $row['category'] ?? 'other' ) ) ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['request_quantity'] ?? 0 ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['donation_quantity'] ?? 0 ); ?></td>
+                    <td class="metis-premium-cell"><?php echo (int) ( $row['fulfilled_quantity'] ?? 0 ); ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php if ( empty( $report['by_equipment'] ) ) : ?>
+                <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="5">No data for selected period.</td></tr>
+                <?php endif; ?>
+                </tbody>
+            </table>
+        </section>
 
     </div>
 

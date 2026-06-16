@@ -4,6 +4,12 @@ declare(strict_types=1);
 namespace Metis\Modules\Newsletter;
 
 final class ReadService {
+    private static function campaignMetricSelect(string $campaigns_table): string {
+        $open_expr = SchemaManager::columnExists($campaigns_table, 'open_count') ? 'c.open_count' : '0';
+        $click_expr = SchemaManager::columnExists($campaigns_table, 'click_count') ? 'c.click_count' : '0';
+        return $open_expr . ' AS open_count, ' . $click_expr . ' AS click_count';
+    }
+
     public static function editorId( string $editor_key, string $context ): int {
         $editor_key = trim( $editor_key );
         if ( $editor_key === '' ) {
@@ -116,16 +122,17 @@ final class ReadService {
         $lists_table = \Metis_Tables::get('newsletter_lists');
         $campaigns_table = \Metis_Tables::get('newsletter_campaigns');
         $campaign_lists_table = \Metis_Tables::get('newsletter_campaign_lists');
+        $metric_select = self::campaignMetricSelect($campaigns_table);
 
         $lists = $db->fetchAll(
             "SELECT id, name, description, is_active FROM {$lists_table} WHERE is_active = 1 ORDER BY name ASC"
         ) ?: [];
 
         $announcements = $db->fetchAll(
-            "SELECT id, campaign_code, campaign_type, name, subject, status, queued_at, sent_at, updated_at, total_recipients, sent_count, open_count, click_count
-             FROM {$campaigns_table}
+            "SELECT c.id, c.campaign_code, c.campaign_type, c.name, c.subject, c.status, c.queued_at, c.sent_at, c.updated_at, c.total_recipients, c.sent_count, {$metric_select}
+             FROM {$campaigns_table} c
              WHERE campaign_type = %s
-             ORDER BY created_at DESC, id DESC
+             ORDER BY c.created_at DESC, c.id DESC
              LIMIT 200",
             [ CampaignService::TYPE_ANNOUNCEMENT_BLAST ]
         ) ?: [];
@@ -176,6 +183,7 @@ final class ReadService {
         $campaigns_table = \Metis_Tables::get('newsletter_campaigns');
         $messages_table = \Metis_Tables::get('newsletter_messages');
         $contacts_table = \Metis_Tables::get('contacts');
+        $metric_select = self::campaignMetricSelect($campaigns_table);
 
         return [
             'kpi_lists' => (int) $db->scalar("SELECT COUNT(*) FROM {$lists_table} WHERE is_active = 1"),
@@ -211,7 +219,7 @@ final class ReadService {
                  LIMIT 7"
             ) ?: [],
             'recent_campaigns' => $db->fetchAll(
-                "SELECT c.id, c.campaign_code, c.name, c.status, c.updated_at, c.sent_count, c.total_recipients, c.open_count, c.click_count
+                "SELECT c.id, c.campaign_code, c.name, c.status, c.updated_at, c.sent_count, c.total_recipients, {$metric_select}
                  FROM {$campaigns_table} c
                  WHERE c.campaign_type = %s
                  ORDER BY c.updated_at DESC, c.id DESC

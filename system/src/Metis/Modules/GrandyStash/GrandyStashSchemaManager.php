@@ -17,6 +17,7 @@ final class GrandyStashSchemaManager {
         self::createFacilitiesTable( $charset_collate );
 
         // Existing tables
+        self::createOrganizationsTable( $charset_collate );
         self::createGroupsTable( $charset_collate );
         self::createTicketsTable( $charset_collate );
         self::createTicketItemsTable( $charset_collate );
@@ -73,6 +74,26 @@ final class GrandyStashSchemaManager {
         ) {$charset_collate};" );
     }
 
+    private static function createOrganizationsTable( string $charset_collate ): void {
+        $table = \Metis_Tables::get( 'grandys_stash_organizations' );
+
+        \metis_db_delta( "CREATE TABLE {$table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            code VARCHAR(16) NOT NULL,
+            name VARCHAR(191) NOT NULL,
+            domain VARCHAR(191) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uk_code (code),
+            UNIQUE KEY uk_domain (domain),
+            KEY idx_name (name(100)),
+            KEY idx_active (is_active)
+        ) {$charset_collate};" );
+    }
+
     // ─── Existing tables (unchanged) ─────────────────────
 
     private static function createGroupsTable( string $charset_collate ): void {
@@ -114,6 +135,8 @@ final class GrandyStashSchemaManager {
             submit_name VARCHAR(200) NOT NULL,
             submit_email VARCHAR(200) DEFAULT NULL,
             submit_phone VARCHAR(30) DEFAULT NULL,
+            organization_id BIGINT UNSIGNED DEFAULT NULL,
+            organization_name VARCHAR(191) DEFAULT NULL,
             submit_address TEXT DEFAULT NULL,
             submit_notes TEXT DEFAULT NULL,
             form_id BIGINT UNSIGNED DEFAULT NULL,
@@ -125,6 +148,7 @@ final class GrandyStashSchemaManager {
             UNIQUE KEY uk_code (code),
             UNIQUE KEY uk_form_submission (form_submission_id),
             KEY idx_group (group_id),
+            KEY idx_organization (organization_id),
             KEY idx_status (status),
             KEY idx_type (type),
             KEY idx_assigned (assigned_to),
@@ -273,7 +297,10 @@ final class GrandyStashSchemaManager {
         $tickets = \Metis_Tables::get( 'grandys_stash_tickets' );
         self::addColumnIfMissing( $tickets, 'facility_id', 'BIGINT UNSIGNED DEFAULT NULL' );
         self::addColumnIfMissing( $tickets, 'facility_name', 'VARCHAR(191) DEFAULT NULL' );
+        self::addColumnIfMissing( $tickets, 'organization_id', 'BIGINT UNSIGNED DEFAULT NULL' );
+        self::addColumnIfMissing( $tickets, 'organization_name', 'VARCHAR(191) DEFAULT NULL' );
         self::addIndexIfMissing( $tickets, 'idx_facility', 'KEY idx_facility (facility_id)' );
+        self::addIndexIfMissing( $tickets, 'idx_organization', 'KEY idx_organization (organization_id)' );
 
         // grandys_stash_ticket_items: add waitlist_position
         $items = \Metis_Tables::get( 'grandys_stash_ticket_items' );

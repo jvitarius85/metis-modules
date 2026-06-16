@@ -8,6 +8,21 @@ use Metis\Modules\CommunicationsInbound\ValueObjects\NormalizedInboundMessage;
 use Metis\Modules\CommunicationsInbound\ValueObjects\ParseResult;
 
 final class BounceHandler implements MessageHandlerInterface {
+    private function messageCode( NormalizedInboundMessage $message ): string {
+        $parts = [
+            $message->subject(),
+            $message->textBody(),
+            strip_tags( $message->htmlBody() ),
+        ];
+        foreach ( $message->headers() as $values ) {
+            foreach ( (array) $values as $value ) {
+                $parts[] = (string) $value;
+            }
+        }
+
+        return \metis_newsletter_extract_message_code( implode( "\n", array_filter( $parts, static fn ( mixed $value ): bool => is_string( $value ) && trim( $value ) !== '' ) ) );
+    }
+
     public function key(): string {
         return 'bounce';
     }
@@ -17,6 +32,21 @@ final class BounceHandler implements MessageHandlerInterface {
         $now = \metis_current_time( 'mysql' );
         $recipient = strtolower( trim( (string) ( $result->metadata()['bounced_recipient'] ?? '' ) ) );
         $reason = (string) ( $result->metadata()['reason'] ?? 'Delivery failure' );
+        $message_code = $this->messageCode( $message );
+
+        if ( $message_code !== '' ) {
+            \metis_newsletter_track_event_for_message( $message_code, 'bounce', $reason );
+
+            return [
+                'handled'  => true,
+                'status'   => 'handled',
+                'metadata' => [
+                    'bounced_recipient' => $recipient,
+                    'reason'            => $reason,
+                    'message_code'      => $message_code,
+                ],
+            ];
+        }
 
         $contacts_table = \Metis_Tables::get( 'contacts' );
         $subs_table = \Metis_Tables::get( 'newsletter_subs' );

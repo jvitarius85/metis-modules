@@ -1479,7 +1479,7 @@ function metis_router_route_policy( Metis_Http_Request $request ): ?Metis_Securi
         case 'newsletter.open':
         case 'newsletter.click':
         case 'newsletter.unsubscribe':
-            $module = 'newsletter';
+            $module = null;
             $require_authentication = false;
             $require_session = false;
             $require_nonce = false;
