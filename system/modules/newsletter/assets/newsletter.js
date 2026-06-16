@@ -303,6 +303,82 @@
         return $root.find('.metis-newsletter-row[data-campaign-id="' + String(campaignId || '') + '"]').first();
     }
 
+    function clearAnnouncementComposeQuery() {
+        if (String(ui.view || '') !== 'announcements') return;
+        const base = String(ui.announcements_url || '').trim();
+        if (!base || !window.history || typeof window.history.replaceState !== 'function') return;
+        window.history.replaceState({}, '', base);
+    }
+
+    function closeAnnouncementModal() {
+        const $modal = $('#metis-newsletter-announcement-modal');
+        if (!$modal.length) return;
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.close === 'function') {
+            Metis.ui.modal.close('metis-newsletter-announcement-modal');
+        }
+        clearAnnouncementComposeQuery();
+    }
+
+    function openAnnouncementModal() {
+        const $modal = $('#metis-newsletter-announcement-modal');
+        if (!$modal.length) return;
+        if (window.Metis && Metis.ui && Metis.ui.modal && typeof Metis.ui.modal.form === 'function') {
+            Metis.ui.modal.form('metis-newsletter-announcement-modal');
+        }
+        window.setTimeout(function () {
+            const input = document.getElementById('metis-newsletter-announcement-subject');
+            if (input) input.focus();
+        }, 0);
+    }
+
+    function selectedAnnouncementListIds() {
+        const ids = [];
+        $('#metis-newsletter-announcement-lists').find('[data-announcement-list-id]:checked').each(function () {
+            const listId = parseInt(String($(this).attr('data-announcement-list-id') || '0'), 10) || 0;
+            if (listId > 0) ids.push(listId);
+        });
+        return ids;
+    }
+
+    function buildAnnouncementRow(announcement) {
+        const id = parseInt(String(announcement && announcement.id || '0'), 10) || 0;
+        const subject = String(announcement && announcement.subject || '').trim();
+        const name = String(announcement && announcement.name || '').trim();
+        const status = String(announcement && announcement.status || 'queued').trim();
+        const recipients = parseInt(String(announcement && announcement.total_recipients || '0'), 10) || 0;
+        const sentCount = parseInt(String(announcement && announcement.sent_count || '0'), 10) || 0;
+        const updatedAt = String(announcement && announcement.updated_at || '').trim() || 'Just now';
+        const listNames = Array.isArray(announcement && announcement.list_names) ? announcement.list_names : [];
+        const searchBlob = [subject, name].concat(listNames).join(' ').toLowerCase();
+        const listsHtml = listNames.length
+            ? '<div class="metis-newsletter-chip-wrap">' + listNames.map(function (listName) {
+                return '<span class="metis-chip">' + escHtml(String(listName || '')) + '</span>';
+            }).join('') + '</div>'
+            : '<span class="metis-muted">—</span>';
+
+        return '<tr class="metis-premium-row metis-newsletter-row"'
+            + ' data-search="' + escAttr(searchBlob) + '"'
+            + ' data-campaign-id="' + escAttr(String(id)) + '"'
+            + ' data-campaign-code="' + escAttr(String(announcement && announcement.campaign_code || '')) + '"'
+            + ' data-campaign-status="' + escAttr(status) + '"'
+            + ' data-open-details="1">'
+            + '<td class="metis-premium-cell"><div><strong>' + escHtml(subject || 'Untitled Announcement') + '</strong></div><div class="metis-muted">' + escHtml(name || '') + '</div></td>'
+            + '<td class="metis-premium-cell">' + listsHtml + '</td>'
+            + '<td class="metis-premium-cell"><span class="metis-chip">' + escHtml(status) + '</span></td>'
+            + '<td class="metis-premium-cell">' + escHtml(String(recipients)) + '</td>'
+            + '<td class="metis-premium-cell">' + escHtml(String(sentCount)) + '</td>'
+            + '<td class="metis-premium-cell">' + escHtml(String(updatedAt)) + '</td>'
+            + '</tr>';
+    }
+
+    function prependAnnouncementRow(announcement) {
+        const $tbody = $('#metis-newsletter-announcement-rows');
+        if (!$tbody.length || !announcement || !announcement.id) return;
+        $tbody.find('.metis-muted').closest('.metis-premium-row').remove();
+        $tbody.find('.metis-newsletter-row[data-campaign-id="' + String(announcement.id) + '"]').remove();
+        $tbody.prepend(buildAnnouncementRow(announcement));
+    }
+
     function updateCampaignRowStatus(campaignId, status) {
         const $row = campaignRow(campaignId);
         if (!$row.length) return;
@@ -1910,6 +1986,44 @@
         navigate(ui.compose_url || '');
     });
 
+    $root.on('click', '#metis-newsletter-open-announcement-modal', function () {
+        openAnnouncementModal();
+    });
+
+    $('#metis-newsletter-send-announcement').on('click', function () {
+        const subject = String($('#metis-newsletter-announcement-subject').val() || '').trim();
+        const body = String($('#metis-newsletter-announcement-body').val() || '');
+        const listIds = selectedAnnouncementListIds();
+        if (!subject) {
+            toast('Subject is required.', 'error');
+            return;
+        }
+        if (!String(body).trim()) {
+            toast('Body is required.', 'error');
+            return;
+        }
+        if (!listIds.length) {
+            toast('Choose at least one list.', 'error');
+            return;
+        }
+        metisAjax('metis_newsletter_send_announcement_blast', {
+            subject: subject,
+            body: body,
+            list_ids: JSON.stringify(listIds)
+        }, function (data) {
+            if (data && data.announcement) {
+                prependAnnouncementRow(data.announcement);
+            }
+            toast('Announcement blast queued.', 'success');
+            $('#metis-newsletter-announcement-subject').val('');
+            $('#metis-newsletter-announcement-body').val('');
+            $('#metis-newsletter-announcement-lists').find('[data-announcement-list-id]').prop('checked', false);
+            closeAnnouncementModal();
+        }, function (msg) {
+            toast(msg || 'Failed to send announcement blast.', 'error');
+        });
+    });
+
     $root.on('click', '.metis-newsletter-edit-campaign', function (e) {
         e.stopPropagation();
         const code = String($(this).data('campaign-code') || '').trim();
@@ -2141,6 +2255,13 @@
         });
     });
 
+    $('#metis-newsletter-announcement-search').on('input', function () {
+        const q = $(this).val().toLowerCase().trim();
+        $('#metis-newsletter-announcement-rows').find('.metis-newsletter-row').each(function () {
+            $(this).toggle(!q || String($(this).data('search') || '').toLowerCase().includes(q));
+        });
+    });
+
     /* ------------------------------------------------------------------ */
     /*  Modal close                                                         */
     /* ------------------------------------------------------------------ */
@@ -2150,7 +2271,14 @@
         if (modalId) {
             Metis.ui.modal.close(modalId);
         }
+        if (modalId === 'metis-newsletter-announcement-modal') {
+            clearAnnouncementComposeQuery();
+        }
     });
+
+    if (String(ui.view || '') === 'announcements' && String(ui.compose || '') === '1') {
+        openAnnouncementModal();
+    }
 
     }
 
