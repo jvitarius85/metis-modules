@@ -23,6 +23,14 @@ function metis_grandys_stash_error_status( $status ): int {
     return in_array( $code, [ 400, 401, 403, 404, 409, 422, 429 ], true ) ? $code : 500;
 }
 
+function metis_grandys_stash_ticket_payload( int $ticket_id ): array {
+    $detail = GrandyStashRepository::getTicketDetailData( $ticket_id );
+    return [
+        'state' => GrandyStashRepository::dashboardData(),
+        'detail' => $detail,
+    ];
+}
+
 function metis_grandys_stash_register_ajax_controllers(): void {
     $actions = [
         'metis_grandys_stash_state' => 'view',
@@ -79,7 +87,12 @@ metis_ajax_register_handler( 'metis_grandys_stash_save_ticket', function (): voi
     if ( empty( $result['ok'] ) ) {
         metis_runtime_send_json_error( 'Unable to save ticket.', metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
     }
-    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+    $ticket_id = (int) ( $result['ticket']['id'] ?? 0 );
+    metis_runtime_send_json_success(
+        $ticket_id > 0
+            ? metis_grandys_stash_ticket_payload( $ticket_id )
+            : [ 'state' => GrandyStashRepository::dashboardData() ]
+    );
 } );
 
 // ─── Update ticket item status ───────────────────────
@@ -95,7 +108,12 @@ metis_ajax_register_handler( 'metis_grandys_stash_update_item_status', function 
     if ( empty( $result['ok'] ) ) {
         metis_runtime_send_json_error( 'Unable to update item.', metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
     }
-    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+    $ticket_id = (int) ( $result['ticket_id'] ?? 0 );
+    metis_runtime_send_json_success(
+        $ticket_id > 0
+            ? metis_grandys_stash_ticket_payload( $ticket_id )
+            : [ 'state' => GrandyStashRepository::dashboardData() ]
+    );
 } );
 
 // ─── Add note ────────────────────────────────────────
@@ -169,7 +187,7 @@ metis_ajax_register_handler( 'metis_grandys_stash_unlink_group', function (): vo
     if ( empty( $result['ok'] ) ) {
         metis_runtime_send_json_error( 'Unable to unlink.', metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
     }
-    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+    metis_runtime_send_json_success( metis_grandys_stash_ticket_payload( $ticket_id ) );
 } );
 
 

@@ -47,7 +47,7 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
             </div>
         <?php },
         'content' => static function () use ( $groups, $can_assign ) { ?>
-            <section class="metis-stash-manager-layout">
+            <section class="metis-stash-manager-layout metis-stash-manager-layout--full">
                 <div class="metis-stash-manager-list">
                     <table class="metis-premium-table metis-stash-manager-table">
                         <thead>
@@ -66,7 +66,12 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                                 data-open-count="<?php echo metis_escape_attr( (string) ( $group['open_count'] ?? 0 ) ); ?>"
                                 data-last-ticket="<?php echo metis_escape_attr( (string) ( $group['last_ticket_at'] ?? '' ) ); ?>"
                                 data-search="<?php echo metis_escape_attr( strtolower( implode( ' ', [ (string) ( $group['code'] ?? '' ), (string) ( $group['name'] ?? '' ), (string) ( $group['email'] ?? '' ), (string) ( $group['phone'] ?? '' ) ] ) ) ); ?>">
-                                <td class="metis-premium-cell"><strong><?php echo metis_escape_html( (string) ( $group['name'] ?? 'Unknown' ) ); ?></strong><div class="metis-muted"><?php echo metis_escape_html( (string) ( $group['code'] ?? '' ) ); ?></div></td>
+                                <td class="metis-premium-cell">
+                                    <button type="button" class="metis-stash-link-button" data-manager-open="group" data-id="<?php echo metis_escape_attr( (string) ( $group['id'] ?? 0 ) ); ?>">
+                                        <?php echo metis_escape_html( (string) ( $group['name'] ?? 'Unknown' ) ); ?>
+                                    </button>
+                                    <div class="metis-muted"><?php echo metis_escape_html( (string) ( $group['code'] ?? '' ) ); ?></div>
+                                </td>
                                 <td class="metis-premium-cell"><?php echo (int) ( $group['ticket_count'] ?? 0 ); ?></td>
                                 <td class="metis-premium-cell"><?php echo (int) ( $group['open_count'] ?? 0 ); ?></td>
                                 <td class="metis-premium-cell"><?php echo metis_escape_html( ! empty( $group['last_ticket_at'] ) ? metis_runtime_format_date( (string) $group['last_ticket_at'] ) : '—' ); ?></td>
@@ -75,26 +80,44 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                         </tbody>
                     </table>
                 </div>
-                <aside class="metis-stash-manager-card" id="metis-stash-group-card">
-                    <h2>Group Manager</h2>
-                    <p class="metis-muted">Select a person group to view linked tickets and update group information.</p>
-                    <?php if ( $can_assign ) : ?>
-                    <form id="metis-stash-group-form" class="metis-stash-form" autocomplete="off">
-                        <input type="hidden" name="id" value="">
-                        <label><span>Name</span><input class="metis-input" type="text" name="name"></label>
-                        <label><span>Email</span><input class="metis-input" type="email" name="email"></label>
-                        <label><span>Phone</span><input class="metis-input" type="text" name="phone"></label>
-                        <label><span>Notes</span><textarea class="metis-input" name="notes" rows="4"></textarea></label>
-                        <div class="metis-stash-form-actions">
-                            <button type="submit" class="metis-btn">Save Group</button>
-                        </div>
-                    </form>
-                    <?php endif; ?>
-                    <div id="metis-stash-group-ticket-list" class="metis-stash-manager-ticket-list"></div>
-                </aside>
             </section>
         <?php },
     ]); ?>
+
+    <div class="metis-stash-modal metis-stash-modal-wide" id="metis-stash-group-modal" aria-hidden="true">
+        <div class="metis-stash-modal-dialog">
+            <div class="metis-stash-modal-head">
+                <div>
+                    <h2 id="metis-stash-group-modal-title">Group Manager</h2>
+                    <p class="metis-muted" id="metis-stash-group-modal-subtitle" style="margin:4px 0 0;">Review group information and linked tickets.</p>
+                </div>
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-close-modal="metis-stash-group-modal">Close</button>
+            </div>
+            <div class="metis-stash-tab-row">
+                <button type="button" class="metis-btn metis-btn-xs metis-stash-tab is-active" data-tab-target="group-general">General Info</button>
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost metis-stash-tab" data-tab-target="group-tickets">Tickets</button>
+            </div>
+            <div class="metis-stash-tab-panel is-active" data-tab-panel="group-general">
+                <?php if ( $can_assign ) : ?>
+                <form id="metis-stash-group-form" class="metis-stash-form" autocomplete="off">
+                    <input type="hidden" name="id" value="">
+                    <label><span>Name</span><input class="metis-input" type="text" name="name"></label>
+                    <label><span>Email</span><input class="metis-input" type="email" name="email"></label>
+                    <label><span>Phone</span><input class="metis-input" type="text" name="phone"></label>
+                    <label><span>Notes</span><textarea class="metis-input" name="notes" rows="4"></textarea></label>
+                    <div class="metis-stash-form-actions">
+                        <button type="submit" class="metis-btn">Save Group</button>
+                    </div>
+                </form>
+                <?php else : ?>
+                <div class="metis-muted">You do not have permission to edit this group.</div>
+                <?php endif; ?>
+            </div>
+            <div class="metis-stash-tab-panel" data-tab-panel="group-tickets">
+                <div id="metis-stash-group-ticket-list" class="metis-stash-manager-ticket-list"></div>
+            </div>
+        </div>
+    </div>
 
     <script id="metis-stash-boot" type="application/json"><?php echo metis_json_encode( $state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?></script>
 </div>

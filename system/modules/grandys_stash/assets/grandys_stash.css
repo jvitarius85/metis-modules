@@ -45,12 +45,12 @@
 
 .metis-stash-table--manageable .metis-premium-header,
 .metis-stash-table--manageable .metis-premium-row {
-    grid-template-columns: minmax(120px, 132px) minmax(150px, 1.1fr) minmax(150px, 1.15fr) 92px 108px 96px minmax(100px, 0.85fr) 64px 104px 90px;
+    grid-template-columns: minmax(126px, 140px) minmax(180px, 1.5fr) 102px 118px 108px minmax(110px, 0.9fr) 72px 112px 92px;
 }
 
 .metis-stash-table--readonly .metis-premium-header,
 .metis-stash-table--readonly .metis-premium-row {
-    grid-template-columns: minmax(120px, 132px) minmax(150px, 1.1fr) minmax(150px, 1.15fr) 92px 108px 96px minmax(100px, 0.85fr) 64px 104px;
+    grid-template-columns: minmax(126px, 140px) minmax(180px, 1.5fr) 102px 118px 108px minmax(110px, 0.9fr) 72px 112px;
 }
 
 
@@ -135,6 +135,10 @@
     align-items: start;
 }
 
+.metis-stash-manager-layout--full {
+    grid-template-columns: 1fr;
+}
+
 .metis-stash-manager-list,
 .metis-stash-manager-card {
     background: #fff;
@@ -151,7 +155,7 @@
 
 .metis-stash-manager-table .metis-premium-header,
 .metis-stash-manager-table .metis-premium-row {
-    grid-template-columns: minmax(0, 1.6fr) 84px 84px 120px;
+    grid-template-columns: minmax(0, 1.7fr) 92px 92px 130px;
     align-items: center;
     column-gap: 0;
 }
@@ -167,6 +171,35 @@
 
 .metis-stash-manager-ticket-list {
     margin-top: 18px;
+}
+
+.metis-stash-link-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--metis-primary, #485bc7);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+}
+
+.metis-stash-link-button:hover {
+    text-decoration: underline;
+}
+
+.metis-stash-tab-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.metis-stash-tab-panel {
+    display: none;
+}
+
+.metis-stash-tab-panel.is-active {
+    display: block;
 }
 
 .metis-stash-linked-tickets {
@@ -522,37 +555,44 @@
 /* Report tables */
 .metis-stash-report-cat-table .metis-premium-header,
 .metis-stash-report-cat-table .metis-premium-row {
-    grid-template-columns: minmax(180px, 1.5fr) 120px 120px;
+    grid-template-columns: minmax(200px, 1.6fr) 130px 130px;
     align-items: center;
     column-gap: 0;
 }
 
 .metis-stash-report-month-table .metis-premium-header,
 .metis-stash-report-month-table .metis-premium-row {
-    grid-template-columns: 140px repeat(4, 1fr);
+    grid-template-columns: minmax(140px, 1.15fr) repeat(4, minmax(110px, 1fr));
     align-items: center;
     column-gap: 0;
 }
 
 .metis-stash-report-small-table .metis-premium-header,
 .metis-stash-report-small-table .metis-premium-row {
-    grid-template-columns: 1fr 80px;
+    grid-template-columns: minmax(160px, 1fr) 92px;
     align-items: center;
     column-gap: 0;
 }
 
 .metis-stash-report-wide-table .metis-premium-header,
 .metis-stash-report-wide-table .metis-premium-row {
-    grid-template-columns: minmax(0, 1.5fr) minmax(150px, 1fr) 100px 100px;
+    grid-template-columns: minmax(220px, 1.6fr) minmax(180px, 1fr) 110px 110px;
     align-items: center;
     column-gap: 0;
 }
 
 .metis-stash-report-equipment-table .metis-premium-header,
 .metis-stash-report-equipment-table .metis-premium-row {
-    grid-template-columns: minmax(0, 1.5fr) minmax(140px, 1fr) 100px 100px 100px;
+    grid-template-columns: minmax(220px, 1.6fr) minmax(160px, 1fr) 110px 110px 110px;
     align-items: center;
     column-gap: 0;
+}
+
+.metis-stash-app .metis-premium-header .metis-premium-cell {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+    font-size: 13px;
 }
 
 .metis-stash-report-split {

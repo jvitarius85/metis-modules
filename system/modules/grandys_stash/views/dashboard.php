@@ -13,13 +13,11 @@ $assignees = $state['assignees'] ?? [];
 $can_manage = metis_grandys_stash_can_manage();
 $can_create = function_exists( 'metis_grandys_stash_can_create' ) && metis_grandys_stash_can_create();
 $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_grandys_stash_can_settings();
-$can_delete = function_exists( 'metis_grandys_stash_can_delete' ) && metis_grandys_stash_can_delete();
 ?>
 
 <div class="metis-stash-app"
      data-can-manage="<?php echo metis_escape_attr( $can_manage ? '1' : '0' ); ?>"
      data-can-create="<?php echo metis_escape_attr( $can_create ? '1' : '0' ); ?>"
-     data-can-delete="<?php echo metis_escape_attr( $can_delete ? '1' : '0' ); ?>"
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_label( "Grandy's Stash" ) ); ?></h1>
@@ -74,7 +72,6 @@ $can_delete = function_exists( 'metis_grandys_stash_can_delete' ) && metis_grand
     <thead>
         <tr class="metis-premium-row metis-premium-header">
             <th class="metis-premium-cell" scope="col">Code</th>
-            <th class="metis-premium-cell" scope="col">Organization</th>
             <th class="metis-premium-cell" scope="col">Name</th>
             <th class="metis-premium-cell" scope="col">Type</th>
             <th class="metis-premium-cell" scope="col">Status</th>
@@ -95,12 +92,7 @@ $can_delete = function_exists( 'metis_grandys_stash_can_delete' ) && metis_grand
             $assigned = metis_escape_html( (string) ($t['assigned_name'] ?? '—') );
             $item_count = (int) ($t['item_count'] ?? 0);
             $date = ! empty( $t['submitted_at'] ) ? metis_runtime_format_date( (string) $t['submitted_at'] ) : '';
-            $organization = trim( (string) ( $t['organization_name'] ?? $t['organization_label'] ?? '' ) );
-            if ( $organization === '' ) {
-                $organization = trim( (string) ( $t['organization_domain'] ?? '' ) );
-            }
-            $organization_display = $organization !== '' ? metis_escape_html( $organization ) : '<span class="metis-muted">Independent</span>';
-            $search_blob = strtolower( implode( ' ', [ $code, $name, $type_label, $status, $assigned, $organization, (string)($t['submit_email'] ?? ''), (string)($t['items_summary'] ?? '') ] ) );
+            $search_blob = strtolower( implode( ' ', [ $code, $name, $type_label, $status, $assigned, (string)($t['submit_email'] ?? ''), (string)($t['items_summary'] ?? '') ] ) );
             $ticket_url = metis_grandys_stash_view_url( (string) ( $t['code'] ?? '' ) );
         ?>
         <tr class="metis-premium-row metis-stash-row"
@@ -111,7 +103,6 @@ $can_delete = function_exists( 'metis_grandys_stash_can_delete' ) && metis_grand
              data-assigned="<?php echo metis_escape_attr( (string) ($t['assigned_to'] ?? '') ); ?>"
              data-search="<?php echo metis_escape_attr( $search_blob ); ?>">
             <td class="metis-premium-cell"><strong><?php echo $code; ?></strong></td>
-            <td class="metis-premium-cell"><?php echo $organization_display; ?></td>
             <td class="metis-premium-cell"><?php echo $name; ?></td>
             <td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-<?php echo metis_escape_attr( $t['type'] ); ?>"><?php echo metis_escape_html( $type_label ); ?></span></td>
             <td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-<?php echo metis_escape_attr( strtolower( $status ) ); ?>"><?php echo metis_escape_html( $status ); ?></span></td>

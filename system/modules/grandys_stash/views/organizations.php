@@ -45,8 +45,8 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                 </nav>
             </div>
         <?php },
-        'content' => static function () use ( $organizations, $can_settings ) { ?>
-            <section class="metis-stash-manager-layout">
+        'content' => static function () use ( $organizations ) { ?>
+            <section class="metis-stash-manager-layout metis-stash-manager-layout--full">
                 <div class="metis-stash-manager-list">
                     <table class="metis-premium-table metis-stash-manager-table">
                         <thead>
@@ -66,7 +66,12 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                                 data-is-active="<?php echo metis_escape_attr( ! empty( $organization['is_active'] ) ? '1' : '0' ); ?>"
                                 data-last-ticket="<?php echo metis_escape_attr( (string) ( $organization['last_ticket_at'] ?? '' ) ); ?>"
                                 data-search="<?php echo metis_escape_attr( strtolower( implode( ' ', [ (string) ( $organization['code'] ?? '' ), (string) ( $organization['name'] ?? '' ), (string) ( $organization['domain'] ?? '' ) ] ) ) ); ?>">
-                                <td class="metis-premium-cell"><strong><?php echo metis_escape_html( (string) ( $organization['name'] ?? 'Unknown' ) ); ?></strong><div class="metis-muted"><?php echo metis_escape_html( (string) ( $organization['domain'] ?? '—' ) ); ?></div></td>
+                                <td class="metis-premium-cell">
+                                    <button type="button" class="metis-stash-link-button" data-manager-open="organization" data-id="<?php echo metis_escape_attr( (string) ( $organization['id'] ?? 0 ) ); ?>">
+                                        <?php echo metis_escape_html( (string) ( $organization['name'] ?? 'Unknown' ) ); ?>
+                                    </button>
+                                    <div class="metis-muted"><?php echo metis_escape_html( (string) ( $organization['domain'] ?? '—' ) ); ?></div>
+                                </td>
                                 <td class="metis-premium-cell"><?php echo (int) ( $organization['ticket_count'] ?? 0 ); ?></td>
                                 <td class="metis-premium-cell"><?php echo (int) ( $organization['open_count'] ?? 0 ); ?></td>
                                 <td class="metis-premium-cell"><?php echo metis_escape_html( ! empty( $organization['last_ticket_at'] ) ? metis_runtime_format_date( (string) $organization['last_ticket_at'] ) : '—' ); ?></td>
@@ -75,31 +80,49 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                         </tbody>
                     </table>
                 </div>
-                <aside class="metis-stash-manager-card" id="metis-stash-organization-card">
-                    <h2>Organization Manager</h2>
-                    <p class="metis-muted">Select an organization to manage its reporting name, domain, and linked tickets.</p>
-                    <?php if ( $can_settings ) : ?>
-                    <form id="metis-stash-organization-form" class="metis-stash-form" autocomplete="off">
-                        <input type="hidden" name="id" value="">
-                        <label><span>Name</span><input class="metis-input" type="text" name="name"></label>
-                        <label><span>Domain</span><input class="metis-input" type="text" name="domain" placeholder="example.org"></label>
-                        <label><span>Notes</span><textarea class="metis-input" name="notes" rows="4"></textarea></label>
-                        <label><span>Status</span>
-                            <select class="metis-select" name="is_active">
-                                <option value="1">Active</option>
-                                <option value="0">Inactive</option>
-                            </select>
-                        </label>
-                        <div class="metis-stash-form-actions">
-                            <button type="submit" class="metis-btn">Save Organization</button>
-                        </div>
-                    </form>
-                    <?php endif; ?>
-                    <div id="metis-stash-organization-ticket-list" class="metis-stash-manager-ticket-list"></div>
-                </aside>
             </section>
         <?php },
     ]); ?>
+
+    <div class="metis-stash-modal metis-stash-modal-wide" id="metis-stash-organization-modal" aria-hidden="true">
+        <div class="metis-stash-modal-dialog">
+            <div class="metis-stash-modal-head">
+                <div>
+                    <h2 id="metis-stash-organization-modal-title">Organization Manager</h2>
+                    <p class="metis-muted" id="metis-stash-organization-modal-subtitle" style="margin:4px 0 0;">Review organization information and linked tickets.</p>
+                </div>
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-close-modal="metis-stash-organization-modal">Close</button>
+            </div>
+            <div class="metis-stash-tab-row">
+                <button type="button" class="metis-btn metis-btn-xs metis-stash-tab is-active" data-tab-target="organization-general">General Info</button>
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost metis-stash-tab" data-tab-target="organization-tickets">Tickets</button>
+            </div>
+            <div class="metis-stash-tab-panel is-active" data-tab-panel="organization-general">
+                <?php if ( $can_settings ) : ?>
+                <form id="metis-stash-organization-form" class="metis-stash-form" autocomplete="off">
+                    <input type="hidden" name="id" value="">
+                    <label><span>Name</span><input class="metis-input" type="text" name="name"></label>
+                    <label><span>Domain</span><input class="metis-input" type="text" name="domain" placeholder="example.org"></label>
+                    <label><span>Notes</span><textarea class="metis-input" name="notes" rows="4"></textarea></label>
+                    <label><span>Status</span>
+                        <select class="metis-select" name="is_active">
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </label>
+                    <div class="metis-stash-form-actions">
+                        <button type="submit" class="metis-btn">Save Organization</button>
+                    </div>
+                </form>
+                <?php else : ?>
+                <div class="metis-muted">You do not have permission to edit this organization.</div>
+                <?php endif; ?>
+            </div>
+            <div class="metis-stash-tab-panel" data-tab-panel="organization-tickets">
+                <div id="metis-stash-organization-ticket-list" class="metis-stash-manager-ticket-list"></div>
+            </div>
+        </div>
+    </div>
 
     <script id="metis-stash-boot" type="application/json"><?php echo metis_json_encode( $state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?></script>
 </div>

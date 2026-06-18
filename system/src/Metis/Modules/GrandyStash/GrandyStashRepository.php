@@ -868,7 +868,7 @@ final class GrandyStashRepository {
         $db->update( \Metis_Tables::get( 'grandys_stash_tickets' ), [ 'group_id' => $group_id ], [ 'id' => $ticket_id ] );
         self::logActivity( $ticket_id, 'grouped', 'Linked to person group ' . (string) ( $group['code'] ?? '#' . $group_id ) . '.' );
 
-        return [ 'ok' => true ];
+        return [ 'ok' => true, 'ticket_id' => $ticket_id ];
     }
 
     public static function mergeGroups( int $source_id, int $target_id ): array {
@@ -1936,8 +1936,8 @@ final class GrandyStashRepository {
 
         // Monthly breakdown
         $monthly = $db->fetchAll(
-            "SELECT DATE_FORMAT(t.submitted_at, '%%Y-%%m') AS month,
-                    DATE_FORMAT(t.submitted_at, '%%b %%Y') AS month_label,
+            "SELECT DATE_FORMAT(t.submitted_at, '%Y-%m') AS month,
+                    DATE_FORMAT(t.submitted_at, '%b %Y') AS month_label,
                     COUNT(*) AS tickets,
                     SUM(CASE WHEN t.type = 'request' THEN 1 ELSE 0 END) AS requests,
                     SUM(CASE WHEN t.type = 'donation' THEN 1 ELSE 0 END) AS donations,

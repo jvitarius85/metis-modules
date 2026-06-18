@@ -51,10 +51,16 @@
     reportContent: qs('#metis-stash-report-content'),
     groupRows: qs('#metis-stash-group-rows'),
     groupSearch: qs('#metis-stash-group-search'),
+    groupModal: qs('#metis-stash-group-modal'),
+    groupModalTitle: qs('#metis-stash-group-modal-title'),
+    groupModalSubtitle: qs('#metis-stash-group-modal-subtitle'),
     groupForm: qs('#metis-stash-group-form'),
     groupTicketList: qs('#metis-stash-group-ticket-list'),
     organizationRows: qs('#metis-stash-organization-rows'),
     organizationSearch: qs('#metis-stash-organization-search'),
+    organizationModal: qs('#metis-stash-organization-modal'),
+    organizationModalTitle: qs('#metis-stash-organization-modal-title'),
+    organizationModalSubtitle: qs('#metis-stash-organization-modal-subtitle'),
     organizationForm: qs('#metis-stash-organization-form'),
     organizationTicketList: qs('#metis-stash-organization-ticket-list'),
   };
@@ -62,29 +68,23 @@
   initialize();
 
   function initialize() {
+    mountModalToBody(ui.groupModal);
+    mountModalToBody(ui.organizationModal);
+    mountModalToBody(ui.newTicketModal);
     filterRows();
     filterManagerRows();
     hydrateReportDateInputs();
 
     if (isTicketPage) {
       const initialTicketId = parseInt(root.dataset.ticketId || '0', 10);
-      if (initialTicketId > 0) {
-        openTicketDetail(initialTicketId);
-      }
-    }
-
-    if (stashView === 'groups' && state.groups && state.groups.length) {
-      selectManagerRow('group', Number(state.groups[0].id || 0));
-    }
-    if (stashView === 'organizations' && state.organizations && state.organizations.length) {
-      selectManagerRow('organization', Number(state.organizations[0].id || 0));
+      if (initialTicketId > 0) currentTicketId = initialTicketId;
     }
   }
 
-  root.addEventListener('click', async function (e) {
+  document.addEventListener('click', async function (e) {
     const close = e.target.closest('[data-close-modal]');
     if (close) {
-      closeModal(qs('#' + close.dataset.closeModal));
+      closeModal(document.getElementById(String(close.dataset.closeModal || '')));
       return;
     }
 
@@ -120,9 +120,21 @@
       return;
     }
 
+    const managerOpen = e.target.closest('[data-manager-open]');
+    if (managerOpen) {
+      openManagerModal(String(managerOpen.dataset.managerOpen || ''), Number(managerOpen.dataset.id || 0));
+      return;
+    }
+
     const managerRow = e.target.closest('.metis-stash-manager-row[data-manager-kind]');
-    if (managerRow) {
-      selectManagerRow(String(managerRow.dataset.managerKind || ''), Number(managerRow.dataset.id || 0));
+    if (managerRow && !e.target.closest('a, button, input, select, textarea, label')) {
+      openManagerModal(String(managerRow.dataset.managerKind || ''), Number(managerRow.dataset.id || 0));
+      return;
+    }
+
+    const tabButton = e.target.closest('.metis-stash-tab[data-tab-target]');
+    if (tabButton) {
+      switchTab(tabButton);
       return;
     }
 
@@ -131,10 +143,7 @@
       const ticketUrl = String(reviewBtn.dataset.ticketUrl || '');
       if (ticketUrl) {
         window.location.href = ticketUrl;
-        return;
       }
-      const ticketId = parseInt(reviewBtn.dataset.ticketId || '0', 10);
-      if (ticketId > 0) await openTicketDetail(ticketId);
       return;
     }
 
@@ -154,8 +163,12 @@
     const unlinkBtn = e.target.closest('[data-unlink-group]');
     if (unlinkBtn && canAssign && currentTicketId > 0) {
       try {
-        await request('metis_grandys_stash_unlink_group', { ticket_id: currentTicketId });
-        await handlePostTicketMutation('Ticket unlinked.');
+        const data = await request('metis_grandys_stash_unlink_group', { ticket_id: currentTicketId });
+        applyStateUpdate(data);
+        if (ui.ticketGroup) ui.ticketGroup.innerHTML = '';
+        if (ui.ticketGroupSection) ui.ticketGroupSection.style.display = 'none';
+        if (data?.detail?.activity) renderActivity(data.detail.activity);
+        showAlert('Ticket unlinked.');
       } catch (err) {
         showAlert(err.message, 'error');
       }
@@ -170,8 +183,9 @@
     e.preventDefault();
     if (!canAssign) return;
     try {
-      await request('metis_grandys_stash_save_ticket', { payload: JSON.stringify(formToObject(ui.ticketForm)) });
-      await handlePostTicketMutation('Ticket updated.');
+      const data = await request('metis_grandys_stash_save_ticket', { payload: JSON.stringify(formToObject(ui.ticketForm)) });
+      applyStateUpdate(data);
+      showAlert('Ticket updated.');
     } catch (err) {
       showAlert(err.message, 'error');
     }
@@ -241,7 +255,7 @@
     try {
       await request('metis_grandys_stash_save_group', { payload: JSON.stringify(formToObject(ui.groupForm)) });
       await refreshState('Group saved.');
-      selectManagerRow('group', Number(ui.groupForm.elements.namedItem('id')?.value || '0'));
+      openManagerModal('group', Number(ui.groupForm.elements.namedItem('id')?.value || '0'));
     } catch (err) {
       showAlert(err.message, 'error');
     }
@@ -253,7 +267,7 @@
     try {
       await request('metis_grandys_stash_save_organization', { payload: JSON.stringify(formToObject(ui.organizationForm)) });
       await refreshState('Organization saved.');
-      selectManagerRow('organization', Number(ui.organizationForm.elements.namedItem('id')?.value || '0'));
+      openManagerModal('organization', Number(ui.organizationForm.elements.namedItem('id')?.value || '0'));
     } catch (err) {
       showAlert(err.message, 'error');
     }
@@ -310,21 +324,11 @@
     }
   });
 
-  async function openTicketDetail(ticketId) {
-    currentTicketId = ticketId;
-    try {
-      const data = await request('metis_grandys_stash_ticket_detail', { ticket_id: ticketId });
-      const ticket = data.ticket || {};
-      renderTicketHeader(ticket);
-      renderTicketItems(data.items || []);
-      renderConversation(data.messages || []);
-      renderNotes(data.notes || []);
-      renderActivity(data.activity || []);
-      renderOrganization(data.organization || null);
-      renderGroup(data.group || null);
-      populateTicketForm(ticket);
-    } catch (err) {
-      showAlert(err.message, 'error');
+  function applyStateUpdate(data) {
+    if (data?.state) {
+      state = Object.assign({}, state, data.state);
+      rebuildRows();
+      rebuildManagerSelections();
     }
   }
 
@@ -375,7 +379,7 @@
     });
   }
 
-  function selectManagerRow(kind, id) {
+  function openManagerModal(kind, id) {
     if (!kind || id < 1) return;
     selectedManagerKind = kind;
     selectedManagerId = id;
@@ -388,12 +392,20 @@
       const group = (state.groups || []).find(function (entry) { return Number(entry.id || 0) === id; });
       if (!group || !ui.groupTicketList) return;
       fillForm(ui.groupForm, group);
+      if (ui.groupModalTitle) ui.groupModalTitle.textContent = group.name || 'Group Manager';
+      if (ui.groupModalSubtitle) ui.groupModalSubtitle.textContent = group.code || '';
       ui.groupTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForGroup(id));
+      activateTab('group-general');
+      openModal(ui.groupModal);
     } else if (kind === 'organization') {
       const organization = (state.organizations || []).find(function (entry) { return Number(entry.id || 0) === id; });
       if (!organization || !ui.organizationTicketList) return;
       fillForm(ui.organizationForm, organization);
+      if (ui.organizationModalTitle) ui.organizationModalTitle.textContent = organization.name || 'Organization Manager';
+      if (ui.organizationModalSubtitle) ui.organizationModalSubtitle.textContent = organization.domain || organization.code || '';
       ui.organizationTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForOrganization(id));
+      activateTab('organization-general');
+      openModal(ui.organizationModal);
     }
   }
 
@@ -422,25 +434,6 @@
           '<span class="metis-muted">' + esc(labelize(ticket.type || 'request')) + ' · ' + esc(ticket.status || 'NEW') + ' · ' + esc(shortDate(ticket.submitted_at || '')) + '</span>' +
         '</a>';
       }).join('') + '</div></div>';
-  }
-
-  function renderTicketHeader(ticket) {
-    if (!ui.ticketHeader) return;
-    const rows = [
-      kv('Name', ticket.submit_name),
-      kv('Email', ticket.submit_email),
-      kv('Phone', ticket.submit_phone),
-      kv('Organization', ticket.organization_name),
-      kv('Type', labelize(ticket.type)),
-      kv('Status', ticket.status),
-      kv('Urgency', labelize(ticket.urgency)),
-      kv('Source', labelize(ticket.source)),
-      kv('Coordination', labelize(ticket.pickup_delivery)),
-      kv('Submitted', shortDate(ticket.submitted_at)),
-      ticket.closed_at ? kv('Closed', shortDate(ticket.closed_at)) : ''
-    ].filter(Boolean).join('');
-    const notes = ticket.submit_notes ? '<div style="margin-top:8px;"><strong class="metis-muted" style="font-size:12px;">Submitter notes</strong><p style="margin:4px 0 0;">' + esc(ticket.submit_notes) + '</p></div>' : '';
-    ui.ticketHeader.innerHTML = '<div class="metis-stash-detail-grid">' + rows + '</div>' + notes;
   }
 
   function renderTicketItems(items) {
@@ -525,96 +518,17 @@
     }).join('');
   }
 
-  function renderOrganization(organization) {
-    if (!ui.ticketOrganizationSection || !ui.ticketOrganization) return;
-    if (!organization) {
-      ui.ticketOrganizationSection.style.display = 'none';
-      return;
-    }
-    ui.ticketOrganizationSection.style.display = '';
-    ui.ticketOrganization.innerHTML = buildGroupCard({
-      title: organization.name || organization.domain || 'Organization',
-      count: organization.ticket_count || (organization.tickets || []).length,
-      code: organization.code || '',
-      fields: [
-        kv('Domain', organization.domain),
-        kv('Tickets', String(organization.ticket_count || (organization.tickets || []).length || 0))
-      ],
-      tickets: organization.tickets || []
-    });
-  }
-
-  function renderGroup(group) {
-    if (!ui.ticketGroupSection || !ui.ticketGroup) return;
-    if (!group) {
-      ui.ticketGroupSection.style.display = 'none';
-      return;
-    }
-    ui.ticketGroupSection.style.display = '';
-    ui.ticketGroup.innerHTML = buildGroupCard({
-      title: group.name || 'Person Group',
-      count: group.ticket_count || (group.tickets || []).length,
-      code: group.code || '',
-      fields: [
-        kv('Email', group.email),
-        kv('Phone', group.phone),
-        kv('Tickets', String(group.ticket_count || (group.tickets || []).length || 0))
-      ],
-      tickets: group.tickets || [],
-      footer: canAssign ? '<div style="margin-top:8px;"><button class="metis-btn metis-btn-xs metis-btn-ghost" data-unlink-group="1">Unlink from group</button></div>' : ''
-    });
-  }
-
-  function buildGroupCard(config) {
-    const tickets = Array.isArray(config.tickets) ? config.tickets : [];
-    const currentCode = String((state.tickets || []).find(function (ticket) { return Number(ticket.id || 0) === currentTicketId; })?.code || '');
-    return '<details class="metis-stash-group-card">' +
-      '<summary><strong>' + esc(config.title || 'Group') + '</strong><span class="metis-muted">' + Number(config.count || tickets.length || 0) + ' tickets</span></summary>' +
-      '<div class="metis-stash-group-card-body">' +
-      (config.code ? '<div class="metis-muted" style="margin-bottom:8px;">' + esc(config.code) + '</div>' : '') +
-      '<div class="metis-stash-detail-grid">' + (config.fields || []).filter(Boolean).join('') + '</div>' +
-      '<div class="metis-stash-linked-tickets">' + tickets.map(function (ticket) {
-        const url = buildTicketUrl(ticket.code || '');
-        const current = String(ticket.code || '') === currentCode ? ' is-current' : '';
-        return '<a class="metis-stash-linked-ticket' + current + '" href="' + esc(url) + '" data-ticket-url="' + esc(url) + '">' +
-          '<strong>' + esc(ticket.code || '') + '</strong>' +
-          '<span>' + esc(ticket.submit_name || '') + '</span>' +
-          '<span class="metis-muted">' + esc(labelize(ticket.type || 'request')) + ' · ' + esc(ticket.status || 'NEW') + ' · ' + esc(shortDate(ticket.submitted_at || '')) + '</span>' +
-        '</a>';
-      }).join('') + '</div>' +
-      (config.footer || '') +
-      '</div></details>';
-  }
-
-  function populateTicketForm(ticket) {
-    if (!ui.ticketForm) return;
-    setField(ui.ticketForm, 'id', ticket.id);
-    setField(ui.ticketForm, 'status', ticket.status);
-    setField(ui.ticketForm, 'assigned_to', ticket.assigned_to || '');
-    setField(ui.ticketForm, 'urgency', ticket.urgency || 'standard');
-    if (ui.replySubject) ui.replySubject.value = defaultReplySubject(ticket);
-    if (ui.replyInput) ui.replyInput.value = '';
-  }
-
   async function updateItemStatus(itemId, status) {
     if (itemId < 1 || !status) return;
     try {
-      await request('metis_grandys_stash_update_item_status', { item_id: itemId, status: status });
-      await openTicketDetail(currentTicketId);
+      const data = await request('metis_grandys_stash_update_item_status', { item_id: itemId, status: status });
+      applyStateUpdate(data);
+      if (data?.detail?.items) renderTicketItems(data.detail.items);
+      if (data?.detail?.activity) renderActivity(data.detail.activity);
       showAlert('Item updated.');
     } catch (err) {
       showAlert(err.message, 'error');
     }
-  }
-
-  async function handlePostTicketMutation(message) {
-    if (isTicketPage && currentTicketId > 0) {
-      await openTicketDetail(currentTicketId);
-      await refreshState();
-    } else {
-      await refreshState();
-    }
-    if (message) showAlert(message);
   }
 
   async function refreshState(message) {
@@ -635,19 +549,16 @@
         const typeLabel = ticket.type === 'donation' ? 'Donation' : 'Request';
         const status = String(ticket.status || 'NEW');
         const code = esc(ticket.code || '');
-        const organization = ticket.organization_name || ticket.organization_label || ticket.organization_domain || '';
-        const organizationCell = organization ? esc(organization) : '<span class="metis-muted">Independent</span>';
         const name = esc(ticket.submit_name || 'Unknown');
         const assigned = esc(ticket.assigned_name || '\u2014');
         const urgency = esc(labelize(ticket.urgency || 'standard'));
         const items = Number(ticket.item_count || 0);
         const date = esc(shortDate(ticket.submitted_at || ''));
-        const search = [ticket.code || '', ticket.submit_name || '', typeLabel, status, assigned, organization, ticket.submit_email || '', ticket.items_summary || ''].join(' ').toLowerCase();
+        const search = [ticket.code || '', ticket.submit_name || '', typeLabel, status, assigned, ticket.submit_email || '', ticket.items_summary || ''].join(' ').toLowerCase();
         const ticketUrl = buildTicketUrl(ticket.code || '');
 
         return '<tr class="metis-premium-row metis-stash-row" data-id="' + Number(ticket.id || 0) + '" data-ticket-url="' + esc(ticketUrl) + '" data-status="' + esc(status) + '" data-type="' + esc(ticket.type || 'request') + '" data-assigned="' + Number(ticket.assigned_to || 0) + '" data-search="' + esc(search) + '">' +
           '<td class="metis-premium-cell"><strong>' + code + '</strong></td>' +
-          '<td class="metis-premium-cell">' + organizationCell + '</td>' +
           '<td class="metis-premium-cell">' + name + '</td>' +
           '<td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-' + esc(ticket.type || 'request') + '">' + esc(typeLabel) + '</span></td>' +
           '<td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-' + esc(status.toLowerCase()) + '">' + esc(status) + '</span></td>' +
@@ -663,10 +574,24 @@
   }
 
   function rebuildManagerSelections() {
-    if (selectedManagerKind && selectedManagerId > 0) {
-      selectManagerRow(selectedManagerKind, selectedManagerId);
-    }
     filterManagerRows();
+  }
+
+  function switchTab(tabButton) {
+    const target = String(tabButton.dataset.tabTarget || '');
+    if (!target) return;
+    activateTab(target);
+  }
+
+  function activateTab(target) {
+    qsa('.metis-stash-tab').forEach(function (button) {
+      const active = String(button.dataset.tabTarget || '') === target;
+      button.classList.toggle('is-active', active);
+      button.classList.toggle('metis-btn-ghost', !active);
+    });
+    qsa('.metis-stash-tab-panel').forEach(function (panel) {
+      panel.classList.toggle('is-active', String(panel.dataset.tabPanel || '') === target);
+    });
   }
 
   function buildReportHTML(report) {
@@ -793,19 +718,6 @@
     if (element) element.value = value == null ? '' : String(value);
   }
 
-  function kv(label, value) {
-    if (!value) return '';
-    return '<div><strong class="metis-muted" style="font-size:12px;">' + esc(label) + '</strong><div>' + esc(String(value)) + '</div></div>';
-  }
-
-  function defaultReplySubject(ticket) {
-    const code = String(ticket.code || '').trim();
-    const name = String(ticket.submit_name || '').trim();
-    if (code && name) return '[' + code + '] Grandy\'s Stash Update for ' + name;
-    if (code) return '[' + code + '] Grandy\'s Stash Update';
-    return 'Grandy\'s Stash Update';
-  }
-
   function shortDate(value) {
     if (!value) return '';
     if (window.Metis && Metis.time && typeof Metis.time.formatDate === 'function') {
@@ -842,6 +754,12 @@
   function closeModal(node) {
     node?.classList.remove('metis-open');
     if (node) node.setAttribute('aria-hidden', 'true');
+  }
+
+  function mountModalToBody(node) {
+    if (!node || node.dataset.bodyMounted === '1') return;
+    document.body.appendChild(node);
+    node.dataset.bodyMounted = '1';
   }
 
   function showAlert(message, type) {
