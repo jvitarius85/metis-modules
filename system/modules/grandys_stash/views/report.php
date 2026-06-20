@@ -10,14 +10,20 @@ $from = metis_text_clean( (string) ( metis_request_get()['from'] ?? '' ) );
 $to   = metis_text_clean( (string) ( metis_request_get()['to'] ?? '' ) );
 $report = \Metis\Modules\GrandyStash\GrandyStashRepository::reportData( $from, $to );
 $summary = $report['summary'] ?? [];
+$build_inbox_drilldown = static function ( array $params ): string {
+    $query = array_filter(
+        $params,
+        static fn( $value ): bool => $value !== '' && $value !== null
+    );
+    $base = metis_grandys_stash_base_url();
+    return $base . ( empty( $query ) ? '' : '?' . http_build_query( $query ) );
+};
 ?>
 
 <div class="metis-stash-app metis-stash-reports">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( "Grandy's Stash Reports" ) ); ?></h1>
     <p class="metis-subtitle">Grant-ready reporting on tickets, people served, and equipment distributed.</p>
-    <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
-
     <div class="metis-people-stats metis-stash-stats">
         <article class="metis-people-stat"><div class="metis-people-stat-label">Total Tickets</div><div class="metis-people-stat-value"><?php echo (int)($summary['total_tickets'] ?? 0); ?></div></article>
         <article class="metis-people-stat"><div class="metis-people-stat-label">People Served</div><div class="metis-people-stat-value"><?php echo (int)($report['people_served'] ?? 0); ?></div></article>
@@ -57,7 +63,7 @@ $summary = $report['summary'] ?? [];
                 </nav>
             </div>
         <?php },
-        'content' => static function () use ( $report, $from, $to ) { ?>
+        'content' => static function () use ( $report, $from, $to, $build_inbox_drilldown ) { ?>
 
     <div id="metis-stash-report-content">
         <section class="metis-stash-report-range-card">
@@ -94,7 +100,15 @@ $summary = $report['summary'] ?? [];
             <tbody>
             <?php foreach ( ($report['by_category'] ?? []) as $cat ) : ?>
             <tr class="metis-premium-row">
-                <td class="metis-premium-cell"><?php echo metis_escape_html( ucfirst( str_replace( '_', ' ', (string)($cat['category'] ?? '') ) ) ); ?></td>
+                <td class="metis-premium-cell">
+                    <a href="<?php echo metis_escape_url( $build_inbox_drilldown([
+                        'stash_filter' => 'all',
+                        'stash_sort'   => 'submitted_desc',
+                        'category_slug'=> (string) ( $cat['category_slug'] ?? '' ),
+                    ]) ); ?>" class="metis-stash-link-button">
+                        <?php echo metis_escape_html( (string) ( $cat['category_name'] ?? 'Other' ) ); ?>
+                    </a>
+                </td>
                 <td class="metis-premium-cell"><?php echo (int)($cat['item_count'] ?? 0); ?></td>
                 <td class="metis-premium-cell"><?php echo (int)($cat['fulfilled'] ?? 0); ?></td>
             </tr>
@@ -192,7 +206,15 @@ $summary = $report['summary'] ?? [];
                 <tbody>
                 <?php foreach ( ($report['by_organization'] ?? []) as $row ) : ?>
                 <tr class="metis-premium-row">
-                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['organization_name'] ?? 'Independent' ) ); ?></td>
+                    <td class="metis-premium-cell">
+                        <a href="<?php echo metis_escape_url( $build_inbox_drilldown([
+                            'stash_filter'    => 'all',
+                            'stash_sort'      => 'submitted_desc',
+                            'organization_key'=> (string) ( $row['organization_key'] ?? '' ),
+                        ]) ); ?>" class="metis-stash-link-button">
+                            <?php echo metis_escape_html( (string) ( $row['organization_name'] ?? 'Independent' ) ); ?>
+                        </a>
+                    </td>
                     <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['organization_domain'] ?? '—' ) ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['request_count'] ?? 0 ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['ticket_count'] ?? 0 ); ?></td>
@@ -219,7 +241,15 @@ $summary = $report['summary'] ?? [];
                 <tbody>
                 <?php foreach ( ($report['by_person'] ?? []) as $row ) : ?>
                 <tr class="metis-premium-row">
-                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['person_name'] ?? 'Unknown' ) ); ?></td>
+                    <td class="metis-premium-cell">
+                        <a href="<?php echo metis_escape_url( $build_inbox_drilldown([
+                            'stash_filter' => 'all',
+                            'stash_sort'   => 'submitted_desc',
+                            'person_key'   => (string) ( $row['person_key'] ?? '' ),
+                        ]) ); ?>" class="metis-stash-link-button">
+                            <?php echo metis_escape_html( (string) ( $row['person_name'] ?? 'Unknown' ) ); ?>
+                        </a>
+                    </td>
                     <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['person_email'] ?? '—' ) ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['request_count'] ?? 0 ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['ticket_count'] ?? 0 ); ?></td>
@@ -248,7 +278,7 @@ $summary = $report['summary'] ?? [];
                 <?php foreach ( ($report['by_equipment'] ?? []) as $row ) : ?>
                 <tr class="metis-premium-row">
                     <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['equipment_name'] ?? 'Other' ) ); ?></td>
-                    <td class="metis-premium-cell"><?php echo metis_escape_html( ucfirst( str_replace( '_', ' ', (string) ( $row['category'] ?? 'other' ) ) ) ); ?></td>
+                    <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['category_name'] ?? 'Other' ) ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['request_quantity'] ?? 0 ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['donation_quantity'] ?? 0 ); ?></td>
                     <td class="metis-premium-cell"><?php echo (int) ( $row['fulfilled_quantity'] ?? 0 ); ?></td>

@@ -13,17 +13,18 @@ $assignees = $state['assignees'] ?? [];
 $can_manage = metis_grandys_stash_can_manage();
 $can_create = function_exists( 'metis_grandys_stash_can_create' ) && metis_grandys_stash_can_create();
 $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_grandys_stash_can_settings();
+$can_bulk_delete = function_exists( 'metis_grandys_stash_is_system_admin' ) && metis_grandys_stash_is_system_admin();
 ?>
 
 <div class="metis-stash-app"
      data-can-manage="<?php echo metis_escape_attr( $can_manage ? '1' : '0' ); ?>"
      data-can-create="<?php echo metis_escape_attr( $can_create ? '1' : '0' ); ?>"
+     data-can-bulk-delete="<?php echo metis_escape_attr( $can_bulk_delete ? '1' : '0' ); ?>"
+     data-current-person-id="<?php echo metis_escape_attr( (string) ( function_exists( 'metis_auth_current_person_id' ) ? (int) metis_auth_current_person_id() : 0 ) ); ?>"
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_label( "Grandy's Stash" ) ); ?></h1>
     <p class="metis-subtitle">Manage supply requests and donation offers.</p>
-    <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
-
     <div class="metis-people-stats metis-stash-stats">
         <article class="metis-people-stat"><div class="metis-people-stat-label">Needs Action</div><div class="metis-people-stat-value"><?php echo (int)($stats['new_tickets'] ?? 0); ?></div></article>
         <article class="metis-people-stat"><div class="metis-people-stat-label">Reviewing</div><div class="metis-people-stat-value"><?php echo (int)($stats['reviewing'] ?? 0); ?></div></article>
@@ -35,10 +36,22 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
     </div>
 
     <?php metis_render_sidebar_layout([
-        'sidebar' => static function () use ( $can_create, $can_settings ) { ?>
+        'sidebar' => static function () use ( $can_create, $can_settings, $can_bulk_delete ) { ?>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Search</div>
-                <input id="metis-stash-search" class="metis-input" type="text" placeholder="Name, code, or email">
+                <input id="metis-stash-search" class="metis-input" type="text" placeholder="Name, code, email, org, or item">
+            </div>
+            <div class="metis-list-sidebar-section">
+                <div class="metis-list-sidebar-label">Sort</div>
+                <select id="metis-stash-sort" class="metis-select">
+                    <option value="submitted_desc">Newest First</option>
+                    <option value="submitted_asc">Oldest First</option>
+                    <option value="updated_desc">Recently Updated</option>
+                    <option value="name_asc">Name A-Z</option>
+                    <option value="name_desc">Name Z-A</option>
+                    <option value="code_desc">Code High-Low</option>
+                    <option value="code_asc">Code Low-High</option>
+                </select>
             </div>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Filter</div>
@@ -51,6 +64,11 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
             <?php if ( $can_create ) : ?>
             <div class="metis-list-sidebar-actions">
                 <button type="button" class="metis-btn metis-btn-xs" id="metis-stash-new-ticket-open">+ New Ticket</button>
+            </div>
+            <?php endif; ?>
+            <?php if ( $can_bulk_delete ) : ?>
+            <div class="metis-list-sidebar-actions">
+                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-bulk-delete" disabled>Delete Selected</button>
             </div>
             <?php endif; ?>
             <div class="metis-list-sidebar-section">
@@ -66,11 +84,16 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                 </nav>
             </div>
         <?php },
-        'content' => static function () use ( $tickets, $can_manage, $assignees ) { ?>
+        'content' => static function () use ( $tickets, $can_manage, $assignees, $can_bulk_delete ) { ?>
 
 <table class="metis-premium-table metis-stash-table <?php echo $can_manage ? 'metis-stash-table--manageable' : 'metis-stash-table--readonly'; ?>">
     <thead>
         <tr class="metis-premium-row metis-premium-header">
+            <?php if ( $can_bulk_delete ) : ?>
+            <th class="metis-premium-cell metis-stash-select-cell" scope="col">
+                <input type="checkbox" id="metis-stash-select-all" aria-label="Select all tickets">
+            </th>
+            <?php endif; ?>
             <th class="metis-premium-cell" scope="col">Code</th>
             <th class="metis-premium-cell" scope="col">Name</th>
             <th class="metis-premium-cell" scope="col">Type</th>
@@ -86,13 +109,50 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
         <?php foreach ( $tickets as $t ):
             $type_label = $t['type'] === 'donation' ? 'Donation' : 'Request';
             $status = (string) ($t['status'] ?? 'NEW');
-            $name = metis_escape_html( (string) ($t['submit_name'] ?? 'Unknown') );
-            $code = metis_escape_html( (string) ($t['code'] ?? '') );
+            $raw_name = (string) ($t['submit_name'] ?? 'Unknown');
+            $raw_code = (string) ($t['code'] ?? '');
+            $raw_email = (string) ($t['submit_email'] ?? '');
+            $raw_group_name = (string) ($t['group_name'] ?? '');
+            $raw_group_email = (string) ($t['group_email'] ?? '');
+            $raw_org_name = (string) ( $t['organization_label'] ?? $t['organization_name'] ?? '' );
+            $raw_org_domain = strtolower( trim( (string) ( $t['organization_domain'] ?? '' ) ) );
+            $group_id = (int) ( $t['group_id'] ?? 0 );
+            $organization_id = (int) ( $t['organization_id'] ?? 0 );
+            $category_slugs = strtolower( trim( (string) ( $t['category_slugs'] ?? '' ) ) );
+            $category_labels = (string) ( $t['category_labels'] ?? '' );
+            $organization_key = $raw_org_domain !== ''
+                ? 'domain:' . $raw_org_domain
+                : ( $organization_id > 0
+                    ? 'org:' . $organization_id
+                    : ( trim( $raw_org_name ) !== ''
+                        ? 'name:' . strtolower( trim( $raw_org_name ) )
+                        : 'independent' ) );
+            $group_key = $group_id > 0
+                ? 'group:' . $group_id
+                : ( trim( $raw_email ) !== ''
+                    ? 'email:' . strtolower( trim( $raw_email ) )
+                    : 'name:' . strtolower( trim( $raw_name ) ) );
+            $name = metis_escape_html( $raw_name );
+            $code = metis_escape_html( $raw_code );
             $urgency = ucfirst( (string) ($t['urgency'] ?? 'standard') );
             $assigned = metis_escape_html( (string) ($t['assigned_name'] ?? '—') );
             $item_count = (int) ($t['item_count'] ?? 0);
             $date = ! empty( $t['submitted_at'] ) ? metis_runtime_format_date( (string) $t['submitted_at'] ) : '';
-            $search_blob = strtolower( implode( ' ', [ $code, $name, $type_label, $status, $assigned, (string)($t['submit_email'] ?? ''), (string)($t['items_summary'] ?? '') ] ) );
+            $search_blob = strtolower( implode( ' ', [
+                $raw_code,
+                $raw_name,
+                $type_label,
+                $status,
+                (string) ($t['assigned_name'] ?? ''),
+                $raw_email,
+                (string) ($t['items_summary'] ?? ''),
+                $raw_group_name,
+                $raw_group_email,
+                $raw_org_name,
+                $raw_org_domain,
+                $category_labels,
+                $category_slugs,
+            ] ) );
             $ticket_url = metis_grandys_stash_view_url( (string) ( $t['code'] ?? '' ) );
         ?>
         <tr class="metis-premium-row metis-stash-row"
@@ -101,7 +161,19 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
              data-status="<?php echo metis_escape_attr( $status ); ?>"
              data-type="<?php echo metis_escape_attr( (string) $t['type'] ); ?>"
              data-assigned="<?php echo metis_escape_attr( (string) ($t['assigned_to'] ?? '') ); ?>"
+             data-name="<?php echo metis_escape_attr( strtolower( trim( $raw_name ) ) ); ?>"
+             data-code="<?php echo metis_escape_attr( strtolower( trim( $raw_code ) ) ); ?>"
+             data-submitted-at="<?php echo metis_escape_attr( (string) ( strtotime( (string) ( $t['submitted_at'] ?? '' ) ) ?: 0 ) ); ?>"
+             data-updated-at="<?php echo metis_escape_attr( (string) ( strtotime( (string) ( $t['updated_at'] ?? '' ) ) ?: 0 ) ); ?>"
+             data-person-key="<?php echo metis_escape_attr( $group_key ); ?>"
+             data-organization-key="<?php echo metis_escape_attr( $organization_key ); ?>"
+             data-category-slugs="<?php echo metis_escape_attr( $category_slugs ); ?>"
              data-search="<?php echo metis_escape_attr( $search_blob ); ?>">
+            <?php if ( $can_bulk_delete ) : ?>
+            <td class="metis-premium-cell metis-stash-select-cell">
+                <input type="checkbox" class="metis-stash-ticket-select" value="<?php echo metis_escape_attr( (string) $t['id'] ); ?>" aria-label="Select <?php echo $code; ?>">
+            </td>
+            <?php endif; ?>
             <td class="metis-premium-cell"><strong><?php echo $code; ?></strong></td>
             <td class="metis-premium-cell"><?php echo $name; ?></td>
             <td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-<?php echo metis_escape_attr( $t['type'] ); ?>"><?php echo metis_escape_html( $type_label ); ?></span></td>

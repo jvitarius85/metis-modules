@@ -129,8 +129,6 @@ metis_set_page_title( trim( (string) ( $ticket['code'] ?? '' ) ) . ( $submit_nam
         </div>
     </div>
 
-    <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
-
     <?php metis_render_sidebar_layout([
         'class' => 'metis-stash-layout metis-stash-ticket-shell',
         'sidebar' => static function () use ( $can_settings ) { ?>

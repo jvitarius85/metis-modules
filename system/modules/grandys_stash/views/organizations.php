@@ -17,9 +17,6 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( "Grandy's Stash Organizations" ) ); ?></h1>
-    <p class="metis-subtitle">Manage organization domains, linked tickets, and reporting labels.</p>
-    <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
-
     <?php metis_render_sidebar_layout([
         'sidebar' => static function () use ( $can_settings ) { ?>
             <div class="metis-list-sidebar-section">
@@ -65,7 +62,7 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                                 data-open-count="<?php echo metis_escape_attr( (string) ( $organization['open_count'] ?? 0 ) ); ?>"
                                 data-is-active="<?php echo metis_escape_attr( ! empty( $organization['is_active'] ) ? '1' : '0' ); ?>"
                                 data-last-ticket="<?php echo metis_escape_attr( (string) ( $organization['last_ticket_at'] ?? '' ) ); ?>"
-                                data-search="<?php echo metis_escape_attr( strtolower( implode( ' ', [ (string) ( $organization['code'] ?? '' ), (string) ( $organization['name'] ?? '' ), (string) ( $organization['domain'] ?? '' ) ] ) ) ); ?>">
+                                data-search="<?php echo metis_escape_attr( strtolower( implode( ' ', array_filter( [ (string) ( $organization['code'] ?? '' ), (string) ( $organization['name'] ?? '' ), (string) ( $organization['domain'] ?? '' ), implode( ' ', array_map( 'strval', (array) ( $organization['additional_domains'] ?? [] ) ) ) ] ) ) ) ); ?>">
                                 <td class="metis-premium-cell">
                                     <button type="button" class="metis-stash-link-button" data-manager-open="organization" data-id="<?php echo metis_escape_attr( (string) ( $organization['id'] ?? 0 ) ); ?>">
                                         <?php echo metis_escape_html( (string) ( $organization['name'] ?? 'Unknown' ) ); ?>
@@ -85,14 +82,14 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
     ]); ?>
 
     <div class="metis-stash-modal metis-stash-modal-wide" id="metis-stash-organization-modal" aria-hidden="true">
-        <div class="metis-stash-modal-dialog">
-            <div class="metis-stash-modal-head">
-                <div>
-                    <h2 id="metis-stash-organization-modal-title">Organization Manager</h2>
-                    <p class="metis-muted" id="metis-stash-organization-modal-subtitle" style="margin:4px 0 0;">Review organization information and linked tickets.</p>
+            <div class="metis-stash-modal-dialog">
+                <div class="metis-stash-modal-head">
+                    <div>
+                        <h2 id="metis-stash-organization-modal-title">Organization Manager</h2>
+                        <p class="metis-muted" id="metis-stash-organization-modal-subtitle" style="margin:4px 0 0;"></p>
+                    </div>
+                    <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-close-modal="metis-stash-organization-modal">Close</button>
                 </div>
-                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-close-modal="metis-stash-organization-modal">Close</button>
-            </div>
             <div class="metis-stash-tab-row">
                 <button type="button" class="metis-btn metis-btn-xs metis-stash-tab is-active" data-tab-target="organization-general">General Info</button>
                 <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost metis-stash-tab" data-tab-target="organization-tickets">Tickets</button>
@@ -104,6 +101,7 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                     <input type="hidden" name="id" value="">
                     <label><span>Name</span><input class="metis-input" type="text" name="name"></label>
                     <label><span>Domain</span><input class="metis-input" type="text" name="domain" placeholder="example.org"></label>
+                    <label><span>Additional domains</span><textarea class="metis-input" name="alternate_domains" rows="3" placeholder="mail.example.org&#10;foundation.example.org"></textarea></label>
                     <label><span>Notes</span><textarea class="metis-input" name="notes" rows="4"></textarea></label>
                     <label><span>Status</span>
                         <select class="metis-select" name="is_active">
@@ -131,15 +129,25 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                     </div>
                 </form>
                 <form id="metis-stash-organization-merge-form" class="metis-stash-form" autocomplete="off" style="margin-bottom:18px;">
-                    <input type="hidden" name="target_id" value="">
+                    <input type="hidden" name="source_id" value="">
+                    <input type="hidden" name="target_code" value="">
                     <div class="metis-stash-form-row">
-                        <label><span>Merge source organization by code</span><input class="metis-input" type="text" name="source_code" placeholder="GSO-000123"></label>
+                        <label>
+                            <span>Merge current organization into</span>
+                            <input class="metis-input" type="text" name="target_lookup" list="metis-stash-organization-lookup" placeholder="Start typing destination name, code, or domain">
+                        </label>
                         <div class="metis-stash-form-actions" style="align-items:flex-end;">
-                            <button type="submit" class="metis-btn metis-btn-ghost">Merge Into This Organization</button>
+                            <button type="submit" class="metis-btn metis-btn-ghost">Merge Current Organization</button>
                         </div>
                     </div>
-                    <p class="metis-muted" style="margin:0;">Enter the source organization code from the list you want to merge into this one.</p>
                 </form>
+                <form id="metis-stash-organization-independent-form" class="metis-stash-form" autocomplete="off" style="margin-bottom:18px;">
+                    <input type="hidden" name="organization_id" value="">
+                    <div class="metis-stash-form-actions" style="justify-content:flex-start;">
+                        <button type="submit" class="metis-btn metis-btn-ghost">Move Tickets to Independent</button>
+                    </div>
+                </form>
+                <datalist id="metis-stash-organization-lookup"></datalist>
                 <?php endif; ?>
                 <div id="metis-stash-organization-ticket-list" class="metis-stash-manager-ticket-list"></div>
             </div>

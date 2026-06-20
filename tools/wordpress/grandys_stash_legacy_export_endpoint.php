@@ -20,16 +20,34 @@ if ( ! defined( 'METIS_GRANDYS_STASH_EXPORT_SECRET' ) ) {
     define( 'METIS_GRANDYS_STASH_EXPORT_SECRET', 'jha8794wrhjn98ansodifh92093ruf9' );
 }
 
-add_action( 'rest_api_init', static function (): void {
-    register_rest_route(
-        'metis/v1',
-        '/grandys-stash-export',
+if ( ! defined( 'METIS_GRANDYS_STASH_EXPORT_VERSION' ) ) {
+    define( 'METIS_GRANDYS_STASH_EXPORT_VERSION', '2026-06-20-v2' );
+}
+
+if ( ! defined( 'METIS_GRANDYS_STASH_LEGACY_CHILD_FORM_OVERRIDES' ) ) {
+    define(
+        'METIS_GRANDYS_STASH_LEGACY_CHILD_FORM_OVERRIDES',
         [
-            'methods'             => 'POST',
-            'callback'            => 'metis_grandys_stash_legacy_export_handler',
-            'permission_callback' => 'metis_grandys_stash_legacy_export_authorized',
+            17 => [
+                'donation_child_form_id' => 18,
+                'request_child_form_id' => 20,
+            ],
         ]
     );
+}
+
+add_action( 'rest_api_init', static function (): void {
+    foreach ( [ '/grandys-stash-export', '/grandys-stash-export-v2' ] as $route ) {
+        register_rest_route(
+            'metis/v1',
+            $route,
+            [
+                'methods'             => 'POST',
+                'callback'            => 'metis_grandys_stash_legacy_export_handler',
+                'permission_callback' => 'metis_grandys_stash_legacy_export_authorized',
+            ]
+        );
+    }
 } );
 
 function metis_grandys_stash_legacy_export_authorized( WP_REST_Request $request ): bool {
@@ -47,6 +65,8 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
 
     $form_id = max( 1, (int) $request->get_param( 'form_id' ) );
     $limit = max( 1, min( 1000, (int) $request->get_param( 'limit' ) ) );
+    $preview = (int) $request->get_param( 'preview' ) === 1;
+    $requested_parent_entry_id = max( 0, (int) $request->get_param( 'parent_entry_id' ) );
 
     $entry_table = $wpdb->prefix . 'gf_entry';
     $meta_table = $wpdb->prefix . 'gf_entry_meta';
@@ -68,21 +88,41 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
     $request_nested_field_id  = (int) ( $parent_map['request_nested']['id'] ?? 0 );
     $donation_child_form_id   = (int) ( $parent_map['donation_nested']['gpnfForm'] ?? 0 );
     $request_child_form_id    = (int) ( $parent_map['request_nested']['gpnfForm'] ?? 0 );
+    $child_form_override = metis_grandys_stash_legacy_child_form_override( $form_id, $donation_child_form_id, $request_child_form_id );
+    $donation_child_form_id = (int) ( $child_form_override['donation_child_form_id'] ?? $donation_child_form_id );
+    $request_child_form_id = (int) ( $child_form_override['request_child_form_id'] ?? $request_child_form_id );
 
-    $parent_entries = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT id, form_id, date_created, date_updated, status
-             FROM {$entry_table}
-             WHERE form_id = %d
-               AND status = %s
-             ORDER BY id ASC
-             LIMIT %d",
-            $form_id,
-            'active',
-            $limit
-        ),
-        ARRAY_A
-    );
+    if ( $requested_parent_entry_id > 0 ) {
+        $parent_entries = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, form_id, date_created, date_updated, status
+                 FROM {$entry_table}
+                 WHERE form_id = %d
+                   AND id = %d
+                   AND status = %s
+                LIMIT 1",
+                $form_id,
+                $requested_parent_entry_id,
+                'active'
+            ),
+            ARRAY_A
+        );
+    } else {
+        $parent_entries = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, form_id, date_created, date_updated, status
+                 FROM {$entry_table}
+                 WHERE form_id = %d
+                   AND status = %s
+                 ORDER BY id ASC
+                 LIMIT %d",
+                $form_id,
+                'active',
+                $limit
+            ),
+            ARRAY_A
+        );
+    }
 
     if ( ! is_array( $parent_entries ) || $parent_entries === [] ) {
         return new WP_REST_Response(
@@ -159,13 +199,13 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
 
         $child_ids = [];
         foreach ( (array) $child_rows as $row ) {
-            $parent_entry_id = (int) ( $row['parent_entry_id'] ?? 0 );
+            $linked_parent_entry_id = (int) ( $row['parent_entry_id'] ?? 0 );
             $child_id = (int) ( $row['id'] ?? 0 );
-            if ( $parent_entry_id < 1 || $child_id < 1 ) {
+            if ( $linked_parent_entry_id < 1 || $child_id < 1 ) {
                 continue;
             }
             $child_ids[] = $child_id;
-            $child_links_by_parent[ $parent_entry_id ][] = [
+            $child_links_by_parent[ $linked_parent_entry_id ][] = [
                 'id' => $child_id,
                 'form_id' => (int) ( $row['form_id'] ?? 0 ),
                 'nested_field_id' => (int) ( $row['nested_field_id'] ?? 0 ),
@@ -192,12 +232,12 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
     }
 
     foreach ( $parent_entries as $entry ) {
-        $parent_entry_id = (int) ( $entry['id'] ?? 0 );
-        if ( $parent_entry_id < 1 ) {
+        $current_parent_entry_id = (int) ( $entry['id'] ?? 0 );
+        if ( $current_parent_entry_id < 1 ) {
             continue;
         }
 
-        $parent_meta = (array) ( $parent_meta_index[ $parent_entry_id ] ?? [] );
+        $parent_meta = (array) ( $parent_meta_index[ $current_parent_entry_id ] ?? [] );
         foreach (
             [
                 $donation_nested_field_id => $donation_child_form_id,
@@ -211,7 +251,7 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
             $child_ids = metis_grandys_stash_legacy_extract_entry_ids( $parent_meta[ (string) $nested_field_id ] ?? null );
             foreach ( $child_ids as $child_id ) {
                 $already_linked = false;
-                foreach ( (array) ( $child_links_by_parent[ $parent_entry_id ] ?? [] ) as $link ) {
+                foreach ( (array) ( $child_links_by_parent[ $current_parent_entry_id ] ?? [] ) as $link ) {
                     if ( (int) ( $link['id'] ?? 0 ) === $child_id ) {
                         $already_linked = true;
                         break;
@@ -221,7 +261,7 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
                     continue;
                 }
 
-                $child_links_by_parent[ $parent_entry_id ][] = [
+                $child_links_by_parent[ $current_parent_entry_id ][] = [
                     'id' => $child_id,
                     'form_id' => $child_form_id,
                     'nested_field_id' => (int) $nested_field_id,
@@ -268,45 +308,58 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
     }
 
     $entries = [];
+    $child_link_count = 0;
+    foreach ( $child_links_by_parent as $links ) {
+        $child_link_count += count( (array) $links );
+    }
     foreach ( $parent_entries as $entry ) {
-        $parent_entry_id = (int) ( $entry['id'] ?? 0 );
-        if ( $parent_entry_id < 1 ) {
+        $current_parent_entry_id = (int) ( $entry['id'] ?? 0 );
+        if ( $current_parent_entry_id < 1 ) {
             continue;
         }
 
-        $meta = (array) ( $parent_meta_index[ $parent_entry_id ] ?? [] );
+        $meta = (array) ( $parent_meta_index[ $current_parent_entry_id ] ?? [] );
         $flow_value = metis_grandys_stash_legacy_entry_value( $meta, (string) $parent_map['flow'] );
-        $type = str_contains( strtolower( $flow_value ), 'donate' ) ? 'donation' : 'request';
+        $type = metis_grandys_stash_legacy_detect_type(
+            $flow_value,
+            $donation_nested_field_id,
+            $request_nested_field_id,
+            $meta,
+            (array) ( $child_links_by_parent[ $current_parent_entry_id ] ?? [] )
+        );
         $name_parts = metis_grandys_stash_legacy_name_parts( $meta, (array) $parent_map['name'] );
         $email = strtolower( trim( sanitize_email( metis_grandys_stash_legacy_entry_value( $meta, (string) $parent_map['email'] ) ) ) );
         $items = [];
-
-        foreach ( (array) ( $child_links_by_parent[ $parent_entry_id ] ?? [] ) as $child_link ) {
-            $child_form_id = (int) ( $child_link['form_id'] ?? 0 );
-            $nested_field_id = (int) ( $child_link['nested_field_id'] ?? 0 );
-            if ( $type === 'donation' && $nested_field_id !== $donation_nested_field_id ) {
-                continue;
-            }
-            if ( $type === 'request' && $nested_field_id !== $request_nested_field_id ) {
-                continue;
+        $preferred_nested_field_id = $type === 'donation' ? $donation_nested_field_id : $request_nested_field_id;
+        foreach ( [ true, false ] as $prefer_filtered_links ) {
+            if ( $items !== [] ) {
+                break;
             }
 
-            $child_map = (array) ( $child_field_maps[ $child_form_id ] ?? [] );
-            $child_meta = (array) ( $child_meta_index[ (int) ( $child_link['id'] ?? 0 ) ] ?? [] );
-            $item_name = metis_grandys_stash_legacy_entry_value( $child_meta, (string) ( $child_map['item'] ?? '' ) );
-            if ( $item_name === '' ) {
-                continue;
-            }
+            foreach ( (array) ( $child_links_by_parent[ $current_parent_entry_id ] ?? [] ) as $child_link ) {
+                $child_form_id = (int) ( $child_link['form_id'] ?? 0 );
+                $nested_field_id = (int) ( $child_link['nested_field_id'] ?? 0 );
+                if ( $prefer_filtered_links && $preferred_nested_field_id > 0 && $nested_field_id !== $preferred_nested_field_id ) {
+                    continue;
+                }
 
-            $items[] = [
-                'item_name' => $item_name,
-                'quantity'  => max( 1, (int) metis_grandys_stash_legacy_entry_value( $child_meta, (string) ( $child_map['quantity'] ?? '' ) ) ),
-                'condition' => metis_grandys_stash_legacy_entry_value( $child_meta, (string) ( $child_map['condition'] ?? '' ) ),
-            ];
+                $child_map = (array) ( $child_field_maps[ $child_form_id ] ?? [] );
+                $child_meta = (array) ( $child_meta_index[ (int) ( $child_link['id'] ?? 0 ) ] ?? [] );
+                $item_name = metis_grandys_stash_legacy_entry_value( $child_meta, (string) ( $child_map['item'] ?? '' ) );
+                if ( $item_name === '' ) {
+                    continue;
+                }
+
+                $items[] = [
+                    'item_name' => $item_name,
+                    'quantity'  => max( 1, (int) metis_grandys_stash_legacy_entry_value( $child_meta, (string) ( $child_map['quantity'] ?? '' ) ) ),
+                    'condition' => metis_grandys_stash_legacy_entry_value( $child_meta, (string) ( $child_map['condition'] ?? '' ) ),
+                ];
+            }
         }
 
-        $entries[] = [
-            'parent_entry_id'   => $parent_entry_id,
+        $entry_row = [
+            'parent_entry_id'   => $current_parent_entry_id,
             'type'              => $type,
             'legacy_status'     => metis_grandys_stash_legacy_entry_value( $meta, (string) $parent_map['status'] ),
             'name'              => (string) ( $name_parts['full'] ?? '' ),
@@ -317,17 +370,58 @@ function metis_grandys_stash_legacy_export_handler( WP_REST_Request $request ): 
             'organization_name' => metis_grandys_stash_legacy_entry_value( $meta, (string) $parent_map['organization'] ),
             'location'          => metis_grandys_stash_legacy_entry_value( $meta, (string) $parent_map['location'] ),
             'best_time'         => metis_grandys_stash_legacy_entry_value( $meta, (string) $parent_map['best_time'] ),
+            'flow_value'        => $flow_value,
             'submitted_at'      => (string) ( $entry['date_created'] ?? '' ),
             'updated_at'        => (string) ( $entry['date_updated'] ?? '' ),
             'items'             => $items,
         ];
+        if ( $preview ) {
+            $entry_row['debug'] = [
+                'child_link_count' => count( (array) ( $child_links_by_parent[ $current_parent_entry_id ] ?? [] ) ),
+                'request_nested_field_id' => $request_nested_field_id,
+                'request_child_form_id' => $request_child_form_id,
+                'donation_nested_field_id' => $donation_nested_field_id,
+                'donation_child_form_id' => $donation_child_form_id,
+                'request_child_field_map' => (array) ( $child_field_maps[ $request_child_form_id ] ?? [] ),
+                'donation_child_field_map' => (array) ( $child_field_maps[ $donation_child_form_id ] ?? [] ),
+                'parent_request_meta_raw' => $request_nested_field_id > 0 ? (string) ( $meta[ (string) $request_nested_field_id ] ?? '' ) : '',
+                'parent_donation_meta_raw' => $donation_nested_field_id > 0 ? (string) ( $meta[ (string) $donation_nested_field_id ] ?? '' ) : '',
+            ];
+        }
+        $entries[] = $entry_row;
+    }
+
+    $entries_with_items = 0;
+    $total_items = 0;
+    foreach ( $entries as $entry ) {
+        $item_count = count( array_values( array_filter( (array) ( $entry['items'] ?? [] ), 'is_array' ) ) );
+        $total_items += $item_count;
+        if ( $item_count > 0 ) {
+            $entries_with_items++;
+        }
     }
 
     return new WP_REST_Response(
         [
             'ok'          => true,
             'form_id'     => $form_id,
+            'parent_entry_id' => $requested_parent_entry_id,
             'exported_at' => gmdate( 'c' ),
+            'export_version' => (string) METIS_GRANDYS_STASH_EXPORT_VERSION,
+            'diagnostics' => [
+                'preview' => $preview,
+                'target_parent_entry_id' => $requested_parent_entry_id,
+                'request_nested_field_id' => $request_nested_field_id,
+                'request_child_form_id' => $request_child_form_id,
+                'donation_nested_field_id' => $donation_nested_field_id,
+                'donation_child_form_id' => $donation_child_form_id,
+                'child_link_count' => $child_link_count,
+                'entries_with_items' => $entries_with_items,
+                'entries_without_items' => count( $entries ) - $entries_with_items,
+                'total_items' => $total_items,
+                'request_child_field_map' => (array) ( $child_field_maps[ $request_child_form_id ] ?? [] ),
+                'donation_child_field_map' => (array) ( $child_field_maps[ $donation_child_form_id ] ?? [] ),
+            ],
             'entries'     => $entries,
         ],
         200
@@ -423,8 +517,6 @@ function metis_grandys_stash_legacy_parent_field_map( array $form_meta ): array 
 
         if ( $label === 'status' || $contains( $signals, [ 'status' ] ) ) {
             $map['status'] = $field_id;
-        } elseif ( $contains( $signals, [ 'donate or request', 'donation or request', 'donate', 'request supplies', 'request equipment' ] ) ) {
-            $map['flow'] = $field_id;
         } elseif ( $field_type === 'name' || $label === 'name' ) {
             $map['name'] = $field;
         } elseif ( $field_type === 'phone' || $contains( $signals, [ 'phone', 'telephone', 'mobile', 'cell' ] ) ) {
@@ -441,6 +533,8 @@ function metis_grandys_stash_legacy_parent_field_map( array $form_meta ): array 
             $map['donation_nested'] = $field;
         } elseif ( $is_nested && $contains( $signals, [ 'request', 'requested', 'need', 'needed' ] ) ) {
             $map['request_nested'] = $field;
+        } elseif ( ! $is_nested && $contains( $signals, [ 'donate or request', 'donation or request', 'donate or request supplies', 'donate or request equipment' ] ) ) {
+            $map['flow'] = $field_id;
         } elseif ( $is_nested ) {
             $nested_candidates[] = $field;
         }
@@ -597,6 +691,90 @@ function metis_grandys_stash_legacy_extract_entry_ids( $value ): array {
     $collect( $value );
 
     return array_values( array_unique( array_filter( $ids ) ) );
+}
+
+function metis_grandys_stash_legacy_child_form_override( int $form_id, int $donation_child_form_id, int $request_child_form_id ): array {
+    $overrides = defined( 'METIS_GRANDYS_STASH_LEGACY_CHILD_FORM_OVERRIDES' )
+        ? METIS_GRANDYS_STASH_LEGACY_CHILD_FORM_OVERRIDES
+        : [];
+    $override = is_array( $overrides ) ? ( $overrides[ $form_id ] ?? null ) : null;
+    if ( ! is_array( $override ) ) {
+        return [
+            'donation_child_form_id' => $donation_child_form_id,
+            'request_child_form_id' => $request_child_form_id,
+        ];
+    }
+
+    return [
+        'donation_child_form_id' => max( 0, (int) ( $override['donation_child_form_id'] ?? $donation_child_form_id ) ),
+        'request_child_form_id' => max( 0, (int) ( $override['request_child_form_id'] ?? $request_child_form_id ) ),
+    ];
+}
+
+function metis_grandys_stash_legacy_detect_type(
+    string $flow_value,
+    int $donation_nested_field_id,
+    int $request_nested_field_id,
+    array $meta = [],
+    array $child_links = []
+): string {
+    $normalized_flow = strtolower( trim( $flow_value ) );
+    if ( str_contains( $normalized_flow, 'donate' ) || str_contains( $normalized_flow, 'donation' ) || str_contains( $normalized_flow, 'supplies to donate' ) ) {
+        return 'donation';
+    }
+    if ( str_contains( $normalized_flow, 'request' ) || str_contains( $normalized_flow, 'need' ) ) {
+        return 'request';
+    }
+
+    $has_donation_meta = $donation_nested_field_id > 0
+        && metis_grandys_stash_legacy_extract_entry_ids( $meta[ (string) $donation_nested_field_id ] ?? null ) !== [];
+    $has_request_meta = $request_nested_field_id > 0
+        && metis_grandys_stash_legacy_extract_entry_ids( $meta[ (string) $request_nested_field_id ] ?? null ) !== [];
+
+    $donation_child_count = 0;
+    $request_child_count = 0;
+    $donation_form_count = 0;
+    $request_form_count = 0;
+    foreach ( $child_links as $child_link ) {
+        $nested_field_id = (int) ( $child_link['nested_field_id'] ?? 0 );
+        $child_form_id = (int) ( $child_link['form_id'] ?? 0 );
+        if ( $donation_nested_field_id > 0 && $nested_field_id === $donation_nested_field_id ) {
+            $donation_child_count++;
+        }
+        if ( $request_nested_field_id > 0 && $nested_field_id === $request_nested_field_id ) {
+            $request_child_count++;
+        }
+        if ( defined( 'METIS_GRANDYS_STASH_LEGACY_CHILD_FORM_OVERRIDES' ) && $child_form_id > 0 ) {
+            // Count by actual child form id as a fallback when the nested parent field
+            // cannot be confidently identified from legacy form metadata.
+            if ( $child_form_id === 18 ) {
+                $donation_form_count++;
+            } elseif ( $child_form_id === 20 ) {
+                $request_form_count++;
+            }
+        }
+    }
+
+    if ( $has_donation_meta && ! $has_request_meta ) {
+        return 'donation';
+    }
+    if ( $has_request_meta && ! $has_donation_meta ) {
+        return 'request';
+    }
+    if ( $donation_child_count > 0 && $request_child_count === 0 ) {
+        return 'donation';
+    }
+    if ( $request_child_count > 0 && $donation_child_count === 0 ) {
+        return 'request';
+    }
+    if ( $donation_form_count > 0 && $request_form_count === 0 ) {
+        return 'donation';
+    }
+    if ( $request_form_count > 0 && $donation_form_count === 0 ) {
+        return 'request';
+    }
+
+    return 'request';
 }
 
 function metis_grandys_stash_legacy_name_parts( array $meta_index, array $name_field ): array {

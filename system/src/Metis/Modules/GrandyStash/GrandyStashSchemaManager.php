@@ -82,6 +82,7 @@ final class GrandyStashSchemaManager {
             code VARCHAR(16) NOT NULL,
             name VARCHAR(191) NOT NULL,
             domain VARCHAR(191) DEFAULT NULL,
+            alternate_domains LONGTEXT DEFAULT NULL,
             notes TEXT DEFAULT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -323,6 +324,10 @@ final class GrandyStashSchemaManager {
         self::addIndexIfMissing( $messages, 'sender_email', 'KEY sender_email (sender_email)' );
         self::addIndexIfMissing( $messages, 'mailbox_email', 'KEY mailbox_email (mailbox_email)' );
         self::addIndexIfMissing( $messages, 'direction_delivery_status', 'KEY direction_delivery_status (direction, delivery_status)' );
+
+        // grandys_stash_organizations: alternate domains for shared / secondary email domains
+        $organizations = \Metis_Tables::get( 'grandys_stash_organizations' );
+        self::addColumnIfMissing( $organizations, 'alternate_domains', 'LONGTEXT DEFAULT NULL' );
     }
 
     // ─── Schema helpers ───────────────────────────────────

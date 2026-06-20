@@ -29,6 +29,7 @@ function metis_grandys_stash_can_inventory(): bool { return metis_grandys_stash_
 function metis_grandys_stash_can_settings(): bool { return metis_grandys_stash_can( 'settings' ); }
 function metis_grandys_stash_can_export(): bool { return metis_grandys_stash_can( 'export' ); }
 function metis_grandys_stash_can_delete(): bool { return metis_grandys_stash_can( 'delete' ); }
+function metis_grandys_stash_is_system_admin(): bool { return function_exists( 'metis_current_user_can' ) && metis_current_user_can( 'manage_options' ); }
 function metis_grandys_stash_base_url(): string { return \Metis\Modules\GrandyStash\GrandyStashModule::baseUrl(); }
 function metis_grandys_stash_view_url( string $ticket_code = '' ): string { return \Metis\Modules\GrandyStash\GrandyStashModule::viewUrl( $ticket_code ); }
 function metis_grandys_stash_handle_view_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\GrandyStash\GrandyStashModule::handleViewRoute( $request ); }

@@ -22,8 +22,6 @@ if ( ! $can_settings ) {
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( "Grandy's Stash Settings" ) ); ?></h1>
     <p class="metis-subtitle">Routing defaults and daily summary email subscriptions.</p>
-    <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
-
     <?php metis_render_sidebar_layout([
         'sidebar' => static function () { ?>
             <div class="metis-list-sidebar-section">
@@ -99,6 +97,40 @@ if ( ! $can_settings ) {
     <section style="margin-bottom:30px;">
         <h2 style="font-size:18px;margin:0 0 8px;">Legacy Ticket Import</h2>
         <p class="metis-muted" style="margin:0 0 16px;">Import tickets from the old Gravity Forms system. Existing imported entries are skipped using the legacy parent entry ID.</p>
+        <form id="metis-stash-legacy-preview-form" class="metis-stash-form" style="margin-bottom:18px;">
+            <div class="metis-stash-form-row">
+                <label><span>Gravity Form ID</span>
+                    <input class="metis-input" type="number" name="form_id" min="1" step="1" value="17">
+                </label>
+                <label><span>Preview entries</span>
+                    <input class="metis-input" type="number" name="limit" min="1" max="1000" step="1" value="25">
+                </label>
+                <label><span>Legacy parent entry ID</span>
+                    <input class="metis-input" type="number" name="parent_entry_id" min="1" step="1" placeholder="2398">
+                </label>
+            </div>
+            <div class="metis-stash-form-actions">
+                <button type="submit" class="metis-btn metis-btn-secondary">Preview Legacy Payload</button>
+            </div>
+            <pre id="metis-stash-legacy-preview-json" class="metis-stash-preview-json" hidden></pre>
+        </form>
+        <form id="metis-stash-legacy-audit-form" class="metis-stash-form" style="margin-bottom:18px;">
+            <div class="metis-stash-form-row">
+                <label><span>Gravity Form ID</span>
+                    <input class="metis-input" type="number" name="form_id" min="1" step="1" value="17">
+                </label>
+                <label><span>Audit entries</span>
+                    <input class="metis-input" type="number" name="limit" min="1" max="500" step="1" value="100">
+                </label>
+                <label><span>Legacy parent entry ID</span>
+                    <input class="metis-input" type="number" name="parent_entry_id" min="1" step="1" placeholder="Optional">
+                </label>
+            </div>
+            <div class="metis-stash-form-actions">
+                <button type="submit" class="metis-btn metis-btn-secondary">Audit Imported Types</button>
+            </div>
+            <div id="metis-stash-legacy-audit-results"></div>
+        </form>
         <form id="metis-stash-legacy-import-form" class="metis-stash-form">
             <div class="metis-stash-form-row">
                 <label><span>Gravity Form ID</span>
@@ -111,7 +143,6 @@ if ( ! $can_settings ) {
             <div class="metis-stash-form-actions">
                 <button type="submit" class="metis-btn">Import Legacy Tickets</button>
             </div>
-            <div id="metis-stash-legacy-import-result" class="metis-muted" style="margin-top:12px;"></div>
         </form>
     </section>
 
@@ -122,8 +153,24 @@ if ( ! $can_settings ) {
             <div class="metis-stash-form-actions" style="justify-content:flex-start;">
                 <button type="submit" class="metis-btn metis-btn-ghost">Wipe Legacy Imported Tickets</button>
             </div>
-            <div id="metis-stash-legacy-wipe-result" class="metis-muted" style="margin-top:12px;"></div>
         </form>
+    </section>
+
+    <section style="margin-bottom:30px;">
+        <h2 style="font-size:18px;margin:0 0 8px;">Temporary Resolution</h2>
+        <p class="metis-muted" style="margin:0 0 16px;">Review likely duplicate organizations and unresolved item labels from the legacy import, then normalize them into the correct records.</p>
+        <form id="metis-stash-legacy-item-repair-form" class="metis-stash-form" style="margin-bottom:18px;">
+            <div class="metis-stash-form-row">
+                <label><span>Max unresolved rows to repair</span>
+                    <input class="metis-input" type="number" name="limit" min="1" max="5000" step="1" value="1000">
+                </label>
+            </div>
+            <div class="metis-stash-form-actions">
+                <button type="submit" class="metis-btn metis-btn-secondary">Split Existing Legacy Item Rows</button>
+            </div>
+        </form>
+        <div id="metis-stash-org-resolution" style="margin-bottom:18px;"></div>
+        <div id="metis-stash-item-resolution"></div>
     </section>
 
     <section>

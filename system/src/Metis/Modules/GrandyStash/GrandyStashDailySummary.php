@@ -45,15 +45,15 @@ final class GrandyStashDailySummary {
     private static function recipients(): array {
         $db         = \metis_db();
         $prefs      = \Metis_Tables::get( 'grandys_stash_email_prefs' );
-        $auth       = \Metis_Tables::get( 'auth_users' );
+        $people     = \Metis_Tables::get( 'people' );
 
         $rows = $db->fetchAll(
-            "SELECT u.user_email
+            "SELECT person.email AS user_email
              FROM {$prefs} p
-             INNER JOIN {$auth} u ON u.id = p.user_id
+             INNER JOIN {$people} person ON person.id = p.user_id
              WHERE p.receive_grandys_summary = 1
-               AND u.is_active = 1
-               AND u.user_email <> ''"
+               AND person.status = 'active'
+               AND person.email <> ''"
         );
 
         $emails = [];

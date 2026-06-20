@@ -3,12 +3,21 @@
   const bootNode = document.querySelector('#metis-stash-boot');
   const ajax = window.metisGrandyStashAjax || {};
   if (!root || !bootNode) return;
+  const urlParams = new URLSearchParams(window.location.search);
 
   let state = parseJson(bootNode.textContent, { stats: {}, tickets: [], assignees: [], groups: [], organizations: [] });
-  let currentFilter = 'action';
+  let currentFilter = normalizeFilter(urlParams.get('stash_filter') || 'action');
+  let currentSort = normalizeSort(urlParams.get('stash_sort') || 'submitted_desc');
   let currentTicketId = 0;
   let selectedManagerId = 0;
   let selectedManagerKind = '';
+  const drilldown = {
+    search: String(urlParams.get('q') || '').toLowerCase().trim(),
+    categorySlug: String(urlParams.get('category_slug') || '').toLowerCase().trim(),
+    organizationKey: String(urlParams.get('organization_key') || '').toLowerCase().trim(),
+    personKey: String(urlParams.get('person_key') || '').toLowerCase().trim(),
+    type: String(urlParams.get('type') || '').toLowerCase().trim()
+  };
 
   const canManage = root.dataset.canManage === '1';
   const canCreate = root.dataset.canCreate === '1';
@@ -17,15 +26,18 @@
   const canReply = root.dataset.canReply === '1';
   const canInventory = root.dataset.canInventory === '1';
   const canDelete = root.dataset.canDelete === '1';
-  const currentUserId = parseInt(ajax.user_id || '0', 10);
+  const canBulkDelete = root.dataset.canBulkDelete === '1';
+  const currentUserId = parseInt(root.dataset.currentPersonId || ajax.person_id || ajax.user_id || '0', 10);
   const isTicketPage = root.dataset.ticketPage === '1';
   const stashView = String(root.dataset.stashView || '');
   const viewBaseUrl = String(root.dataset.viewBaseUrl || '');
 
   const ui = {
-    alert: qs('#metis-stash-alert'),
     rows: qs('#metis-stash-rows'),
     search: qs('#metis-stash-search'),
+    sort: qs('#metis-stash-sort'),
+    bulkDelete: qs('#metis-stash-bulk-delete'),
+    selectAll: qs('#metis-stash-select-all'),
     ticketHeader: qs('#metis-stash-ticket-header'),
     ticketItems: qs('#metis-stash-ticket-items'),
     ticketConversation: qs('#metis-stash-ticket-conversation'),
@@ -46,10 +58,15 @@
     newTicketForm: qs('#metis-stash-new-ticket-form'),
     routingForm: qs('#metis-stash-routing-form'),
     legacySettingsForm: qs('#metis-stash-legacy-settings-form'),
+    legacyPreviewForm: qs('#metis-stash-legacy-preview-form'),
+    legacyPreviewJson: qs('#metis-stash-legacy-preview-json'),
+    legacyAuditForm: qs('#metis-stash-legacy-audit-form'),
+    legacyAuditResults: qs('#metis-stash-legacy-audit-results'),
     legacyImportForm: qs('#metis-stash-legacy-import-form'),
-    legacyImportResult: qs('#metis-stash-legacy-import-result'),
     legacyWipeForm: qs('#metis-stash-legacy-wipe-form'),
-    legacyWipeResult: qs('#metis-stash-legacy-wipe-result'),
+    legacyItemRepairForm: qs('#metis-stash-legacy-item-repair-form'),
+    orgResolution: qs('#metis-stash-org-resolution'),
+    itemResolution: qs('#metis-stash-item-resolution'),
     reportRunBtn: qs('#metis-stash-report-run'),
     reportFrom: qs('#metis-stash-report-from'),
     reportTo: qs('#metis-stash-report-to'),
@@ -71,6 +88,8 @@
     organizationForm: qs('#metis-stash-organization-form'),
     organizationLinkForm: qs('#metis-stash-organization-link-form'),
     organizationMergeForm: qs('#metis-stash-organization-merge-form'),
+    organizationIndependentForm: qs('#metis-stash-organization-independent-form'),
+    organizationLookup: qs('#metis-stash-organization-lookup'),
     organizationTicketList: qs('#metis-stash-organization-ticket-list'),
   };
 
@@ -80,8 +99,10 @@
     mountModalToBody(ui.groupModal);
     mountModalToBody(ui.organizationModal);
     mountModalToBody(ui.newTicketModal);
+    hydrateInboxControlsFromQuery();
     filterRows();
-    filterManagerRows();
+    rebuildManagerSelections();
+    renderResolutionPanels();
 
     if (isTicketPage) {
       const initialTicketId = parseInt(root.dataset.ticketId || '0', 10);
@@ -118,6 +139,10 @@
       filterBtn.classList.add('is-active');
       filterBtn.classList.remove('metis-btn-ghost');
       currentFilter = String(filterBtn.dataset.filter || 'all');
+      if (currentFilter === 'recent') {
+        currentSort = 'updated_desc';
+        if (ui.sort) ui.sort.value = currentSort;
+      }
       filterRows();
       return;
     }
@@ -174,6 +199,48 @@
       return;
     }
 
+    const resolveOrganizationBtn = e.target.closest('[data-resolution-org-submit]');
+    if (resolveOrganizationBtn && canManage) {
+      const form = resolveOrganizationBtn.closest('[data-resolution-org-form]');
+      if (!form) return;
+      const sourceId = Number(form.dataset.sourceId || '0');
+      const targetId = Number(form.querySelector('[name="target_id"]')?.value || '0');
+      if (sourceId < 1) return;
+      try {
+        const data = await request('metis_grandys_stash_resolve_org_candidate', {
+          payload: JSON.stringify({ source_id: sourceId, target_id: targetId })
+        });
+        applyStateUpdate(data);
+        const movedToIndependent = targetId < 1;
+        showAlert(movedToIndependent ? 'Organization moved to Independent.' : 'Organization merged.');
+      } catch (err) {
+        showAlert(err.message, 'error');
+      }
+      return;
+    }
+
+    const resolveItemBtn = e.target.closest('[data-resolution-item-submit]');
+    if (resolveItemBtn && canManage) {
+      const form = e.target.closest('[data-resolution-item-form]');
+      if (!form) return;
+      const signature = String(form.dataset.signature || '').trim();
+      const catalogItemId = Number(form.querySelector('[name="catalog_item_id"]')?.value || '0');
+      if (!signature || catalogItemId < 1) {
+        showAlert('Choose the catalog item to resolve this legacy label.', 'error');
+        return;
+      }
+      try {
+        const data = await request('metis_grandys_stash_resolve_item_candidate', {
+          payload: JSON.stringify({ signature: signature, catalog_item_id: catalogItemId })
+        });
+        applyStateUpdate(data);
+        showAlert('Legacy item labels resolved.');
+      } catch (err) {
+        showAlert(err.message, 'error');
+      }
+      return;
+    }
+
     const unlinkBtn = e.target.closest('[data-unlink-group]');
     if (unlinkBtn && canAssign && currentTicketId > 0) {
       try {
@@ -190,8 +257,14 @@
   });
 
   ui.search?.addEventListener('input', filterRows);
+  ui.sort?.addEventListener('change', function () {
+    currentSort = normalizeSort(ui.sort.value || 'submitted_desc');
+    filterRows();
+  });
+  ui.selectAll?.addEventListener('change', syncSelectAllRows);
   ui.groupSearch?.addEventListener('input', filterManagerRows);
   ui.organizationSearch?.addEventListener('input', filterManagerRows);
+  ui.organizationMergeForm?.elements?.namedItem('target_lookup')?.addEventListener('input', syncOrganizationMergeLookup);
 
   ui.ticketForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -207,11 +280,29 @@
 
   ui.ticketDelete?.addEventListener('click', async function () {
     if (!canDelete || currentTicketId < 1) return;
-    if (!window.confirm('Delete this ticket and its conversation history? This cannot be undone.')) return;
+    if (!(await confirmAction('Delete this ticket and its conversation history? This cannot be undone.', { tone: 'danger', confirmLabel: 'Delete Ticket' }))) return;
     try {
       const data = await request('metis_grandys_stash_delete_ticket', { ticket_id: currentTicketId });
       showAlert(data.deleted_code ? 'Deleted ' + data.deleted_code + '.' : 'Ticket deleted.');
       window.location.href = root.dataset.viewBaseUrl ? root.dataset.viewBaseUrl.replace(/view\/?$/, '') : window.location.origin;
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.bulkDelete?.addEventListener('click', async function () {
+    if (!canBulkDelete) return;
+    const ticketIds = selectedTicketIds();
+    if (!ticketIds.length) {
+      showAlert('Select at least one ticket to delete.', 'error');
+      return;
+    }
+    if (!(await confirmAction('Delete ' + ticketIds.length + ' selected ticket' + (ticketIds.length === 1 ? '' : 's') + '? This cannot be undone.', { tone: 'danger', confirmLabel: 'Delete Selected Tickets' }))) return;
+    try {
+      const data = await request('metis_grandys_stash_delete_tickets', { payload: JSON.stringify({ ticket_ids: ticketIds }) });
+      applyStateUpdate(data);
+      setBulkDeleteState();
+      showAlert('Deleted ' + Number(data.deleted_count || 0) + ' ticket' + (Number(data.deleted_count || 0) === 1 ? '' : 's') + '.');
     } catch (err) {
       showAlert(err.message, 'error');
     }
@@ -267,8 +358,9 @@
     e.preventDefault();
     if (!canAssign) return;
     try {
-      await request('metis_grandys_stash_save_group', { payload: JSON.stringify(formToObject(ui.groupForm)) });
-      await refreshState('Group saved.');
+      const data = await request('metis_grandys_stash_save_group', { payload: JSON.stringify(formToObject(ui.groupForm)) });
+      applyStateUpdate(data);
+      showAlert('Group saved.');
       openManagerModal('group', Number(ui.groupForm.elements.namedItem('id')?.value || '0'));
     } catch (err) {
       showAlert(err.message, 'error');
@@ -279,9 +371,10 @@
     e.preventDefault();
     if (!canManage) return;
     try {
-      await request('metis_grandys_stash_save_organization', { payload: JSON.stringify(formToObject(ui.organizationForm)) });
-      await refreshState('Organization saved.');
-      openManagerModal('organization', Number(ui.organizationForm.elements.namedItem('id')?.value || '0'));
+      const data = await request('metis_grandys_stash_save_organization', { payload: JSON.stringify(formToObject(ui.organizationForm)) });
+      applyStateUpdate(data);
+      showAlert('Organization saved.');
+      openManagerModal('organization', Number(data.organization_id || ui.organizationForm.elements.namedItem('id')?.value || '0'));
     } catch (err) {
       showAlert(err.message, 'error');
     }
@@ -325,15 +418,18 @@
       }
       const data = await request('metis_grandys_stash_import_legacy', { payload: JSON.stringify(formToObject(ui.legacyImportForm)) });
       applyStateUpdate(data);
-      const importSummary = data.import || {};
-      if (ui.legacyImportResult) {
-        const errors = Array.isArray(importSummary.errors) ? importSummary.errors : [];
-        ui.legacyImportResult.innerHTML = esc(importSummary.summary || 'Legacy import finished.') +
-          (errors.length ? '<br><span class="metis-alert-error" style="display:inline-block;margin-top:8px;padding:8px 10px;">' + esc(errors.join(' | ')) + '</span>' : '');
+      if (ui.legacyAuditResults) {
+        ui.legacyAuditResults.innerHTML = '';
       }
-      showAlert(importSummary.summary || 'Legacy import finished.');
+      await runLegacyAudit({ silent: true });
+      const importSummary = data.import || {};
+      const errors = Array.isArray(importSummary.errors) ? importSummary.errors : [];
+      showAlert(
+        errors.length
+          ? (importSummary.summary || 'Legacy import finished.') + ' ' + errors.join(' | ')
+          : (importSummary.summary || 'Legacy import finished.')
+      );
     } catch (err) {
-      if (ui.legacyImportResult) ui.legacyImportResult.textContent = err.message;
       showAlert(err.message, 'error');
     } finally {
       if (submitButton) {
@@ -343,19 +439,130 @@
     }
   });
 
+  ui.legacyPreviewForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    const submitButton = ui.legacyPreviewForm.querySelector('button[type="submit"]');
+    const originalLabel = submitButton?.textContent || 'Preview Legacy Payload';
+    try {
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Loading preview...';
+      }
+      const data = await request('metis_grandys_stash_preview_legacy', { payload: JSON.stringify(formToObject(ui.legacyPreviewForm)) });
+      const preview = data.preview?.data || {};
+      const diagnostics = preview.diagnostics || {};
+      const summary = [
+        'Mode: ' + String(data.preview?.mode || 'remote'),
+        'Entries: ' + Number(preview.entry_count || 0),
+        'Entries with items: ' + Number(preview.entries_with_items || 0),
+        'Entries without items: ' + Number(preview.entries_without_items || 0),
+        'Total item rows: ' + Number(preview.total_items || 0),
+        diagnostics.child_link_count != null ? 'Child links discovered: ' + Number(diagnostics.child_link_count || 0) : '',
+        diagnostics.request_nested_field_id ? 'Request nested field: ' + String(diagnostics.request_nested_field_id) : '',
+        diagnostics.request_child_form_id ? 'Request child form: ' + String(diagnostics.request_child_form_id) : '',
+        diagnostics.donation_nested_field_id ? 'Donation nested field: ' + String(diagnostics.donation_nested_field_id) : '',
+        diagnostics.donation_child_form_id ? 'Donation child form: ' + String(diagnostics.donation_child_form_id) : ''
+      ].filter(Boolean).join(' | ');
+      if (ui.legacyPreviewJson) {
+        ui.legacyPreviewJson.hidden = false;
+        ui.legacyPreviewJson.textContent = summary + '\n\n' + JSON.stringify(preview, null, 2);
+      }
+      showAlert('Legacy preview loaded.');
+    } catch (err) {
+      if (ui.legacyPreviewJson) {
+        ui.legacyPreviewJson.hidden = true;
+        ui.legacyPreviewJson.textContent = '';
+      }
+      showAlert(err.message, 'error');
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
+    }
+  });
+
+  async function runLegacyAudit(options) {
+    options = options || {};
+    if (!canManage || !ui.legacyAuditForm) return null;
+    const submitButton = ui.legacyAuditForm.querySelector('button[type="submit"]');
+    const originalLabel = submitButton?.textContent || 'Audit Imported Types';
+    try {
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Auditing...';
+      }
+      const data = await request('metis_grandys_stash_audit_legacy_types', { payload: JSON.stringify(formToObject(ui.legacyAuditForm)) });
+      renderLegacyAuditResults(data.audit || {});
+      if (!options.silent) {
+        showAlert(String(data.audit?.summary || 'Legacy type audit complete.'));
+      }
+      return data;
+    } catch (err) {
+      if (ui.legacyAuditResults) {
+        ui.legacyAuditResults.innerHTML = '';
+      }
+      if (!options.silent) {
+        showAlert(err.message, 'error');
+      }
+      throw err;
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
+    }
+  }
+
+  ui.legacyAuditForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    try {
+      await runLegacyAudit({ silent: false });
+    } catch (err) {
+      // handled inside runLegacyAudit
+    }
+  });
+
   ui.legacyWipeForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
     if (!canManage) return;
-    if (!window.confirm('Wipe all legacy-imported Grandy\'s Stash tickets? This is intended as a one-time cleanup before reimporting.')) return;
+    if (!(await confirmAction('Wipe all legacy-imported Grandy\'s Stash tickets? This is intended as a one-time cleanup before reimporting.', { tone: 'danger', confirmLabel: 'Wipe Imported Tickets' }))) return;
     try {
       const data = await request('metis_grandys_stash_wipe_legacy_imports', {});
       applyStateUpdate(data);
       const wipe = data.wipe || {};
       const message = 'Deleted ' + Number(wipe.deleted || 0) + ' legacy ticket(s); pruned ' + Number(wipe.pruned_groups || 0) + ' group(s) and ' + Number(wipe.pruned_organizations || 0) + ' organization(s).';
-      if (ui.legacyWipeResult) ui.legacyWipeResult.textContent = message;
       showAlert(message);
     } catch (err) {
-      if (ui.legacyWipeResult) ui.legacyWipeResult.textContent = err.message;
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.legacyItemRepairForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    try {
+      const submitButton = ui.legacyItemRepairForm.querySelector('button[type="submit"]');
+      const originalLabel = submitButton?.textContent || 'Split Existing Legacy Item Rows';
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Splitting...';
+      }
+      const data = await request('metis_grandys_stash_repair_legacy_item_rows', { payload: JSON.stringify(formToObject(ui.legacyItemRepairForm)) });
+      applyStateUpdate(data);
+      showAlert(String(data.repair?.summary || 'Legacy item rows repaired.'));
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
+    } catch (err) {
+      const submitButton = ui.legacyItemRepairForm.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Split Existing Legacy Item Rows';
+      }
       showAlert(err.message, 'error');
     }
   });
@@ -377,19 +584,59 @@
   ui.organizationMergeForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
     if (!canManage) return;
-    if (!window.confirm('Merge the source organization into this organization? Tickets will be reassigned.')) return;
+    if (!syncOrganizationMergeLookup()) {
+      showAlert('Choose a destination organization from the lookup results.', 'error');
+      return;
+    }
+    if (!(await confirmAction('Merge this organization into the selected destination? Tickets will be reassigned.', { tone: 'danger', confirmLabel: 'Merge Organizations' }))) return;
     try {
-      await request('metis_grandys_stash_merge_organizations', formToObject(ui.organizationMergeForm));
-      await refreshState('Organizations merged.');
-      openManagerModal('organization', Number(ui.organizationMergeForm.elements.namedItem('target_id')?.value || '0'));
-      const sourceField = ui.organizationMergeForm.elements.namedItem('source_code');
-      if (sourceField) sourceField.value = '';
+      const mergeData = await request('metis_grandys_stash_merge_organizations', formToObject(ui.organizationMergeForm));
+      applyStateUpdate(mergeData);
+      const mergedCount = Number(mergeData.merge?.merged_tickets || 0);
+      const sourceCode = String(mergeData.merge?.source_code || '');
+      const targetCode = String(mergeData.merge?.target_code || '');
+      showAlert(
+        sourceCode && targetCode
+          ? 'Merged ' + sourceCode + ' into ' + targetCode + (mergedCount ? ' (' + mergedCount + ' ticket' + (mergedCount === 1 ? '' : 's') + ').' : '.')
+          : 'Organizations merged.'
+      );
+      const targetOrganization = (state.organizations || []).find(function (organization) {
+        return String(organization.code || '') === targetCode;
+      });
+      if (targetOrganization) openManagerModal('organization', Number(targetOrganization.id || 0));
+      const targetField = ui.organizationMergeForm.elements.namedItem('target_code');
+      if (targetField) targetField.value = '';
+      const targetLookup = ui.organizationMergeForm.elements.namedItem('target_lookup');
+      if (targetLookup) targetLookup.value = '';
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.organizationIndependentForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    const organizationId = Number(ui.organizationIndependentForm.elements.namedItem('organization_id')?.value || '0');
+    if (organizationId < 1) return;
+    if (!(await confirmAction('Move every ticket in this organization to Independent and remove this organization shell?', { tone: 'danger', confirmLabel: 'Move to Independent' }))) return;
+    try {
+      const data = await request('metis_grandys_stash_move_organization_to_independent', { organization_id: String(organizationId) });
+      applyStateUpdate(data);
+      closeModal(ui.organizationModal);
+      const moved = Number(data.move?.ticket_count || 0);
+      showAlert('Moved ' + moved + ' ticket' + (moved === 1 ? '' : 's') + ' to Independent.');
     } catch (err) {
       showAlert(err.message, 'error');
     }
   });
 
   root.addEventListener('change', async function (e) {
+    const ticketSelect = e.target.closest('.metis-stash-ticket-select');
+    if (ticketSelect) {
+      setBulkDeleteState();
+      return;
+    }
+
     const toggle = e.target.closest('.metis-stash-email-toggle');
     if (!toggle || !canManage) return;
     try {
@@ -406,24 +653,49 @@
     }
   });
 
+  root.addEventListener('input', function (e) {
+    const itemLookup = e.target.closest('[data-resolution-item-lookup]');
+    if (!itemLookup) return;
+    syncItemResolutionLookup(itemLookup.closest('[data-resolution-item-form]'));
+  });
+
   function applyStateUpdate(data) {
     if (data?.state) {
       state = Object.assign({}, state, data.state);
       rebuildRows();
+      rebuildOrganizationRows();
       rebuildManagerSelections();
+      renderResolutionPanels();
     }
   }
 
   function filterRows() {
     if (!ui.rows) return;
-    const searchQuery = String(ui.search?.value || '').toLowerCase().trim();
-    qsa('.metis-stash-row').forEach(function (row) {
+    const searchQuery = String(ui.search?.value || drilldown.search || '').toLowerCase().trim();
+    const rows = qsa('.metis-stash-row');
+    rows.forEach(function (row) {
       const status = String(row.dataset.status || '');
       const assigned = parseInt(row.dataset.assigned || '0', 10);
       const searchBlob = String(row.dataset.search || '');
+      const personKey = String(row.dataset.personKey || '').toLowerCase();
+      const organizationKey = String(row.dataset.organizationKey || '').toLowerCase();
+      const categorySlugs = ',' + String(row.dataset.categorySlugs || '').toLowerCase() + ',';
+      const type = String(row.dataset.type || '').toLowerCase();
       let visible = true;
 
       if (searchQuery && !searchBlob.includes(searchQuery)) {
+        visible = false;
+      }
+      if (visible && drilldown.personKey && personKey !== drilldown.personKey) {
+        visible = false;
+      }
+      if (visible && drilldown.organizationKey && organizationKey !== drilldown.organizationKey) {
+        visible = false;
+      }
+      if (visible && drilldown.categorySlug && !categorySlugs.includes(',' + drilldown.categorySlug + ',')) {
+        visible = false;
+      }
+      if (visible && drilldown.type && type !== drilldown.type) {
         visible = false;
       }
       if (visible && currentFilter !== 'all') {
@@ -438,6 +710,51 @@
 
       row.style.display = visible ? '' : 'none';
     });
+    rows
+      .sort(compareTicketRows)
+      .forEach(function (row) {
+        ui.rows.appendChild(row);
+      });
+    setBulkDeleteState();
+  }
+
+  function compareTicketRows(a, b) {
+    const submittedA = parseInt(a.dataset.submittedAt || '0', 10);
+    const submittedB = parseInt(b.dataset.submittedAt || '0', 10);
+    const updatedA = parseInt(a.dataset.updatedAt || '0', 10);
+    const updatedB = parseInt(b.dataset.updatedAt || '0', 10);
+    const nameA = String(a.dataset.name || '');
+    const nameB = String(b.dataset.name || '');
+    const codeA = String(a.dataset.code || '');
+    const codeB = String(b.dataset.code || '');
+
+    if (currentSort === 'submitted_asc') return submittedA - submittedB;
+    if (currentSort === 'updated_desc') return updatedB - updatedA;
+    if (currentSort === 'name_asc') return nameA.localeCompare(nameB) || codeA.localeCompare(codeB);
+    if (currentSort === 'name_desc') return nameB.localeCompare(nameA) || codeB.localeCompare(codeA);
+    if (currentSort === 'code_asc') return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+    if (currentSort === 'code_desc') return codeB.localeCompare(codeA, undefined, { numeric: true, sensitivity: 'base' });
+    return submittedB - submittedA;
+  }
+
+  function hydrateInboxControlsFromQuery() {
+    if (ui.search && drilldown.search && !ui.search.value) ui.search.value = drilldown.search;
+    if (ui.sort) ui.sort.value = currentSort;
+    qsa('.metis-stash-sidebar-filter').forEach(function (button) {
+      const active = String(button.dataset.filter || '') === currentFilter;
+      button.classList.toggle('is-active', active);
+      button.classList.toggle('metis-btn-ghost', !active);
+    });
+  }
+
+  function normalizeFilter(value) {
+    const allowed = ['action', 'waitlist', 'mine', 'recent', 'all'];
+    return allowed.includes(String(value || '')) ? String(value) : 'action';
+  }
+
+  function normalizeSort(value) {
+    const allowed = ['submitted_desc', 'submitted_asc', 'updated_desc', 'name_asc', 'name_desc', 'code_asc', 'code_desc'];
+    return allowed.includes(String(value || '')) ? String(value) : 'submitted_desc';
   }
 
   function filterManagerRows() {
@@ -488,7 +805,9 @@
     } else if (kind === 'organization') {
       const organization = (state.organizations || []).find(function (entry) { return Number(entry.id || 0) === id; });
       if (!organization || !ui.organizationTicketList) return;
-      fillForm(ui.organizationForm, organization);
+      fillForm(ui.organizationForm, Object.assign({}, organization, {
+        alternate_domains: Array.isArray(organization.additional_domains) ? organization.additional_domains.join('\n') : ''
+      }));
       if (ui.organizationModalTitle) ui.organizationModalTitle.textContent = organization.name || 'Organization Manager';
       if (ui.organizationModalSubtitle) ui.organizationModalSubtitle.textContent = organization.domain || organization.code || '';
       if (ui.organizationModalSummary) ui.organizationModalSummary.innerHTML = buildManagerSummary([
@@ -499,8 +818,12 @@
         ['Total Tickets', Number(organization.ticket_count || 0)]
       ]);
       if (ui.organizationLinkForm?.elements?.namedItem('organization_id')) ui.organizationLinkForm.elements.namedItem('organization_id').value = String(id);
-      if (ui.organizationMergeForm?.elements?.namedItem('target_id')) ui.organizationMergeForm.elements.namedItem('target_id').value = String(id);
+      if (ui.organizationMergeForm?.elements?.namedItem('source_id')) ui.organizationMergeForm.elements.namedItem('source_id').value = String(id);
+      if (ui.organizationMergeForm?.elements?.namedItem('target_code')) ui.organizationMergeForm.elements.namedItem('target_code').value = '';
+      if (ui.organizationMergeForm?.elements?.namedItem('target_lookup')) ui.organizationMergeForm.elements.namedItem('target_lookup').value = '';
+      if (ui.organizationIndependentForm?.elements?.namedItem('organization_id')) ui.organizationIndependentForm.elements.namedItem('organization_id').value = String(id);
       ui.organizationTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForOrganization(id));
+      rebuildManagerSelections();
       activateTab('organization-general');
       openModal(ui.organizationModal);
     }
@@ -537,6 +860,43 @@
     return '<div class="metis-stash-manager-summary-grid">' + items.map(function (item) {
       return '<div class="metis-stash-manager-summary-item"><div class="metis-stash-manager-summary-label">' + esc(String(item[0] || '')) + '</div><div class="metis-stash-manager-summary-value">' + esc(String(item[1] ?? '')) + '</div></div>';
     }).join('') + '</div>';
+  }
+
+  function renderLegacyAuditResults(audit) {
+    if (!ui.legacyAuditResults) return;
+    const rows = Array.isArray(audit.rows) ? audit.rows : [];
+    const summary = String(audit.summary || '');
+    if (!rows.length) {
+      ui.legacyAuditResults.innerHTML = summary
+        ? '<div class="metis-muted" style="margin-top:12px;">' + esc(summary) + '</div>'
+        : '';
+      return;
+    }
+
+    ui.legacyAuditResults.innerHTML =
+      '<div class="metis-muted" style="margin:12px 0;">' + esc(summary) + '</div>' +
+      '<table class="metis-premium-table">' +
+        '<thead><tr class="metis-premium-row metis-premium-header">' +
+          '<th class="metis-premium-cell" scope="col">Entry</th>' +
+          '<th class="metis-premium-cell" scope="col">Ticket</th>' +
+          '<th class="metis-premium-cell" scope="col">Name</th>' +
+          '<th class="metis-premium-cell" scope="col">Expected</th>' +
+          '<th class="metis-premium-cell" scope="col">Actual</th>' +
+          '<th class="metis-premium-cell" scope="col">Status</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+          rows.map(function (row) {
+            return '<tr class="metis-premium-row">' +
+              '<td class="metis-premium-cell">#' + Number(row.parent_entry_id || 0) + '</td>' +
+              '<td class="metis-premium-cell">' + esc(row.ticket_code || '\u2014') + '</td>' +
+              '<td class="metis-premium-cell">' + esc(row.name || '\u2014') + '</td>' +
+              '<td class="metis-premium-cell">' + esc(labelize(row.expected_type || '')) + '</td>' +
+              '<td class="metis-premium-cell">' + esc(labelize(row.actual_type || '')) + '</td>' +
+              '<td class="metis-premium-cell">' + esc(labelize(row.status || '')) + '</td>' +
+            '</tr>';
+          }).join('') +
+        '</tbody>' +
+      '</table>';
   }
 
   function renderTicketItems(items) {
@@ -639,6 +999,7 @@
       const data = await request('metis_grandys_stash_state');
       state = data.state || state;
       rebuildRows();
+      rebuildOrganizationRows();
       rebuildManagerSelections();
       if (message) showAlert(message);
     } catch (err) {
@@ -661,6 +1022,7 @@
         const ticketUrl = buildTicketUrl(ticket.code || '');
 
         return '<tr class="metis-premium-row metis-stash-row" data-id="' + Number(ticket.id || 0) + '" data-ticket-url="' + esc(ticketUrl) + '" data-status="' + esc(status) + '" data-type="' + esc(ticket.type || 'request') + '" data-assigned="' + Number(ticket.assigned_to || 0) + '" data-search="' + esc(search) + '">' +
+          (canBulkDelete ? '<td class="metis-premium-cell metis-stash-select-cell"><input type="checkbox" class="metis-stash-ticket-select" value="' + Number(ticket.id || 0) + '" aria-label="Select ' + code + '"></td>' : '') +
           '<td class="metis-premium-cell"><strong>' + code + '</strong></td>' +
           '<td class="metis-premium-cell">' + name + '</td>' +
           '<td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-' + esc(ticket.type || 'request') + '">' + esc(typeLabel) + '</span></td>' +
@@ -677,7 +1039,321 @@
   }
 
   function rebuildManagerSelections() {
+    rebuildOrganizationLookup();
     filterManagerRows();
+  }
+
+  function renderResolutionPanels() {
+    renderOrganizationResolution();
+    renderItemResolution();
+  }
+
+  function renderOrganizationResolution() {
+    if (!ui.orgResolution) return;
+    const candidates = Array.isArray(state.resolution?.organizations) ? state.resolution.organizations : [];
+    if (!candidates.length) {
+      ui.orgResolution.innerHTML =
+        '<div class="metis-stash-ticket-section">' +
+          '<h3 style="margin:0 0 8px;">Organization Resolution</h3>' +
+          '<div class="metis-muted">No likely organization duplicates are waiting for review.</div>' +
+        '</div>';
+      return;
+    }
+
+    ui.orgResolution.innerHTML =
+      '<div class="metis-stash-ticket-section">' +
+        '<h3 style="margin:0 0 8px;">Organization Resolution</h3>' +
+        '<table class="metis-premium-table">' +
+          '<thead><tr class="metis-premium-row metis-premium-header">' +
+            '<th class="metis-premium-cell" scope="col">Source</th>' +
+            '<th class="metis-premium-cell" scope="col">Reason</th>' +
+            '<th class="metis-premium-cell" scope="col">Tickets</th>' +
+            '<th class="metis-premium-cell" scope="col">Resolve To</th>' +
+            '<th class="metis-premium-cell" scope="col">Suggested</th>' +
+          '</tr></thead>' +
+          '<tbody>' +
+            candidates.map(function (candidate) {
+              const sourceMeta = [candidate.source_code || '', candidate.source_domain || '\u2014'].filter(Boolean).join(' · ');
+              const selectOptions = buildOrganizationResolutionOptions(Number(candidate.source_id || 0), Number(candidate.suggested_target_id || 0));
+              return '<tr class="metis-premium-row">' +
+                '<td class="metis-premium-cell">' +
+                  '<strong>' + esc(candidate.source_name || 'Unknown') + '</strong>' +
+                  '<div class="metis-muted">' + esc(sourceMeta) + '</div>' +
+                '</td>' +
+                '<td class="metis-premium-cell">' + esc(candidate.reason_label || '') + '</td>' +
+                '<td class="metis-premium-cell">' + Number(candidate.ticket_count || 0) + '</td>' +
+                '<td class="metis-premium-cell">' +
+                  '<div data-resolution-org-form data-source-id="' + Number(candidate.source_id || 0) + '">' +
+                    '<select class="metis-select" name="target_id">' + selectOptions + '</select>' +
+                    '<div style="margin-top:8px;"><button type="button" class="metis-btn-xs" data-resolution-org-submit>Resolve</button></div>' +
+                  '</div>' +
+                '</td>' +
+                '<td class="metis-premium-cell">' + esc(candidate.suggested_target_name || '') + '</td>' +
+              '</tr>';
+            }).join('') +
+          '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
+
+  function renderItemResolution() {
+    if (!ui.itemResolution) return;
+    const candidates = Array.isArray(state.resolution?.items) ? state.resolution.items : [];
+    if (!candidates.length) {
+      ui.itemResolution.innerHTML =
+        '<div class="metis-stash-ticket-section">' +
+          '<h3 style="margin:0 0 8px;">Item Resolution</h3>' +
+          '<div class="metis-muted">No unresolved legacy item labels are waiting for review.</div>' +
+        '</div>';
+      return;
+    }
+
+    ui.itemResolution.innerHTML =
+      '<div class="metis-stash-ticket-section">' +
+        '<h3 style="margin:0 0 8px;">Item Resolution</h3>' +
+        '<datalist id="metis-stash-item-resolution-lookup">' + buildCatalogResolutionLookupOptions() + '</datalist>' +
+        '<table class="metis-premium-table">' +
+          '<thead><tr class="metis-premium-row metis-premium-header">' +
+            '<th class="metis-premium-cell" scope="col">Legacy Label</th>' +
+            '<th class="metis-premium-cell" scope="col">Rows</th>' +
+            '<th class="metis-premium-cell" scope="col">Tickets</th>' +
+            '<th class="metis-premium-cell" scope="col">Resolve To</th>' +
+            '<th class="metis-premium-cell" scope="col">Suggested</th>' +
+          '</tr></thead>' +
+          '<tbody>' +
+            candidates.map(function (candidate) {
+              return '<tr class="metis-premium-row">' +
+                '<td class="metis-premium-cell">' +
+                  '<strong>' + esc(candidate.label || 'Unknown') + '</strong>' +
+                  buildItemResolutionExamples(candidate.examples || []) +
+                '</td>' +
+                '<td class="metis-premium-cell">' + Number(candidate.row_count || 0) + '</td>' +
+                '<td class="metis-premium-cell">' + Number(candidate.ticket_count || 0) + '</td>' +
+                '<td class="metis-premium-cell">' +
+                  '<div data-resolution-item-form data-signature="' + esc(candidate.signature || '') + '">' +
+                    '<input class="metis-input" type="text" name="catalog_lookup" list="metis-stash-item-resolution-lookup" data-resolution-item-lookup value="' + esc(buildCatalogLookupValue(Number(candidate.suggested_catalog_item_id || 0))) + '" placeholder="Type to search the catalog">' +
+                    '<input type="hidden" name="catalog_item_id" value="' + Number(candidate.suggested_catalog_item_id || 0) + '">' +
+                    '<div style="margin-top:8px;"><button type="button" class="metis-btn-xs" data-resolution-item-submit>Resolve</button></div>' +
+                  '</div>' +
+                '</td>' +
+                '<td class="metis-premium-cell">' + esc(candidate.suggested_item_name || '\u2014') + '</td>' +
+              '</tr>';
+            }).join('') +
+          '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
+
+  function buildOrganizationResolutionOptions(sourceId, selectedTargetId) {
+    const options = ['<option value="0"' + (selectedTargetId < 1 ? ' selected' : '') + '>Independent</option>'];
+    (state.organizations || []).forEach(function (organization) {
+      const id = Number(organization.id || 0);
+      if (id < 1 || id === sourceId) return;
+      const selected = id === selectedTargetId ? ' selected' : '';
+      const label = [organization.name || 'Unknown', organization.code || '', organization.domain || ''].filter(Boolean).join(' | ');
+      options.push('<option value="' + id + '"' + selected + '>' + esc(label) + '</option>');
+    });
+    return options.join('');
+  }
+
+  function buildCatalogResolutionLookupOptions() {
+    const options = [];
+    (state.catalog?.items || []).forEach(function (item) {
+      const id = Number(item.id || 0);
+      if (id < 1) return;
+      options.push('<option value="' + esc(buildCatalogLookupLabel(item)) + '"></option>');
+    });
+    return options.join('');
+  }
+
+  function buildCatalogLookupLabel(item) {
+    return [item.category_name || 'Other', item.item_name || 'Unknown'].join(' | ');
+  }
+
+  function buildCatalogLookupValue(selectedCatalogItemId) {
+    const item = (state.catalog?.items || []).find(function (entry) {
+      return Number(entry.id || 0) === selectedCatalogItemId;
+    });
+    return item ? buildCatalogLookupLabel(item) : '';
+  }
+
+  function syncItemResolutionLookup(form) {
+    if (!form) return false;
+    const lookupField = form.querySelector('[name="catalog_lookup"]');
+    const idField = form.querySelector('[name="catalog_item_id"]');
+    if (!lookupField || !idField) return false;
+    const raw = String(lookupField.value || '').trim().toLowerCase();
+    if (!raw) {
+      idField.value = '';
+      return false;
+    }
+
+    const items = Array.isArray(state.catalog?.items) ? state.catalog.items : [];
+    const exact = items.find(function (item) {
+      return buildCatalogLookupLabel(item).toLowerCase() === raw;
+    });
+    if (exact) {
+      idField.value = String(exact.id || '');
+      return Boolean(idField.value);
+    }
+
+    const partialMatches = items.filter(function (item) {
+      return buildCatalogLookupLabel(item).toLowerCase().includes(raw);
+    });
+    if (partialMatches.length === 1) {
+      lookupField.value = buildCatalogLookupLabel(partialMatches[0]);
+      idField.value = String(partialMatches[0].id || '');
+      return Boolean(idField.value);
+    }
+
+    idField.value = '';
+    return false;
+  }
+
+  function buildItemResolutionExamples(examples) {
+    if (!Array.isArray(examples) || !examples.length) return '';
+    return '<div class="metis-muted" style="margin-top:4px;">' +
+      examples.map(function (example) {
+        return esc(String(example.label || '')) + ' (' + Number(example.count || 0) + ')';
+      }).join(' · ') +
+    '</div>';
+  }
+
+  function rebuildOrganizationRows() {
+    if (!ui.organizationRows) return;
+    ui.organizationRows.innerHTML = (state.organizations || []).map(function (organization) {
+      const id = Number(organization.id || 0);
+      const selected = selectedManagerKind === 'organization' && selectedManagerId === id;
+      const meta = [organization.code || '', organization.domain || '\u2014'].filter(Boolean).join(' · ');
+      const lastActivity = organization.last_ticket_at ? shortDate(organization.last_ticket_at) : '\u2014';
+      const additionalDomains = Array.isArray(organization.additional_domains) ? organization.additional_domains.join(' ') : '';
+      const search = [organization.code || '', organization.name || '', organization.domain || '', additionalDomains].join(' ').toLowerCase();
+      return '<tr class="metis-premium-row metis-stash-manager-row' + (selected ? ' is-selected' : '') + '"' +
+        ' data-manager-kind="organization"' +
+        ' data-id="' + id + '"' +
+        ' data-open-count="' + Number(organization.open_count || 0) + '"' +
+        ' data-is-active="' + (organization.is_active ? '1' : '0') + '"' +
+        ' data-last-ticket="' + esc(String(organization.last_ticket_at || '')) + '"' +
+        ' data-search="' + esc(search) + '">' +
+        '<td class="metis-premium-cell">' +
+          '<button type="button" class="metis-stash-link-button" data-manager-open="organization" data-id="' + id + '">' + esc(organization.name || 'Unknown') + '</button>' +
+          '<div class="metis-muted">' + esc(meta) + '</div>' +
+        '</td>' +
+        '<td class="metis-premium-cell">' + Number(organization.ticket_count || 0) + '</td>' +
+        '<td class="metis-premium-cell">' + Number(organization.open_count || 0) + '</td>' +
+        '<td class="metis-premium-cell">' + esc(lastActivity) + '</td>' +
+      '</tr>';
+    }).join('');
+    filterManagerRows();
+  }
+
+  function rebuildOrganizationLookup() {
+    if (!ui.organizationLookup) return;
+    const sourceId = Number(ui.organizationMergeForm?.elements?.namedItem('source_id')?.value || '0');
+    ui.organizationLookup.innerHTML = (state.organizations || [])
+      .filter(function (organization) {
+        return Number(organization.id || 0) > 0 && Number(organization.id || 0) !== sourceId;
+      })
+      .map(function (organization) {
+        const label = buildOrganizationLookupLabel(organization);
+        return '<option value="' + esc(label) + '"></option>';
+      })
+      .join('');
+  }
+
+  function syncOrganizationMergeLookup() {
+    if (!ui.organizationMergeForm) return false;
+    const lookupField = ui.organizationMergeForm.elements.namedItem('target_lookup');
+    const codeField = ui.organizationMergeForm.elements.namedItem('target_code');
+    const sourceId = Number(ui.organizationMergeForm.elements.namedItem('source_id')?.value || '0');
+    if (!lookupField || !codeField) return false;
+    const raw = String(lookupField.value || '').trim().toLowerCase();
+    if (!raw) {
+      codeField.value = '';
+      return false;
+    }
+
+    const organizations = (state.organizations || []).filter(function (organization) {
+      return Number(organization.id || 0) > 0 && Number(organization.id || 0) !== sourceId;
+    });
+    const exact = organizations.find(function (organization) {
+      if (Number(organization.id || 0) < 1 || Number(organization.id || 0) === sourceId) return false;
+      const haystack = [
+        buildOrganizationLookupLabel(organization),
+        organization.code || '',
+        organization.name || '',
+        organization.domain || ''
+      ].map(function (value) {
+        return String(value || '').trim().toLowerCase();
+      });
+      return haystack.includes(raw);
+    });
+    if (exact) {
+      codeField.value = String(exact.code || '');
+      return Boolean(codeField.value);
+    }
+
+    const partialMatches = organizations.filter(function (organization) {
+      const haystack = [
+        buildOrganizationLookupLabel(organization),
+        organization.code || '',
+        organization.name || '',
+        organization.domain || ''
+      ].map(function (value) {
+        return String(value || '').trim().toLowerCase();
+      });
+      return haystack.some(function (value) { return value.includes(raw); });
+    });
+
+    if (partialMatches.length === 1) {
+      lookupField.value = buildOrganizationLookupLabel(partialMatches[0]);
+      codeField.value = String(partialMatches[0].code || '');
+      return Boolean(codeField.value);
+    }
+
+    codeField.value = '';
+    return false;
+  }
+
+  function buildOrganizationLookupLabel(organization) {
+    const name = String(organization.name || 'Unknown');
+    const code = String(organization.code || '').trim();
+    const domain = String(organization.domain || '').trim();
+    const additionalDomains = Array.isArray(organization.additional_domains) ? organization.additional_domains.join(', ') : '';
+    return [name, code, domain, additionalDomains].filter(Boolean).join(' | ');
+  }
+
+  function selectedTicketIds() {
+    return qsa('.metis-stash-ticket-select:checked')
+      .map(function (input) { return Number(input.value || '0'); })
+      .filter(function (id) { return id > 0; });
+  }
+
+  function syncSelectAllRows() {
+    const checked = Boolean(ui.selectAll?.checked);
+    qsa('.metis-stash-ticket-select').forEach(function (input) {
+      const row = input.closest('.metis-stash-row');
+      if (!row || row.style.display === 'none') return;
+      input.checked = checked;
+    });
+    setBulkDeleteState();
+  }
+
+  function setBulkDeleteState() {
+    if (!canBulkDelete) return;
+    const visibleInputs = qsa('.metis-stash-ticket-select').filter(function (input) {
+      const row = input.closest('.metis-stash-row');
+      return row && row.style.display !== 'none';
+    });
+    const checkedCount = visibleInputs.filter(function (input) { return input.checked; }).length;
+    if (ui.selectAll) {
+      ui.selectAll.checked = visibleInputs.length > 0 && checkedCount === visibleInputs.length;
+      ui.selectAll.indeterminate = checkedCount > 0 && checkedCount < visibleInputs.length;
+    }
+    if (ui.bulkDelete) {
+      ui.bulkDelete.disabled = checkedCount < 1;
+      ui.bulkDelete.textContent = checkedCount > 0 ? 'Delete Selected (' + checkedCount + ')' : 'Delete Selected';
+    }
   }
 
   function switchTab(tabButton) {
@@ -788,13 +1464,28 @@
   });
 
   function showAlert(message, type) {
-    if (!ui.alert) return;
-    ui.alert.className = 'metis-alert ' + (type === 'error' ? 'metis-alert-error' : 'metis-alert-success');
-    ui.alert.textContent = message;
-    ui.alert.style.display = 'block';
-    window.setTimeout(function () {
-      if (ui.alert) ui.alert.style.display = 'none';
-    }, 4000);
+    const level = type === 'error' ? 'error' : 'success';
+    if (window.Metis && Metis.ui && Metis.ui.toast && typeof Metis.ui.toast[level] === 'function') {
+      Metis.ui.toast[level](String(message || ''));
+      return;
+    }
+    if (window.Metis && Metis.toast && typeof Metis.toast[level] === 'function') {
+      Metis.toast[level](String(message || ''));
+      return;
+    }
+    if (window.console && typeof window.console.warn === 'function') {
+      window.console.warn(String(message || ''));
+    }
+  }
+
+  function confirmAction(message, options) {
+    if (window.Metis && Metis.ui && Metis.ui.confirm && typeof Metis.ui.confirm.open === 'function') {
+      return Metis.ui.confirm.open(Object.assign({}, options || {}, { message: String(message || 'Are you sure?') }));
+    }
+    if (window.Metis && Metis.confirm && typeof Metis.confirm.open === 'function') {
+      return Metis.confirm.open(Object.assign({}, options || {}, { message: String(message || 'Are you sure?') }));
+    }
+    return Promise.resolve(false);
   }
 
   function qs(selector) {

@@ -19,8 +19,6 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( "Grandy's Stash People Groups" ) ); ?></h1>
     <p class="metis-subtitle">Search person groups, review ticket history, and manage core group details.</p>
-    <div id="metis-stash-alert" class="metis-alert" style="display:none;"></div>
-
     <?php metis_render_sidebar_layout([
         'sidebar' => static function () use ( $can_settings ) { ?>
             <div class="metis-list-sidebar-section">

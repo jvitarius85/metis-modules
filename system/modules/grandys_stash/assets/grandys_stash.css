@@ -48,6 +48,11 @@
     grid-template-columns: minmax(124px, 136px) minmax(160px, 1.45fr) minmax(92px, 0.8fr) minmax(98px, 0.82fr) minmax(94px, 0.78fr) minmax(96px, 0.95fr) 72px 96px 88px;
 }
 
+.metis-stash-app[data-can-bulk-delete="1"] .metis-stash-table--manageable .metis-premium-header,
+.metis-stash-app[data-can-bulk-delete="1"] .metis-stash-table--manageable .metis-premium-row {
+    grid-template-columns: 44px minmax(124px, 136px) minmax(160px, 1.45fr) minmax(92px, 0.8fr) minmax(98px, 0.82fr) minmax(94px, 0.78fr) minmax(96px, 0.95fr) 72px 96px 88px;
+}
+
 .metis-stash-table--readonly .metis-premium-header,
 .metis-stash-table--readonly .metis-premium-row {
     grid-template-columns: minmax(124px, 136px) minmax(160px, 1.5fr) minmax(92px, 0.82fr) minmax(98px, 0.84fr) minmax(94px, 0.8fr) minmax(96px, 0.95fr) 72px 96px;
@@ -124,6 +129,12 @@
     background: #f7f9ff;
 }
 
+.metis-stash-select-cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .metis-stash-ticket-shell {
     margin-top: 10px;
 }
@@ -179,8 +190,8 @@
 
 .metis-stash-manager-summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px 16px;
     padding: 12px;
     border: 1px solid var(--metis-border, #d7dfe5);
     border-radius: 14px;
@@ -190,6 +201,7 @@
 .metis-stash-manager-summary-item {
     display: grid;
     gap: 4px;
+    min-width: 0;
 }
 
 .metis-stash-manager-summary-label {
@@ -204,6 +216,23 @@
     font-size: 15px;
     font-weight: 700;
     color: #101828;
+    min-width: 0;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.metis-stash-preview-json {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid var(--metis-border, #d7dfe5);
+    border-radius: 14px;
+    background: #0f1720;
+    color: #d5e2f0;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .metis-stash-link-button {
@@ -349,7 +378,7 @@
     box-sizing: border-box;
     padding: 24px;
     background: rgba(16, 30, 40, 0.38);
-    z-index: 999999;
+    z-index: 1400;
     overflow-y: auto;
 }
 
@@ -399,6 +428,7 @@ body.metis-stash-modal-open {
     padding-top: 16px;
     margin-top: 16px;
     border-top: 1px solid var(--metis-border, #d7dfe5);
+    min-width: 0;
 }
 
 .metis-stash-ticket-section h3 {
@@ -434,12 +464,33 @@ body.metis-stash-modal-open {
 /* Detail grid (key-value pairs in ticket header) */
 .metis-stash-detail-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px 16px;
     padding: 16px;
     background: var(--metis-bg-soft, #f5f8fa);
     border: 1px solid var(--metis-border, #d7dfe5);
     border-radius: 12px;
+}
+
+.metis-stash-detail-item {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.metis-stash-detail-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #667085;
+}
+
+.metis-stash-detail-value {
+    min-width: 0;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* Notes */
@@ -452,6 +503,22 @@ body.metis-stash-modal-open {
 
 .metis-stash-note-form textarea {
     flex: 1;
+}
+
+.metis-stash-ticket-sidebar,
+.metis-stash-ticket-main,
+.metis-stash-modal-dialog,
+.metis-stash-manager-list,
+.metis-stash-manager-card {
+    min-width: 0;
+}
+
+.metis-stash-manager-table .metis-premium-cell,
+.metis-stash-linked-ticket,
+.metis-stash-ticket-sidecard .metis-premium-cell {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .metis-stash-note-entry {

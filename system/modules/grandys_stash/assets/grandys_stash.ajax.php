@@ -47,6 +47,9 @@ function metis_grandys_stash_register_ajax_controllers(): void {
         'metis_grandys_stash_merge_groups' => 'assign',
         'metis_grandys_stash_link_organization_ticket' => 'settings',
         'metis_grandys_stash_merge_organizations' => 'settings',
+        'metis_grandys_stash_move_organization_to_independent' => 'settings',
+        'metis_grandys_stash_resolve_org_candidate' => 'settings',
+        'metis_grandys_stash_resolve_item_candidate' => 'settings',
         'metis_grandys_stash_save_group' => 'assign',
         'metis_grandys_stash_save_organization' => 'settings',
         'metis_grandys_stash_get_inventory' => 'view',
@@ -54,10 +57,14 @@ function metis_grandys_stash_register_ajax_controllers(): void {
         'metis_grandys_stash_set_email_pref' => 'settings',
         'metis_grandys_stash_export' => 'export',
         'metis_grandys_stash_delete_ticket' => 'delete',
+        'metis_grandys_stash_delete_tickets' => 'view',
         'metis_grandys_stash_save_routing_defaults' => 'settings',
         'metis_grandys_stash_save_legacy_import_settings' => 'settings',
+        'metis_grandys_stash_preview_legacy' => 'settings',
+        'metis_grandys_stash_audit_legacy_types' => 'settings',
         'metis_grandys_stash_import_legacy' => 'settings',
         'metis_grandys_stash_wipe_legacy_imports' => 'settings',
+        'metis_grandys_stash_repair_legacy_item_rows' => 'settings',
         'metis_grandys_stash_report' => 'view',
         'metis_grandys_stash_get_email_prefs' => 'settings',
     ];
@@ -77,7 +84,9 @@ metis_grandys_stash_register_ajax_controllers();
 
 metis_ajax_register_handler( 'metis_grandys_stash_state', function (): void {
     metis_grandys_stash_ajax_guard();
-    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+    ] );
 } );
 
 // ─── Save ticket (status, assignment, urgency) ───────
@@ -261,13 +270,13 @@ metis_ajax_register_handler( 'metis_grandys_stash_link_organization_ticket', fun
 
 metis_ajax_register_handler( 'metis_grandys_stash_merge_organizations', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
-    $source_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['source_code'] ?? '' ) );
-    $target_id = (int) ( metis_request_post()['target_id'] ?? 0 );
-    if ( trim( $source_code ) === '' || $target_id < 1 ) {
-        metis_runtime_send_json_error( 'Source organization code and target organization are required.', 422 );
+    $source_id = (int) ( metis_request_post()['source_id'] ?? 0 );
+    $target_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['target_code'] ?? '' ) );
+    if ( $source_id < 1 || trim( $target_code ) === '' ) {
+        metis_runtime_send_json_error( 'Source organization and destination organization are required.', 422 );
     }
 
-    $result = GrandyStashRepository::mergeOrganizationsByCode( $source_code, $target_id );
+    $result = GrandyStashRepository::mergeOrganizationIntoByCode( $source_id, $target_code );
     if ( empty( $result['ok'] ) ) {
         metis_runtime_send_json_error(
             (string) ( $result['error'] ?? 'Unable to merge organizations.' ),
@@ -275,7 +284,94 @@ metis_ajax_register_handler( 'metis_grandys_stash_merge_organizations', function
         );
     }
 
-    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'merge' => $result,
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_move_organization_to_independent', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $organization_id = (int) ( metis_request_post()['organization_id'] ?? 0 );
+    if ( $organization_id < 1 ) {
+        metis_runtime_send_json_error( 'Organization is required.', 422 );
+    }
+
+    $result = GrandyStashRepository::moveOrganizationToIndependent( $organization_id );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to move organization to Independent.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'move' => $result,
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_resolve_org_candidate', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid organization resolution payload.', 422 );
+    }
+
+    $result = GrandyStashRepository::resolveOrganizationCandidate( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to resolve organization.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'resolution' => $result,
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_resolve_item_candidate', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid item resolution payload.', 422 );
+    }
+
+    $result = GrandyStashRepository::resolveItemCandidate( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to resolve item.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'resolution' => $result,
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_repair_legacy_item_rows', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        $payload = [];
+    }
+
+    $result = GrandyStashRepository::repairLegacyItemRows( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to repair legacy item rows.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'repair' => $result,
+    ] );
 } );
 
 metis_ajax_register_handler( 'metis_grandys_stash_save_group', function (): void {
@@ -301,7 +397,10 @@ metis_ajax_register_handler( 'metis_grandys_stash_save_organization', function (
     if ( empty( $result['ok'] ) ) {
         metis_runtime_send_json_error( (string) ( $result['error'] ?? 'Unable to save organization.' ), metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
     }
-    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'organization_id' => (int) ( $result['organization_id'] ?? 0 ),
+    ] );
 } );
 
 // ─── Create ticket (manual staff intake) ────────────
@@ -367,6 +466,29 @@ metis_ajax_register_handler( 'metis_grandys_stash_delete_ticket', function (): v
     metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData(), 'deleted_code' => $result['deleted_code'] ?? '' ] );
 } );
 
+metis_ajax_register_handler( 'metis_grandys_stash_delete_tickets', function (): void {
+    metis_grandys_stash_ajax_guard();
+    if ( ! function_exists( 'metis_grandys_stash_is_system_admin' ) || ! metis_grandys_stash_is_system_admin() ) {
+        metis_runtime_send_json_error( 'Only system administrators can bulk delete tickets.', 403 );
+    }
+
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    $ticket_ids = is_array( $payload['ticket_ids'] ?? null ) ? (array) $payload['ticket_ids'] : [];
+    $result = GrandyStashRepository::deleteTickets( $ticket_ids );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to delete tickets.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'deleted_count' => (int) ( $result['deleted_count'] ?? 0 ),
+        'deleted_codes' => (array) ( $result['deleted_codes'] ?? [] ),
+    ] );
+} );
+
 // ─── Save routing defaults ──────────────────────────
 
 metis_ajax_register_handler( 'metis_grandys_stash_save_routing_defaults', function (): void {
@@ -398,6 +520,50 @@ metis_ajax_register_handler( 'metis_grandys_stash_save_legacy_import_settings', 
     }
 
     metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_preview_legacy', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid legacy preview payload.', 422 );
+    }
+
+    $result = GrandyStashRepository::previewLegacyGravityForms( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to preview legacy tickets.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'preview' => [
+            'mode' => (string) ( $result['mode'] ?? 'remote' ),
+            'form_id' => (int) ( $result['form_id'] ?? 0 ),
+            'data' => (array) ( $result['preview'] ?? [] ),
+        ],
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_audit_legacy_types', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid legacy audit payload.', 422 );
+    }
+
+    $result = GrandyStashRepository::auditLegacyImportedTypes( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to audit legacy ticket types.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'audit' => (array) ( $result['audit'] ?? [] ),
+    ] );
 } );
 
 metis_ajax_register_handler( 'metis_grandys_stash_import_legacy', function (): void {
