@@ -76,6 +76,56 @@ if ( ! $can_settings ) {
         </form>
     </section>
 
+    <section style="margin-bottom:30px;">
+        <h2 style="font-size:18px;margin:0 0 8px;">Remote Legacy Source</h2>
+        <p class="metis-muted" style="margin:0 0 16px;">Configure the remote WordPress export endpoint and shared secret used for importing old Grandy&apos;s Stash tickets.</p>
+        <form id="metis-stash-legacy-settings-form" class="metis-stash-form">
+            <div class="metis-stash-form-row">
+                <label style="flex:1 1 100%;"><span>Remote endpoint URL</span>
+                    <input class="metis-input" type="url" name="endpoint_url" value="<?php echo metis_escape_attr( (string) ( $state['legacy_import_settings']['endpoint_url'] ?? '' ) ); ?>" placeholder="https://mobilizewaco.org/wp-json/metis/v1/grandys-stash-export">
+                </label>
+            </div>
+            <div class="metis-stash-form-row">
+                <label style="flex:1 1 100%;"><span>Shared secret</span>
+                    <input class="metis-input" type="password" name="secret" value="" placeholder="<?php echo ! empty( $state['legacy_import_settings']['secret_configured'] ) ? 'Configured. Enter a new value only to rotate it.' : 'Paste the export secret'; ?>">
+                </label>
+            </div>
+            <div class="metis-stash-form-actions">
+                <button type="submit" class="metis-btn">Save Remote Source</button>
+            </div>
+        </form>
+    </section>
+
+    <section style="margin-bottom:30px;">
+        <h2 style="font-size:18px;margin:0 0 8px;">Legacy Ticket Import</h2>
+        <p class="metis-muted" style="margin:0 0 16px;">Import tickets from the old Gravity Forms system. Existing imported entries are skipped using the legacy parent entry ID.</p>
+        <form id="metis-stash-legacy-import-form" class="metis-stash-form">
+            <div class="metis-stash-form-row">
+                <label><span>Gravity Form ID</span>
+                    <input class="metis-input" type="number" name="form_id" min="1" step="1" value="17">
+                </label>
+                <label><span>Max entries this run</span>
+                    <input class="metis-input" type="number" name="limit" min="1" max="1000" step="1" value="500">
+                </label>
+            </div>
+            <div class="metis-stash-form-actions">
+                <button type="submit" class="metis-btn">Import Legacy Tickets</button>
+            </div>
+            <div id="metis-stash-legacy-import-result" class="metis-muted" style="margin-top:12px;"></div>
+        </form>
+    </section>
+
+    <section style="margin-bottom:30px;">
+        <h2 style="font-size:18px;margin:0 0 8px;">One-Time Legacy Wipe</h2>
+        <p class="metis-muted" style="margin:0 0 16px;">Deletes tickets imported from the old Gravity Forms source so you can do a clean reimport. This does not remove manually-created tickets.</p>
+        <form id="metis-stash-legacy-wipe-form" class="metis-stash-form">
+            <div class="metis-stash-form-actions" style="justify-content:flex-start;">
+                <button type="submit" class="metis-btn metis-btn-ghost">Wipe Legacy Imported Tickets</button>
+            </div>
+            <div id="metis-stash-legacy-wipe-result" class="metis-muted" style="margin-top:12px;"></div>
+        </form>
+    </section>
+
     <section>
         <h2 style="font-size:18px;margin:0 0 8px;">Daily Summary Email</h2>
         <p class="metis-muted" style="margin:0 0 16px;">Toggle who receives the daily digest of new, waitlisted, and aging tickets.</p>

@@ -8,6 +8,8 @@ final class GrandyStashRepository {
     // Settings keys
     private const REQUEST_ASSIGNEE_SETTING  = 'grandys_stash_default_request_assignee_user_id';
     private const DONATION_ASSIGNEE_SETTING = 'grandys_stash_default_donation_assignee_user_id';
+    private const LEGACY_IMPORT_URL_SETTING = 'grandys_stash_legacy_import_url';
+    private const LEGACY_IMPORT_SECRET_SETTING = 'grandys_stash_legacy_import_secret';
     private const PUBLIC_EMAIL_DOMAINS = [
         'gmail.com',
         'googlemail.com',
@@ -15,6 +17,8 @@ final class GrandyStashRepository {
         'outlook.com',
         'hotmail.com',
         'live.com',
+        'ymail.com',
+        'rocketmail.com',
         'icloud.com',
         'me.com',
         'aol.com',
@@ -22,6 +26,10 @@ final class GrandyStashRepository {
         'comcast.net',
         'att.net',
         'sbcglobal.net',
+        'verizon.net',
+        'mail.com',
+        'gmx.com',
+        'pm.me',
         'proton.me',
         'protonmail.com',
     ];
@@ -165,6 +173,408 @@ final class GrandyStashRepository {
         }
         $timestamp = strtotime( $value );
         return $timestamp ? \gmdate( 'Y-m-d H:i:s', $timestamp ) : null;
+    }
+
+    private static function maybeDecodeStructuredValue( mixed $value ): array {
+        if ( is_array( $value ) ) {
+            return $value;
+        }
+
+        if ( ! is_string( $value ) || $value === '' ) {
+            return [];
+        }
+
+        $decoded = json_decode( $value, true );
+        if ( is_array( $decoded ) ) {
+            return $decoded;
+        }
+
+        $unserialized = @unserialize( $value );
+        return is_array( $unserialized ) ? $unserialized : [];
+    }
+
+    private static function normalizeLegacyGravityFormsLabel( string $label ): string {
+        return trim( strtolower( preg_replace( '/\s+/', ' ', $label ) ?? $label ) );
+    }
+
+    private static function splitFullName( string $name ): array {
+        $name = trim( preg_replace( '/\s+/', ' ', $name ) ?? $name );
+        if ( $name === '' ) {
+            return [ '', '' ];
+        }
+
+        $parts = preg_split( '/\s+/', $name ) ?: [];
+        if ( count( $parts ) < 2 ) {
+            return [ $name, '' ];
+        }
+
+        $last_name = (string) array_pop( $parts );
+        $first_name = trim( implode( ' ', $parts ) );
+
+        return [ $first_name, $last_name ];
+    }
+
+    private static function mapLegacyTicketStatus( string $value ): string {
+        $normalized = self::normalizeLegacyGravityFormsLabel( $value );
+        if ( $normalized === '' ) {
+            return 'NEW';
+        }
+
+        if ( str_contains( $normalized, 'complete' ) ) {
+            return 'COMPLETED';
+        }
+        if ( str_contains( $normalized, 'ready' ) ) {
+            return 'READY';
+        }
+        if ( str_contains( $normalized, 'wait' ) ) {
+            return 'WAITLIST';
+        }
+        if ( str_contains( $normalized, 'review' ) ) {
+            return 'REVIEWING';
+        }
+        if ( str_contains( $normalized, 'clos' ) ) {
+            return 'CLOSED';
+        }
+
+        return 'NEW';
+    }
+
+    private static function normalizeLegacyOrganizationName( string $value ): string {
+        $value = trim( \metis_text_clean( $value ) );
+        if ( $value === '' ) {
+            return '';
+        }
+
+        $normalized = self::normalizeLegacyGravityFormsLabel( $value );
+        if ( in_array( $normalized, [ 'self', 'independent', 'none', 'n/a', 'na' ], true ) ) {
+            return '';
+        }
+
+        return $value;
+    }
+
+    private static function detectLegacyGravityFormsTables(): array {
+        $required = [ 'gf_entry', 'gf_entry_meta', 'gf_form_meta' ];
+        $tables = [];
+
+        foreach ( $required as $suffix ) {
+            $matches = self::db()->column( 'SHOW TABLES LIKE %s', [ '%' . $suffix ] );
+            $matches = array_values(
+                array_filter(
+                    array_map( 'strval', is_array( $matches ) ? $matches : [] ),
+                    static fn ( string $table ): bool => preg_match( '/(?:^|_)' . preg_quote( $suffix, '/' ) . '$/', $table ) === 1
+                )
+            );
+
+            if ( $matches === [] ) {
+                return [];
+            }
+
+            usort( $matches, static fn ( string $a, string $b ): int => strlen( $a ) <=> strlen( $b ) );
+            $tables[ $suffix ] = $matches[0];
+        }
+
+        return $tables;
+    }
+
+    private static function legacyGravityFormsFormMeta( string $form_meta_table, int $form_id ): array {
+        $row = self::db()->fetchOne(
+            "SELECT display_meta FROM {$form_meta_table} WHERE form_id = %d LIMIT 1",
+            [ $form_id ]
+        );
+
+        return self::maybeDecodeStructuredValue( $row['display_meta'] ?? null );
+    }
+
+    private static function legacyGravityFormsParentFieldMap( array $form_meta ): array {
+        $map = [
+            'status' => '',
+            'flow' => '',
+            'name' => [],
+            'phone' => '',
+            'email' => '',
+            'organization' => '',
+            'location' => '',
+            'best_time' => '',
+            'donation_nested' => [],
+            'request_nested' => [],
+        ];
+        $nested_candidates = [];
+
+        foreach ( (array) ( $form_meta['fields'] ?? [] ) as $field ) {
+            if ( ! is_array( $field ) ) {
+                continue;
+            }
+
+            $signals = array_values(
+                array_filter(
+                    array_unique(
+                        array_map(
+                            fn ( mixed $value ): string => self::normalizeLegacyGravityFormsLabel( (string) $value ),
+                            [
+                                $field['label'] ?? '',
+                                $field['adminLabel'] ?? '',
+                                $field['inputName'] ?? '',
+                                $field['placeholder'] ?? '',
+                                $field['description'] ?? '',
+                            ]
+                        )
+                    ),
+                    static fn ( string $value ): bool => $value !== ''
+                )
+            );
+            $label = (string) ( $signals[0] ?? '' );
+            $field_id = (string) ( $field['id'] ?? '' );
+            $field_type = \metis_key_clean( (string) ( $field['type'] ?? '' ) );
+            $is_nested = isset( $field['gpnfForm'] ) || str_contains( $field_type, 'nested' ) || str_contains( $field_type, 'form' );
+            if ( $field_id === '' ) {
+                continue;
+            }
+
+            $contains = static function ( array $haystack, array $needles ): bool {
+                foreach ( $haystack as $signal ) {
+                    foreach ( $needles as $needle ) {
+                        if ( $needle !== '' && str_contains( $signal, $needle ) ) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+
+            if ( $label === 'status' || $contains( $signals, [ 'status' ] ) ) {
+                $map['status'] = $field_id;
+            } elseif ( $contains( $signals, [ 'donate or request', 'donation or request', 'donate', 'request supplies', 'request equipment' ] ) ) {
+                $map['flow'] = $field_id;
+            } elseif ( $field_type === 'name' || $label === 'name' ) {
+                $map['name'] = $field;
+            } elseif ( $field_type === 'phone' || $contains( $signals, [ 'phone', 'telephone', 'mobile', 'cell' ] ) ) {
+                $map['phone'] = $field_id;
+            } elseif ( $field_type === 'email' || $contains( $signals, [ 'email', 'e-mail' ] ) ) {
+                $map['email'] = $field_id;
+            } elseif ( $contains( $signals, [ 'agency associated with', 'organization', 'organisation', 'agency', 'facility', 'company' ] ) ) {
+                $map['organization'] = $field_id;
+            } elseif ( $contains( $signals, [ 'location', 'address', 'pickup address', 'delivery address' ] ) ) {
+                $map['location'] = $field_id;
+            } elseif ( $contains( $signals, [ 'best time to contact', 'best time', 'contact time', 'best time to reach' ] ) ) {
+                $map['best_time'] = $field_id;
+            } elseif ( $is_nested && $contains( $signals, [ 'donate', 'donation', 'offer' ] ) ) {
+                $map['donation_nested'] = $field;
+            } elseif ( $is_nested && $contains( $signals, [ 'request', 'requested', 'need', 'needed' ] ) ) {
+                $map['request_nested'] = $field;
+            } elseif ( $is_nested ) {
+                $nested_candidates[] = $field;
+            }
+        }
+
+        if ( $map['request_nested'] === [] && $nested_candidates !== [] ) {
+            $map['request_nested'] = $nested_candidates[0];
+        }
+        if ( $map['donation_nested'] === [] ) {
+            if ( count( $nested_candidates ) > 1 ) {
+                $map['donation_nested'] = $nested_candidates[1];
+            } elseif ( $nested_candidates !== [] && $map['request_nested'] === [] ) {
+                $map['donation_nested'] = $nested_candidates[0];
+            }
+        }
+
+        return $map;
+    }
+
+    private static function legacyGravityFormsChildFieldMap( array $form_meta ): array {
+        $map = [
+            'item' => '',
+            'quantity' => '',
+            'condition' => '',
+        ];
+        $fallback_item_field = '';
+
+        foreach ( (array) ( $form_meta['fields'] ?? [] ) as $field ) {
+            if ( ! is_array( $field ) ) {
+                continue;
+            }
+
+            $signals = array_values(
+                array_filter(
+                    array_unique(
+                        array_map(
+                            fn ( mixed $value ): string => self::normalizeLegacyGravityFormsLabel( (string) $value ),
+                            [
+                                $field['label'] ?? '',
+                                $field['adminLabel'] ?? '',
+                                $field['inputName'] ?? '',
+                                $field['placeholder'] ?? '',
+                                $field['description'] ?? '',
+                            ]
+                        )
+                    ),
+                    static fn ( string $value ): bool => $value !== ''
+                )
+            );
+            $label = (string) ( $signals[0] ?? '' );
+            $field_id = (string) ( $field['id'] ?? '' );
+            $field_type = \metis_key_clean( (string) ( $field['type'] ?? '' ) );
+            if ( $field_id === '' ) {
+                continue;
+            }
+
+            $contains = static function ( array $haystack, array $needles ): bool {
+                foreach ( $haystack as $signal ) {
+                    foreach ( $needles as $needle ) {
+                        if ( $needle !== '' && str_contains( $signal, $needle ) ) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+
+            if ( $contains( $signals, [ 'how many', 'quantity', 'qty', 'count', 'number needed', 'number requested' ] ) ) {
+                $map['quantity'] = $field_id;
+                continue;
+            }
+
+            if ( $contains( $signals, [ 'condition', 'quality', 'state of item' ] ) ) {
+                $map['condition'] = $field_id;
+                continue;
+            }
+
+            if ( $contains( $signals, [ 'item requested', 'item to donate', 'item needed', 'equipment', 'supply', 'supplies', 'dme', 'item', 'device', 'product', 'requested' ] ) ) {
+                $map['item'] = $field_id;
+                continue;
+            }
+
+            if (
+                $fallback_item_field === ''
+                && ! in_array( $field_type, [ 'hidden', 'html', 'section', 'page', 'captcha' ], true )
+                && ! $contains( $signals, [ 'name', 'email', 'phone', 'address' ] )
+            ) {
+                $fallback_item_field = $field_id;
+            }
+        }
+
+        if ( $map['item'] === '' ) {
+            $map['item'] = $fallback_item_field;
+        }
+
+        return $map;
+    }
+
+    private static function legacyGravityFormsEntryValue( array $meta_index, string $field_id ): string {
+        if ( $field_id === '' ) {
+            return '';
+        }
+
+        return trim( (string) ( $meta_index[ $field_id ] ?? '' ) );
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private static function legacyGravityFormsExtractEntryIds( mixed $value ): array {
+        $ids = [];
+
+        $collect = static function ( mixed $candidate ) use ( &$ids, &$collect ): void {
+            if ( is_array( $candidate ) ) {
+                foreach ( $candidate as $nested ) {
+                    $collect( $nested );
+                }
+                return;
+            }
+
+            if ( is_string( $candidate ) ) {
+                $candidate = trim( $candidate );
+                if ( $candidate === '' ) {
+                    return;
+                }
+
+                $decoded = json_decode( $candidate, true );
+                if ( is_array( $decoded ) ) {
+                    $collect( $decoded );
+                    return;
+                }
+
+                $unserialized = @unserialize( $candidate );
+                if ( is_array( $unserialized ) ) {
+                    $collect( $unserialized );
+                    return;
+                }
+
+                if ( preg_match_all( '/\d+/', $candidate, $matches ) ) {
+                    foreach ( (array) ( $matches[0] ?? [] ) as $match ) {
+                        $id = (int) $match;
+                        if ( $id > 0 ) {
+                            $ids[] = $id;
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            $id = (int) $candidate;
+            if ( $id > 0 ) {
+                $ids[] = $id;
+            }
+        };
+
+        $collect( $value );
+
+        return array_values( array_unique( array_filter( $ids, static fn ( int $id ): bool => $id > 0 ) ) );
+    }
+
+    private static function importLegacyTicketItemsIfMissing( int $ticket_id, string $type, array $item_rows, string $detail ): bool {
+        if ( $ticket_id < 1 || $item_rows === [] ) {
+            return false;
+        }
+
+        $existing_items = self::getTicketItems( $ticket_id );
+        if ( $existing_items !== [] ) {
+            return false;
+        }
+
+        self::createTicketItemsFromPayload( $ticket_id, $type, [ 'items' => $item_rows ] );
+        self::logActivity( $ticket_id, 'items_imported', $detail, null );
+
+        return true;
+    }
+
+    private static function legacyGravityFormsNameParts( array $meta_index, array $name_field ): array {
+        $full_name = '';
+        $first_name = '';
+        $last_name = '';
+
+        foreach ( (array) ( $name_field['inputs'] ?? [] ) as $input ) {
+            if ( ! is_array( $input ) ) {
+                continue;
+            }
+
+            $input_id = (string) ( $input['id'] ?? '' );
+            $value = self::legacyGravityFormsEntryValue( $meta_index, $input_id );
+            if ( $value === '' ) {
+                continue;
+            }
+
+            $input_label = self::normalizeLegacyGravityFormsLabel( (string) ( $input['label'] ?? '' ) );
+            if ( $input_label === 'first' ) {
+                $first_name = $value;
+            } elseif ( $input_label === 'last' ) {
+                $last_name = $value;
+            }
+        }
+
+        if ( $first_name === '' && $last_name === '' ) {
+            $full_name = self::legacyGravityFormsEntryValue( $meta_index, (string) ( $name_field['id'] ?? '' ) );
+            [ $first_name, $last_name ] = self::splitFullName( $full_name );
+        } else {
+            $full_name = trim( $first_name . ' ' . $last_name );
+        }
+
+        return [
+            'full' => $full_name,
+            'first' => $first_name,
+            'last' => $last_name,
+        ];
     }
 
     private static function decodeAssoc( mixed $json ): array {
@@ -902,6 +1312,98 @@ final class GrandyStashRepository {
         return [ 'ok' => true ];
     }
 
+    public static function linkTicketToOrganization( int $ticket_id, int $organization_id ): array {
+        $db = self::db();
+        $ticket = self::getTicket( $ticket_id );
+        if ( ! $ticket ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Ticket not found.' ];
+        }
+
+        $organization = $db->fetchOne(
+            "SELECT id, code, name, domain FROM " . \Metis_Tables::get( 'grandys_stash_organizations' ) . " WHERE id = %d LIMIT 1",
+            [ $organization_id ]
+        );
+        if ( ! is_array( $organization ) ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Organization not found.' ];
+        }
+
+        $db->update(
+            \Metis_Tables::get( 'grandys_stash_tickets' ),
+            [
+                'organization_id' => $organization_id,
+                'organization_name' => (string) ( $organization['name'] ?? '' ) !== '' ? (string) $organization['name'] : null,
+            ],
+            [ 'id' => $ticket_id ]
+        );
+        self::logActivity(
+            $ticket_id,
+            'organization_linked',
+            'Linked to organization ' . (string) ( $organization['code'] ?? '#' . $organization_id ) . '.'
+        );
+
+        return [ 'ok' => true, 'ticket_id' => $ticket_id ];
+    }
+
+    public static function linkTicketToOrganizationByCode( string $ticket_code, int $organization_id ): array {
+        $ticket = self::findTicketByCode( $ticket_code );
+        if ( ! $ticket ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Ticket not found.' ];
+        }
+
+        return self::linkTicketToOrganization( (int) ( $ticket['id'] ?? 0 ), $organization_id );
+    }
+
+    public static function mergeOrganizations( int $source_id, int $target_id ): array {
+        if ( $source_id < 1 || $target_id < 1 || $source_id === $target_id ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Valid source and target organizations are required.' ];
+        }
+
+        $db = self::db();
+        $orgs_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $source = $db->fetchOne( "SELECT id, code FROM {$orgs_table} WHERE id = %d LIMIT 1", [ $source_id ] );
+        $target = $db->fetchOne( "SELECT id, code, name FROM {$orgs_table} WHERE id = %d LIMIT 1", [ $target_id ] );
+        if ( ! is_array( $source ) || ! is_array( $target ) ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Organization not found.' ];
+        }
+
+        $ticket_ids = $db->fetchAll( "SELECT id FROM {$tickets_table} WHERE organization_id = %d", [ $source_id ] ) ?: [];
+        $db->update(
+            $tickets_table,
+            [
+                'organization_id' => $target_id,
+                'organization_name' => (string) ( $target['name'] ?? '' ) !== '' ? (string) $target['name'] : null,
+            ],
+            [ 'organization_id' => $source_id ]
+        );
+
+        foreach ( $ticket_ids as $row ) {
+            $ticket_id = (int) ( $row['id'] ?? 0 );
+            if ( $ticket_id > 0 ) {
+                self::logActivity( $ticket_id, 'organization_merged', 'Merged from organization ' . (string) $source['code'] . ' into ' . (string) $target['code'] . '.' );
+            }
+        }
+
+        return [ 'ok' => true ];
+    }
+
+    public static function mergeOrganizationsByCode( string $source_code, int $target_id ): array {
+        $source_code = strtoupper( trim( \metis_text_clean( $source_code ) ) );
+        if ( $source_code === '' || $target_id < 1 ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Source organization code and target organization are required.' ];
+        }
+
+        $source = self::db()->fetchOne(
+            "SELECT id FROM " . \Metis_Tables::get( 'grandys_stash_organizations' ) . " WHERE code = %s LIMIT 1",
+            [ $source_code ]
+        );
+        if ( ! is_array( $source ) ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Source organization not found.' ];
+        }
+
+        return self::mergeOrganizations( (int) ( $source['id'] ?? 0 ), $target_id );
+    }
+
     // ─── Activity logging ────────────────────────────────
 
     public static function logActivity( int $ticket_id, string $action, ?string $detail = null, ?int $user_id = null ): void {
@@ -1443,6 +1945,41 @@ final class GrandyStashRepository {
         ];
     }
 
+    public static function legacyImportSettings(): array {
+        return [
+            'endpoint_url' => trim( (string) \Core_Settings_Service::get( self::LEGACY_IMPORT_URL_SETTING, '' ) ),
+            'secret_configured' => trim( \Metis\Core\Services\CredentialService::getBySetting( self::LEGACY_IMPORT_SECRET_SETTING ) ) !== '',
+        ];
+    }
+
+    public static function saveLegacyImportSettings( array $payload ): array {
+        $endpoint_url = trim( (string) ( $payload['endpoint_url'] ?? '' ) );
+        $endpoint_url = $endpoint_url !== '' ? filter_var( $endpoint_url, FILTER_VALIDATE_URL ) : '';
+        $secret = trim( (string) ( $payload['secret'] ?? '' ) );
+
+        if ( $endpoint_url === false ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Legacy import endpoint URL is invalid.' ];
+        }
+
+        \Core_Settings_Service::set( self::LEGACY_IMPORT_URL_SETTING, (string) $endpoint_url, false );
+
+        if ( $secret !== '' ) {
+            $existing_id = trim( (string) \Core_Settings_Service::get( self::LEGACY_IMPORT_SECRET_SETTING . '_credential_id', '' ) );
+            $credential_id = \Metis\Core\Services\CredentialService::storeCredential(
+                'grandys_stash_legacy_import_secret',
+                "Grandy's Stash Legacy Import Secret",
+                $secret,
+                $existing_id
+            );
+            if ( $credential_id === '' ) {
+                return [ 'ok' => false, 'status' => 500, 'error' => 'Unable to store legacy import secret.' ];
+            }
+            \Core_Settings_Service::set( self::LEGACY_IMPORT_SECRET_SETTING . '_credential_id', $credential_id, false );
+        }
+
+        return [ 'ok' => true, 'legacy_import_settings' => self::legacyImportSettings() ];
+    }
+
     public static function saveRoutingDefaults( array $payload ): array {
         $request_assignee  = self::normalizeAssigneeUserId( $payload['request_assignee_user_id'] ?? 0 );
         $donation_assignee = self::normalizeAssigneeUserId( $payload['donation_assignee_user_id'] ?? 0 );
@@ -1737,6 +2274,51 @@ final class GrandyStashRepository {
         $db->delete( \Metis_Tables::get( 'grandys_stash_tickets' ), [ 'id' => $ticket_id ] );
 
         return [ 'ok' => true, 'deleted_code' => (string) ( $ticket['code'] ?? '' ) ];
+    }
+
+    public static function wipeLegacyImportedTickets(): array {
+        $db = self::db();
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $items_table = \Metis_Tables::get( 'grandys_stash_ticket_items' );
+        $notes_table = \Metis_Tables::get( 'grandys_stash_notes' );
+        $activity_table = \Metis_Tables::get( 'grandys_stash_activity' );
+        $messages_table = \Metis_Tables::get( 'grandys_stash_messages' );
+
+        $tickets = $db->fetchAll(
+            "SELECT id
+             FROM {$tickets_table}
+             WHERE source IN (%s, %s)",
+            [ 'legacy_gravity_forms', 'legacy_gravity_forms_remote' ]
+        ) ?: [];
+
+        if ( $tickets === [] ) {
+            return [ 'ok' => true, 'deleted' => 0, 'pruned_groups' => 0, 'pruned_organizations' => 0 ];
+        }
+
+        $ticket_ids = array_values(
+            array_filter(
+                array_map( static fn ( array $row ): int => (int) ( $row['id'] ?? 0 ), $tickets ),
+                static fn ( int $id ): bool => $id > 0
+            )
+        );
+
+        if ( $ticket_ids === [] ) {
+            return [ 'ok' => true, 'deleted' => 0, 'pruned_groups' => 0, 'pruned_organizations' => 0 ];
+        }
+
+        $placeholders = implode( ', ', array_fill( 0, count( $ticket_ids ), '%d' ) );
+        $db->executePrepared( "DELETE FROM {$items_table} WHERE ticket_id IN ({$placeholders})", $ticket_ids );
+        $db->executePrepared( "DELETE FROM {$notes_table} WHERE ticket_id IN ({$placeholders})", $ticket_ids );
+        $db->executePrepared( "DELETE FROM {$activity_table} WHERE ticket_id IN ({$placeholders})", $ticket_ids );
+        $db->executePrepared( "DELETE FROM {$messages_table} WHERE ticket_id IN ({$placeholders})", $ticket_ids );
+        $db->executePrepared( "DELETE FROM {$tickets_table} WHERE id IN ({$placeholders})", $ticket_ids );
+
+        return [
+            'ok' => true,
+            'deleted' => count( $ticket_ids ),
+            'pruned_groups' => 0,
+            'pruned_organizations' => 0,
+        ];
     }
 
     public static function saveOrganization( array $payload ): array {
@@ -2243,6 +2825,631 @@ final class GrandyStashRepository {
         return [ 'ok' => true, 'ticket_id' => $ticket_id ];
     }
 
+    private static function importLegacyGravityFormsFromRemote( array $options ): array {
+        $endpoint_url = trim( (string) \Core_Settings_Service::get( self::LEGACY_IMPORT_URL_SETTING, '' ) );
+        $shared_secret = trim( \Metis\Core\Services\CredentialService::getBySetting( self::LEGACY_IMPORT_SECRET_SETTING ) );
+        if ( $endpoint_url === '' || $shared_secret === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'error' => 'Remote legacy import endpoint is not configured.' ];
+        }
+
+        $form_id = max( 1, (int) ( $options['form_id'] ?? 17 ) );
+        $limit = max( 1, min( 1000, (int) ( $options['limit'] ?? 500 ) ) );
+        $client = new \Metis\Core\Services\HttpClient();
+        $response = $client->postJson(
+            $endpoint_url,
+            [
+                'form_id' => $form_id,
+                'limit' => $limit,
+            ],
+            [
+                'Authorization' => 'Bearer ' . $shared_secret,
+                'X-Metis-Legacy-Import' => 'grandys-stash',
+            ],
+            [
+                'timeout' => 60,
+                'connect_timeout' => 10,
+            ]
+        );
+
+        if ( (int) ( $response['status'] ?? 0 ) < 200 || (int) ( $response['status'] ?? 0 ) >= 300 ) {
+            return [
+                'ok' => false,
+                'status' => 502,
+                'error' => 'Legacy endpoint returned HTTP ' . (int) ( $response['status'] ?? 0 ) . '.',
+            ];
+        }
+
+        $json = (array) ( $response['json'] ?? [] );
+        if ( ! empty( $json['success'] ) && is_array( $json['data'] ?? null ) ) {
+            $json = (array) $json['data'];
+        }
+
+        if ( ! empty( $json['ok'] ) && is_array( $json['entries'] ?? null ) ) {
+            return self::importLegacyGravityFormsFromRemoteDataset( $json, $form_id );
+        }
+
+        return [ 'ok' => false, 'status' => 502, 'error' => 'Legacy endpoint returned an invalid payload.' ];
+    }
+
+    private static function importLegacyGravityFormsFromRemoteDataset( array $dataset, int $form_id ): array {
+        self::ensureModuleReady();
+
+        $db = self::db();
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $entries = array_values( array_filter( (array) ( $dataset['entries'] ?? [] ), 'is_array' ) );
+        if ( $entries === [] ) {
+            return [
+                'ok' => true,
+                'imported' => 0,
+                'skipped' => 0,
+                'errors' => [],
+                'summary' => 'No legacy entries were returned by the remote endpoint.',
+            ];
+        }
+
+        $parent_ids = array_values(
+            array_filter(
+                array_map( static fn ( array $entry ): int => (int) ( $entry['parent_entry_id'] ?? 0 ), $entries ),
+                static fn ( int $value ): bool => $value > 0
+            )
+        );
+        $existing_submission_ids = [];
+        if ( $parent_ids !== [] ) {
+            $placeholders = implode( ', ', array_fill( 0, count( $parent_ids ), '%d' ) );
+            $existing_rows = $db->fetchAll(
+                "SELECT form_submission_id
+                 FROM {$tickets_table}
+                 WHERE form_submission_id IN ({$placeholders})",
+                $parent_ids
+            ) ?: [];
+            $existing_submission_ids = array_fill_keys(
+                array_map( static fn ( array $row ): int => (int) ( $row['form_submission_id'] ?? 0 ), $existing_rows ),
+                true
+            );
+        }
+
+        $results = [
+            'ok' => true,
+            'imported' => 0,
+            'skipped' => 0,
+            'errors' => [],
+            'missing_items' => 0,
+        ];
+
+        foreach ( $entries as $entry ) {
+            $parent_entry_id = (int) ( $entry['parent_entry_id'] ?? 0 );
+            if ( $parent_entry_id < 1 ) {
+                continue;
+            }
+
+            $type = (string) ( $entry['type'] ?? '' ) === 'donation' ? 'donation' : 'request';
+            $status = self::mapLegacyTicketStatus( (string) ( $entry['legacy_status'] ?? $entry['status'] ?? '' ) );
+            $full_name = trim( \metis_text_clean( (string) ( $entry['name'] ?? '' ) ) );
+            $first_name = trim( \metis_text_clean( (string) ( $entry['first_name'] ?? '' ) ) );
+            $last_name = trim( \metis_text_clean( (string) ( $entry['last_name'] ?? '' ) ) );
+            $email = strtolower( trim( \metis_email_clean( (string) ( $entry['email'] ?? '' ) ) ) );
+            $phone = trim( \metis_text_clean( (string) ( $entry['phone'] ?? '' ) ) );
+            $organization_name = self::normalizeLegacyOrganizationName( (string) ( $entry['organization_name'] ?? '' ) );
+            $submit_address = self::nullableTextArea( (string) ( $entry['location'] ?? '' ) );
+            $best_time = trim( \metis_text_clean( (string) ( $entry['best_time'] ?? '' ) ) );
+            $organization_domain = self::domainFromEmail( $email );
+            $submitted_at = self::normalizeDatetime( (string) ( $entry['submitted_at'] ?? '' ) ) ?? \metis_current_time( 'mysql' );
+            $updated_at = self::normalizeDatetime( (string) ( $entry['updated_at'] ?? '' ) ) ?? $submitted_at;
+            $closed_at = in_array( $status, [ 'COMPLETED', 'CLOSED' ], true ) ? $updated_at : null;
+
+            if ( $full_name === '' && ( $first_name !== '' || $last_name !== '' ) ) {
+                $full_name = trim( $first_name . ' ' . $last_name );
+            }
+            if ( $full_name === '' && $email === '' ) {
+                $results['errors'][] = 'Entry #' . $parent_entry_id . ' skipped because it has no name or email.';
+                continue;
+            }
+
+            $item_rows = [];
+            foreach ( (array) ( $entry['items'] ?? [] ) as $item ) {
+                if ( ! is_array( $item ) ) {
+                    continue;
+                }
+                $item_name = trim(
+                    \metis_text_clean(
+                        (string) (
+                            $item['item_name']
+                            ?? $item['item']
+                            ?? $item['name']
+                            ?? $item['equipment']
+                            ?? ''
+                        )
+                    )
+                );
+                if ( $item_name === '' ) {
+                    continue;
+                }
+                $item_rows[] = [
+                    'item_name' => $item_name,
+                    'quantity' => max( 1, (int) ( $item['quantity'] ?? 1 ) ),
+                    'condition' => trim( \metis_text_clean( (string) ( $item['condition'] ?? $item['condition_status'] ?? '' ) ) ),
+                ];
+            }
+            if ( $item_rows === [] ) {
+                $results['missing_items']++;
+            }
+
+            if ( isset( $existing_submission_ids[ $parent_entry_id ] ) ) {
+                $existing_ticket_id = (int) $db->scalar(
+                    "SELECT id FROM {$tickets_table} WHERE form_submission_id = %d LIMIT 1",
+                    [ $parent_entry_id ]
+                );
+                self::importLegacyTicketItemsIfMissing(
+                    $existing_ticket_id,
+                    $type,
+                    $item_rows,
+                    'Backfilled item rows from remote legacy Gravity Forms entry #' . $parent_entry_id . '.'
+                );
+                $results['skipped']++;
+                continue;
+            }
+
+            $notes = array_values(
+                array_filter(
+                    [
+                        $best_time !== '' ? 'Best time to contact: ' . $best_time : '',
+                        'Legacy Gravity Forms entry #' . $parent_entry_id,
+                        trim( (string) ( $entry['legacy_status'] ?? '' ) ) !== '' ? 'Legacy status: ' . trim( (string) ( $entry['legacy_status'] ?? '' ) ) : '',
+                    ],
+                    static fn ( string $line ): bool => trim( $line ) !== ''
+                )
+            );
+
+            $contact_cid = self::upsertContactFromPayload(
+                [
+                    'first_name' => $first_name,
+                    'last_name' => $last_name,
+                    'email' => $email,
+                    'phone' => $phone,
+                ],
+                ''
+            );
+
+            $group_id = self::findOrCreateGroup(
+                $full_name !== '' ? $full_name : $email,
+                $email,
+                $phone,
+                $contact_cid
+            );
+            $organization_id = self::findOrCreateOrganization( $organization_name, $organization_domain );
+            $assignee_id = self::defaultAssigneeUserId( $type );
+
+            $db->insert( $tickets_table, [
+                'code' => self::generateCode( 'GST', $tickets_table, 'code' ),
+                'group_id' => $group_id > 0 ? $group_id : null,
+                'type' => $type,
+                'status' => $status,
+                'assigned_to' => $assignee_id > 0 ? $assignee_id : null,
+                'assigned_name' => self::resolveAssigneeName( $assignee_id ),
+                'source' => 'legacy_gravity_forms_remote',
+                'urgency' => 'standard',
+                'submit_name' => $full_name !== '' ? $full_name : ( $email !== '' ? $email : 'Unknown' ),
+                'submit_email' => $email !== '' ? $email : null,
+                'submit_phone' => $phone !== '' ? $phone : null,
+                'organization_id' => $organization_id > 0 ? $organization_id : null,
+                'organization_name' => $organization_name !== '' ? $organization_name : null,
+                'submit_address' => $submit_address,
+                'submit_notes' => self::nullableTextArea( implode( "\n", $notes ) ),
+                'form_id' => $form_id,
+                'form_submission_id' => $parent_entry_id,
+                'submitted_at' => $submitted_at,
+                'updated_at' => $updated_at,
+                'closed_at' => $closed_at,
+            ] );
+
+            $ticket_id = $db->lastInsertId();
+            self::createTicketItemsFromPayload( $ticket_id, $type, [ 'items' => $item_rows ] );
+            self::logActivity( $ticket_id, 'imported', 'Imported from remote legacy Gravity Forms entry #' . $parent_entry_id . '.', null );
+            if ( $group_id > 0 ) {
+                self::logActivity( $ticket_id, 'grouped', 'Auto-grouped during remote legacy import.', null );
+            }
+
+            $results['imported']++;
+        }
+
+        $results['summary'] = sprintf(
+            'Imported %d ticket(s); skipped %d already-imported ticket(s); %d entr%s returned no item rows.',
+            (int) $results['imported'],
+            (int) $results['skipped'],
+            (int) $results['missing_items'],
+            (int) $results['missing_items'] === 1 ? 'y' : 'ies'
+        );
+
+        return $results;
+    }
+
+    public static function importLegacyGravityForms( array $options ): array {
+        $endpoint_url = trim( (string) \Core_Settings_Service::get( self::LEGACY_IMPORT_URL_SETTING, '' ) );
+        if ( $endpoint_url !== '' ) {
+            return self::importLegacyGravityFormsFromRemote( $options );
+        }
+
+        self::ensureModuleReady();
+
+        $form_id = max( 1, (int) ( $options['form_id'] ?? 17 ) );
+        $limit = max( 1, min( 1000, (int) ( $options['limit'] ?? 500 ) ) );
+        $db = self::db();
+        $tables = self::detectLegacyGravityFormsTables();
+
+        if ( $tables === [] ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Legacy Gravity Forms tables were not found in this database.' ];
+        }
+
+        $parent_form_meta = self::legacyGravityFormsFormMeta( $tables['gf_form_meta'], $form_id );
+        if ( $parent_form_meta === [] ) {
+            return [ 'ok' => false, 'status' => 404, 'error' => 'Legacy Gravity Forms form metadata could not be loaded.' ];
+        }
+
+        $parent_map = self::legacyGravityFormsParentFieldMap( $parent_form_meta );
+        $donation_nested_field_id = (int) ( $parent_map['donation_nested']['id'] ?? 0 );
+        $request_nested_field_id  = (int) ( $parent_map['request_nested']['id'] ?? 0 );
+        $donation_child_form_id   = (int) ( $parent_map['donation_nested']['gpnfForm'] ?? 0 );
+        $request_child_form_id    = (int) ( $parent_map['request_nested']['gpnfForm'] ?? 0 );
+
+        $parent_entries = $db->fetchAll(
+            "SELECT id, form_id, date_created, date_updated, status
+             FROM {$tables['gf_entry']}
+             WHERE form_id = %d
+               AND status = %s
+             ORDER BY id ASC
+             LIMIT %d",
+            [ $form_id, 'active', $limit ]
+        ) ?: [];
+
+        if ( $parent_entries === [] ) {
+            return [
+                'ok' => true,
+                'imported' => 0,
+                'skipped' => 0,
+                'errors' => [],
+                'summary' => 'No active legacy entries were found for the selected form.',
+            ];
+        }
+
+        $parent_ids = array_map( static fn ( array $row ): int => (int) ( $row['id'] ?? 0 ), $parent_entries );
+        $parent_placeholders = implode( ', ', array_fill( 0, count( $parent_ids ), '%d' ) );
+
+        $parent_meta_rows = $db->fetchAll(
+            "SELECT entry_id, meta_key, meta_value
+             FROM {$tables['gf_entry_meta']}
+             WHERE entry_id IN ({$parent_placeholders})",
+            $parent_ids
+        ) ?: [];
+
+        $parent_meta_index = [];
+        foreach ( $parent_meta_rows as $row ) {
+            $entry_id = (int) ( $row['entry_id'] ?? 0 );
+            $meta_key = trim( (string) ( $row['meta_key'] ?? '' ) );
+            if ( $entry_id < 1 || $meta_key === '' ) {
+                continue;
+            }
+            $parent_meta_index[ $entry_id ][ $meta_key ] = (string) ( $row['meta_value'] ?? '' );
+        }
+
+        $child_form_ids = array_values(
+            array_filter(
+                array_unique( [ $donation_child_form_id, $request_child_form_id ] ),
+                static fn ( int $value ): bool => $value > 0
+            )
+        );
+
+        $child_field_maps = [];
+        foreach ( $child_form_ids as $child_form_id ) {
+            $child_field_maps[ $child_form_id ] = self::legacyGravityFormsChildFieldMap(
+                self::legacyGravityFormsFormMeta( $tables['gf_form_meta'], $child_form_id )
+            );
+        }
+
+        $child_links_by_parent = [];
+        $child_meta_index = [];
+        if ( $child_form_ids !== [] ) {
+            $child_form_placeholders = implode( ', ', array_fill( 0, count( $child_form_ids ), '%d' ) );
+            $child_link_rows = $db->fetchAll(
+                "SELECT e.id,
+                        e.form_id,
+                        e.date_created,
+                        e.date_updated,
+                        parent_meta.meta_value AS parent_entry_id,
+                        nested_meta.meta_value AS nested_field_id
+                 FROM {$tables['gf_entry']} e
+                 INNER JOIN {$tables['gf_entry_meta']} parent_meta
+                    ON parent_meta.entry_id = e.id
+                   AND parent_meta.meta_key = %s
+                 INNER JOIN {$tables['gf_entry_meta']} nested_meta
+                    ON nested_meta.entry_id = e.id
+                   AND nested_meta.meta_key = %s
+                 WHERE e.form_id IN ({$child_form_placeholders})
+                   AND e.status = %s
+                   AND CAST(parent_meta.meta_value AS UNSIGNED) IN ({$parent_placeholders})
+                 ORDER BY e.id ASC",
+                array_merge(
+                    [ 'gpnf_entry_parent', 'gpnf_entry_nested_form_field' ],
+                    $child_form_ids,
+                    [ 'active' ],
+                    $parent_ids
+                )
+            ) ?: [];
+
+            $child_ids = [];
+            foreach ( $child_link_rows as $row ) {
+                $parent_entry_id = (int) ( $row['parent_entry_id'] ?? 0 );
+                $child_id = (int) ( $row['id'] ?? 0 );
+                if ( $parent_entry_id < 1 || $child_id < 1 ) {
+                    continue;
+                }
+                $child_ids[] = $child_id;
+                $child_links_by_parent[ $parent_entry_id ][] = [
+                    'id' => $child_id,
+                    'form_id' => (int) ( $row['form_id'] ?? 0 ),
+                    'nested_field_id' => (int) ( $row['nested_field_id'] ?? 0 ),
+                ];
+            }
+
+            if ( $child_ids !== [] ) {
+                $child_ids = array_values( array_unique( $child_ids ) );
+                $child_placeholders = implode( ', ', array_fill( 0, count( $child_ids ), '%d' ) );
+                $child_meta_rows = $db->fetchAll(
+                    "SELECT entry_id, meta_key, meta_value
+                     FROM {$tables['gf_entry_meta']}
+                     WHERE entry_id IN ({$child_placeholders})",
+                    $child_ids
+                ) ?: [];
+
+                foreach ( $child_meta_rows as $row ) {
+                    $entry_id = (int) ( $row['entry_id'] ?? 0 );
+                    $meta_key = trim( (string) ( $row['meta_key'] ?? '' ) );
+                    if ( $entry_id < 1 || $meta_key === '' ) {
+                        continue;
+                    }
+                    $child_meta_index[ $entry_id ][ $meta_key ] = (string) ( $row['meta_value'] ?? '' );
+                }
+            }
+        }
+
+        foreach ( $parent_entries as $entry ) {
+            $parent_entry_id = (int) ( $entry['id'] ?? 0 );
+            if ( $parent_entry_id < 1 ) {
+                continue;
+            }
+
+            $parent_meta = (array) ( $parent_meta_index[ $parent_entry_id ] ?? [] );
+            foreach (
+                [
+                    $donation_nested_field_id => $donation_child_form_id,
+                    $request_nested_field_id  => $request_child_form_id,
+                ] as $nested_field_id => $child_form_id
+            ) {
+                if ( $nested_field_id < 1 || $child_form_id < 1 ) {
+                    continue;
+                }
+
+                $child_ids = self::legacyGravityFormsExtractEntryIds( $parent_meta[ (string) $nested_field_id ] ?? null );
+                foreach ( $child_ids as $child_id ) {
+                    $already_linked = false;
+                    foreach ( (array) ( $child_links_by_parent[ $parent_entry_id ] ?? [] ) as $link ) {
+                        if ( (int) ( $link['id'] ?? 0 ) === $child_id ) {
+                            $already_linked = true;
+                            break;
+                        }
+                    }
+                    if ( $already_linked ) {
+                        continue;
+                    }
+
+                    $child_links_by_parent[ $parent_entry_id ][] = [
+                        'id' => $child_id,
+                        'form_id' => $child_form_id,
+                        'nested_field_id' => (int) $nested_field_id,
+                    ];
+                }
+            }
+        }
+
+        $linked_child_ids = [];
+        foreach ( $child_links_by_parent as $links ) {
+            foreach ( (array) $links as $link ) {
+                $child_id = (int) ( $link['id'] ?? 0 );
+                if ( $child_id > 0 ) {
+                    $linked_child_ids[] = $child_id;
+                }
+            }
+        }
+        $linked_child_ids = array_values( array_unique( $linked_child_ids ) );
+        if ( $linked_child_ids !== [] ) {
+            $missing_child_ids = array_values(
+                array_filter(
+                    $linked_child_ids,
+                    static fn ( int $child_id ): bool => ! isset( $child_meta_index[ $child_id ] )
+                )
+            );
+
+            if ( $missing_child_ids !== [] ) {
+                $child_placeholders = implode( ', ', array_fill( 0, count( $missing_child_ids ), '%d' ) );
+                $child_meta_rows = $db->fetchAll(
+                    "SELECT entry_id, meta_key, meta_value
+                     FROM {$tables['gf_entry_meta']}
+                     WHERE entry_id IN ({$child_placeholders})",
+                    $missing_child_ids
+                ) ?: [];
+
+                foreach ( $child_meta_rows as $row ) {
+                    $entry_id = (int) ( $row['entry_id'] ?? 0 );
+                    $meta_key = trim( (string) ( $row['meta_key'] ?? '' ) );
+                    if ( $entry_id < 1 || $meta_key === '' ) {
+                        continue;
+                    }
+                    $child_meta_index[ $entry_id ][ $meta_key ] = (string) ( $row['meta_value'] ?? '' );
+                }
+            }
+        }
+
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $existing_rows = $db->fetchAll(
+            "SELECT form_submission_id
+             FROM {$tickets_table}
+             WHERE form_submission_id IN ({$parent_placeholders})",
+            $parent_ids
+        ) ?: [];
+        $existing_submission_ids = array_fill_keys(
+            array_map( static fn ( array $row ): int => (int) ( $row['form_submission_id'] ?? 0 ), $existing_rows ),
+            true
+        );
+
+        $results = [
+            'ok' => true,
+            'imported' => 0,
+            'skipped' => 0,
+            'errors' => [],
+        ];
+
+        foreach ( $parent_entries as $entry ) {
+            $parent_entry_id = (int) ( $entry['id'] ?? 0 );
+            if ( $parent_entry_id < 1 ) {
+                continue;
+            }
+
+            $meta = $parent_meta_index[ $parent_entry_id ] ?? [];
+            $flow_value = self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['flow'] );
+            $type = str_contains( strtolower( $flow_value ), 'donate' ) ? 'donation' : 'request';
+            $status = self::mapLegacyTicketStatus( self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['status'] ) );
+            $name_parts = self::legacyGravityFormsNameParts( $meta, (array) $parent_map['name'] );
+            $full_name = trim( (string) ( $name_parts['full'] ?? '' ) );
+            $first_name = trim( (string) ( $name_parts['first'] ?? '' ) );
+            $last_name = trim( (string) ( $name_parts['last'] ?? '' ) );
+            $email = strtolower( trim( \metis_email_clean( self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['email'] ) ) ) );
+            $phone = trim( \metis_text_clean( self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['phone'] ) ) );
+            $organization_name = self::normalizeLegacyOrganizationName( self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['organization'] ) );
+            $submit_address = self::nullableTextArea( self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['location'] ) );
+            $best_time = self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['best_time'] );
+            $organization_domain = self::domainFromEmail( $email );
+
+            if ( $full_name === '' && $email === '' ) {
+                $results['errors'][] = 'Entry #' . $parent_entry_id . ' skipped because it has no name or email.';
+                continue;
+            }
+
+            $item_rows = [];
+            foreach ( (array) ( $child_links_by_parent[ $parent_entry_id ] ?? [] ) as $child_link ) {
+                $child_form_id = (int) ( $child_link['form_id'] ?? 0 );
+                $nested_field_id = (int) ( $child_link['nested_field_id'] ?? 0 );
+
+                if ( $type === 'donation' && $nested_field_id !== $donation_nested_field_id ) {
+                    continue;
+                }
+                if ( $type === 'request' && $nested_field_id !== $request_nested_field_id ) {
+                    continue;
+                }
+
+                $child_map = (array) ( $child_field_maps[ $child_form_id ] ?? [] );
+                $child_meta = (array) ( $child_meta_index[ (int) ( $child_link['id'] ?? 0 ) ] ?? [] );
+                $item_name = self::legacyGravityFormsEntryValue( $child_meta, (string) ( $child_map['item'] ?? '' ) );
+                if ( $item_name === '' ) {
+                    continue;
+                }
+
+                $item_rows[] = [
+                    'item_name' => $item_name,
+                    'quantity' => max( 1, (int) self::legacyGravityFormsEntryValue( $child_meta, (string) ( $child_map['quantity'] ?? '' ) ) ),
+                    'condition' => self::legacyGravityFormsEntryValue( $child_meta, (string) ( $child_map['condition'] ?? '' ) ),
+                ];
+            }
+
+            if ( isset( $existing_submission_ids[ $parent_entry_id ] ) ) {
+                $existing_ticket_id = (int) $db->scalar(
+                    "SELECT id FROM {$tickets_table} WHERE form_submission_id = %d LIMIT 1",
+                    [ $parent_entry_id ]
+                );
+                self::importLegacyTicketItemsIfMissing(
+                    $existing_ticket_id,
+                    $type,
+                    $item_rows,
+                    'Backfilled item rows from legacy Gravity Forms entry #' . $parent_entry_id . '.'
+                );
+                $results['skipped']++;
+                continue;
+            }
+
+            $notes = array_values(
+                array_filter(
+                    [
+                        $best_time !== '' ? 'Best time to contact: ' . $best_time : '',
+                        'Legacy Gravity Forms entry #' . $parent_entry_id,
+                        self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['status'] ) !== '' ? 'Legacy status: ' . self::legacyGravityFormsEntryValue( $meta, (string) $parent_map['status'] ) : '',
+                    ],
+                    static fn ( string $line ): bool => trim( $line ) !== ''
+                )
+            );
+
+            $submitted_at = self::normalizeDatetime( (string) ( $entry['date_created'] ?? '' ) ) ?? \metis_current_time( 'mysql' );
+            $updated_at = self::normalizeDatetime( (string) ( $entry['date_updated'] ?? '' ) ) ?? $submitted_at;
+            $closed_at = in_array( $status, [ 'COMPLETED', 'CLOSED' ], true ) ? $updated_at : null;
+
+            $contact_cid = self::upsertContactFromPayload(
+                [
+                    'first_name' => $first_name,
+                    'last_name' => $last_name,
+                    'email' => $email,
+                    'phone' => $phone,
+                ],
+                ''
+            );
+
+            $group_id = self::findOrCreateGroup(
+                $full_name !== '' ? $full_name : $email,
+                $email,
+                $phone,
+                $contact_cid
+            );
+            $organization_id = self::findOrCreateOrganization( $organization_name, $organization_domain );
+            $assignee_id = self::defaultAssigneeUserId( $type );
+
+            $db->insert( $tickets_table, [
+                'code' => self::generateCode( 'GST', $tickets_table, 'code' ),
+                'group_id' => $group_id > 0 ? $group_id : null,
+                'type' => $type,
+                'status' => $status,
+                'assigned_to' => $assignee_id > 0 ? $assignee_id : null,
+                'assigned_name' => self::resolveAssigneeName( $assignee_id ),
+                'source' => 'legacy_gravity_forms',
+                'urgency' => 'standard',
+                'submit_name' => $full_name !== '' ? $full_name : ( $email !== '' ? $email : 'Unknown' ),
+                'submit_email' => $email !== '' ? $email : null,
+                'submit_phone' => $phone !== '' ? $phone : null,
+                'organization_id' => $organization_id > 0 ? $organization_id : null,
+                'organization_name' => $organization_name !== '' ? $organization_name : null,
+                'submit_address' => $submit_address,
+                'submit_notes' => self::nullableTextArea( implode( "\n", $notes ) ),
+                'form_id' => $form_id,
+                'form_submission_id' => $parent_entry_id,
+                'submitted_at' => $submitted_at,
+                'updated_at' => $updated_at,
+                'closed_at' => $closed_at,
+            ] );
+
+            $ticket_id = $db->lastInsertId();
+            self::createTicketItemsFromPayload( $ticket_id, $type, [ 'items' => $item_rows ] );
+            self::logActivity( $ticket_id, 'imported', 'Imported from legacy Gravity Forms entry #' . $parent_entry_id . '.', null );
+            if ( $group_id > 0 ) {
+                self::logActivity( $ticket_id, 'grouped', 'Auto-grouped during legacy import.', null );
+            }
+
+            $results['imported']++;
+        }
+
+        $results['summary'] = sprintf(
+            'Imported %d ticket(s); skipped %d already-imported ticket(s).',
+            (int) $results['imported'],
+            (int) $results['skipped']
+        );
+
+        return $results;
+    }
+
     // ─── Dashboard data (stub — Phase 6) ─────────────────
 
     public static function dashboardData(): array {
@@ -2252,6 +3459,7 @@ final class GrandyStashRepository {
             'catalog'          => self::catalogSummary(),
             'assignees'        => self::assigneeOptions(),
             'routing_defaults' => self::routingDefaults(),
+            'legacy_import_settings' => self::legacyImportSettings(),
             'tickets'          => self::listTickets(),
             'groups'           => self::listGroupSummaries(),
             'organizations'    => self::listOrganizationSummaries(),

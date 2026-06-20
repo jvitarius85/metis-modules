@@ -97,6 +97,7 @@ $can_settings = function_exists( 'metis_grandys_stash_can_settings' ) && metis_g
                 <button type="button" class="metis-btn metis-btn-xs metis-stash-tab is-active" data-tab-target="group-general">General Info</button>
                 <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost metis-stash-tab" data-tab-target="group-tickets">Tickets</button>
             </div>
+            <div id="metis-stash-group-modal-summary" class="metis-stash-manager-modal-summary"></div>
             <div class="metis-stash-tab-panel is-active" data-tab-panel="group-general">
                 <?php if ( $can_assign ) : ?>
                 <form id="metis-stash-group-form" class="metis-stash-form" autocomplete="off">

@@ -28,16 +28,23 @@ $summary = $report['summary'] ?? [];
     </div>
 
     <?php metis_render_sidebar_layout([
-        'sidebar' => static function () { ?>
+        'sidebar' => static function () use ( $from, $to ) { ?>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Date Range</div>
-                <label style="display:grid;gap:4px;font-size:13px;color:#67798b;">From
-                    <input id="metis-stash-report-from" class="metis-input" type="date">
-                </label>
-                <label style="display:grid;gap:4px;font-size:13px;color:#67798b;margin-top:6px;">To
-                    <input id="metis-stash-report-to" class="metis-input" type="date">
-                </label>
-                <button type="button" class="metis-btn metis-btn-xs" id="metis-stash-report-run" style="margin-top:8px;">Run Report</button>
+                <form method="get" action="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>" class="metis-stash-report-filter-form">
+                    <label style="display:grid;gap:4px;font-size:13px;color:#67798b;">From
+                        <input id="metis-stash-report-from" class="metis-input" type="date" name="from" value="<?php echo metis_escape_attr( $from ); ?>">
+                    </label>
+                    <label style="display:grid;gap:4px;font-size:13px;color:#67798b;margin-top:6px;">To
+                        <input id="metis-stash-report-to" class="metis-input" type="date" name="to" value="<?php echo metis_escape_attr( $to ); ?>">
+                    </label>
+                    <div class="metis-stash-form-actions metis-stash-report-filter-actions">
+                        <button type="submit" class="metis-btn metis-btn-xs" id="metis-stash-report-run">Run Report</button>
+                        <?php if ( $from !== '' || $to !== '' ) : ?>
+                        <a class="metis-btn metis-btn-xs metis-btn-ghost" href="<?php echo metis_escape_url( metis_grandys_stash_base_url() . '/reports/' ); ?>">Clear</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
             </div>
             <div class="metis-list-sidebar-section">
                 <div class="metis-list-sidebar-label">Navigation</div>
@@ -50,9 +57,28 @@ $summary = $report['summary'] ?? [];
                 </nav>
             </div>
         <?php },
-        'content' => static function () use ( $report ) { ?>
+        'content' => static function () use ( $report, $from, $to ) { ?>
 
     <div id="metis-stash-report-content">
+        <section class="metis-stash-report-range-card">
+            <div>
+                <h2>Report Range</h2>
+                <p>
+                    <?php
+                    if ( $from !== '' || $to !== '' ) {
+                        echo metis_escape_html( $from !== '' ? $from : 'Start' ) . ' to ' . metis_escape_html( $to !== '' ? $to : 'Today' );
+                    } else {
+                        echo 'Showing all available ticket history.';
+                    }
+                    ?>
+                </p>
+            </div>
+            <div class="metis-stash-report-range-meta">
+                <span class="metis-stash-status-badge">Organizations: <?php echo (int) count( $report['by_organization'] ?? [] ); ?></span>
+                <span class="metis-stash-status-badge">People: <?php echo (int) count( $report['by_person'] ?? [] ); ?></span>
+                <span class="metis-stash-status-badge">Equipment: <?php echo (int) count( $report['by_equipment'] ?? [] ); ?></span>
+            </div>
+        </section>
 
         <!-- By Category -->
         <section style="margin-bottom:28px;">

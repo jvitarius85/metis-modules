@@ -45,6 +45,8 @@ function metis_grandys_stash_register_ajax_controllers(): void {
         'metis_grandys_stash_search_groups' => 'view',
         'metis_grandys_stash_link_group' => 'assign',
         'metis_grandys_stash_merge_groups' => 'assign',
+        'metis_grandys_stash_link_organization_ticket' => 'settings',
+        'metis_grandys_stash_merge_organizations' => 'settings',
         'metis_grandys_stash_save_group' => 'assign',
         'metis_grandys_stash_save_organization' => 'settings',
         'metis_grandys_stash_get_inventory' => 'view',
@@ -53,6 +55,9 @@ function metis_grandys_stash_register_ajax_controllers(): void {
         'metis_grandys_stash_export' => 'export',
         'metis_grandys_stash_delete_ticket' => 'delete',
         'metis_grandys_stash_save_routing_defaults' => 'settings',
+        'metis_grandys_stash_save_legacy_import_settings' => 'settings',
+        'metis_grandys_stash_import_legacy' => 'settings',
+        'metis_grandys_stash_wipe_legacy_imports' => 'settings',
         'metis_grandys_stash_report' => 'view',
         'metis_grandys_stash_get_email_prefs' => 'settings',
     ];
@@ -235,6 +240,44 @@ metis_ajax_register_handler( 'metis_grandys_stash_merge_groups', function (): vo
     metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
 } );
 
+metis_ajax_register_handler( 'metis_grandys_stash_link_organization_ticket', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $organization_id = (int) ( metis_request_post()['organization_id'] ?? 0 );
+    $ticket_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['ticket_code'] ?? '' ) );
+    if ( $organization_id < 1 || trim( $ticket_code ) === '' ) {
+        metis_runtime_send_json_error( 'Organization and ticket code are required.', 422 );
+    }
+
+    $result = GrandyStashRepository::linkTicketToOrganizationByCode( $ticket_code, $organization_id );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to link ticket.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_merge_organizations', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $source_code = metis_text_clean( metis_runtime_unslash( metis_request_post()['source_code'] ?? '' ) );
+    $target_id = (int) ( metis_request_post()['target_id'] ?? 0 );
+    if ( trim( $source_code ) === '' || $target_id < 1 ) {
+        metis_runtime_send_json_error( 'Source organization code and target organization are required.', 422 );
+    }
+
+    $result = GrandyStashRepository::mergeOrganizationsByCode( $source_code, $target_id );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to merge organizations.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
 metis_ajax_register_handler( 'metis_grandys_stash_save_group', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.assign' );
     $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
@@ -337,6 +380,70 @@ metis_ajax_register_handler( 'metis_grandys_stash_save_routing_defaults', functi
         metis_runtime_send_json_error( 'Unable to save routing defaults.', metis_grandys_stash_error_status( $result['status'] ?? 500 ) );
     }
     metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_save_legacy_import_settings', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid legacy import settings payload.', 422 );
+    }
+
+    $result = GrandyStashRepository::saveLegacyImportSettings( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to save legacy import settings.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [ 'state' => GrandyStashRepository::dashboardData() ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_import_legacy', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $payload = json_decode( (string) ( metis_request_post()['payload'] ?? '' ), true );
+    if ( ! is_array( $payload ) ) {
+        metis_runtime_send_json_error( 'Invalid legacy import payload.', 422 );
+    }
+
+    $result = GrandyStashRepository::importLegacyGravityForms( $payload );
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to import legacy tickets.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'import' => [
+            'imported' => (int) ( $result['imported'] ?? 0 ),
+            'skipped' => (int) ( $result['skipped'] ?? 0 ),
+            'errors' => array_values( array_map( 'strval', (array) ( $result['errors'] ?? [] ) ) ),
+            'summary' => (string) ( $result['summary'] ?? '' ),
+        ],
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_grandys_stash_wipe_legacy_imports', function (): void {
+    metis_grandys_stash_ajax_guard( 'grandys_stash.settings' );
+    $result = GrandyStashRepository::wipeLegacyImportedTickets();
+    if ( empty( $result['ok'] ) ) {
+        metis_runtime_send_json_error(
+            (string) ( $result['error'] ?? 'Unable to wipe legacy imports.' ),
+            metis_grandys_stash_error_status( $result['status'] ?? 500 )
+        );
+    }
+
+    metis_runtime_send_json_success( [
+        'state' => GrandyStashRepository::dashboardData(),
+        'wipe' => [
+            'deleted' => (int) ( $result['deleted'] ?? 0 ),
+            'pruned_groups' => (int) ( $result['pruned_groups'] ?? 0 ),
+            'pruned_organizations' => (int) ( $result['pruned_organizations'] ?? 0 ),
+        ],
+    ] );
 } );
 
 

@@ -45,6 +45,11 @@
     newTicketModal: qs('#metis-stash-new-ticket-modal'),
     newTicketForm: qs('#metis-stash-new-ticket-form'),
     routingForm: qs('#metis-stash-routing-form'),
+    legacySettingsForm: qs('#metis-stash-legacy-settings-form'),
+    legacyImportForm: qs('#metis-stash-legacy-import-form'),
+    legacyImportResult: qs('#metis-stash-legacy-import-result'),
+    legacyWipeForm: qs('#metis-stash-legacy-wipe-form'),
+    legacyWipeResult: qs('#metis-stash-legacy-wipe-result'),
     reportRunBtn: qs('#metis-stash-report-run'),
     reportFrom: qs('#metis-stash-report-from'),
     reportTo: qs('#metis-stash-report-to'),
@@ -54,6 +59,7 @@
     groupModal: qs('#metis-stash-group-modal'),
     groupModalTitle: qs('#metis-stash-group-modal-title'),
     groupModalSubtitle: qs('#metis-stash-group-modal-subtitle'),
+    groupModalSummary: qs('#metis-stash-group-modal-summary'),
     groupForm: qs('#metis-stash-group-form'),
     groupTicketList: qs('#metis-stash-group-ticket-list'),
     organizationRows: qs('#metis-stash-organization-rows'),
@@ -61,7 +67,10 @@
     organizationModal: qs('#metis-stash-organization-modal'),
     organizationModalTitle: qs('#metis-stash-organization-modal-title'),
     organizationModalSubtitle: qs('#metis-stash-organization-modal-subtitle'),
+    organizationModalSummary: qs('#metis-stash-organization-modal-summary'),
     organizationForm: qs('#metis-stash-organization-form'),
+    organizationLinkForm: qs('#metis-stash-organization-link-form'),
+    organizationMergeForm: qs('#metis-stash-organization-merge-form'),
     organizationTicketList: qs('#metis-stash-organization-ticket-list'),
   };
 
@@ -73,7 +82,6 @@
     mountModalToBody(ui.newTicketModal);
     filterRows();
     filterManagerRows();
-    hydrateReportDateInputs();
 
     if (isTicketPage) {
       const initialTicketId = parseInt(root.dataset.ticketId || '0', 10);
@@ -85,6 +93,12 @@
     const close = e.target.closest('[data-close-modal]');
     if (close) {
       closeModal(document.getElementById(String(close.dataset.closeModal || '')));
+      return;
+    }
+
+    const modalBackdrop = e.target.closest('.metis-stash-modal.metis-open');
+    if (modalBackdrop && e.target === modalBackdrop) {
+      closeModal(modalBackdrop);
       return;
     }
 
@@ -284,6 +298,97 @@
     }
   });
 
+  ui.legacySettingsForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    try {
+      await request('metis_grandys_stash_save_legacy_import_settings', { payload: JSON.stringify(formToObject(ui.legacySettingsForm)) });
+      await refreshState('Remote legacy source saved.');
+      if (ui.legacySettingsForm) {
+        const secretField = ui.legacySettingsForm.elements.namedItem('secret');
+        if (secretField) secretField.value = '';
+      }
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.legacyImportForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    const submitButton = ui.legacyImportForm.querySelector('button[type="submit"]');
+    const originalLabel = submitButton?.textContent || 'Import Legacy Tickets';
+    try {
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Importing...';
+      }
+      const data = await request('metis_grandys_stash_import_legacy', { payload: JSON.stringify(formToObject(ui.legacyImportForm)) });
+      applyStateUpdate(data);
+      const importSummary = data.import || {};
+      if (ui.legacyImportResult) {
+        const errors = Array.isArray(importSummary.errors) ? importSummary.errors : [];
+        ui.legacyImportResult.innerHTML = esc(importSummary.summary || 'Legacy import finished.') +
+          (errors.length ? '<br><span class="metis-alert-error" style="display:inline-block;margin-top:8px;padding:8px 10px;">' + esc(errors.join(' | ')) + '</span>' : '');
+      }
+      showAlert(importSummary.summary || 'Legacy import finished.');
+    } catch (err) {
+      if (ui.legacyImportResult) ui.legacyImportResult.textContent = err.message;
+      showAlert(err.message, 'error');
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
+    }
+  });
+
+  ui.legacyWipeForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    if (!window.confirm('Wipe all legacy-imported Grandy\'s Stash tickets? This is intended as a one-time cleanup before reimporting.')) return;
+    try {
+      const data = await request('metis_grandys_stash_wipe_legacy_imports', {});
+      applyStateUpdate(data);
+      const wipe = data.wipe || {};
+      const message = 'Deleted ' + Number(wipe.deleted || 0) + ' legacy ticket(s); pruned ' + Number(wipe.pruned_groups || 0) + ' group(s) and ' + Number(wipe.pruned_organizations || 0) + ' organization(s).';
+      if (ui.legacyWipeResult) ui.legacyWipeResult.textContent = message;
+      showAlert(message);
+    } catch (err) {
+      if (ui.legacyWipeResult) ui.legacyWipeResult.textContent = err.message;
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.organizationLinkForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    try {
+      await request('metis_grandys_stash_link_organization_ticket', formToObject(ui.organizationLinkForm));
+      await refreshState('Ticket linked to organization.');
+      openManagerModal('organization', Number(ui.organizationLinkForm.elements.namedItem('organization_id')?.value || '0'));
+      const codeField = ui.organizationLinkForm.elements.namedItem('ticket_code');
+      if (codeField) codeField.value = '';
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
+  ui.organizationMergeForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!canManage) return;
+    if (!window.confirm('Merge the source organization into this organization? Tickets will be reassigned.')) return;
+    try {
+      await request('metis_grandys_stash_merge_organizations', formToObject(ui.organizationMergeForm));
+      await refreshState('Organizations merged.');
+      openManagerModal('organization', Number(ui.organizationMergeForm.elements.namedItem('target_id')?.value || '0'));
+      const sourceField = ui.organizationMergeForm.elements.namedItem('source_code');
+      if (sourceField) sourceField.value = '';
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  });
+
   root.addEventListener('change', async function (e) {
     const toggle = e.target.closest('.metis-stash-email-toggle');
     if (!toggle || !canManage) return;
@@ -298,29 +403,6 @@
     } catch (err) {
       toggle.checked = !toggle.checked;
       showAlert(err.message, 'error');
-    }
-  });
-
-  ui.reportRunBtn?.addEventListener('click', async function () {
-    const from = ui.reportFrom?.value || '';
-    const to = ui.reportTo?.value || '';
-    try {
-      ui.reportRunBtn.disabled = true;
-      ui.reportRunBtn.textContent = 'Loading...';
-      const data = await request('metis_grandys_stash_report', { from: from, to: to });
-      if (ui.reportContent) {
-        ui.reportContent.innerHTML = buildReportHTML(data.report || {});
-      }
-      const params = new URLSearchParams(window.location.search);
-      if (from) params.set('from', from); else params.delete('from');
-      if (to) params.set('to', to); else params.delete('to');
-      history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
-      showAlert('Report updated.');
-    } catch (err) {
-      showAlert(err.message, 'error');
-    } finally {
-      ui.reportRunBtn.disabled = false;
-      ui.reportRunBtn.textContent = 'Run Report';
     }
   });
 
@@ -394,6 +476,12 @@
       fillForm(ui.groupForm, group);
       if (ui.groupModalTitle) ui.groupModalTitle.textContent = group.name || 'Group Manager';
       if (ui.groupModalSubtitle) ui.groupModalSubtitle.textContent = group.code || '';
+      if (ui.groupModalSummary) ui.groupModalSummary.innerHTML = buildManagerSummary([
+        ['Code', group.code || '\u2014'],
+        ['Open Tickets', Number(group.open_count || 0)],
+        ['Total Tickets', Number(group.ticket_count || 0)],
+        ['Last Activity', group.last_ticket_at ? shortDate(group.last_ticket_at) : '\u2014']
+      ]);
       ui.groupTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForGroup(id));
       activateTab('group-general');
       openModal(ui.groupModal);
@@ -403,6 +491,15 @@
       fillForm(ui.organizationForm, organization);
       if (ui.organizationModalTitle) ui.organizationModalTitle.textContent = organization.name || 'Organization Manager';
       if (ui.organizationModalSubtitle) ui.organizationModalSubtitle.textContent = organization.domain || organization.code || '';
+      if (ui.organizationModalSummary) ui.organizationModalSummary.innerHTML = buildManagerSummary([
+        ['Domain', organization.domain || '\u2014'],
+        ['Code', organization.code || '\u2014'],
+        ['Status', organization.is_active ? 'Active' : 'Inactive'],
+        ['Open Tickets', Number(organization.open_count || 0)],
+        ['Total Tickets', Number(organization.ticket_count || 0)]
+      ]);
+      if (ui.organizationLinkForm?.elements?.namedItem('organization_id')) ui.organizationLinkForm.elements.namedItem('organization_id').value = String(id);
+      if (ui.organizationMergeForm?.elements?.namedItem('target_id')) ui.organizationMergeForm.elements.namedItem('target_id').value = String(id);
       ui.organizationTicketList.innerHTML = buildManagerTicketList('Linked Tickets', ticketsForOrganization(id));
       activateTab('organization-general');
       openModal(ui.organizationModal);
@@ -428,12 +525,18 @@
     return '<div class="metis-stash-ticket-section"><h3>' + esc(title) + '</h3><div class="metis-stash-linked-tickets">' +
       tickets.map(function (ticket) {
         const url = buildTicketUrl(ticket.code || '');
-        return '<a class="metis-stash-linked-ticket" href="' + esc(url) + '" data-ticket-url="' + esc(url) + '">' +
+        return '<button type="button" class="metis-stash-linked-ticket" data-ticket-url="' + esc(url) + '">' +
           '<strong>' + esc(ticket.code || '') + '</strong>' +
           '<span>' + esc(ticket.submit_name || 'Unknown') + '</span>' +
           '<span class="metis-muted">' + esc(labelize(ticket.type || 'request')) + ' · ' + esc(ticket.status || 'NEW') + ' · ' + esc(shortDate(ticket.submitted_at || '')) + '</span>' +
-        '</a>';
+        '</button>';
       }).join('') + '</div></div>';
+  }
+
+  function buildManagerSummary(items) {
+    return '<div class="metis-stash-manager-summary-grid">' + items.map(function (item) {
+      return '<div class="metis-stash-manager-summary-item"><div class="metis-stash-manager-summary-label">' + esc(String(item[0] || '')) + '</div><div class="metis-stash-manager-summary-value">' + esc(String(item[1] ?? '')) + '</div></div>';
+    }).join('') + '</div>';
   }
 
   function renderTicketItems(items) {
@@ -584,103 +687,14 @@
   }
 
   function activateTab(target) {
-    qsa('.metis-stash-tab').forEach(function (button) {
+    Array.from(document.querySelectorAll('.metis-stash-tab')).forEach(function (button) {
       const active = String(button.dataset.tabTarget || '') === target;
       button.classList.toggle('is-active', active);
       button.classList.toggle('metis-btn-ghost', !active);
     });
-    qsa('.metis-stash-tab-panel').forEach(function (panel) {
+    Array.from(document.querySelectorAll('.metis-stash-tab-panel')).forEach(function (panel) {
       panel.classList.toggle('is-active', String(panel.dataset.tabPanel || '') === target);
     });
-  }
-
-  function buildReportHTML(report) {
-    const summary = report.summary || {};
-    updateReportKpis(summary, report);
-    return [
-      buildCategoryTable(report.by_category || []),
-      buildMonthlyTable(report.monthly || []),
-      buildSmallReportSplit(report.by_urgency || [], report.by_source || []),
-      buildOrganizationReport(report.by_organization || []),
-      buildPersonReport(report.by_person || []),
-      buildEquipmentReport(report.by_equipment || [])
-    ].join('');
-  }
-
-  function updateReportKpis(summary, report) {
-    const values = qsa('.metis-people-stat-value');
-    if (values.length < 6) return;
-    values[0].textContent = String(summary.total_tickets || 0);
-    values[1].textContent = String(report.people_served || 0);
-    values[2].textContent = String(report.items_fulfilled || 0);
-    values[3].textContent = String(summary.completed || 0);
-    values[4].textContent = String(report.avg_days_to_complete || '\u2014');
-    values[5].textContent = String(summary.open_tickets || 0);
-  }
-
-  function buildCategoryTable(rows) {
-    return '<section style="margin-bottom:28px;"><h2 style="font-size:16px;margin:0 0 12px;">Items by Category</h2>' +
-      buildTable('metis-stash-report-cat-table', ['Category', 'Total Items', 'Fulfilled'], rows.map(function (row) {
-        return [labelize(row.category || 'other'), Number(row.item_count || 0), Number(row.fulfilled || 0)];
-      }), 3) + '</section>';
-  }
-
-  function buildMonthlyTable(rows) {
-    return '<section style="margin-bottom:28px;"><h2 style="font-size:16px;margin:0 0 12px;">Monthly Breakdown</h2>' +
-      buildTable('metis-stash-report-month-table', ['Month', 'Tickets', 'Requests', 'Donations', 'Completed'], rows.map(function (row) {
-        return [row.month_label || row.month || '', Number(row.tickets || 0), Number(row.requests || 0), Number(row.donations || 0), Number(row.completed || 0)];
-      }), 5) + '</section>';
-  }
-
-  function buildSmallReportSplit(urgencyRows, sourceRows) {
-    return '<div class="metis-stash-report-split">' +
-      '<section><h2 style="font-size:16px;margin:0 0 12px;">By Urgency</h2>' +
-      buildTable('metis-stash-report-small-table', ['Urgency', 'Count'], urgencyRows.map(function (row) {
-        return [labelize(row.urgency || ''), Number(row.count || 0)];
-      }), 2) + '</section>' +
-      '<section><h2 style="font-size:16px;margin:0 0 12px;">By Source</h2>' +
-      buildTable('metis-stash-report-small-table', ['Source', 'Count'], sourceRows.map(function (row) {
-        return [labelize(row.source || ''), Number(row.count || 0)];
-      }), 2) + '</section>' +
-      '</div>';
-  }
-
-  function buildOrganizationReport(rows) {
-    return '<section style="margin:28px 0;"><h2 style="font-size:16px;margin:0 0 12px;">Requests by Organization</h2>' +
-      buildTable('metis-stash-report-wide-table', ['Organization', 'Domain', 'Requests', 'Tickets'], rows.map(function (row) {
-        return [row.organization_name || 'Independent', row.organization_domain || '\u2014', Number(row.request_count || 0), Number(row.ticket_count || 0)];
-      }), 4) + '</section>';
-  }
-
-  function buildPersonReport(rows) {
-    return '<section style="margin:28px 0;"><h2 style="font-size:16px;margin:0 0 12px;">Requests by Person</h2>' +
-      buildTable('metis-stash-report-wide-table', ['Person', 'Email', 'Requests', 'Tickets'], rows.map(function (row) {
-        return [row.person_name || 'Unknown', row.person_email || '\u2014', Number(row.request_count || 0), Number(row.ticket_count || 0)];
-      }), 4) + '</section>';
-  }
-
-  function buildEquipmentReport(rows) {
-    return '<section style="margin:28px 0 0;"><h2 style="font-size:16px;margin:0 0 12px;">Equipment Requested</h2>' +
-      buildTable('metis-stash-report-equipment-table', ['Equipment', 'Category', 'Requests', 'Donations', 'Fulfilled'], rows.map(function (row) {
-        return [row.equipment_name || 'Other', labelize(row.category || 'other'), Number(row.request_quantity || 0), Number(row.donation_quantity || 0), Number(row.fulfilled_quantity || 0)];
-      }), 5) + '</section>';
-  }
-
-  function buildTable(className, headers, rows, colspan) {
-    const body = rows.length ? rows.map(function (row) {
-      return '<tr class="metis-premium-row">' + row.map(function (cell) {
-        return '<td class="metis-premium-cell">' + esc(String(cell)) + '</td>';
-      }).join('') + '</tr>';
-    }).join('') : '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="' + colspan + '">No data for selected period.</td></tr>';
-    return '<table class="metis-premium-table ' + className + '"><thead><tr class="metis-premium-row metis-premium-header">' +
-      headers.map(function (header) { return '<th class="metis-premium-cell" scope="col">' + esc(header) + '</th>'; }).join('') +
-      '</tr></thead><tbody>' + body + '</tbody></table>';
-  }
-
-  function hydrateReportDateInputs() {
-    const params = new URLSearchParams(window.location.search);
-    if (ui.reportFrom && params.get('from')) ui.reportFrom.value = String(params.get('from'));
-    if (ui.reportTo && params.get('to')) ui.reportTo.value = String(params.get('to'));
   }
 
   function request(action, body) {
@@ -747,6 +761,7 @@
   }
 
   function openModal(node) {
+    document.body.classList.add('metis-stash-modal-open');
     node?.classList.add('metis-open');
     if (node) node.setAttribute('aria-hidden', 'false');
   }
@@ -754,6 +769,9 @@
   function closeModal(node) {
     node?.classList.remove('metis-open');
     if (node) node.setAttribute('aria-hidden', 'true');
+    if (!document.querySelector('.metis-stash-modal.metis-open')) {
+      document.body.classList.remove('metis-stash-modal-open');
+    }
   }
 
   function mountModalToBody(node) {
@@ -761,6 +779,13 @@
     document.body.appendChild(node);
     node.dataset.bodyMounted = '1';
   }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    Array.from(document.querySelectorAll('.metis-stash-modal.metis-open')).forEach(function (modal) {
+      closeModal(modal);
+    });
+  });
 
   function showAlert(message, type) {
     if (!ui.alert) return;
