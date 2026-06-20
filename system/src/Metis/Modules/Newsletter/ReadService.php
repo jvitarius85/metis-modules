@@ -3,10 +3,29 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Newsletter;
 
+require_once __DIR__ . '/SchemaManager.php';
+
 final class ReadService {
+    private static function hasCampaignMetricColumn(string $campaigns_table, string $column): bool {
+        if ( ! \class_exists( '\\Metis\\Services\\DatabaseService' ) ) {
+            return true;
+        }
+
+        $db = \metis_db();
+        if ( ! $db instanceof \Metis\Services\DatabaseService ) {
+            return true;
+        }
+
+        try {
+            return SchemaManager::columnExists($campaigns_table, $column);
+        } catch ( \Throwable $e ) {
+            return true;
+        }
+    }
+
     private static function campaignMetricSelect(string $campaigns_table): string {
-        $open_expr = SchemaManager::columnExists($campaigns_table, 'open_count') ? 'c.open_count' : '0';
-        $click_expr = SchemaManager::columnExists($campaigns_table, 'click_count') ? 'c.click_count' : '0';
+        $open_expr = self::hasCampaignMetricColumn($campaigns_table, 'open_count') ? 'c.open_count' : '0';
+        $click_expr = self::hasCampaignMetricColumn($campaigns_table, 'click_count') ? 'c.click_count' : '0';
         return $open_expr . ' AS open_count, ' . $click_expr . ' AS click_count';
     }
 
