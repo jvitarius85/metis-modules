@@ -27,6 +27,11 @@ function metis_module_update_service(): \Metis\Core\Services\ModuleUpdateService
     return \Metis\Core\Application::service( 'module_updates' );
 }
 
+function metis_module_install_service(): \Metis\Core\Services\ModuleInstallService {
+    metis_register_core_services();
+    return \Metis\Core\Application::service( 'module_installer' );
+}
+
 function metis_self_healing_service(): \Metis\Core\Services\SelfHealingService {
     metis_register_core_services();
     return \Metis\Core\Application::service( 'self_healing' );

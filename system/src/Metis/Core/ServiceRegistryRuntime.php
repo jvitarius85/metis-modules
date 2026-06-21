@@ -635,6 +635,18 @@ function metis_register_core_services(): void {
         );
     }
 
+    if ( ! $registry->has( 'module_installer' ) ) {
+        $registry->singleton(
+            'module_installer',
+            static fn (): \Metis\Core\Services\ModuleInstallService => new \Metis\Core\Services\ModuleInstallService(
+                \Metis\Core\Application::service( 'github_update' ),
+                \Metis\Core\Application::service( 'module_updates' ),
+                \Metis\Core\Application::service( 'files' ),
+                \Metis\Core\Application::service( 'logger_core' )
+            )
+        );
+    }
+
     if ( ! $registry->has( 'updates' ) ) {
         $registry->singleton(
             'updates',

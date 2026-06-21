@@ -131,6 +131,7 @@ if ( ! function_exists( 'metis_settings_ia' ) ) {
                 'label' => 'PLATFORM',
                 'pages' => [
                     'about' => [ 'label' => 'About', 'section' => 'about' ],
+                    'modules' => [ 'label' => 'Modules', 'section' => 'modules' ],
                 ],
             ],
             'help' => [
@@ -161,6 +162,7 @@ if ( ! function_exists( 'metis_settings_sections' ) ) {
             'system_health' => 'System Health',
             'backup' => 'Backup',
             'about' => 'About',
+            'modules' => 'Modules',
             'help' => 'Help',
         ];
 
@@ -298,7 +300,7 @@ if ( ! function_exists( 'metis_settings_should_load_scheduler_snapshot' ) ) {
 
 if ( ! function_exists( 'metis_settings_should_load_release_state' ) ) {
     function metis_settings_should_load_release_state( string $section ): bool {
-        return metis_settings_section_matches( $section, [ 'about' ] );
+        return metis_settings_section_matches( $section, [ 'about', 'modules' ] );
     }
 }
 

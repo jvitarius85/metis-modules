@@ -54,8 +54,8 @@ final class GitHubUpdateService {
     }
 
     public function officialModules(bool $forceRefresh = false): array {
-        $catalog = $this->moduleCatalog($forceRefresh);
-        return (array) ($catalog['official_modules'] ?? []);
+        $registry = $this->moduleRegistry($forceRefresh);
+        return array_keys((array) ($registry['modules'] ?? []));
     }
 
     public function moduleRegistry(bool $forceRefresh = false): array {
@@ -142,96 +142,23 @@ final class GitHubUpdateService {
     }
 
     public function requiredModules(bool $forceRefresh = false): array {
-        $catalog = $this->moduleCatalog($forceRefresh);
-        return (array) ($catalog['required_modules'] ?? []);
+        return [];
     }
 
     public function moduleCatalog(bool $forceRefresh = false): array {
-        $settings = $this->repositoryConfig();
-        $owner = (string) ($settings['owner'] ?? '');
-        $repo = (string) ($settings['repo'] ?? '');
-        if ($owner === '' || $repo === '') {
-            return [
-                'official_modules' => [],
-                'required_modules' => [],
-            ];
-        }
-
-        $cacheKey = sprintf(
-            'api.github_module_catalog.%s.%s.%s',
-            metis_key_clean($owner),
-            metis_key_clean($repo),
-            metis_key_clean((string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''))
-        );
-
-        if (!$forceRefresh) {
-            $cached = CacheService::get($cacheKey);
-            if (is_array($cached)) {
-                $catalog = $this->normalizeModuleCatalog($cached);
-                if ($this->hasModuleCatalogEntries($catalog)) {
-                    return $catalog;
-                }
-            }
-        } else {
-            CacheService::forget($cacheKey);
-        }
-
-        try {
-            $payload = $this->fetchModuleCatalogPayload(
-                $owner,
-                $repo,
-                (string) ($settings['metadata_ref'] ?? ''),
-                (string) ($settings['token'] ?? '')
-            );
-        } catch (\Throwable $exception) {
-            $this->logger->warn('github_official_modules_lookup_failed', [
-                'owner' => $owner,
-                'repo' => $repo,
-                'ref' => (string) ($settings['ref'] ?? ''),
-                'message' => $exception->getMessage(),
-            ]);
-            return [
-                'official_modules' => [],
-                'required_modules' => [],
-            ];
-        }
-
-        $catalog = $this->normalizeModuleCatalog($payload);
-        if ($this->hasModuleCatalogEntries($catalog)) {
-            CacheService::set($cacheKey, $catalog, self::CACHE_TTL);
-        } else {
-            CacheService::forget($cacheKey);
-        }
-
-        return $catalog;
+        $registry = $this->moduleRegistry($forceRefresh);
+        return [
+            'official_modules' => array_keys((array) ($registry['modules'] ?? [])),
+            'required_modules' => [],
+        ];
     }
 
     public function cachedModuleCatalog(): array {
-        $settings = $this->repositoryConfig();
-        $owner = (string) ($settings['owner'] ?? '');
-        $repo = (string) ($settings['repo'] ?? '');
-        if ($owner === '' || $repo === '') {
-            return [
-                'official_modules' => [],
-                'required_modules' => [],
-            ];
-        }
-
-        $cacheKey = sprintf(
-            'api.github_module_catalog.%s.%s.%s',
-            metis_key_clean($owner),
-            metis_key_clean($repo),
-            metis_key_clean((string) ($settings['ref'] ?? ''))
-        );
-        $cached = CacheService::get($cacheKey);
-        if (!is_array($cached)) {
-            return [
-                'official_modules' => [],
-                'required_modules' => [],
-            ];
-        }
-
-        return $this->normalizeModuleCatalog($cached);
+        $registry = $this->cachedModuleRegistry();
+        return [
+            'official_modules' => array_keys((array) ($registry['modules'] ?? [])),
+            'required_modules' => [],
+        ];
     }
 
     public function semanticTagReleases(bool $forceRefresh = false): array {

@@ -2174,6 +2174,46 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    document.querySelectorAll('[data-module-install-id]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const moduleId = String(button.getAttribute('data-module-install-id') || '').trim();
+            const moduleName = String(button.getAttribute('data-module-install-name') || moduleId).trim();
+            const moduleVersion = String(button.getAttribute('data-module-install-version') || '').trim();
+            if (!moduleId) return;
+
+            const label = moduleVersion ? (moduleName + ' ' + moduleVersion) : moduleName;
+            confirmAction('Install ' + label + ' immediately?', {
+                title: 'Install Module',
+                confirmLabel: 'Install'
+            }).then(function (confirmed) {
+                if (!confirmed) return;
+
+                const action = 'metis_module_install_now';
+                const body = new FormData();
+                body.append('action', action);
+                body.append('module_id', moduleId);
+                body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+                body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+
+                const originalLabel = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = 'Installing...';
+
+                Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
+                    showToast('success', String(data && data.message ? data.message : 'Module installed.'));
+                    window.setTimeout(function () {
+                        window.location.reload();
+                    }, 500);
+                }).catch(function (error) {
+                    showToast('error', error && error.message ? error.message : 'Module installation failed.');
+                }).finally(function () {
+                    button.disabled = false;
+                    button.innerHTML = originalLabel;
+                });
+            });
+        });
+    });
+
     function releaseProgressToken() {
         const source = new Uint8Array(16);
         if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
