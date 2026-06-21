@@ -156,7 +156,8 @@ final class SystemVersionService {
         }
 
         $normalizedPath = str_replace( '\\', '/', trim( $path ) );
-        if ( $normalizedPath !== '' && str_contains( $normalizedPath, '/core-services/' ) ) {
+        $coreServiceRoot = str_replace( '\\', '/', ModulePathRegistry::coreServiceRootPath() );
+        if ( $normalizedPath !== '' && $coreServiceRoot !== '' && str_contains( $normalizedPath, trim( $coreServiceRoot, '/' ) ) ) {
             return 'core_service';
         }
 

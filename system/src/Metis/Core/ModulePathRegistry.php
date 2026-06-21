@@ -26,7 +26,7 @@ final class ModulePathRegistry {
         return self::normalizedPath(
             \defined( 'METIS_CORE_SERVICES_PATH' )
                 ? (string) \METIS_CORE_SERVICES_PATH
-                : dirname( __DIR__, 3 ) . '/core-services/'
+                : __DIR__ . '/BuiltInServices/'
         );
     }
 

@@ -9,6 +9,19 @@ if ( PHP_SAPI !== 'cli' ) {
 $root = dirname( __DIR__ );
 require_once $root . '/src/Metis/Core/Help/Seeds/HelpDocumentsSeed.php';
 
+$core_service_path = static function ( string $relative ) use ( $root ): string {
+    $normalized = ltrim( $relative, '/\\' );
+
+    foreach ( [ 'help', 'people', 'portal', 'profile', 'settings' ] as $slug ) {
+        $prefix = 'modules/' . $slug . '/';
+        if ( str_starts_with( $normalized, $prefix ) ) {
+            return $root . '/src/Metis/Core/BuiltInServices/' . $slug . '/' . substr( $normalized, strlen( $prefix ) );
+        }
+    }
+
+    return $root . '/' . $normalized;
+};
+
 $failures = [];
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
     if ( ! $condition ) {
@@ -55,9 +68,9 @@ foreach ( $articles as $index => $article ) {
 }
 
 $requiredFiles = [
-    $root . '/modules/help/module.json',
-    $root . '/modules/help/admin/articles.php',
-    $root . '/modules/help/admin/issue-resolution.php',
+    $core_service_path( 'modules/help/module.json' ),
+    $core_service_path( 'modules/help/admin/articles.php' ),
+    $core_service_path( 'modules/help/admin/issue-resolution.php' ),
     $root . '/src/Metis/Modules/Help/HelpModule.php',
     $root . '/enclave/help/article/save.php',
     $root . '/enclave/help/article/publish.php',

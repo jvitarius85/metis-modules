@@ -10,14 +10,27 @@ $system = dirname( __DIR__ );
 $failures = [];
 $rawSqlPattern = '/\bSELECT\s+.+\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\s+\S+\s+SET\b|\bDELETE\s+FROM\b/us';
 
+$resolve_relative = static function ( string $relative ) use ( $system ): string {
+    $normalized = ltrim( $relative, '/\\' );
+
+    foreach ( [ 'help', 'people', 'portal', 'profile', 'settings' ] as $slug ) {
+        $prefix = 'modules/' . $slug . '/';
+        if ( str_starts_with( $normalized, $prefix ) ) {
+            return $system . '/src/Metis/Core/BuiltInServices/' . $slug . '/' . substr( $normalized, strlen( $prefix ) );
+        }
+    }
+
+    return $system . '/' . $normalized;
+};
+
 $assert = static function ( bool $condition, string $message ) use ( &$failures ): void {
     if ( ! $condition ) {
         $failures[] = $message;
     }
 };
 
-$read = static function ( string $relative ) use ( $system ): string {
-    $contents = @file_get_contents( $system . '/' . ltrim( $relative, '/\\' ) );
+$read = static function ( string $relative ) use ( $resolve_relative ): string {
+    $contents = @file_get_contents( $resolve_relative( $relative ) );
     return is_string( $contents ) ? $contents : '';
 };
 

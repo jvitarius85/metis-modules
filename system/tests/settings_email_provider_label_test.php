@@ -8,9 +8,22 @@ if ( PHP_SAPI !== 'cli' ) {
 
 $root = dirname( __DIR__ );
 
+$core_service_path = static function ( string $relative ) use ( $root ): string {
+    $normalized = ltrim( $relative, '/\\' );
+
+    foreach ( [ 'help', 'people', 'portal', 'profile', 'settings' ] as $slug ) {
+        $prefix = 'modules/' . $slug . '/';
+        if ( str_starts_with( $normalized, $prefix ) ) {
+            return $root . '/src/Metis/Core/BuiltInServices/' . $slug . '/' . substr( $normalized, strlen( $prefix ) );
+        }
+    }
+
+    return $root . '/' . $normalized;
+};
+
 define( 'METIS_ROOT', dirname( $root ) . '/' );
 
-require_once $root . '/modules/settings/views/_settings_bootstrap.php';
+require_once $core_service_path( 'modules/settings/views/_settings_bootstrap.php' );
 
 $failures = [];
 $assertSame = static function ( string $expected, string $actual, string $message ) use ( &$failures ): void {

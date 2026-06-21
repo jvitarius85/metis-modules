@@ -37,7 +37,7 @@ foreach ( [
     'METIS_SRC_PATH'        => $metis_bootstrap_system . 'src/',
     'METIS_ASSETS_PATH'     => $metis_bootstrap_system . 'assets/',
     'METIS_CONFIG_PATH'     => $metis_bootstrap_system . 'config/',
-    'METIS_CORE_SERVICES_PATH' => $metis_bootstrap_system . 'core-services/',
+    'METIS_CORE_SERVICES_PATH' => $metis_bootstrap_system . 'src/Metis/Core/BuiltInServices/',
     'METIS_MODULES_PATH'    => $metis_bootstrap_system . 'modules/',
     'METIS_DOCS_PATH'       => $metis_bootstrap_system . 'docs/',
     'METIS_TOOLS_PATH'      => $metis_bootstrap_system . 'tools/',
