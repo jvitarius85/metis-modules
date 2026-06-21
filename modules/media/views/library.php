@@ -1,0 +1,157 @@
+<?php
+if ( ! defined( 'METIS_ROOT' ) ) {
+    exit;
+}
+$can_edit = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'media.edit' );
+$can_delete = function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'media.delete' );
+?>
+<div class="metis-page-header">
+    <div class="metis-page-header-left">
+        <h1 class="metis-page-title">Media Library</h1>
+        <span class="metis-media-header-copy">Manage files used by Website, Newsletter, Popups, and Forms.</span>
+    </div>
+    <div class="metis-page-header-right">
+        <?php if ( $can_edit ) : ?>
+        <button class="metis-btn metis-btn-primary" id="metis-media-upload-btn" type="button">Upload Files</button>
+        <input type="file" id="metis-media-upload-input" multiple style="display:none">
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="metis-table-wrap" data-can-edit="<?php echo $can_edit ? '1' : '0'; ?>" data-can-delete="<?php echo $can_delete ? '1' : '0'; ?>">
+    <?php if ( $can_edit ) : ?>
+    <button type="button" id="metis-media-dropzone" class="metis-media-dropzone" aria-label="Upload files">
+        <strong>Drop files here to upload</strong>
+        <span>or click to choose files</span>
+    </button>
+    <div id="metis-media-upload-progress" class="metis-media-upload-progress" hidden aria-live="polite" aria-busy="false">
+        <div class="metis-media-upload-progress__head">
+            <strong id="metis-media-upload-progress-title">Uploading media</strong>
+            <span id="metis-media-upload-progress-copy">Preparing upload...</span>
+        </div>
+        <div class="metis-media-upload-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="metis-media-upload-progress-bar"></span>
+        </div>
+    </div>
+    <?php endif; ?>
+    <div class="metis-media-toolbar">
+        <label class="screen-reader-text" for="metis-media-search">Search media by filename</label>
+        <input type="text" id="metis-media-search" class="metis-input" placeholder="Search by filename...">
+        <label class="screen-reader-text" for="metis-media-filter">Filter media by type</label>
+        <select id="metis-media-filter" class="metis-select">
+            <option value="">All Types</option>
+            <option value="image">Images</option>
+            <option value="video">Video</option>
+            <option value="audio">Audio</option>
+            <option value="application">Documents</option>
+            <option value="text">Text</option>
+        </select>
+        <label class="screen-reader-text" for="metis-media-folder-filter">Filter media by folder</label>
+        <input type="text" id="metis-media-folder-filter" class="metis-input" list="metis-media-folder-options" placeholder="Folder filter (e.g. campaigns/2026)">
+        <label class="screen-reader-text" for="metis-media-category-filter">Filter media by category</label>
+        <input type="text" id="metis-media-category-filter" class="metis-input" list="metis-media-category-options" placeholder="Category filter (e.g. hero)">
+        <label class="screen-reader-text" for="metis-media-sort">Sort media</label>
+        <select id="metis-media-sort" class="metis-select">
+            <option value="created_desc">Newest</option>
+            <option value="created_asc">Oldest</option>
+            <option value="name_asc">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+            <option value="size_desc">Largest</option>
+            <option value="size_asc">Smallest</option>
+        </select>
+        <div class="metis-media-view-toggle" role="group" aria-label="View mode">
+            <button class="metis-btn metis-btn-ghost metis-btn-sm is-active" id="metis-media-view-grid" type="button" aria-pressed="true">Grid</button>
+            <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-view-list" type="button" aria-pressed="false">List</button>
+        </div>
+        <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-refresh-btn" type="button">Refresh</button>
+    </div>
+    <?php if ( $can_edit ) : ?>
+    <div class="metis-media-toolbar">
+        <label class="screen-reader-text" for="metis-media-upload-folder">Default upload folder</label>
+        <input type="text" id="metis-media-upload-folder" class="metis-input" list="metis-media-folder-options" placeholder="Upload folder (optional)">
+        <label class="screen-reader-text" for="metis-media-upload-category">Default upload category</label>
+        <input type="text" id="metis-media-upload-category" class="metis-input" list="metis-media-category-options" placeholder="Upload category (optional)">
+        <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-new-folder-btn" type="button">New Folder</button>
+        <button class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-new-category-btn" type="button">New Category</button>
+    </div>
+    <?php endif; ?>
+    <datalist id="metis-media-folder-options"></datalist>
+    <datalist id="metis-media-category-options"></datalist>
+    <div class="metis-media-organizer" aria-label="Media organization">
+        <section class="metis-media-organizer-section">
+            <div class="metis-media-organizer-head">
+                <h2>Folders</h2>
+                <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-clear-folder-filter">Clear</button>
+            </div>
+            <div id="metis-media-folder-list" class="metis-media-organizer-list">
+                <span class="metis-media-organizer-empty">No folders</span>
+            </div>
+        </section>
+        <section class="metis-media-organizer-section">
+            <div class="metis-media-organizer-head">
+                <h2>Categories</h2>
+                <button type="button" class="metis-btn metis-btn-ghost metis-btn-sm" id="metis-media-clear-category-filter">Clear</button>
+            </div>
+            <div id="metis-media-category-list" class="metis-media-organizer-list">
+                <span class="metis-media-organizer-empty">No categories</span>
+            </div>
+        </section>
+    </div>
+    <div id="metis-media-grid" class="metis-media-grid" aria-live="polite">
+        <div class="metis-media-empty">Loading media...</div>
+    </div>
+</div>
+
+<div id="metis-media-preview-modal" class="metis-modal-backdrop metis-media-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-media-modal" aria-labelledby="metis-media-preview-title">
+        <div class="metis-modal-header metis-media-modal-head">
+            <strong id="metis-media-preview-title" class="metis-modal-title">Preview</strong>
+            <button type="button" class="metis-modal-close" id="metis-media-preview-close" data-modal-close="metis-media-preview-modal" aria-label="Close">&times;</button>
+        </div>
+        <div id="metis-media-preview-body" class="metis-modal-body metis-media-modal-body"></div>
+    </div>
+</div>
+
+<?php if ( $can_edit ) : ?>
+<div id="metis-media-organize-modal" class="metis-modal-backdrop metis-media-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-media-modal" aria-labelledby="metis-media-organize-title">
+        <div class="metis-modal-header metis-media-modal-head">
+            <strong id="metis-media-organize-title" class="metis-modal-title">Organize Media</strong>
+            <button type="button" class="metis-modal-close" id="metis-media-organize-close" data-modal-close="metis-media-organize-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="metis-modal-body metis-media-modal-body">
+            <input type="hidden" id="metis-media-organize-token" value="">
+            <div class="metis-media-modal-field">
+                <label for="metis-media-organize-folder">Folder</label>
+                <input type="text" id="metis-media-organize-folder" class="metis-input" list="metis-media-folder-options" placeholder="campaigns/2026">
+            </div>
+            <div class="metis-media-modal-field">
+                <label for="metis-media-organize-category">Category</label>
+                <input type="text" id="metis-media-organize-category" class="metis-input" list="metis-media-category-options" placeholder="hero">
+            </div>
+            <div class="metis-media-modal-actions">
+                <button type="button" class="metis-btn metis-btn-primary" id="metis-media-organize-save">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ( $can_delete ) : ?>
+<div id="metis-media-confirm-modal" class="metis-modal-backdrop metis-media-modal-backdrop" aria-hidden="true">
+    <div class="metis-modal metis-media-modal metis-media-modal-sm" aria-labelledby="metis-media-confirm-title">
+        <div class="metis-modal-header metis-media-modal-head">
+            <strong id="metis-media-confirm-title" class="metis-modal-title">Delete Media</strong>
+            <button type="button" class="metis-modal-close" id="metis-media-confirm-close" data-modal-close="metis-media-confirm-modal" aria-label="Close">&times;</button>
+        </div>
+        <div class="metis-modal-body metis-media-modal-body">
+            <p>This will permanently delete the selected media file.</p>
+            <input type="hidden" id="metis-media-delete-token" value="">
+            <div class="metis-media-modal-actions">
+                <button type="button" class="metis-btn metis-btn-ghost" id="metis-media-delete-cancel">Cancel</button>
+                <button type="button" class="metis-btn metis-btn-danger" id="metis-media-delete-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

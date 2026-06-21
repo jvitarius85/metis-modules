@@ -1,0 +1,179 @@
+{
+    "slug": "grandys_stash",
+    "name": "grandys_stash",
+    "label": "Grandy's Stash",
+    "version": "1.0.0",
+    "domain": "grandys_stash",
+    "class": "Metis\\Modules\\GrandyStash\\GrandyStashModule",
+    "default_view": "dashboard",
+    "dependencies": [
+        "contacts",
+        "forms"
+    ],
+    "menu_order": 2,
+    "description": "Track equipment intake, inventory, and distributions.",
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 7 12 3 4 7\"/><path d=\"M20 7v10l-8 4-8-4V7\"/><path d=\"M12 21V11\"/><path d=\"M4 7l8 4 8-4\"/></svg>",
+    "menu": {
+        "type": "dropdown",
+        "items": {
+            "dashboard": "Inbox",
+            "groups": "People Groups",
+            "organizations": "Organizations",
+            "reports": "Reports",
+            "settings": "Settings"
+        }
+    },
+    "permissions": {
+        "view": {
+            "key": "grandys_stash.view",
+            "action": "view",
+            "name": "Grandy's Stash View",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "edit": {
+            "key": "grandys_stash.edit",
+            "action": "edit",
+            "name": "Grandy's Stash Edit",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "create": {
+            "key": "grandys_stash.create",
+            "action": "create",
+            "name": "Grandy's Stash Create Tickets",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "assign": {
+            "key": "grandys_stash.assign",
+            "action": "assign",
+            "name": "Grandy's Stash Assign Tickets",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "comment": {
+            "key": "grandys_stash.comment",
+            "action": "comment",
+            "name": "Grandy's Stash Internal Notes",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "reply": {
+            "key": "grandys_stash.reply",
+            "action": "reply",
+            "name": "Grandy's Stash Send Replies",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "inventory": {
+            "key": "grandys_stash.inventory",
+            "action": "inventory",
+            "name": "Grandy's Stash Inventory",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "settings": {
+            "key": "grandys_stash.settings",
+            "action": "settings",
+            "name": "Grandy's Stash Settings",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "export": {
+            "key": "grandys_stash.export",
+            "action": "export",
+            "name": "Grandy's Stash Export",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "newsletter_admin"
+            ]
+        },
+        "delete": {
+            "key": "grandys_stash.delete",
+            "action": "delete",
+            "name": "Grandy's Stash Delete Tickets",
+            "roles": [
+                "administrator"
+            ]
+        }
+    },
+    "views": {
+        "dashboard": "dashboard.php",
+        "ticket": "ticket.php",
+        "groups": "groups.php",
+        "organizations": "organizations.php",
+        "reports": "report.php",
+        "settings": "settings.php"
+    },
+    "parent_views": {
+        "ticket": "dashboard"
+    },
+    "assets": {
+        "css": [
+            "grandys_stash.css"
+        ],
+        "js": [
+            "grandys_stash.js"
+        ],
+        "ajax": "grandys_stash.ajax.php",
+        "nonce_action": "metis_grandys_stash",
+        "ajax_object": "metisGrandyStashAjax"
+    },
+    "category": "other",
+    "default_parent": null,
+    "order": 90,
+    "navigation": {
+        "enabled": true,
+        "label": "Grandy's Stash",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Grandy's Stash",
+    "entry": "Module.php",
+    "routes": [
+        {
+            "name": "grandys_stash.ticket",
+            "methods": [
+                "GET"
+            ],
+            "pattern": "#^/admin/grandys_stash/view/(?P<ticket_code>GST-[A-Z0-9]+)/?$#",
+            "handler": "metis_grandys_stash_handle_view_route"
+        }
+    ],
+    "services": []
+}

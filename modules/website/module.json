@@ -1,0 +1,260 @@
+{
+    "slug": "website",
+    "name": "website",
+    "label": "Website",
+    "version": "1.0.0",
+    "domain": "website",
+    "description": "First-class Website workspace for pages, posts, media, menus, redirects, templates, publishing workflows, and public site controls.",
+    "default_view": "dashboard",
+    "dependencies": [],
+    "menu_order": 10,
+    "enabled": true,
+    "entity_prefixes": [
+        {
+            "entity_type": "website_page",
+            "prefix": "WPG",
+            "description": "Website Page",
+            "table_key": "website_pages",
+            "uid_column": "page_code",
+            "legacy_columns": [
+                "page_code"
+            ]
+        },
+        {
+            "entity_type": "website_post",
+            "prefix": "WBP",
+            "description": "Website Post",
+            "table_key": "website_posts",
+            "uid_column": "post_code",
+            "legacy_columns": [
+                "post_code"
+            ]
+        },
+        {
+            "entity_type": "website_banner",
+            "prefix": "WBN",
+            "description": "Website Banner",
+            "table_key": "website_banners",
+            "uid_column": "banner_code",
+            "legacy_columns": [
+                "banner_code"
+            ]
+        }
+    ],
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/></svg>",
+    "menu": {
+        "type": "dropdown",
+        "items": {
+            "dashboard": "Website Home",
+            "launch": "Launch",
+            "pages": "Pages",
+            "posts": "Posts",
+            "categories": "Categories",
+            "media": "Media",
+            "banners": "Banners",
+            "menus": "Menus",
+            "popups": "Popups",
+            "redirects": "Redirects",
+            "templates": "Templates",
+            "webparts": "Web Parts",
+            "theme": "Theme",
+            "import": "Import"
+        }
+    },
+    "view_permissions": {
+        "dashboard": "website.view",
+        "launch": "website.launch",
+        "editor": "website.edit",
+        "pages": "website.view",
+        "posts": "website.view",
+        "categories": "website.view",
+        "media": "website.manage_media",
+        "banners": "website.manage_banners",
+        "menus": "website.manage_menus",
+        "popups": "website.manage_popups",
+        "redirects": "website.manage_redirects",
+        "templates": "website.manage_templates",
+        "webparts": "website.manage_webparts",
+        "theme": "website.manage_theme",
+        "import": "website.import"
+    },
+    "permissions": {
+        "view": {
+            "key": "website.view",
+            "action": "view",
+            "name": "Website View",
+            "roles": [
+                "administrator",
+                "board",
+                "donor_admin",
+                "website_manager"
+            ]
+        },
+        "edit": {
+            "key": "website.edit",
+            "action": "edit",
+            "name": "Website Edit",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "create": {
+            "key": "website.create",
+            "action": "create",
+            "name": "Website Create",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "delete": {
+            "key": "website.delete",
+            "action": "delete",
+            "name": "Website Delete",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "publish": {
+            "key": "website.publish",
+            "action": "publish",
+            "name": "Website Publish",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "launch": {
+            "key": "website.launch",
+            "action": "launch",
+            "name": "Website Launch",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "import": {
+            "key": "website.import",
+            "action": "import",
+            "name": "Website Import",
+            "roles": [
+                "administrator"
+            ]
+        },
+        "manage_templates": {
+            "key": "website.manage_templates",
+            "action": "manage_templates",
+            "name": "Website Manage Templates",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_menus": {
+            "key": "website.manage_menus",
+            "action": "manage_menus",
+            "name": "Website Manage Menus",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_redirects": {
+            "key": "website.manage_redirects",
+            "action": "manage_redirects",
+            "name": "Website Manage Redirects",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_media": {
+            "key": "website.manage_media",
+            "action": "manage_media",
+            "name": "Website Manage Media",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_banners": {
+            "key": "website.manage_banners",
+            "action": "manage_banners",
+            "name": "Website Manage Banners",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_popups": {
+            "key": "website.manage_popups",
+            "action": "manage_popups",
+            "name": "Website Manage Popups",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_theme": {
+            "key": "website.manage_theme",
+            "action": "manage_theme",
+            "name": "Website Manage Theme",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        },
+        "manage_webparts": {
+            "key": "website.manage_webparts",
+            "action": "manage_webparts",
+            "name": "Website Manage Web Parts",
+            "roles": [
+                "administrator",
+                "website_manager"
+            ]
+        }
+    },
+    "views": {
+        "dashboard": "dashboard.php",
+        "launch": "launch.php",
+        "editor": "editor.php",
+        "pages": "pages.php",
+        "posts": "posts.php",
+        "categories": "categories.php",
+        "media": "media.php",
+        "banners": "banners.php",
+        "menus": "menus.php",
+        "popups": "popups.php",
+        "redirects": "redirects.php",
+        "templates": "templates.php",
+        "webparts": "webparts.php",
+        "theme": "theme.php",
+        "import": "import.php"
+    },
+    "routes": [],
+    "assets": {
+        "css": [
+            "website.css",
+            "theme-admin.css"
+        ],
+        "js": [
+            "website.js"
+        ],
+        "ajax": "website.ajax.php",
+        "nonce_action": "metis_website"
+    },
+    "ajax_object": "metisWebsiteAjax",
+    "category": "website",
+    "default_parent": "website",
+    "order": 10,
+    "navigation": {
+        "enabled": true,
+        "label": "Website",
+        "visible": true
+    },
+    "title": "Website",
+    "entry": "Module.php",
+    "services": []
+}

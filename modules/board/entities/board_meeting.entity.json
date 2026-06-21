@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "entity": "board_meeting",
+  "label": "Board meeting",
+  "plural": "board meetings",
+  "prefix": "MTG",
+  "table_key": "board_meetings",
+  "primary_key": "id",
+  "uid_column": "meeting_uid",
+  "module": "board",
+  "aliases": ["meeting", "meetings", "board meeting", "board meetings"],
+
+  "fields": {
+    "id":          { "type": "integer",  "label": "ID",           "filterable": true, "sortable": true  },
+    "meeting_uid": { "type": "string",   "label": "UID",          "filterable": true, "sortable": false },
+    "title":       { "type": "string",   "label": "Title",        "filterable": true, "sortable": true  },
+    "status":      { "type": "string",   "label": "Status",       "filterable": true, "sortable": true,  "groupable": true  },
+    "meeting_date":{ "type": "datetime", "label": "Meeting date", "filterable": true, "sortable": true,  "date_field": true },
+    "created_at":  { "type": "datetime", "label": "Created",      "filterable": true, "sortable": true,  "date_field": true }
+  },
+
+  "relationships": {},
+
+  "reporting": {
+    "aggregate_fields":  [],
+    "groupable_fields":  ["status"],
+    "filterable_fields": ["status", "meeting_date", "created_at"],
+    "date_fields":       ["meeting_date", "created_at"],
+    "default_sort":      "meeting_date",
+    "default_sort_dir":  "desc"
+  },
+
+  "permissions": { "view": "board.view", "edit": "board.manage" }
+}

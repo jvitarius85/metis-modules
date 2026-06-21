@@ -1,0 +1,25 @@
+/**
+ * Import Module Styles
+ */
+.metis-import-dashboard {
+    padding: 20px;
+}
+
+.metis-import-dashboard .metis-card {
+    background: #fff;
+    border: 1px solid #e2e6ea;
+    border-radius: 5px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.metis-import-dashboard .metis-card h2 {
+    margin-top: 0;
+}
+
+.metis-import-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}

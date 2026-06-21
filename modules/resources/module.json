@@ -1,0 +1,39 @@
+{
+    "slug": "resources",
+    "name": "resources",
+    "label": "Resources",
+    "version": "1.0.0",
+    "domain": "resources",
+    "default_view": "dashboard",
+    "dependencies": [],
+    "description": "Manage structured public resource directories by type, category, and tag.",
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5.5A2.5 2.5 0 0 1 6.5 3H19a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8.5A2.5 2.5 0 0 0 6 20.5\"/><path d=\"M6.5 3A2.5 2.5 0 0 0 4 5.5v15\"/><path d=\"M8 7h8M8 11h8M8 15h5\"/></svg>",
+    "permissions": {
+        "view": ["administrator", "developer", "website_manager", "board", "newsletter_admin"],
+        "edit": ["administrator", "developer", "website_manager"],
+        "create": ["administrator", "developer", "website_manager"],
+        "delete": ["administrator", "developer"]
+    },
+    "views": {
+        "dashboard": "dashboard.php"
+    },
+    "assets": {
+        "css": ["resources.css"],
+        "js": ["resources.js"],
+        "ajax": "resources.ajax.php"
+    },
+    "ajax_object": "metisResourcesAjax",
+    "category": "website",
+    "default_parent": "website",
+    "order": 245,
+    "navigation": {
+        "enabled": true,
+        "label": "Resources",
+        "visible": true
+    },
+    "quick_actions": [],
+    "title": "Resources",
+    "entry": "Module.php",
+    "routes": [],
+    "services": []
+}
