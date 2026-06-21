@@ -2147,73 +2147,200 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    const releaseRefreshBtn = document.querySelector('[data-release-check-updates]');
-    if (releaseRefreshBtn) {
-        releaseRefreshBtn.addEventListener('click', function () {
-            const action = 'metis_release_check_updates';
-            const body = new FormData();
-            body.append('action', action);
-            body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
-            body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
+    function settingsLiveRoot() {
+        return document.querySelector('[data-settings-live-root]');
+    }
 
-            const originalLabel = releaseRefreshBtn.textContent;
-            releaseRefreshBtn.disabled = true;
-            releaseRefreshBtn.textContent = 'Queueing...';
+    function settingsLiveFeedback() {
+        const root = settingsLiveRoot();
+        return root ? root.querySelector('[data-settings-live-feedback]') : null;
+    }
 
-            Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
-                showToast('success', String(data.message || 'Release metadata refreshed.'));
-                window.setTimeout(function () {
-                    window.location.reload();
-                }, 450);
-            }).catch(function (error) {
-                showToast('error', error && error.message ? error.message : 'Release refresh failed.');
-            }).finally(function () {
-                releaseRefreshBtn.disabled = false;
-                releaseRefreshBtn.textContent = originalLabel;
+    function setSettingsLiveFeedback(message, variant) {
+        const target = settingsLiveFeedback();
+        if (!target) return;
+        if (!message) {
+            target.innerHTML = '';
+            return;
+        }
+
+        const tone = variant === 'error' ? ' style="color:#b91c1c;"' : (variant === 'warning' ? ' style="color:#92400e;"' : '');
+        target.innerHTML = '<p class="metis-help"' + tone + '>' + escapeHtml(String(message)) + '</p>';
+    }
+
+    function refreshSettingsLiveRoot() {
+        const currentRoot = settingsLiveRoot();
+        const rootName = currentRoot ? String(currentRoot.getAttribute('data-settings-live-root') || '').trim() : '';
+        if (!currentRoot || !rootName) {
+            return Promise.resolve();
+        }
+
+        return fetch(window.location.href, {
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error('Unable to refresh the page state.');
+            }
+            return response.text();
+        }).then(function (html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const replacement = doc.querySelector('[data-settings-live-root="' + rootName + '"]');
+            if (!replacement || !currentRoot.parentNode) {
+                throw new Error('Updated page fragments were not available.');
+            }
+
+            currentRoot.replaceWith(replacement);
+            bindSettingsAsyncActions(document);
+        });
+    }
+
+    function beginSettingsAsyncButton(button, loadingLabel) {
+        const originalText = String(button.textContent || '').trim();
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        if (button.classList.contains('metis-module-action') || button.classList.contains('metis-module-refresh')) {
+            button.classList.add('is-loading');
+        } else if (loadingLabel) {
+            button.textContent = loadingLabel;
+        }
+        return function endSettingsAsyncButton() {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            button.classList.remove('is-loading');
+            if (!(button.classList.contains('metis-module-action') || button.classList.contains('metis-module-refresh')) && loadingLabel) {
+                button.textContent = originalText;
+            }
+        };
+    }
+
+    function settingsNonce(action) {
+        return Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || '');
+    }
+
+    function postSettingsAction(action, body) {
+        body.append('action', action);
+        body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
+        body.append('metis_action_nonce', settingsNonce(action));
+        return Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.');
+    }
+
+    function moduleActionPrompt(kind, label) {
+        if (kind === 'update') {
+            return {
+                message: 'Update ' + label + ' now?',
+                title: 'Update Module',
+                confirmLabel: 'Update'
+            };
+        }
+        if (kind === 'reinstall') {
+            return {
+                message: 'Reinstall ' + label + ' now?',
+                title: 'Reinstall Module',
+                confirmLabel: 'Reinstall'
+            };
+        }
+        return {
+            message: 'Install ' + label + ' now?',
+            title: 'Install Module',
+            confirmLabel: 'Install'
+        };
+    }
+
+    function bindSettingsAsyncActions(scope) {
+        (scope || document).querySelectorAll('[data-release-check-updates]').forEach(function (button) {
+            if (button.dataset.metisBound === '1') return;
+            button.dataset.metisBound = '1';
+            button.addEventListener('click', function () {
+                const endLoading = beginSettingsAsyncButton(button, 'Refreshing...');
+                setSettingsLiveFeedback('Refreshing module registry and update metadata...', '');
+
+                postSettingsAction('metis_release_check_updates', new FormData()).then(function (data) {
+                    return refreshSettingsLiveRoot().then(function () {
+                        setSettingsLiveFeedback('', '');
+                        showToast('success', String(data.message || 'Release metadata refreshed.'));
+                    });
+                }).catch(function (error) {
+                    setSettingsLiveFeedback(error && error.message ? error.message : 'Release refresh failed.', 'error');
+                    showToast('error', error && error.message ? error.message : 'Release refresh failed.');
+                }).finally(function () {
+                    endLoading();
+                });
+            });
+        });
+
+        (scope || document).querySelectorAll('[data-module-install-id]').forEach(function (button) {
+            if (button.dataset.metisBound === '1') return;
+            button.dataset.metisBound = '1';
+            button.addEventListener('click', function () {
+                const moduleId = String(button.getAttribute('data-module-install-id') || '').trim();
+                const moduleName = String(button.getAttribute('data-module-install-name') || moduleId).trim();
+                const moduleVersion = String(button.getAttribute('data-module-install-version') || '').trim();
+                const actionKind = String(button.getAttribute('data-module-action-kind') || 'install').trim() || 'install';
+                if (!moduleId) return;
+
+                const label = moduleVersion ? (moduleName + ' ' + moduleVersion) : moduleName;
+                const prompt = moduleActionPrompt(actionKind, label);
+                confirmAction(prompt.message, {
+                    title: prompt.title,
+                    confirmLabel: prompt.confirmLabel
+                }).then(function (confirmed) {
+                    if (!confirmed) return;
+
+                    const endLoading = beginSettingsAsyncButton(button);
+                    setSettingsLiveFeedback(prompt.confirmLabel + 'ing ' + label + '...', '');
+
+                    const body = new FormData();
+                    body.append('module_id', moduleId);
+
+                    postSettingsAction('metis_module_install_now', body).then(function (data) {
+                        return refreshSettingsLiveRoot().then(function () {
+                            setSettingsLiveFeedback('', '');
+                            showToast('success', String((data && data.message) || 'Module installed.'));
+                        });
+                    }).catch(function (error) {
+                        setSettingsLiveFeedback(error && error.message ? error.message : 'Module action failed.', 'error');
+                        showToast('error', error && error.message ? error.message : 'Module installation failed.');
+                    }).finally(function () {
+                        endLoading();
+                    });
+                });
+            });
+        });
+
+        (scope || document).querySelectorAll('[data-module-update-all]').forEach(function (button) {
+            if (button.dataset.metisBound === '1') return;
+            button.dataset.metisBound = '1';
+            button.addEventListener('click', function () {
+                confirmAction('Install every available module update now?', {
+                    title: 'Update All Modules',
+                    confirmLabel: 'Update All'
+                }).then(function (confirmed) {
+                    if (!confirmed) return;
+
+                    const endLoading = beginSettingsAsyncButton(button);
+                    setSettingsLiveFeedback('Installing available module updates...', '');
+
+                    postSettingsAction('metis_module_install_all_updates', new FormData()).then(function (data) {
+                        return refreshSettingsLiveRoot().then(function () {
+                            setSettingsLiveFeedback('', '');
+                            showToast('success', String((data && data.message) || 'Module updates applied.'));
+                        });
+                    }).catch(function (error) {
+                        setSettingsLiveFeedback(error && error.message ? error.message : 'Module updates failed.', 'error');
+                        showToast('error', error && error.message ? error.message : 'Module updates failed.');
+                    }).finally(function () {
+                        endLoading();
+                    });
+                });
             });
         });
     }
 
-    document.querySelectorAll('[data-module-install-id]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            const moduleId = String(button.getAttribute('data-module-install-id') || '').trim();
-            const moduleName = String(button.getAttribute('data-module-install-name') || moduleId).trim();
-            const moduleVersion = String(button.getAttribute('data-module-install-version') || '').trim();
-            if (!moduleId) return;
-
-            const label = moduleVersion ? (moduleName + ' ' + moduleVersion) : moduleName;
-            confirmAction('Install ' + label + ' immediately?', {
-                title: 'Install Module',
-                confirmLabel: 'Install'
-            }).then(function (confirmed) {
-                if (!confirmed) return;
-
-                const action = 'metis_module_install_now';
-                const body = new FormData();
-                body.append('action', action);
-                body.append('module_id', moduleId);
-                body.append('nonce', (window.metisAjax && window.metisAjax.nonce) || '');
-                body.append('metis_action_nonce', Metis.ajax.nonceFor(action, (window.metisAjax && window.metisAjax.nonce) || ''));
-
-                const originalLabel = button.innerHTML;
-                button.disabled = true;
-                button.classList.add('is-loading');
-
-                Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
-                    showToast('success', String(data && data.message ? data.message : 'Module installed.'));
-                    window.setTimeout(function () {
-                        window.location.reload();
-                    }, 500);
-                }).catch(function (error) {
-                    showToast('error', error && error.message ? error.message : 'Module installation failed.');
-                }).finally(function () {
-                    button.disabled = false;
-                    button.classList.remove('is-loading');
-                    button.innerHTML = originalLabel;
-                });
-            });
-        });
-    });
+    bindSettingsAsyncActions(document);
 
     function releaseProgressToken() {
         const source = new Uint8Array(16);

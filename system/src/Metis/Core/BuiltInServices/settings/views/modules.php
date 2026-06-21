@@ -55,13 +55,16 @@ foreach ( $registry_rows as $module_id => $registry_row ) {
 }
 
 usort( $modules, static fn ( array $left, array $right ): int => strcmp( (string) $left['name'], (string) $right['name'] ) );
+$module_update_icon = metis_navigation_icon_markup( 'icon:repeat' );
+$module_loading_icon = metis_navigation_svg_icon_markup( 'loading-circle' );
 ?>
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Settings' ) ); ?></h1>
 <p class="metis-subtitle">Browse registry-backed modules and install updates immediately.</p>
 <?php metis_settings_render_messages( $saved, $errors ); ?>
 <?php metis_settings_render_section_nav( 'modules' ); ?>
 
-<div class="metis-settings-card">
+<div data-settings-live-root="modules">
+<div class="metis-settings-card" data-settings-modules-store>
     <div class="metis-settings-header">
         <h2>Modules Store</h2>
         <span class="metis-settings-status <?php echo $modules === [] ? 'is-missing' : 'is-ok'; ?>"><?php echo metis_escape_html( (string) count( $modules ) ); ?></span>
@@ -81,7 +84,11 @@ usort( $modules, static fn ( array $left, array $right ): int => strcmp( (string
                 <div class="metis-help"><code>meta/modules.json</code></div>
             </div>
             <div class="metis-settings-actions">
-                <button type="button" class="metis-btn metis-btn-secondary metis-btn-sm" data-release-check-updates>Refresh Registry</button>
+                <button type="button" class="metis-module-action metis-module-action--reinstall" data-release-check-updates>
+                    <span class="metis-module-action__label">Refresh Registry</span>
+                    <span class="metis-module-action__icon" aria-hidden="true"><?php echo $module_update_icon; ?></span>
+                    <span class="metis-module-action__spinner" aria-hidden="true"><?php echo $module_loading_icon; ?></span>
+                </button>
             </div>
         </div>
         <?php if ( ! empty( $module_registry['error'] ) ) : ?>
@@ -92,53 +99,72 @@ usort( $modules, static fn ( array $left, array $right ): int => strcmp( (string
         <?php else : ?>
             <div class="metis-module-grid">
                 <?php foreach ( $modules as $module ) : ?>
-                    <div class="metis-module-card">
+                    <?php
+                    $action_label = ! empty( $module['installed'] )
+                        ? ( ! empty( $module['update_available'] ) ? 'Update' : 'Reinstall' )
+                        : 'Install';
+                    $action_kind = ! empty( $module['update_available'] )
+                        ? 'update'
+                        : ( ! empty( $module['installed'] ) ? 'reinstall' : 'install' );
+                    ?>
+                    <div class="metis-module-card<?php echo ! empty( $module['update_available'] ) ? ' is-update-available' : ''; ?>">
                         <div class="metis-module-card__head">
                             <div>
                                 <div class="metis-module-card__title"><?php echo metis_escape_html( (string) $module['name'] ); ?></div>
-                                <div class="metis-help" style="margin-top:4px;">
+                                <p class="metis-module-card__version">
                                     <?php if ( ! empty( $module['installed'] ) ) : ?>
-                                        <?php echo metis_escape_html( (string) $module['current'] ); ?> → <?php echo metis_escape_html( (string) $module['latest'] ); ?>
+                                        <?php echo metis_escape_html( (string) $module['current'] ); ?>
+                                        <?php if ( ! empty( $module['update_available'] ) ) : ?>
+                                            → <?php echo metis_escape_html( (string) $module['latest'] ); ?>
+                                        <?php endif; ?>
                                     <?php else : ?>
                                         Latest <?php echo metis_escape_html( (string) $module['latest'] ); ?>
                                     <?php endif; ?>
-                                </div>
+                                </p>
                             </div>
                             <div class="metis-module-card__actions">
-                                <?php
-                                $module_update_icon = metis_navigation_icon_markup( 'icon:repeat' );
-                                $module_loading_icon = metis_navigation_svg_icon_markup( 'loading-circle' );
-                                ?>
                                 <button
                                     type="button"
-                                    class="metis-btn metis-btn-secondary metis-btn-sm metis-module-action"
+                                    class="metis-module-action metis-module-action--<?php echo metis_escape_attr( $action_kind ); ?>"
                                     data-module-install-id="<?php echo metis_escape_attr( (string) $module['id'] ); ?>"
                                     data-module-install-name="<?php echo metis_escape_attr( (string) $module['name'] ); ?>"
                                     data-module-install-version="<?php echo metis_escape_attr( (string) $module['latest'] ); ?>"
+                                    data-module-action-kind="<?php echo metis_escape_attr( $action_kind ); ?>"
                                 >
-                                    <span class="metis-module-action__label"><?php echo ! empty( $module['installed'] ) ? ( ! empty( $module['update_available'] ) ? 'Update' : 'Reinstall' ) : 'Install'; ?></span>
+                                    <span class="metis-module-action__label"><?php echo metis_escape_html( $action_label ); ?></span>
                                     <span class="metis-module-action__icon" aria-hidden="true"><?php echo $module_update_icon; ?></span>
                                     <span class="metis-module-action__spinner" aria-hidden="true"><?php echo $module_loading_icon; ?></span>
                                 </button>
                             </div>
                         </div>
-                        <div class="metis-module-card__meta">
-                            <span class="metis-chip" style="background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;"><?php echo metis_escape_html( (string) $module['release_channel'] ); ?></span>
-                            <span class="metis-chip" style="background:#ecfdf5; color:#166534; border:1px solid #a7f3d0;">Registry</span>
-                            <?php if ( ! empty( $module['installed'] ) ) : ?>
-                                <span class="metis-chip" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db;">Installed</span>
-                            <?php endif; ?>
-                            <?php if ( ! empty( $module['update_available'] ) ) : ?>
-                                <span class="metis-chip" style="background:#fff7ed; color:#9a3412; border:1px solid #fdba74;">Update Available</span>
-                            <?php endif; ?>
+                        <div class="metis-module-card__summary">
+                            <p class="metis-module-card__summary-label<?php echo ! empty( $module['update_available'] ) ? ' is-update' : ''; ?>">
+                                <?php
+                                if ( ! empty( $module['update_available'] ) ) {
+                                    echo 'Update ready to install';
+                                } elseif ( ! empty( $module['installed'] ) ) {
+                                    echo 'Installed version';
+                                } else {
+                                    echo 'Available from registry';
+                                }
+                                ?>
+                            </p>
+                            <p class="metis-module-card__note">
+                                <?php echo metis_escape_html( ucfirst( (string) $module['release_channel'] ) ); ?> channel
+                                <?php if ( ! empty( $module['installed'] ) ) : ?>
+                                    · Installed
+                                <?php endif; ?>
+                            </p>
                         </div>
-                        <div class="metis-help">Minimum Metis <?php echo metis_escape_html( (string) $module['minimum_metis'] ); ?></div>
+                        <p class="metis-module-card__note">Minimum Metis <?php echo metis_escape_html( (string) $module['minimum_metis'] ); ?></p>
                         <?php if ( ! empty( $module['reason'] ) ) : ?>
-                            <div class="metis-help" style="color:#92400e;"><?php echo metis_escape_html( (string) $module['reason'] ); ?></div>
+                            <p class="metis-module-card__note is-warning"><?php echo metis_escape_html( (string) $module['reason'] ); ?></p>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </div>
+</div>
+<div class="metis-settings-live-feedback" data-settings-live-feedback="modules"></div>
 </div>

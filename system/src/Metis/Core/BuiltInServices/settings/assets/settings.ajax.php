@@ -968,6 +968,74 @@ metis_ajax_register_handler( 'metis_module_install_now', function () {
     'nonce_action' => metis_ajax_nonce_action( 'metis_module_install_now' ),
 ] );
 
+metis_ajax_register_handler( 'metis_module_install_all_updates', function () {
+    if ( ! function_exists( 'metis_module_install_service' ) || ! function_exists( 'metis_update_service' ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Module update services are not available.' ], 503 );
+    }
+
+    @ignore_user_abort( true );
+    @set_time_limit( 0 );
+
+    if ( function_exists( 'session_status' ) && session_status() === PHP_SESSION_ACTIVE ) {
+        session_write_close();
+    }
+
+    $initial_summary = metis_update_service()->refreshUpdateState( true, 'module_install_all_prepare' );
+    $module_rows = is_array( $initial_summary['modules']['modules'] ?? null )
+        ? (array) $initial_summary['modules']['modules']
+        : [];
+
+    $target_ids = [];
+    foreach ( $module_rows as $row ) {
+        if ( ! is_array( $row ) || empty( $row['update_available'] ) ) {
+            continue;
+        }
+
+        $module_id = metis_key_clean( (string) ( $row['id'] ?? '' ) );
+        if ( $module_id !== '' ) {
+            $target_ids[] = $module_id;
+        }
+    }
+
+    if ( $target_ids === [] ) {
+        metis_runtime_send_json_success( [
+            'message' => 'No module updates are currently available.',
+            'results' => [],
+            'module_update_status' => (array) ( $initial_summary['modules'] ?? [] ),
+        ] );
+    }
+
+    $results = [];
+    $success_count = 0;
+    $failure_count = 0;
+
+    foreach ( $target_ids as $module_id ) {
+        $result = metis_module_install_service()->installLatest( $module_id, true );
+        $results[ $module_id ] = $result;
+        if ( ! empty( $result['ok'] ) ) {
+            $success_count++;
+        } else {
+            $failure_count++;
+        }
+    }
+
+    $final_summary = metis_update_service()->refreshUpdateState( true, 'module_install_all_complete' );
+    $message = $failure_count > 0
+        ? sprintf( 'Updated %d module%s. %d failed.', $success_count, $success_count === 1 ? '' : 's', $failure_count )
+        : sprintf( 'Updated %d module%s.', $success_count, $success_count === 1 ? '' : 's' );
+
+    metis_runtime_send_json_success( [
+        'message' => $message,
+        'results' => $results,
+        'module_update_status' => (array) ( $final_summary['modules'] ?? [] ),
+        'all_ok' => $failure_count === 0,
+    ] );
+}, [
+    'module' => 'settings',
+    'permission' => 'edit',
+    'nonce_action' => metis_ajax_nonce_action( 'metis_module_install_all_updates' ),
+] );
+
 metis_ajax_register_handler( 'metis_release_apply', function () {
     $tag = metis_text_clean( (string) ( metis_request_post()['tag'] ?? '' ) );
     if ( $tag === '' ) {

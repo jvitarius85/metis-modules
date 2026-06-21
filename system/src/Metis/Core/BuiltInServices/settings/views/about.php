@@ -76,16 +76,32 @@ $update_notice_count = ( ! empty( $release_status['update_available'] ) ? 1 : 0 
 usort( $module_details, static function ( array $a, array $b ): int {
     return strcmp( (string) ( $a['slug'] ?? '' ), (string) ( $b['slug'] ?? '' ) );
 } );
+$module_update_icon = metis_navigation_icon_markup( 'icon:repeat' );
+$module_loading_icon = metis_navigation_svg_icon_markup( 'loading-circle' );
 ?>
 <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( 'Settings' ) ); ?></h1>
 <p class="metis-subtitle">Review the installed Metis version and current release state.</p>
 <?php metis_settings_render_messages( $saved, $errors ); ?>
 <?php metis_settings_render_section_nav( 'about' ); ?>
 
-<div class="metis-settings-card">
+<div data-settings-live-root="about">
+<div class="metis-settings-card" data-settings-about-updates>
     <div class="metis-settings-header">
         <h2>Updates Available</h2>
-        <span class="metis-settings-status <?php echo $update_notice_count > 0 ? 'is-warning' : 'is-ok'; ?>"><?php echo metis_escape_html( (string) $update_notice_count ); ?></span>
+        <div class="metis-module-actions-row">
+            <?php if ( $is_system_admin && $module_update_count > 0 ) : ?>
+                <button
+                    type="button"
+                    class="metis-module-action metis-module-action--update"
+                    data-module-update-all="1"
+                >
+                    <span class="metis-module-action__label">Update All Modules</span>
+                    <span class="metis-module-action__icon" aria-hidden="true"><?php echo $module_update_icon; ?></span>
+                    <span class="metis-module-action__spinner" aria-hidden="true"><?php echo $module_loading_icon; ?></span>
+                </button>
+            <?php endif; ?>
+            <span class="metis-settings-status <?php echo $update_notice_count > 0 ? 'is-warning' : 'is-ok'; ?>"><?php echo metis_escape_html( (string) $update_notice_count ); ?></span>
+        </div>
     </div>
     <div class="metis-settings-body">
         <div class="metis-shortcode-wrap" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
@@ -123,9 +139,8 @@ usort( $module_details, static function ( array $a, array $b ): int {
                                 <?php echo metis_escape_html( (string) ( $module_update['current'] ?? 'unknown' ) ); ?> → <?php echo metis_escape_html( (string) ( $module_update['latest'] ?? 'unknown' ) ); ?>
                             </div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            <span class="metis-chip" style="background:#fff7ed; color:#9a3412; border:1px solid #fdba74;">Update Available</span>
-                            <span class="metis-chip" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db;"><?php echo metis_escape_html( (string) ( $module_update['release_channel'] ?? 'stable' ) ); ?></span>
+                        <div class="metis-help" style="margin:0;">
+                            <?php echo metis_escape_html( ucfirst( (string) ( $module_update['release_channel'] ?? 'stable' ) ) ); ?> channel
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -173,7 +188,7 @@ usort( $module_details, static function ( array $a, array $b ): int {
 </div>
 
 <?php if ( $module_details !== [] ) : ?>
-    <div class="metis-settings-card">
+    <div class="metis-settings-card" data-settings-about-modules>
         <div class="metis-settings-header"><h2>Loaded Modules</h2></div>
         <div class="metis-settings-body">
             <div class="metis-module-grid">
@@ -188,79 +203,62 @@ usort( $module_details, static function ( array $a, array $b ): int {
                     $module_reason = trim( (string) ( $module_detail['reason'] ?? '' ) );
                     $module_update = is_array( $module_update_map[ $module_slug ] ?? null ) ? (array) $module_update_map[ $module_slug ] : [];
                     $has_module_update = ! empty( $module_update['update_available'] );
-                    $module_badge = 'Custom';
+                    $module_badge = 'Custom Service';
                     if ( ! empty( $modules[ $module_slug ]['config']['required'] ) ) {
-                        $module_badge = 'Required';
+                        $module_badge = 'Required Service';
                     } elseif ( ! empty( $registry_module_lookup[ $module_slug ] ) ) {
-                        $module_badge = 'Registry';
-                    }
-                    $module_badge_style = 'background:#f3f4f6; color:#374151; border:1px solid #d1d5db;';
-                    if ( $module_badge === 'Required' ) {
-                        $module_badge_style = 'background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;';
-                    } elseif ( $module_badge === 'Registry' ) {
-                        $module_badge_style = 'background:#ecfdf5; color:#166534; border:1px solid #a7f3d0;';
+                        $module_badge = 'Registry Module';
                     }
                     $status_label = $module_status === 'failed' ? 'Failed' : 'Loaded';
-                    $status_style = $module_status === 'failed'
-                        ? 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;'
-                        : 'background:#ecfdf5; color:#166534; border:1px solid #a7f3d0;';
                     ?>
-                    <div class="metis-module-card">
+                    <div class="metis-module-card<?php echo $has_module_update ? ' is-update-available' : ''; ?>">
                         <div class="metis-module-card__head">
                             <div>
                                 <div class="metis-module-card__title">
                                     <?php echo metis_escape_html( ucwords( str_replace( [ '_', '-' ], ' ', (string) $module_slug ) ) ); ?>
                                 </div>
-                                <div class="metis-help" style="margin:8px 0 0 0;">
+                                <p class="metis-module-card__version">
                                     <code><?php echo metis_escape_html( (string) $module_version ); ?></code>
                                     <?php if ( $has_module_update ) : ?>
                                         → <code><?php echo metis_escape_html( (string) ( $module_update['latest'] ?? '' ) ); ?></code>
                                     <?php endif; ?>
-                                </div>
+                                </p>
                             </div>
                             <div class="metis-module-card__actions">
                                 <?php if ( $has_module_update ) : ?>
-                                    <?php
-                                    $module_update_icon = metis_navigation_icon_markup( 'icon:repeat' );
-                                    $module_loading_icon = metis_navigation_svg_icon_markup( 'loading-circle' );
-                                    ?>
                                     <button
                                         type="button"
-                                        class="metis-module-refresh"
+                                        class="metis-module-refresh metis-module-refresh--update"
                                         data-module-install-id="<?php echo metis_escape_attr( (string) $module_slug ); ?>"
                                         data-module-install-name="<?php echo metis_escape_attr( ucwords( str_replace( [ '_', '-' ], ' ', (string) $module_slug ) ) ); ?>"
                                         data-module-install-version="<?php echo metis_escape_attr( (string) ( $module_update['latest'] ?? '' ) ); ?>"
+                                        data-module-action-kind="update"
                                         title="Install module update"
                                         aria-label="Install module update"
                                     >
+                                        <span class="metis-module-action__label">Update</span>
                                         <span class="metis-module-refresh__icon" aria-hidden="true"><?php echo $module_update_icon; ?></span>
                                         <span class="metis-module-refresh__spinner" aria-hidden="true"><?php echo $module_loading_icon; ?></span>
                                     </button>
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-                            <div class="metis-help" style="margin:0;"><?php echo $has_module_update ? 'Update available' : 'Current'; ?></div>
-                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-                                <span
-                                    class="metis-chip"
-                                    style="flex-shrink:0; <?php echo metis_escape_attr( $status_style ); ?><?php echo $module_status === 'failed' && $module_reason !== '' ? ' cursor:help;' : ''; ?>"
-                                    <?php if ( $module_status === 'failed' && $module_reason !== '' ) : ?>
-                                        data-metis-tooltip="<?php echo metis_escape_attr( $module_reason ); ?>"
-                                        data-metis-tooltip-position="top"
-                                        data-metis-tooltip-variant="error"
-                                        tabindex="0"
-                                        aria-label="<?php echo metis_escape_attr( 'Failure reason available on hover.' ); ?>"
-                                    <?php endif; ?>
-                                ><?php echo metis_escape_html( $status_label ); ?></span>
-                                <span class="metis-chip" style="flex-shrink:0; <?php echo metis_escape_attr( $module_badge_style ); ?>"><?php echo metis_escape_html( $module_badge ); ?></span>
-                                <?php if ( $has_module_update ) : ?>
-                                    <span class="metis-chip" style="flex-shrink:0; background:#fff7ed; color:#9a3412; border:1px solid #fdba74;">Update Available</span>
+                        <div class="metis-module-card__summary">
+                            <p class="metis-module-card__summary-label<?php echo $has_module_update ? ' is-update' : ''; ?>">
+                                <?php echo metis_escape_html( $has_module_update ? 'Update ready to install' : 'Current version' ); ?>
+                            </p>
+                            <p class="metis-module-card__note">
+                                <?php echo metis_escape_html( $module_badge ); ?>
+                                <?php if ( $module_status === 'failed' ) : ?>
+                                    · <?php echo metis_escape_html( $status_label ); ?>
                                 <?php endif; ?>
-                            </div>
+                            </p>
                         </div>
                         <?php if ( $has_module_update && ! empty( $module_update['minimum_metis'] ) ) : ?>
-                            <div class="metis-help">Requires Metis <?php echo metis_escape_html( (string) $module_update['minimum_metis'] ); ?>+</div>
+                            <p class="metis-module-card__note is-warning">Requires Metis <?php echo metis_escape_html( (string) $module_update['minimum_metis'] ); ?>+</p>
+                        <?php endif; ?>
+                        <?php if ( $module_status === 'failed' && $module_reason !== '' ) : ?>
+                            <p class="metis-module-card__note is-warning"><?php echo metis_escape_html( $module_reason ); ?></p>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
@@ -329,6 +327,10 @@ usort( $module_details, static function ( array $a, array $b ): int {
             </div>
         </div>
     </div>
+</div>
+<?php if ( $is_system_admin ) : ?>
+    <div class="metis-settings-live-feedback" data-settings-live-feedback="about"></div>
+<?php endif; ?>
 </div>
 
 <?php if ( $is_system_admin ) : ?>
