@@ -2197,7 +2197,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const originalLabel = button.innerHTML;
                 button.disabled = true;
-                button.innerHTML = 'Installing...';
+                button.classList.add('is-loading');
 
                 Metis.request.postForm(window.metisAjax || null, action, body, 'Settings AJAX not configured.').then(function (data) {
                     showToast('success', String(data && data.message ? data.message : 'Module installed.'));
@@ -2208,6 +2208,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     showToast('error', error && error.message ? error.message : 'Module installation failed.');
                 }).finally(function () {
                     button.disabled = false;
+                    button.classList.remove('is-loading');
                     button.innerHTML = originalLabel;
                 });
             });
