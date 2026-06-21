@@ -59,6 +59,59 @@
     gap: 16px;
 }
 
+.metis-module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.metis-module-card {
+    padding: 14px 16px;
+    border: 1px solid #d9deea;
+    border-radius: 12px;
+    background: #f7f8fc;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.metis-module-card__head,
+.metis-module-card__meta,
+.metis-module-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.metis-module-card__title {
+    font-weight: 700;
+    color: #1f2330;
+}
+
+.metis-module-refresh {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid #fdba74;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.metis-module-refresh:hover,
+.metis-module-refresh:focus-visible {
+    background: #ffedd5;
+    outline: none;
+}
+
+.metis-module-action {
+    white-space: nowrap;
+}
+
 .metis-backup-alert {
     border: 1px solid #fecaca;
     background: #fef2f2;

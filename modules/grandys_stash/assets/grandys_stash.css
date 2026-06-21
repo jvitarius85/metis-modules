@@ -714,28 +714,50 @@ body.metis-stash-modal-open {
     flex: 1 1 auto;
 }
 
+.metis-stash-report-builder-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.metis-stash-report-filter-field {
+    display: grid;
+    gap: 6px;
+    color: #667085;
+    font-size: 13px;
+}
+
+.metis-stash-report-filter-field span {
+    font-weight: 600;
+    color: #475467;
+}
+
 .metis-stash-report-drilldown-table .metis-premium-header,
 .metis-stash-report-drilldown-table .metis-premium-row {
-    grid-template-columns: 104px 124px minmax(140px, 1.1fr) minmax(160px, 1.2fr) 92px 92px minmax(180px, 1.4fr);
+    grid-template-columns: 104px 124px minmax(132px, 1fr) minmax(148px, 1.08fr) 110px 92px 96px 102px minmax(180px, 1.45fr);
     align-items: center;
     column-gap: 0;
 }
 
 .metis-stash-report-drilldown-table .metis-sortable {
     appearance: none;
-    border: 0;
-    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 0;
+    border: 0 !important;
+    background: transparent !important;
     padding: 0;
     margin: 0;
     width: 100%;
-    justify-content: flex-start;
-    color: inherit;
+    color: inherit !important;
     font: inherit;
     font-weight: inherit;
     letter-spacing: inherit;
     text-transform: inherit;
     border-radius: 0;
-    box-shadow: none;
+    box-shadow: none !important;
 }
 
 .metis-stash-report-drilldown-table .metis-sortable:focus-visible {
@@ -840,6 +862,10 @@ body.metis-stash-modal-open {
         flex-direction: column;
         align-items: stretch;
     }
+
+    .metis-stash-report-builder-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 /* Email prefs table */
@@ -853,7 +879,7 @@ body.metis-stash-modal-open {
 /* Report tables */
 .metis-stash-report-cat-table .metis-premium-header,
 .metis-stash-report-cat-table .metis-premium-row {
-    grid-template-columns: minmax(180px, 1.7fr) 112px 112px;
+    grid-template-columns: minmax(180px, 1.6fr) 100px 100px 112px;
     align-items: center;
     column-gap: 0;
 }
@@ -881,7 +907,7 @@ body.metis-stash-modal-open {
 
 .metis-stash-report-equipment-table .metis-premium-header,
 .metis-stash-report-equipment-table .metis-premium-row {
-    grid-template-columns: minmax(180px, 1.45fr) minmax(140px, 1fr) 88px 88px 92px;
+    grid-template-columns: minmax(180px, 1.45fr) minmax(140px, 1fr) 110px 110px 108px;
     align-items: center;
     column-gap: 0;
 }
@@ -938,12 +964,12 @@ body.metis-stash-modal-open {
 
     .metis-stash-report-drilldown-table .metis-premium-header,
     .metis-stash-report-drilldown-table .metis-premium-row {
-        grid-template-columns: 96px 116px minmax(132px, 1fr) minmax(148px, 1.08fr) 86px 86px minmax(168px, 1.28fr);
+        grid-template-columns: 96px 116px minmax(124px, 0.96fr) minmax(136px, 1fr) 98px 82px 88px 94px minmax(168px, 1.24fr);
     }
 
     .metis-stash-report-equipment-table .metis-premium-header,
     .metis-stash-report-equipment-table .metis-premium-row {
-        grid-template-columns: minmax(160px, 1.35fr) minmax(128px, 1fr) 80px 80px 84px;
+        grid-template-columns: minmax(160px, 1.35fr) minmax(128px, 1fr) 96px 96px 96px;
     }
 }
 
@@ -961,6 +987,16 @@ body.metis-stash-modal-open {
 
 @media (max-width: 1100px) {
     .metis-stash-manager-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-stash-report-builder-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .metis-stash-report-builder-grid {
         grid-template-columns: 1fr;
     }
 }

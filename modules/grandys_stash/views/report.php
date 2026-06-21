@@ -85,11 +85,11 @@ $range_text = ( $from !== '' || $to !== '' )
             </div>
         </section>
 
-        <section id="metis-stash-report-drilldown" class="metis-stash-report-drilldown" hidden>
+        <section id="metis-stash-report-drilldown" class="metis-stash-report-drilldown">
             <div class="metis-stash-report-drilldown-head">
                 <div>
-                    <h2 id="metis-stash-report-drilldown-title">Associated Tickets</h2>
-                    <p id="metis-stash-report-drilldown-subtitle">Select a category, organization, or person to inspect matching tickets.</p>
+                    <h2 id="metis-stash-report-drilldown-title">Report Builder</h2>
+                    <p id="metis-stash-report-drilldown-subtitle">Filter tickets from the current report range without leaving the page.</p>
                 </div>
                 <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-report-drilldown-clear">Clear</button>
             </div>
@@ -97,6 +97,64 @@ $range_text = ( $from !== '' || $to !== '' )
                 <input type="search" id="metis-stash-report-drilldown-search" class="metis-input" placeholder="Search code, person, organization, type, status, or items">
                 <span class="metis-stash-status-badge" id="metis-stash-report-drilldown-count">0 results</span>
             </div>
+            <div class="metis-stash-report-builder-grid">
+                <label class="metis-stash-report-filter-field">
+                    <span>Category</span>
+                    <select id="metis-stash-report-builder-category" class="metis-input">
+                        <option value="">All categories</option>
+                    </select>
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Item</span>
+                    <input type="search" id="metis-stash-report-builder-item" class="metis-input" list="metis-stash-report-item-options" placeholder="Type to search items">
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Organization</span>
+                    <input type="search" id="metis-stash-report-builder-organization" class="metis-input" list="metis-stash-report-organization-options" placeholder="Type to search organizations">
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Person</span>
+                    <input type="search" id="metis-stash-report-builder-person" class="metis-input" list="metis-stash-report-person-options" placeholder="Type to search people">
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Urgency</span>
+                    <select id="metis-stash-report-builder-urgency" class="metis-input">
+                        <option value="">All urgencies</option>
+                        <option value="urgent">Urgent</option>
+                        <option value="standard">Standard</option>
+                        <option value="flexible">Flexible</option>
+                    </select>
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Type</span>
+                    <select id="metis-stash-report-builder-type" class="metis-input">
+                        <option value="">All types</option>
+                        <option value="request">Request</option>
+                        <option value="donation">Donation</option>
+                    </select>
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Status</span>
+                    <select id="metis-stash-report-builder-status" class="metis-input">
+                        <option value="">All statuses</option>
+                        <option value="NEW">New</option>
+                        <option value="REVIEWING">Reviewing</option>
+                        <option value="WAITLIST">Waitlist</option>
+                        <option value="READY">Ready</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CLOSED">Closed</option>
+                    </select>
+                </label>
+                <label class="metis-stash-report-filter-field">
+                    <span>Assigned</span>
+                    <select id="metis-stash-report-builder-assigned" class="metis-input">
+                        <option value="">Anyone</option>
+                    </select>
+                </label>
+            </div>
+            <datalist id="metis-stash-report-item-options"></datalist>
+            <datalist id="metis-stash-report-organization-options"></datalist>
+            <datalist id="metis-stash-report-person-options"></datalist>
             <table class="metis-premium-table metis-stash-report-drilldown-table">
                 <thead>
                     <tr class="metis-premium-row metis-premium-header">
@@ -104,13 +162,15 @@ $range_text = ( $from !== '' || $to !== '' )
                         <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="code">Code</button></th>
                         <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="submit_name">Name</button></th>
                         <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="organization_label">Organization</button></th>
+                        <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="assigned_label">Assigned</button></th>
                         <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="type">Type</button></th>
+                        <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="urgency">Urgency</button></th>
                         <th class="metis-premium-cell" scope="col"><button type="button" class="metis-sortable" data-report-sort="status">Status</button></th>
                         <th class="metis-premium-cell" scope="col">Items</th>
                     </tr>
                 </thead>
                 <tbody id="metis-stash-report-drilldown-body">
-                    <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="7">Select a category, organization, or person to inspect matching tickets.</td></tr>
+                    <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="9">Loading tickets.</td></tr>
                 </tbody>
             </table>
         </section>
@@ -121,8 +181,9 @@ $range_text = ( $from !== '' || $to !== '' )
                 <thead>
                     <tr class="metis-premium-row metis-premium-header">
                         <th class="metis-premium-cell" scope="col">Category</th>
-                        <th class="metis-premium-cell" scope="col">Total Items</th>
-                        <th class="metis-premium-cell" scope="col">Fulfilled</th>
+                        <th class="metis-premium-cell" scope="col">Tickets</th>
+                        <th class="metis-premium-cell" scope="col">Item Rows</th>
+                        <th class="metis-premium-cell" scope="col">Fulfilled Rows</th>
                     </tr>
                 </thead>
                 <tbody id="metis-stash-report-category-body">
@@ -132,12 +193,13 @@ $range_text = ( $from !== '' || $to !== '' )
                         <td class="metis-premium-cell">
                             <span class="metis-stash-report-trigger"><?php echo metis_escape_html( $label ); ?></span>
                         </td>
+                        <td class="metis-premium-cell"><?php echo (int) ( $cat['ticket_count'] ?? 0 ); ?></td>
                         <td class="metis-premium-cell"><?php echo (int) ( $cat['item_count'] ?? 0 ); ?></td>
                         <td class="metis-premium-cell"><?php echo (int) ( $cat['fulfilled'] ?? 0 ); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if ( empty( $report['by_category'] ) ) : ?>
-                    <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="3">No data for selected period.</td></tr>
+                    <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="4">No data for selected period.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
@@ -280,9 +342,9 @@ $range_text = ( $from !== '' || $to !== '' )
                     <tr class="metis-premium-row metis-premium-header">
                         <th class="metis-premium-cell" scope="col">Equipment</th>
                         <th class="metis-premium-cell" scope="col">Category</th>
-                        <th class="metis-premium-cell" scope="col">Requests</th>
-                        <th class="metis-premium-cell" scope="col">Donations</th>
-                        <th class="metis-premium-cell" scope="col">Fulfilled</th>
+                        <th class="metis-premium-cell" scope="col">Request Tickets</th>
+                        <th class="metis-premium-cell" scope="col">Donation Tickets</th>
+                        <th class="metis-premium-cell" scope="col">Fulfilled Rows</th>
                     </tr>
                 </thead>
                 <tbody id="metis-stash-report-equipment-body">
@@ -290,9 +352,9 @@ $range_text = ( $from !== '' || $to !== '' )
                     <tr class="metis-premium-row">
                         <td class="metis-premium-cell"><?php echo metis_escape_html( $display_label( (string) ( $row['equipment_name'] ?? '' ), 'Other' ) ); ?></td>
                         <td class="metis-premium-cell"><?php echo metis_escape_html( $display_label( (string) ( $row['category_name'] ?? '' ), 'Other' ) ); ?></td>
-                        <td class="metis-premium-cell"><?php echo (int) ( $row['request_quantity'] ?? 0 ); ?></td>
-                        <td class="metis-premium-cell"><?php echo (int) ( $row['donation_quantity'] ?? 0 ); ?></td>
-                        <td class="metis-premium-cell"><?php echo (int) ( $row['fulfilled_quantity'] ?? 0 ); ?></td>
+                        <td class="metis-premium-cell"><?php echo (int) ( $row['request_ticket_count'] ?? 0 ); ?></td>
+                        <td class="metis-premium-cell"><?php echo (int) ( $row['donation_ticket_count'] ?? 0 ); ?></td>
+                        <td class="metis-premium-cell"><?php echo (int) ( $row['fulfilled_count'] ?? 0 ); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if ( empty( $report['by_equipment'] ) ) : ?>

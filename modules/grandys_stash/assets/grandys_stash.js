@@ -91,6 +91,17 @@
     reportDrilldownCount: qs('#metis-stash-report-drilldown-count'),
     reportDrilldownBody: qs('#metis-stash-report-drilldown-body'),
     reportDrilldownClear: qs('#metis-stash-report-drilldown-clear'),
+    reportBuilderCategory: qs('#metis-stash-report-builder-category'),
+    reportBuilderItem: qs('#metis-stash-report-builder-item'),
+    reportBuilderOrganization: qs('#metis-stash-report-builder-organization'),
+    reportBuilderPerson: qs('#metis-stash-report-builder-person'),
+    reportBuilderUrgency: qs('#metis-stash-report-builder-urgency'),
+    reportBuilderType: qs('#metis-stash-report-builder-type'),
+    reportBuilderStatus: qs('#metis-stash-report-builder-status'),
+    reportBuilderAssigned: qs('#metis-stash-report-builder-assigned'),
+    reportBuilderItemOptions: qs('#metis-stash-report-item-options'),
+    reportBuilderOrganizationOptions: qs('#metis-stash-report-organization-options'),
+    reportBuilderPersonOptions: qs('#metis-stash-report-person-options'),
     groupRows: qs('#metis-stash-group-rows'),
     groupSearch: qs('#metis-stash-group-search'),
     groupModal: qs('#metis-stash-group-modal'),
@@ -322,8 +333,21 @@
   });
   ui.reportDrilldownSearch?.addEventListener('input', renderReportDrilldown);
   ui.reportDrilldownClear?.addEventListener('click', function () {
-    reportDrilldown = null;
+    clearReportBuilder();
     renderReportDrilldown();
+  });
+  [
+    ui.reportBuilderCategory,
+    ui.reportBuilderItem,
+    ui.reportBuilderOrganization,
+    ui.reportBuilderPerson,
+    ui.reportBuilderUrgency,
+    ui.reportBuilderType,
+    ui.reportBuilderStatus,
+    ui.reportBuilderAssigned
+  ].forEach(function (node) {
+    node?.addEventListener('input', renderReportDrilldown);
+    node?.addEventListener('change', renderReportDrilldown);
   });
   ui.reportDrilldownBody?.addEventListener('click', function (e) {
     const reportTicketRow = e.target.closest('.metis-stash-report-ticket-row[data-ticket-url]');
@@ -852,7 +876,7 @@
       state.report = data.report || null;
       state.reportTickets = Array.isArray(data.tickets) ? data.tickets : [];
       state.reportFilters = data.filters || { from: '', to: '' };
-      reportDrilldown = null;
+      clearReportBuilder(true);
       renderReportView();
       showAlert('Report updated.');
     } catch (err) {
@@ -881,11 +905,12 @@
         const label = reportLabel(row.category_name || row.category_slug || 'Other');
         return '<tr class="metis-premium-row metis-stash-report-summary-row metis-clickable-row" tabindex="0" role="button" data-report-drilldown="category" data-report-value="' + esc(row.category_slug || '') + '" data-report-label="' + esc(label) + '">' +
           '<td class="metis-premium-cell"><span class="metis-stash-report-trigger">' + esc(label) + '</span></td>' +
+          '<td class="metis-premium-cell">' + formatNumber(row.ticket_count || 0) + '</td>' +
           '<td class="metis-premium-cell">' + formatNumber(row.item_count || 0) + '</td>' +
           '<td class="metis-premium-cell">' + formatNumber(row.fulfilled || 0) + '</td>' +
           '</tr>';
       }),
-      3
+      4
     );
     renderReportRows(
       ui.reportMonthlyBody,
@@ -946,14 +971,15 @@
         return '<tr class="metis-premium-row">' +
           '<td class="metis-premium-cell">' + esc(reportLabel(row.equipment_name || 'Other')) + '</td>' +
           '<td class="metis-premium-cell">' + esc(reportLabel(row.category_name || row.category_slug || 'Other')) + '</td>' +
-          '<td class="metis-premium-cell">' + formatNumber(row.request_quantity || 0) + '</td>' +
-          '<td class="metis-premium-cell">' + formatNumber(row.donation_quantity || 0) + '</td>' +
-          '<td class="metis-premium-cell">' + formatNumber(row.fulfilled_quantity || 0) + '</td>' +
+          '<td class="metis-premium-cell">' + formatNumber(row.request_ticket_count || 0) + '</td>' +
+          '<td class="metis-premium-cell">' + formatNumber(row.donation_ticket_count || 0) + '</td>' +
+          '<td class="metis-premium-cell">' + formatNumber(row.fulfilled_count || 0) + '</td>' +
           '</tr>';
       }),
       5
     );
 
+    populateReportBuilderOptions();
     renderReportDrilldown();
   }
 
@@ -974,39 +1000,57 @@
   function openReportDrilldown(kind, value, label) {
     if (!kind || !value) return;
     reportDrilldown = { kind: String(kind), value: String(value).toLowerCase(), label: String(label || 'Associated Tickets') };
-    if (ui.reportDrilldownSearch) ui.reportDrilldownSearch.value = '';
+    if (kind === 'category' && ui.reportBuilderCategory) ui.reportBuilderCategory.value = String(value || '');
+    if (kind === 'organization' && ui.reportBuilderOrganization) ui.reportBuilderOrganization.value = String(label || '');
+    if (kind === 'person' && ui.reportBuilderPerson) ui.reportBuilderPerson.value = String(label || '');
     renderReportDrilldown();
     ui.reportDrilldown?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function renderReportDrilldown() {
     if (!ui.reportDrilldown || !ui.reportDrilldownBody) return;
-    if (!reportDrilldown) {
-      ui.reportDrilldown.hidden = true;
-      ui.reportDrilldownBody.innerHTML = '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="7">Select a category, organization, or person to inspect matching tickets.</td></tr>';
-      updateReportSortIndicators();
-      return;
-    }
-
-    ui.reportDrilldown.hidden = false;
-    setText(ui.reportDrilldownTitle, reportDrilldown.label + ' Tickets');
-    setText(ui.reportDrilldownSubtitle, 'Filtered from the current report range without leaving the page.');
+    setText(ui.reportDrilldownTitle, 'Report Builder');
+    setText(
+      ui.reportDrilldownSubtitle,
+      reportDrilldown
+        ? ('Seeded from ' + labelize(reportDrilldown.kind || 'filter') + ': ' + String(reportDrilldown.label || '').trim() + '.')
+        : 'Filter tickets from the current report range without leaving the page.'
+    );
 
     const searchTerm = String(ui.reportDrilldownSearch?.value || '').toLowerCase().trim();
+    const builderCategory = String(ui.reportBuilderCategory?.value || '').toLowerCase().trim();
+    const builderItem = String(ui.reportBuilderItem?.value || '').toLowerCase().trim();
+    const builderOrganization = String(ui.reportBuilderOrganization?.value || '').toLowerCase().trim();
+    const builderPerson = String(ui.reportBuilderPerson?.value || '').toLowerCase().trim();
+    const builderUrgency = String(ui.reportBuilderUrgency?.value || '').toLowerCase().trim();
+    const builderType = String(ui.reportBuilderType?.value || '').toLowerCase().trim();
+    const builderStatus = String(ui.reportBuilderStatus?.value || '').toLowerCase().trim();
+    const builderAssigned = String(ui.reportBuilderAssigned?.value || '').toLowerCase().trim();
     const rows = (Array.isArray(state.reportTickets) ? state.reportTickets : [])
       .filter(function (ticket) { return reportTicketMatchesDrilldown(ticket, reportDrilldown); })
+      .filter(function (ticket) { return reportTicketMatchesBuilder(ticket, {
+        category: builderCategory,
+        item: builderItem,
+        organization: builderOrganization,
+        person: builderPerson,
+        urgency: builderUrgency,
+        type: builderType,
+        status: builderStatus,
+        assigned: builderAssigned
+      }); })
       .filter(function (ticket) { return reportTicketMatchesSearch(ticket, searchTerm); })
       .sort(compareReportTickets);
 
     setText(ui.reportDrilldownCount, formatNumber(rows.length) + ' result' + (rows.length === 1 ? '' : 's'));
     ui.reportDrilldownBody.innerHTML = rows.length
       ? rows.map(buildReportTicketRow).join('')
-      : '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="7">No tickets match this drilldown.</td></tr>';
+      : '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="9">No tickets match the current builder filters.</td></tr>';
     applyVisibleRowStates(qsa('.metis-stash-report-ticket-row', ui.reportDrilldownBody), 'metis-stash-report-ticket-row');
     updateReportSortIndicators();
   }
 
   function reportTicketMatchesDrilldown(ticket, drilldownState) {
+    if (!drilldownState) return true;
     const categorySlugs = ',' + String(ticket.category_slugs || '').toLowerCase() + ',';
     if (drilldownState.kind === 'category') {
       return categorySlugs.includes(',' + drilldownState.value + ',');
@@ -1020,6 +1064,45 @@
     return false;
   }
 
+  function reportTicketMatchesBuilder(ticket, filters) {
+    if (filters.category) {
+      const categorySlugs = ',' + String(ticket.category_slugs || '').toLowerCase() + ',';
+      if (!categorySlugs.includes(',' + filters.category + ',')) return false;
+    }
+    if (filters.item) {
+      const itemBlob = String(ticket.items_summary || '').toLowerCase();
+      if (!itemBlob.includes(filters.item)) return false;
+    }
+    if (filters.organization) {
+      const organizationBlob = [
+        ticket.organization_label,
+        ticket.organization_name,
+        ticket.organization_key
+      ].join(' ').toLowerCase();
+      if (!organizationBlob.includes(filters.organization)) return false;
+    }
+    if (filters.person) {
+      const personBlob = [
+        ticket.submit_name,
+        ticket.submit_email,
+        ticket.group_name,
+        ticket.person_key
+      ].join(' ').toLowerCase();
+      if (!personBlob.includes(filters.person)) return false;
+    }
+    if (filters.urgency && String(ticket.urgency || '').toLowerCase() !== filters.urgency) return false;
+    if (filters.type && String(ticket.type || '').toLowerCase() !== filters.type) return false;
+    if (filters.status && String(ticket.status || '').toLowerCase() !== filters.status) return false;
+    if (filters.assigned) {
+      const assignedBlob = [
+        ticket.assigned_label,
+        ticket.assigned_to
+      ].join(' ').toLowerCase();
+      if (!assignedBlob.includes(filters.assigned)) return false;
+    }
+    return true;
+  }
+
   function reportTicketMatchesSearch(ticket, searchTerm) {
     if (!searchTerm) return true;
     const blob = [
@@ -1027,7 +1110,9 @@
       ticket.submit_name,
       ticket.submit_email,
       ticket.organization_label,
+      ticket.assigned_label,
       ticket.type,
+      ticket.urgency,
       ticket.status,
       ticket.items_summary,
       ticket.category_labels
@@ -1081,10 +1166,112 @@
       '<td class="metis-premium-cell"><strong>' + esc(ticketCode) + '</strong></td>' +
       '<td class="metis-premium-cell">' + esc(ticket.submit_name || 'Unknown') + '</td>' +
       '<td class="metis-premium-cell">' + esc(reportLabel(ticket.organization_label || ticket.organization_name || 'Independent')) + '</td>' +
+      '<td class="metis-premium-cell">' + esc(reportLabel(ticket.assigned_label || '—')) + '</td>' +
       '<td class="metis-premium-cell">' + esc(labelize(ticket.type || '')) + '</td>' +
+      '<td class="metis-premium-cell">' + esc(labelize(ticket.urgency || '')) + '</td>' +
       '<td class="metis-premium-cell">' + esc(labelize(ticket.status || '')) + '</td>' +
       '<td class="metis-premium-cell metis-stash-report-items-cell" title="' + esc(fullItemSummary) + '">' + esc(compactSummary) + '</td>' +
       '</tr>';
+  }
+
+  function populateReportBuilderOptions() {
+    populateSelectOptions(
+      ui.reportBuilderCategory,
+      uniqueOptionPairs((state.report?.by_category || []).map(function (row) {
+        return { value: String(row.category_slug || ''), label: reportLabel(row.category_name || row.category_slug || 'Other') };
+      })),
+      'All categories'
+    );
+    populateSelectOptions(
+      ui.reportBuilderAssigned,
+      uniqueOptionPairs((Array.isArray(state.reportTickets) ? state.reportTickets : []).map(function (ticket) {
+        return { value: String(ticket.assigned_label || '').trim(), label: reportLabel(ticket.assigned_label || 'Unassigned') };
+      }).filter(function (row) { return row.value !== ''; })),
+      'Anyone'
+    );
+    populateDatalistOptions(
+      ui.reportBuilderItemOptions,
+      uniqueStrings((Array.isArray(state.reportTickets) ? state.reportTickets : []).flatMap(function (ticket) {
+        return String(ticket.items_summary || '')
+          .split(/\s*,\s*/)
+          .map(function (value) { return reportLabel(value); })
+          .filter(Boolean);
+      }))
+    );
+    populateDatalistOptions(
+      ui.reportBuilderOrganizationOptions,
+      uniqueStrings((Array.isArray(state.reportTickets) ? state.reportTickets : []).map(function (ticket) {
+        return reportLabel(ticket.organization_label || ticket.organization_name || 'Independent');
+      }))
+    );
+    populateDatalistOptions(
+      ui.reportBuilderPersonOptions,
+      uniqueStrings((Array.isArray(state.reportTickets) ? state.reportTickets : []).map(function (ticket) {
+        return reportLabel(ticket.submit_name || ticket.group_name || 'Unknown');
+      }))
+    );
+  }
+
+  function populateSelectOptions(node, options, defaultLabel) {
+    if (!node) return;
+    const current = String(node.value || '');
+    const rows = ['<option value="">' + esc(defaultLabel || 'All') + '</option>'].concat(
+      (options || []).map(function (option) {
+        return '<option value="' + esc(option.value || '') + '">' + esc(option.label || option.value || '') + '</option>';
+      })
+    );
+    node.innerHTML = rows.join('');
+    node.value = current;
+    if (current && node.value !== current) node.value = '';
+  }
+
+  function populateDatalistOptions(node, options) {
+    if (!node) return;
+    node.innerHTML = (options || []).map(function (value) {
+      return '<option value="' + esc(value) + '"></option>';
+    }).join('');
+  }
+
+  function uniqueOptionPairs(rows) {
+    const seen = new Set();
+    return (rows || []).filter(function (row) {
+      const value = String(row.value || '').trim();
+      if (!value) return false;
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort(function (a, b) {
+      return String(a.label || a.value || '').localeCompare(String(b.label || b.value || ''), undefined, { sensitivity: 'base' });
+    });
+  }
+
+  function uniqueStrings(values) {
+    const seen = new Set();
+    return (values || []).filter(function (value) {
+      const normalized = String(value || '').trim();
+      if (!normalized) return false;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort(function (a, b) {
+      return String(a).localeCompare(String(b), undefined, { sensitivity: 'base' });
+    });
+  }
+
+  function clearReportBuilder(keepFilters) {
+    reportDrilldown = null;
+    if (keepFilters) return;
+    if (ui.reportDrilldownSearch) ui.reportDrilldownSearch.value = '';
+    if (ui.reportBuilderCategory) ui.reportBuilderCategory.value = '';
+    if (ui.reportBuilderItem) ui.reportBuilderItem.value = '';
+    if (ui.reportBuilderOrganization) ui.reportBuilderOrganization.value = '';
+    if (ui.reportBuilderPerson) ui.reportBuilderPerson.value = '';
+    if (ui.reportBuilderUrgency) ui.reportBuilderUrgency.value = '';
+    if (ui.reportBuilderType) ui.reportBuilderType.value = '';
+    if (ui.reportBuilderStatus) ui.reportBuilderStatus.value = '';
+    if (ui.reportBuilderAssigned) ui.reportBuilderAssigned.value = '';
   }
 
   function updateReportSortIndicators() {
