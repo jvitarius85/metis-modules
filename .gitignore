@@ -1,1 +1,7 @@
 /logs/*
+# --- OS FILES ---
+.DS_Store
+
+# --- TEMP FILES ---
+*.log
+*.tmp
