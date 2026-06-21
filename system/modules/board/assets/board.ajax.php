@@ -3,9 +3,11 @@ if (!defined('METIS_ROOT')) exit;
 
 require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
 
-$metis_board_portal_root = \Metis\Core\ModulePathRegistry::modulePath( 'portal' );
-if ( is_string( $metis_board_portal_root ) && is_file( $metis_board_portal_root . '/views/_dashboard_data.php' ) ) {
-    require_once $metis_board_portal_root . '/views/_dashboard_data.php';
+$metis_board_portal_dashboard_data = defined( 'METIS_CORE_SERVICES_PATH' )
+    ? rtrim( (string) METIS_CORE_SERVICES_PATH, '/\\' ) . '/portal/views/_dashboard_data.php'
+    : rtrim( (string) METIS_ROOT, '/\\' ) . '/system/src/Metis/Core/BuiltInServices/portal/views/_dashboard_data.php';
+if ( is_file( $metis_board_portal_dashboard_data ) ) {
+    require_once $metis_board_portal_dashboard_data;
 }
 
 use Metis\Modules\Board\PacketRecipientService;
