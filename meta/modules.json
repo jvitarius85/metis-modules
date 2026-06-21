@@ -72,14 +72,6 @@
         }
       ]
     },
-    "hermes": {
-      "latest": "1.0.0",
-      "minimum_metis": "26.6.0",
-      "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis/main/module-releases/hermes.1.0.0.tar.gz",
-      "sha256": "b79c809d68648bff79132c370e50261d82f97fe3592c9904c8b7e48d963ec82d",
-      "previous_versions": []
-    },
     "import": {
       "latest": "1.0.0",
       "minimum_metis": "26.6.0",
