@@ -16,18 +16,16 @@ final class GrandyStashDailySummary {
             return [ 'status' => 'skipped', 'message' => 'Nothing to report.' ];
         }
 
-        $subject = "Grandy's Stash Daily Summary — " . \metis_runtime_format_date( \metis_current_time( 'mysql' ) );
+        $subject = "Grandy's Stash Daily Summary - " . \metis_runtime_format_date( \metis_current_time( 'mysql' ) );
         $body    = self::buildBody( $data );
+        $senderOptions = self::senderOptions();
         $sent = 0;
         foreach ( $recipients as $email ) {
             $result = \Metis\Core\Services\EmailService::sendHtml(
                 (string) $email,
                 $subject,
                 $body,
-                [
-                    'module' => 'grandys_stash',
-                    'from_name' => 'Metis',
-                ]
+                $senderOptions
             );
             if ( ! empty( $result['ok'] ) ) {
                 $sent++;
@@ -65,6 +63,32 @@ final class GrandyStashDailySummary {
         }
 
         return $emails;
+    }
+
+    private static function senderOptions(): array {
+        $options = [
+            'module' => 'grandys_stash',
+        ];
+
+        if ( ! \class_exists( '\Core_Settings_Service' ) ) {
+            return $options;
+        }
+
+        $from_name = trim( (string) \Core_Settings_Service::get( 'newsletter_default_from_name', '' ) );
+        $from_email = strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_from_email', '' ) ) ) );
+        $reply_to = strtolower( trim( \metis_email_clean( (string) \Core_Settings_Service::get( 'newsletter_default_reply_to', '' ) ) ) );
+
+        if ( $from_name !== '' ) {
+            $options['from_name'] = $from_name;
+        }
+        if ( $from_email !== '' && \metis_email_is_valid( $from_email ) ) {
+            $options['from_email'] = $from_email;
+        }
+        if ( $reply_to !== '' && \metis_email_is_valid( $reply_to ) ) {
+            $options['reply_to'] = [ $reply_to ];
+        }
+
+        return $options;
     }
 
     private static function gatherData(): array {

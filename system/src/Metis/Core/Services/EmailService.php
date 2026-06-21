@@ -116,7 +116,7 @@ final class EmailService {
         if ( $fromEmail !== '' && \metis_email_is_valid( $fromEmail ) ) {
             $fromHeader = $fromEmail;
             if ( $fromName !== '' ) {
-                $fromHeader = sprintf( '%s <%s>', $fromName, $fromEmail );
+                $fromHeader = sprintf( '%s <%s>', self::encodeHeaderText( $fromName ), $fromEmail );
             }
             $headers[] = 'From: ' . $fromHeader;
         }
@@ -128,7 +128,7 @@ final class EmailService {
             self::trackUsage( self::detectModuleSlug( $options ), $result, $options );
             return $result;
         }
-        $ok = \metis_runtime_mail( $to, $subject, $htmlBody, $headers );
+        $ok = \metis_runtime_mail( $to, self::encodeHeaderText( $subject ), $htmlBody, $headers );
         if ( ! $ok ) {
             $result = [ 'ok' => false, 'error' => 'Fallback email delivery failed.' ];
             self::trackUsage( self::detectModuleSlug( $options ), $result, $options );
@@ -197,6 +197,26 @@ final class EmailService {
     private static function replyToHeaderValue( mixed $replyTo ): string {
         $emails = self::normalizeReplyToList( $replyTo );
         return $emails === [] ? '' : implode( ', ', $emails );
+    }
+
+    private static function encodeHeaderText( string $value ): string {
+        $value = trim( $value );
+        if ( $value === '' ) {
+            return '';
+        }
+
+        if ( ! preg_match( '/[^\x20-\x7E]/', $value ) ) {
+            return $value;
+        }
+
+        if ( function_exists( 'mb_encode_mimeheader' ) ) {
+            $encoded = @mb_encode_mimeheader( $value, 'UTF-8', 'B', "\r\n" );
+            if ( is_string( $encoded ) && $encoded !== '' ) {
+                return $encoded;
+            }
+        }
+
+        return '=?UTF-8?B?' . base64_encode( $value ) . '?=';
     }
 
     /**
