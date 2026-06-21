@@ -619,7 +619,14 @@ metis_ajax_register_handler( 'metis_grandys_stash_report', function (): void {
     metis_grandys_stash_ajax_guard();
     $from = metis_text_clean( (string) ( metis_request_post()['from'] ?? '' ) );
     $to   = metis_text_clean( (string) ( metis_request_post()['to'] ?? '' ) );
-    metis_runtime_send_json_success( [ 'report' => GrandyStashRepository::reportData( $from, $to ) ] );
+    metis_runtime_send_json_success( [
+        'report'  => GrandyStashRepository::reportData( $from, $to ),
+        'tickets' => GrandyStashRepository::reportTickets( $from, $to ),
+        'filters' => [
+            'from' => $from,
+            'to'   => $to,
+        ],
+    ] );
 } );
 
 // ─── Email preferences ──────────────────────────────

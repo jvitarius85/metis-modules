@@ -4110,14 +4110,17 @@ final class GrandyStashRepository {
         $by_category = $db->fetchAll(
             "SELECT COALESCE(NULLIF(c.category_slug, ''), NULLIF(i.category, ''), 'other') AS category_slug,
                     COALESCE(NULLIF(c.category_name, ''), NULLIF(i.category, ''), 'Other') AS category_name,
-                    SUM(i.quantity) AS item_count,
-                    SUM(CASE WHEN i.status = 'fulfilled' THEN i.quantity ELSE 0 END) AS fulfilled
+                    COUNT(DISTINCT t.id) AS ticket_count,
+                    COUNT(*) AS item_count,
+                    COUNT(CASE WHEN i.status = 'fulfilled' THEN 1 END) AS fulfilled,
+                    SUM(i.quantity) AS quantity_total,
+                    SUM(CASE WHEN i.status = 'fulfilled' THEN i.quantity ELSE 0 END) AS fulfilled_quantity
              FROM {$items} i
              INNER JOIN {$tickets} t ON t.id = i.ticket_id
              LEFT JOIN {$catalog} c ON c.id = i.catalog_item_id
              WHERE {$where}
              GROUP BY category_slug, category_name
-             ORDER BY item_count DESC",
+             ORDER BY ticket_count DESC, item_count DESC",
             $params
         ) ?: [];
 
@@ -4189,6 +4192,10 @@ final class GrandyStashRepository {
                     MAX(COALESCE(NULLIF(c.item_name, ''), NULLIF(i.item_name, ''), NULLIF(i.description, ''), 'Other')) AS equipment_name,
                     MAX(COALESCE(NULLIF(c.category_slug, ''), NULLIF(i.category, ''), 'other')) AS category_slug,
                     MAX(COALESCE(NULLIF(c.category_name, ''), NULLIF(i.category, ''), 'Other')) AS category_name,
+                    COUNT(DISTINCT CASE WHEN t.type = 'request' THEN t.id END) AS request_ticket_count,
+                    COUNT(DISTINCT CASE WHEN t.type = 'donation' THEN t.id END) AS donation_ticket_count,
+                    COUNT(DISTINCT t.id) AS ticket_count,
+                    COUNT(CASE WHEN i.status = 'fulfilled' THEN 1 END) AS fulfilled_count,
                     SUM(CASE WHEN t.type = 'request' THEN i.quantity ELSE 0 END) AS request_quantity,
                     SUM(CASE WHEN t.type = 'donation' THEN i.quantity ELSE 0 END) AS donation_quantity,
                     SUM(i.quantity) AS total_quantity,
@@ -4198,7 +4205,7 @@ final class GrandyStashRepository {
              LEFT JOIN {$catalog} c ON c.id = i.catalog_item_id
              WHERE {$where}
              GROUP BY equipment_key
-             ORDER BY request_quantity DESC, total_quantity DESC, equipment_name ASC
+             ORDER BY request_ticket_count DESC, donation_ticket_count DESC, ticket_count DESC, equipment_name ASC
              LIMIT 100",
             $params
         ) ?: [];
@@ -4274,6 +4281,83 @@ final class GrandyStashRepository {
             'by_equipment'    => $by_equipment,
             'avg_days_to_complete' => round( (float) ( $avg_completion['avg_days'] ?? 0 ), 1 ),
         ];
+    }
+
+    public static function reportTickets( string $from = '', string $to = '' ): array {
+        $db = self::db();
+        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $groups_table = \Metis_Tables::get( 'grandys_stash_groups' );
+        $organizations_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $items_table = \Metis_Tables::get( 'grandys_stash_ticket_items' );
+        $catalog_table = \Metis_Tables::get( 'grandys_stash_catalog' );
+        $people_table = \Metis_Tables::get( 'people' );
+
+        $where = "1=1";
+        $params = [];
+        if ( $from !== '' ) {
+            $where .= " AND t.submitted_at >= %s";
+            $params[] = $from . ' 00:00:00';
+        }
+        if ( $to !== '' ) {
+            $where .= " AND t.submitted_at <= %s";
+            $params[] = $to . ' 23:59:59';
+        }
+
+        return $db->fetchAll(
+            "SELECT t.id,
+                    t.code,
+                    t.submit_name,
+                    t.submit_email,
+                    t.type,
+                    t.status,
+                    t.urgency,
+                    t.assigned_to,
+                    COALESCE(NULLIF(assignee.display_name, ''), NULLIF(t.assigned_name, ''), '') AS assigned_label,
+                    t.submitted_at,
+                    t.updated_at,
+                    t.organization_name,
+                    t.organization_id,
+                    t.group_id,
+                    g.name AS group_name,
+                    COALESCE(NULLIF(o.name, ''), NULLIF(t.organization_name, ''), 'Independent') AS organization_label,
+                    CASE
+                        WHEN COALESCE(NULLIF(o.domain, ''), '') <> '' THEN CONCAT('domain:', LOWER(o.domain))
+                        WHEN COALESCE(t.organization_id, 0) > 0 THEN CONCAT('org:', t.organization_id)
+                        WHEN COALESCE(NULLIF(t.organization_name, ''), '') <> '' THEN CONCAT('name:', LOWER(t.organization_name))
+                        ELSE 'independent'
+                    END AS organization_key,
+                    CASE
+                        WHEN COALESCE(t.group_id, 0) > 0 THEN CONCAT('group:', t.group_id)
+                        WHEN COALESCE(NULLIF(t.submit_email, ''), '') <> '' THEN CONCAT('email:', LOWER(t.submit_email))
+                        ELSE CONCAT('name:', LOWER(COALESCE(NULLIF(t.submit_name, ''), 'unknown')))
+                    END AS person_key,
+                    (SELECT GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ci.category_slug, ''), NULLIF(ti.category, ''), 'other')
+                                         ORDER BY COALESCE(NULLIF(ci.category_name, ''), NULLIF(ci.category_slug, ''), NULLIF(ti.category, ''), 'other')
+                                         SEPARATOR ',')
+                     FROM {$items_table} ti
+                     LEFT JOIN {$catalog_table} ci ON ci.id = ti.catalog_item_id
+                     WHERE ti.ticket_id = t.id) AS category_slugs,
+                    (SELECT GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ci2.category_name, ''), NULLIF(ti2.category, ''), 'Other')
+                                         ORDER BY COALESCE(NULLIF(ci2.category_name, ''), NULLIF(ci2.category_slug, ''), NULLIF(ti2.category, ''), 'Other')
+                                         SEPARATOR ', ')
+                     FROM {$items_table} ti2
+                     LEFT JOIN {$catalog_table} ci2 ON ci2.id = ti2.catalog_item_id
+                     WHERE ti2.ticket_id = t.id) AS category_labels,
+                    (SELECT GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ci3.item_name, ''), NULLIF(ti3.item_name, ''), NULLIF(ti3.description, ''), 'Unknown')
+                                         ORDER BY COALESCE(NULLIF(ci3.item_name, ''), NULLIF(ti3.item_name, ''), NULLIF(ti3.description, ''), 'Unknown')
+                                         SEPARATOR ', ')
+                     FROM {$items_table} ti3
+                     LEFT JOIN {$catalog_table} ci3 ON ci3.id = ti3.catalog_item_id
+                     WHERE ti3.ticket_id = t.id) AS items_summary
+             FROM {$tickets_table} t
+             LEFT JOIN {$groups_table} g ON g.id = t.group_id
+             LEFT JOIN {$organizations_table} o ON o.id = t.organization_id
+             LEFT JOIN {$people_table} assignee ON assignee.id = t.assigned_to
+             WHERE {$where}
+             ORDER BY t.submitted_at DESC, t.id DESC
+             LIMIT 500",
+            $params
+        ) ?: [];
     }
 
     // ─── Email preferences ──────────────────────────────
