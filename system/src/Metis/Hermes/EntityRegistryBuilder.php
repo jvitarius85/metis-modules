@@ -3,18 +3,34 @@ declare(strict_types=1);
 
 namespace Metis\Hermes;
 
+use Metis\Core\ModulePathRegistry;
+
 final class EntityRegistryBuilder {
 
     private static ?array $registry      = null;
     private static ?array $aliasMap      = null;
     private static ?array $knowledgeGraph = null;
 
-    private string $modulesRoot;
+    private array $moduleRoots;
 
-    public function __construct( string $modulesRoot = '' ) {
-        $this->modulesRoot = $modulesRoot !== ''
-            ? rtrim( $modulesRoot, '/' )
-            : $this->defaultModulesRoot();
+    public function __construct( string|array $modulesRoot = '' ) {
+        if ( is_array( $modulesRoot ) ) {
+            $roots = $modulesRoot;
+        } elseif ( $modulesRoot !== '' ) {
+            $roots = [ $modulesRoot ];
+        } else {
+            $roots = $this->defaultModulesRoots();
+        }
+
+        $this->moduleRoots = array_values(
+            array_filter(
+                array_map(
+                    static fn ( mixed $root ): string => rtrim( (string) $root, '/' ),
+                    $roots
+                ),
+                static fn ( string $root ): bool => $root !== ''
+            )
+        );
     }
 
     public function registry(): array {
@@ -54,9 +70,13 @@ final class EntityRegistryBuilder {
         $this->build();
     }
 
-    private function defaultModulesRoot(): string {
-        $candidates = [];
+    private function defaultModulesRoots(): array {
+        $roots = ModulePathRegistry::allRootPaths();
+        if ( $roots !== [] ) {
+            return $roots;
+        }
 
+        $candidates = [];
         if ( defined( 'METIS_ROOT' ) ) {
             $root = rtrim( (string) METIS_ROOT, '/' );
             $candidates[] = $root . '/modules';
@@ -67,13 +87,7 @@ final class EntityRegistryBuilder {
         $candidates[] = $base . '/modules';
         $candidates[] = $base . '/system/modules';
 
-        foreach ( $candidates as $candidate ) {
-            if ( is_dir( $candidate ) ) {
-                return $candidate;
-            }
-        }
-
-        return $candidates[0] ?? $base . '/system/modules';
+        return array_values( array_unique( $candidates ) );
     }
 
     private function build(): void {
@@ -81,10 +95,16 @@ final class EntityRegistryBuilder {
         $aliases  = [];
         $graph    = [];
 
-        $pattern = $this->modulesRoot . '/*/entities/*.entity.json';
-        $files   = glob( $pattern );
+        $files = [];
+        foreach ( $this->moduleRoots as $moduleRoot ) {
+            $pattern = $moduleRoot . '/*/entities/*.entity.json';
+            $matches = glob( $pattern );
+            if ( is_array( $matches ) ) {
+                $files = array_merge( $files, $matches );
+            }
+        }
 
-        if ( $files === false || $files === [] ) {
+        if ( $files === [] ) {
             self::$registry       = $registry;
             self::$aliasMap       = $aliases;
             self::$knowledgeGraph = $graph;

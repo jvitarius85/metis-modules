@@ -855,7 +855,8 @@ function metis_standalone_install_boot_database_context( array $db ): void {
 }
 
 function metis_standalone_install_require_module_file( string $module, string $relative_path ): void {
-    $path = METIS_MODULES_PATH . $module . '/' . ltrim( $relative_path, '/\\' );
+    $module_root = \Metis\Core\ModulePathRegistry::modulePath( $module );
+    $path = is_string( $module_root ) ? $module_root . '/' . ltrim( $relative_path, '/\\' ) : '';
     if ( is_file( $path ) ) {
         require_once $path;
     }

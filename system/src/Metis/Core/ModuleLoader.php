@@ -15,13 +15,22 @@ final class ModuleLoader {
     private array $boot_failures = [];
     private bool $booted = false;
     private string $base_path;
+    private array $root_definitions = [];
     private ?FailureIsolation $isolation = null;
     private ModuleValidator $validator;
 
     public function __construct( ?string $base_path = null, ?ModuleValidator $validator = null ) {
         $this->base_path = $base_path !== null
             ? metis_trailingslashit( $base_path )
-            : ( \defined( 'METIS_MODULES_PATH' ) ? (string) \METIS_MODULES_PATH : dirname( __DIR__, 3 ) . '/modules/' );
+            : ModulePathRegistry::moduleRootPath();
+        $this->root_definitions = $base_path !== null
+            ? [
+                [
+                    'path' => metis_trailingslashit( $base_path ),
+                    'package_type' => ModulePathRegistry::packageTypeForPath( $base_path ),
+                ],
+            ]
+            : ModulePathRegistry::rootDefinitions();
         $this->validator = $validator ?? new ModuleValidator();
     }
 
@@ -54,12 +63,16 @@ final class ModuleLoader {
         if ( empty( $config['permission_definitions'] ) ) {
             $config['permission_definitions'] = $normalized_permissions['definitions'];
         }
+        $config['package_type'] = in_array( (string) ( $config['package_type'] ?? '' ), [ 'core_service', 'module' ], true )
+            ? (string) $config['package_type']
+            : ModulePathRegistry::packageTypeForPath( $dir );
 
         $this->modules[ $slug ] = [
             'slug'          => $slug,
             'dir'           => metis_trailingslashit( $dir ),
             'config'        => $config,
             'manifest_path' => (string) ( $config['_manifest_path'] ?? '' ),
+            'package_type'  => (string) $config['package_type'],
         ];
 
         if ( function_exists( 'metis_quick_actions_service' ) ) {
@@ -87,16 +100,15 @@ final class ModuleLoader {
 
         $this->boot_failures = [];
 
-        $base = $this->base_path;
-        if ( ! is_dir( $base ) ) {
-            $this->log( 'error', 'Modules folder missing', [ 'path' => $base ] );
+        if ( $this->root_definitions === [] ) {
+            $this->log( 'error', 'Module roots missing', [ 'paths' => [] ] );
             $this->booted = true;
             return;
         }
 
         $this->log( 'info', 'Booting Modules' );
 
-        $pending = $this->discoverModules( $base );
+        $pending = $this->discoverModules();
 
         do {
             $progress = false;
@@ -228,62 +240,69 @@ final class ModuleLoader {
         $failed = 0;
         $checked = 0;
 
-        foreach ( glob( $this->base_path . '*', GLOB_ONLYDIR ) ?: [] as $dir ) {
-            $checked++;
-            $slug = \metis_key_clean( basename( $dir ) );
-            if ( $slug === '' ) {
-                $failed++;
-                $results[] = [
-                    'module' => basename( $dir ),
-                    'status' => 'failed',
-                    'reason' => 'Invalid module directory name.',
-                    'path' => $dir,
-                ];
+        foreach ( $this->root_definitions as $root ) {
+            $base = metis_trailingslashit( (string) ( $root['path'] ?? '' ) );
+            if ( ! is_dir( $base ) ) {
                 continue;
             }
 
-            $manifest_path = $dir . '/module.json';
-            if ( ! is_file( $manifest_path ) ) {
-                $failed++;
-                $results[] = [
-                    'module' => $slug,
-                    'status' => 'failed',
-                    'reason' => 'Missing module manifest.',
-                    'path' => $manifest_path,
-                ];
-                continue;
-            }
-
-            $manifest_raw = (string) @file_get_contents( $manifest_path );
-            $manifest = json_decode( $manifest_raw, true );
-            if ( ! is_array( $manifest ) ) {
-                $failed++;
-                $results[] = [
-                    'module' => $slug,
-                    'status' => 'failed',
-                    'reason' => 'Invalid module manifest JSON.',
-                    'path' => $manifest_path,
-                ];
-                continue;
-            }
-
-            try {
-                $validated = $this->validator->validateModule( $dir, $manifest, $slug );
-                if ( $this->resolve_module_class( $validated ) === null ) {
-                    throw new \RuntimeException( 'Module class resolution failed.' );
+            foreach ( glob( $base . '*', GLOB_ONLYDIR ) ?: [] as $dir ) {
+                $checked++;
+                $slug = \metis_key_clean( basename( $dir ) );
+                if ( $slug === '' ) {
+                    $failed++;
+                    $results[] = [
+                        'module' => basename( $dir ),
+                        'status' => 'failed',
+                        'reason' => 'Invalid module directory name.',
+                        'path' => $dir,
+                    ];
+                    continue;
                 }
-                $results[] = [
-                    'module' => $slug,
-                    'status' => 'ok',
-                ];
-            } catch ( \Throwable $e ) {
-                $failed++;
-                $results[] = [
-                    'module' => $slug,
-                    'status' => 'failed',
-                    'reason' => $e->getMessage(),
-                    'path' => $manifest_path,
-                ];
+
+                $manifest_path = $dir . '/module.json';
+                if ( ! is_file( $manifest_path ) ) {
+                    $failed++;
+                    $results[] = [
+                        'module' => $slug,
+                        'status' => 'failed',
+                        'reason' => 'Missing module manifest.',
+                        'path' => $manifest_path,
+                    ];
+                    continue;
+                }
+
+                $manifest_raw = (string) @file_get_contents( $manifest_path );
+                $manifest = json_decode( $manifest_raw, true );
+                if ( ! is_array( $manifest ) ) {
+                    $failed++;
+                    $results[] = [
+                        'module' => $slug,
+                        'status' => 'failed',
+                        'reason' => 'Invalid module manifest JSON.',
+                        'path' => $manifest_path,
+                    ];
+                    continue;
+                }
+
+                try {
+                    $validated = $this->validator->validateModule( $dir, $manifest, $slug );
+                    if ( $this->resolve_module_class( $validated ) === null ) {
+                        throw new \RuntimeException( 'Module class resolution failed.' );
+                    }
+                    $results[] = [
+                        'module' => $slug,
+                        'status' => 'ok',
+                    ];
+                } catch ( \Throwable $e ) {
+                    $failed++;
+                    $results[] = [
+                        'module' => $slug,
+                        'status' => 'failed',
+                        'reason' => $e->getMessage(),
+                        'path' => $manifest_path,
+                    ];
+                }
             }
         }
 
@@ -376,7 +395,7 @@ final class ModuleLoader {
         ];
     }
 
-    private function load_manifest( string $dir, string $fallback_slug ): ?array {
+    private function load_manifest( string $dir, string $fallback_slug, string $packageType = 'module' ): ?array {
         $manifest_path = $this->discover_manifest_path( $dir, $fallback_slug );
         if ( $manifest_path === null ) {
             $this->log( 'warn', sprintf( 'Missing manifest for module: %s', $fallback_slug ) );
@@ -418,6 +437,7 @@ final class ModuleLoader {
         $manifest['quick_actions']          = self::normalizeManifestQuickActions( (array) ( $manifest['quick_actions'] ?? [] ) );
         $manifest['_manifest_path']         = $manifest_path;
         $manifest['_manifest_mtime']        = (int) ( @filemtime( $manifest_path ) ?: 0 );
+        $manifest['package_type']           = in_array( $packageType, [ 'core_service', 'module' ], true ) ? $packageType : 'module';
 
         if ( ! $this->valid_manifest_metadata( $manifest ) ) {
             return null;
@@ -430,7 +450,7 @@ final class ModuleLoader {
         return $manifest;
     }
 
-    private function discoverModules( string $base ): array {
+    private function discoverModules(): array {
         $cached = CacheService::get( $this->registryCacheKey() );
         if ( is_array( $cached ) && $cached !== [] ) {
             $pending = [];
@@ -443,6 +463,7 @@ final class ModuleLoader {
 
                 $dir      = (string) ( $entry['dir'] ?? '' );
                 $manifest = is_array( $entry['manifest'] ?? null ) ? $entry['manifest'] : null;
+                $packageType = (string) ( $entry['package_type'] ?? 'module' );
                 if ( $dir === '' || ! is_dir( $dir ) || ! is_array( $manifest ) ) {
                     $pending = [];
                     break;
@@ -467,27 +488,35 @@ final class ModuleLoader {
                 $pending[ (string) $module_slug ] = [
                     'dir' => $dir,
                     'manifest' => $manifest,
+                    'package_type' => $packageType,
                 ];
             }
 
             // A previously invalid module may become valid after a manifest/template fix.
             // If its manifest changed more recently than the current cache snapshot, rebuild.
             if ( $pending !== [] ) {
-                foreach ( glob( $base . '*', GLOB_ONLYDIR ) as $dir ) {
-                    $module_slug = basename( $dir );
-                    if ( isset( $pending[ $module_slug ] ) ) {
+                foreach ( $this->root_definitions as $root ) {
+                    $base = metis_trailingslashit( (string) ( $root['path'] ?? '' ) );
+                    if ( ! is_dir( $base ) ) {
                         continue;
                     }
 
-                    $manifest_path = $dir . '/module.json';
-                    if ( ! is_file( $manifest_path ) ) {
-                        continue;
-                    }
+                    foreach ( glob( $base . '*', GLOB_ONLYDIR ) ?: [] as $dir ) {
+                        $module_slug = basename( $dir );
+                        if ( isset( $pending[ $module_slug ] ) ) {
+                            continue;
+                        }
 
-                    $manifest_mtime = (int) ( @filemtime( $manifest_path ) ?: 0 );
-                    if ( $manifest_mtime > $cached_manifest_max_mtime ) {
-                        $pending = [];
-                        break;
+                        $manifest_path = $dir . '/module.json';
+                        if ( ! is_file( $manifest_path ) ) {
+                            continue;
+                        }
+
+                        $manifest_mtime = (int) ( @filemtime( $manifest_path ) ?: 0 );
+                        if ( $manifest_mtime > $cached_manifest_max_mtime ) {
+                            $pending = [];
+                            break 2;
+                        }
                     }
                 }
             }
@@ -502,35 +531,44 @@ final class ModuleLoader {
         }
 
         $pending = [];
-        foreach ( glob( $base . '*', GLOB_ONLYDIR ) as $dir ) {
-            $module_slug = basename( $dir );
-            $this->moduleLog( 'module', $module_slug );
-
-            $manifest = $this->load_manifest( $dir, $module_slug );
-            if ( $manifest === null ) {
-                $this->recordBootFailure(
-                    $module_slug,
-                    'Missing or invalid module manifest.',
-                    [ 'path' => $dir . '/module.json' ]
-                );
+        foreach ( $this->root_definitions as $root ) {
+            $base = metis_trailingslashit( (string) ( $root['path'] ?? '' ) );
+            $packageType = (string) ( $root['package_type'] ?? 'module' );
+            if ( ! is_dir( $base ) ) {
                 continue;
             }
 
-            try {
-                $manifest = $this->validator->validateModule( $dir, $manifest, $module_slug );
-            } catch ( \Throwable $e ) {
-                $this->recordBootFailure(
-                    $module_slug,
-                    $e->getMessage(),
-                    [ 'path' => (string) ( $manifest['_manifest_path'] ?? $dir . '/module.json' ) ]
-                );
-                continue;
-            }
+            foreach ( glob( $base . '*', GLOB_ONLYDIR ) ?: [] as $dir ) {
+                $module_slug = basename( $dir );
+                $this->moduleLog( 'module', $module_slug );
 
-            $pending[ $module_slug ] = [
-                'dir' => $dir,
-                'manifest' => $manifest,
-            ];
+                $manifest = $this->load_manifest( $dir, $module_slug, $packageType );
+                if ( $manifest === null ) {
+                    $this->recordBootFailure(
+                        $module_slug,
+                        'Missing or invalid module manifest.',
+                        [ 'path' => $dir . '/module.json' ]
+                    );
+                    continue;
+                }
+
+                try {
+                    $manifest = $this->validator->validateModule( $dir, $manifest, $module_slug );
+                } catch ( \Throwable $e ) {
+                    $this->recordBootFailure(
+                        $module_slug,
+                        $e->getMessage(),
+                        [ 'path' => (string) ( $manifest['_manifest_path'] ?? $dir . '/module.json' ) ]
+                    );
+                    continue;
+                }
+
+                $pending[ $module_slug ] = [
+                    'dir' => $dir,
+                    'manifest' => $manifest,
+                    'package_type' => $packageType,
+                ];
+            }
         }
 
         CacheService::set( $this->registryCacheKey(), $pending, 3600 );
@@ -540,15 +578,34 @@ final class ModuleLoader {
     }
 
     public function registryCacheKey(): string {
-        return self::registryCacheKeyForBasePath( $this->base_path );
+        return self::registryCacheKeyForRoots( $this->root_definitions );
     }
 
     public static function registryCacheKeyForBasePath( string $base_path ): string {
-        return 'modules.registry.' . sha1( metis_trailingslashit( $base_path ) );
+        return self::registryCacheKeyForRoots( [
+            [
+                'path' => metis_trailingslashit( $base_path ),
+                'package_type' => 'module',
+            ],
+        ] );
+    }
+
+    public static function registryCacheKeyForRoots( array $roots ): string {
+        $keyMaterial = array_map(
+            static fn ( array $root ): string => (string) ( $root['package_type'] ?? 'module' ) . ':' . metis_trailingslashit( (string) ( $root['path'] ?? '' ) ),
+            $roots
+        );
+
+        return 'modules.registry.' . sha1( implode( '|', $keyMaterial ) );
     }
 
     private function bootFailureCacheKey(): string {
-        return 'modules.boot_failures.' . sha1( metis_trailingslashit( $this->base_path ) );
+        $keyMaterial = array_map(
+            static fn ( array $root ): string => (string) ( $root['package_type'] ?? 'module' ) . ':' . metis_trailingslashit( (string) ( $root['path'] ?? '' ) ),
+            $this->root_definitions
+        );
+
+        return 'modules.boot_failures.' . sha1( implode( '|', $keyMaterial ) );
     }
 
     private function isRequiredModule( string $slug ): bool {

@@ -731,8 +731,8 @@ final class AccessManager {
             __DIR__ . '/SchemaManager.php',
         ];
 
-        if ( defined( 'METIS_MODULES_PATH' ) ) {
-            $manifests = glob( rtrim( (string) METIS_MODULES_PATH, '/\\' ) . '/*/config/module.php' );
+        foreach ( \Metis\Core\ModulePathRegistry::allRootPaths() as $rootPath ) {
+            $manifests = glob( rtrim( $rootPath, '/\\' ) . '/*/config/module.php' );
             if ( is_array( $manifests ) ) {
                 $files = array_merge( $files, $manifests );
             }

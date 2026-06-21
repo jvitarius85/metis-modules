@@ -625,12 +625,36 @@ final class GitHubUpdateService {
                 $sha256 = '';
             }
 
+            $previousVersions = [];
+            foreach ( (array) ( $row['previous_versions'] ?? [] ) as $previousVersion ) {
+                if ( ! is_array( $previousVersion ) ) {
+                    continue;
+                }
+
+                $previousVersionNumber = trim( (string) ( $previousVersion['version'] ?? '' ) );
+                if ( preg_match( self::MODULE_SEMVER_PATTERN, $previousVersionNumber ) !== 1 ) {
+                    continue;
+                }
+
+                $previousSha = strtolower( trim( (string) ( $previousVersion['sha256'] ?? '' ) ) );
+                if ( $previousSha !== '' && preg_match( '/^[a-f0-9]{64}$/', $previousSha ) !== 1 ) {
+                    $previousSha = '';
+                }
+
+                $previousVersions[] = [
+                    'version' => $previousVersionNumber,
+                    'download_url' => trim( (string) ( $previousVersion['download_url'] ?? '' ) ),
+                    'sha256' => $previousSha,
+                ];
+            }
+
             $modules[$slug] = [
                 'latest' => $latest,
                 'minimum_metis' => trim((string) ($row['minimum_metis'] ?? '')),
                 'release_channel' => trim((string) ($row['release_channel'] ?? 'stable')) ?: 'stable',
                 'download_url' => trim((string) ($row['download_url'] ?? '')),
                 'sha256' => $sha256,
+                'previous_versions' => $previousVersions,
             ];
         }
 

@@ -79,7 +79,8 @@ $is_editor_shell = $shell_mode === 'editor'
 <div id="metis-toast-container" aria-live="polite" aria-atomic="true"></div>
 <?php
 if ( $help_ui_enabled ) {
-    $help_search_view = METIS_MODULES_PATH . 'help/views/search.php';
+    $help_root = \Metis\Core\ModulePathRegistry::modulePath( 'help' );
+    $help_search_view = is_string( $help_root ) ? $help_root . '/views/search.php' : '';
     if ( is_file( $help_search_view ) ) {
         require $help_search_view;
     }

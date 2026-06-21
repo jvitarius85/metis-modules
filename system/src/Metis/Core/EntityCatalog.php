@@ -52,12 +52,8 @@ final class EntityCatalog {
      * @return array<string, array<string, mixed>>
      */
     private static function manifestDefinitions(): array {
-        $base = \defined( 'METIS_PATH' )
-            ? (string) \METIS_MODULES_PATH . ''
-            : dirname( __DIR__, 3 ) . '/modules/';
-
         $definitions = [];
-        foreach ( (array) glob( $base . '*/module.json' ) as $manifest_path ) {
+        foreach ( ModulePathRegistry::manifestPaths() as $manifest_path ) {
             $payload = json_decode( (string) file_get_contents( (string) $manifest_path ), true );
             if ( ! is_array( $payload ) ) {
                 continue;

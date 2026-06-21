@@ -165,7 +165,7 @@ final class HelpModule {
                 'page_title' => 'Help Articles',
                 'page_subtitle' => 'Search, review, and manage the Help library.',
                 'admin_content' => self::renderTemplate(
-                    \METIS_MODULES_PATH . 'help/admin/articles.php',
+                    (string) \Metis\Core\ModulePathRegistry::modulePath( 'help' ) . '/admin/articles.php',
                     [
                         'mode' => 'list',
                         'listing' => $store->adminList( $search, $category, $status, $page, 20 ),
@@ -204,7 +204,7 @@ final class HelpModule {
                 'page_title' => 'Create Help Article',
                 'page_subtitle' => 'Draft or publish a help article in the Help library.',
                 'admin_content' => self::renderTemplate(
-                    \METIS_MODULES_PATH . 'help/admin/articles.php',
+                    (string) \Metis\Core\ModulePathRegistry::modulePath( 'help' ) . '/admin/articles.php',
                     [
                         'mode' => 'create',
                         'listing' => null,
@@ -249,7 +249,7 @@ final class HelpModule {
                 'page_title' => 'Hermes Issue Resolution',
                 'page_subtitle' => 'Review unresolved phrases, weak classifications, and help search coverage gaps.',
                 'admin_content' => self::renderTemplate(
-                    \METIS_MODULES_PATH . 'help/admin/issue-resolution.php',
+                    (string) \Metis\Core\ModulePathRegistry::modulePath( 'help' ) . '/admin/issue-resolution.php',
                     [
                         'coverage' => $coverage,
                         'rebuild_nonce' => \metis_runtime_create_nonce( 'metis_help_index_rebuild' ),
@@ -278,7 +278,7 @@ final class HelpModule {
                 'page_title' => 'Edit Help Article',
                 'page_subtitle' => 'Update article content, search terms, and publication state.',
                 'admin_content' => self::renderTemplate(
-                    \METIS_MODULES_PATH . 'help/admin/articles.php',
+                    (string) \Metis\Core\ModulePathRegistry::modulePath( 'help' ) . '/admin/articles.php',
                     [
                         'mode' => 'edit',
                         'listing' => null,

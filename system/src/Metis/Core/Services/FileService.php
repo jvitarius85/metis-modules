@@ -31,6 +31,7 @@ final class FileService {
             'assets' => 'METIS_ASSETS_PATH',
             'cloudflare' => 'METIS_CLOUDFLARE_PATH',
             'config' => 'METIS_CONFIG_PATH',
+            'core-services' => 'METIS_CORE_SERVICES_PATH',
             'docs' => 'METIS_DOCS_PATH',
             'modules' => 'METIS_MODULES_PATH',
             'src' => 'METIS_SRC_PATH',

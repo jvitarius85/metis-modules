@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Metis\Core\Services;
 
 use Metis\Core\Cache\CacheService;
+use Metis\Core\ModulePathRegistry;
 use Metis\Core\Version;
 
 final class ModuleUpdateService {
@@ -157,7 +158,7 @@ final class ModuleUpdateService {
     }
 
     public function discoverInstalledModules(): array {
-        $manifests = glob( $this->files->rootPath( 'modules/*/module.json' ) ) ?: [];
+        $manifests = ModulePathRegistry::manifestPaths( 'module' );
         $modules = [];
 
         foreach ( $manifests as $manifestPath ) {

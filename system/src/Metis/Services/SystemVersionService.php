@@ -5,25 +5,40 @@ namespace Metis\Services;
 
 use Metis\Core\Version;
 use Metis\Core\Application;
+use Metis\Core\ModulePathRegistry;
 
 final class SystemVersionService {
     public function current(): array {
         $modules = [];
         $moduleDetails = [];
         $moduleFailures = [];
+        $coreServices = [];
+        $coreServiceDetails = [];
+        $coreServiceFailures = [];
 
         if ( Application::has_service( 'modules' ) ) {
             $moduleService = Application::service( 'modules' );
 
             foreach ( $moduleService->all() as $slug => $module ) {
                 $version = (string) ( $module['config']['version'] ?? '0.0.0' );
-                $modules[ $slug ] = $version;
-                $moduleDetails[ $slug ] = [
+                $packageType = (string) ( $module['package_type'] ?? $module['config']['package_type'] ?? 'module' );
+                $targetMap = $packageType === 'core_service' ? 'core' : 'module';
+
+                $detail = [
                     'slug' => (string) $slug,
                     'version' => $version,
                     'status' => 'loaded',
                     'reason' => '',
+                    'package_type' => $packageType,
                 ];
+
+                if ( $targetMap === 'core' ) {
+                    $coreServices[ $slug ] = $version;
+                    $coreServiceDetails[ $slug ] = $detail;
+                } else {
+                    $modules[ $slug ] = $version;
+                    $moduleDetails[ $slug ] = $detail;
+                }
             }
 
             if ( method_exists( $moduleService, 'bootFailures' ) ) {
@@ -40,15 +55,37 @@ final class SystemVersionService {
                     $reason = trim( (string) ( $failure['reason'] ?? 'Module failed compliance validation.' ) );
                     $path = (string) ( $failure['path'] ?? '' );
                     $version = $this->manifestVersionFromFailurePath( $path );
+                    $packageType = $this->packageTypeForFailure( $slug, $path );
                     if ( $version === '' ) {
-                        $version = (string) ( $modules[ $slug ] ?? 'unknown' );
+                        $version = $packageType === 'core_service'
+                            ? (string) ( $coreServices[ $slug ] ?? 'unknown' )
+                            : (string) ( $modules[ $slug ] ?? 'unknown' );
                     }
 
-                    $moduleFailures[ $slug ] = [
+                    $failureDetail = [
                         'slug' => $slug,
                         'reason' => $reason,
                         'path' => $path,
+                        'package_type' => $packageType,
                     ];
+
+                    if ( $packageType === 'core_service' ) {
+                        $coreServiceFailures[ $slug ] = $failureDetail;
+                        if ( ! isset( $coreServices[ $slug ] ) ) {
+                            $coreServices[ $slug ] = $version;
+                        }
+
+                        $coreServiceDetails[ $slug ] = [
+                            'slug' => $slug,
+                            'version' => $version,
+                            'status' => 'failed',
+                            'reason' => $reason,
+                            'package_type' => $packageType,
+                        ];
+                        continue;
+                    }
+
+                    $moduleFailures[ $slug ] = $failureDetail;
 
                     if ( ! isset( $modules[ $slug ] ) ) {
                         $modules[ $slug ] = $version;
@@ -59,6 +96,7 @@ final class SystemVersionService {
                         'version' => $version,
                         'status' => 'failed',
                         'reason' => $reason,
+                        'package_type' => $packageType,
                     ];
                 }
             }
@@ -67,6 +105,9 @@ final class SystemVersionService {
         ksort( $modules );
         ksort( $moduleDetails );
         ksort( $moduleFailures );
+        ksort( $coreServices );
+        ksort( $coreServiceDetails );
+        ksort( $coreServiceFailures );
 
         $buildSource = Version::sourcePath();
         $buildStamp = @filemtime( $buildSource );
@@ -77,6 +118,9 @@ final class SystemVersionService {
             'modules' => $modules,
             'module_details' => array_values( $moduleDetails ),
             'module_failures' => array_values( $moduleFailures ),
+            'core_services' => $coreServices,
+            'core_service_details' => array_values( $coreServiceDetails ),
+            'core_service_failures' => array_values( $coreServiceFailures ),
         ];
     }
 
@@ -104,5 +148,18 @@ final class SystemVersionService {
         }
 
         return trim( (string) ( $payload['version'] ?? '' ) );
+    }
+
+    private function packageTypeForFailure( string $slug, string $path ): string {
+        if ( ModulePathRegistry::isCoreServiceSlug( $slug ) ) {
+            return 'core_service';
+        }
+
+        $normalizedPath = str_replace( '\\', '/', trim( $path ) );
+        if ( $normalizedPath !== '' && str_contains( $normalizedPath, '/core-services/' ) ) {
+            return 'core_service';
+        }
+
+        return 'module';
     }
 }

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Metis\Core\Recovery;
 
+use Metis\Core\ModulePathRegistry;
+
 final class RecoveryVerifier {
     public function __construct(
         private readonly RecoveryPolicyService $policy = new RecoveryPolicyService(),
@@ -188,9 +190,7 @@ final class RecoveryVerifier {
 
     /** @return array<int,string> */
     private function moduleDirectories(): array {
-        $base = $this->absolutePath('system/modules');
-        $dirs = glob($base . '/*', GLOB_ONLYDIR);
-        return is_array($dirs) ? $dirs : [];
+        return ModulePathRegistry::moduleDirectories();
     }
 
     /** @return array<int,string> */

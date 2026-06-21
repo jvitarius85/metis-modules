@@ -52,6 +52,7 @@ if ( ! function_exists( 'metis_kernel_define_constants' ) ) {
             'METIS_SRC_PATH'        => $system_path . 'src/',
             'METIS_ASSETS_PATH'     => $system_path . 'assets/',
             'METIS_CONFIG_PATH'     => $system_path . 'config/',
+            'METIS_CORE_SERVICES_PATH' => $system_path . 'core-services/',
             'METIS_MODULES_PATH'    => $system_path . 'modules/',
             'METIS_DOCS_PATH'       => $system_path . 'docs/',
             'METIS_TOOLS_PATH'      => $system_path . 'tools/',
