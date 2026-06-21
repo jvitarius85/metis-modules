@@ -52,7 +52,7 @@
       "sha256": ""
     },
     "grandys_stash": {
-      "latest": "1.0.0",
+      "latest": "1.0.1",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
       "download_url": "",
