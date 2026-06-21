@@ -3,6 +3,8 @@
     "name": "media",
     "label": "Media",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "media",
     "default_view": "library",
     "dependencies": [],
