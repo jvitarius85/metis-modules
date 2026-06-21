@@ -108,12 +108,14 @@
 .metis-module-refresh {
     width: 34px;
     height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
     border: 1px solid #fdba74;
     background: #fff7ed;
     color: #9a3412;
-    font-size: 16px;
-    line-height: 1;
     cursor: pointer;
 }
 
@@ -123,8 +125,54 @@
     outline: none;
 }
 
+.metis-module-refresh svg,
+.metis-module-action svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.metis-module-refresh__spinner,
+.metis-module-action__spinner {
+    display: none;
+}
+
+.metis-module-refresh.is-loading,
+.metis-module-action.is-loading {
+    cursor: wait;
+}
+
+.metis-module-refresh.is-loading .metis-module-refresh__icon,
+.metis-module-action.is-loading .metis-module-action__icon,
+.metis-module-action.is-loading .metis-module-action__label {
+    display: none;
+}
+
+.metis-module-refresh.is-loading .metis-module-refresh__spinner,
+.metis-module-action.is-loading .metis-module-action__spinner {
+    display: inline-flex;
+}
+
+.metis-module-refresh__spinner svg,
+.metis-module-action__spinner svg {
+    animation: metis-spin 0.8s linear infinite;
+}
+
 .metis-module-action {
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+@keyframes metis-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .metis-backup-alert {
