@@ -11,7 +11,7 @@
       "zip_url": "https://codeload.github.com/jvitarius85/metis/zip/refs/tags/v26.6.1.14",
       "sha256": "",
       "notes_url": "https://github.com/jvitarius85/metis/releases/tag/v26.6.1.14",
-      "minimum_php": "8.3",
+      "minimum_php": "8.2",
       "requires_backup": true
     },
     {
