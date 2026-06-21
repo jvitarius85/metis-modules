@@ -115,17 +115,36 @@ final class Metis_Cron_Manager {
         self::register_task(
             'release_update_check',
             static function (): array {
-                if ( ! function_exists( 'metis_release_check_for_updates' ) ) {
+                if ( ! function_exists( 'metis_update_service' ) ) {
                     return [
                         'status'  => 'skipped',
-                        'message' => 'Release manager is not available.',
+                        'message' => 'Update services are not available.',
                     ];
                 }
 
-                return metis_release_check_for_updates( true, 'system_cron' );
+                try {
+                    $result = metis_update_service()->refreshUpdateState( true, 'system_cron' );
+                    return [
+                        'status' => ! empty( $result['updates_available'] ) ? 'updates_available' : 'current',
+                        'message' => 'Core and module updates checked.',
+                        'core' => (array) ( $result['core'] ?? [] ),
+                        'modules' => (array) ( $result['modules'] ?? [] ),
+                    ];
+                } catch ( \Throwable $exception ) {
+                    if ( class_exists( 'Metis_Logger' ) ) {
+                        \Metis_Logger::error( 'Scheduled update check failed', [
+                            'message' => $exception->getMessage(),
+                        ] );
+                    }
+
+                    return [
+                        'status' => 'failed',
+                        'message' => $exception->getMessage(),
+                    ];
+                }
             },
             [
-                'label'    => 'Release Update Check',
+                'label'    => 'Core + Module Update Check',
                 'interval' => 6 * HOUR_IN_SECONDS,
                 'lock_ttl' => 30 * MINUTE_IN_SECONDS,
                 'module'   => 'core',

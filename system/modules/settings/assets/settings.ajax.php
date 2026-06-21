@@ -907,18 +907,19 @@ metis_ajax_register_handler( 'metis_scheduler_build_integrity_baseline', functio
 ] );
 
 metis_ajax_register_handler( 'metis_release_check_updates', function () {
-    if ( ! function_exists( 'metis_release_status' ) ) {
-        metis_runtime_send_json_error( [ 'message' => 'Release manager is not available.' ], 503 );
+    if ( ! function_exists( 'metis_update_service' ) ) {
+        metis_runtime_send_json_error( [ 'message' => 'Update services are not available.' ], 503 );
     }
 
-    $status = metis_release_status( true );
+    $summary = metis_update_service()->refreshUpdateState( true, 'settings_ajax' );
     $module_catalog = function_exists( 'metis_github_update_service' )
         ? metis_github_update_service()->moduleCatalog( true )
         : [];
 
     metis_runtime_send_json_success( [
-        'message' => 'Release and module metadata refreshed.',
-        'release_status' => $status,
+        'message' => 'Core and module update metadata refreshed.',
+        'release_status' => (array) ( $summary['core'] ?? [] ),
+        'module_update_status' => (array) ( $summary['modules'] ?? [] ),
         'module_catalog' => $module_catalog,
     ] );
 }, [

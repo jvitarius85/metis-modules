@@ -22,6 +22,11 @@ function metis_update_service(): \Metis\Core\Services\UpdateService {
     return \Metis\Core\Application::service( 'updates' );
 }
 
+function metis_module_update_service(): \Metis\Core\Services\ModuleUpdateService {
+    metis_register_core_services();
+    return \Metis\Core\Application::service( 'module_updates' );
+}
+
 function metis_self_healing_service(): \Metis\Core\Services\SelfHealingService {
     metis_register_core_services();
     return \Metis\Core\Application::service( 'self_healing' );
@@ -55,6 +60,14 @@ function metis_release_check_for_updates( bool $force_refresh = false, string $t
         }
         throw $e;
     }
+}
+
+function metis_module_update_status( bool $force_refresh = false ): array {
+    return metis_module_update_service()->checkForUpdates( $force_refresh );
+}
+
+function metis_module_update_status_snapshot(): array {
+    return metis_module_update_service()->statusSnapshot();
 }
 
 function metis_release_auto_update_bool( mixed $value, bool $default = false ): bool {

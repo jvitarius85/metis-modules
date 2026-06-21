@@ -624,11 +624,23 @@ function metis_register_core_services(): void {
         $registry->singleton( 'release', static fn (): \Metis\Release\ReleaseManager => new \Metis\Release\ReleaseManager() );
     }
 
+    if ( ! $registry->has( 'module_updates' ) ) {
+        $registry->singleton(
+            'module_updates',
+            static fn (): \Metis\Core\Services\ModuleUpdateService => new \Metis\Core\Services\ModuleUpdateService(
+                \Metis\Core\Application::service( 'github_update' ),
+                \Metis\Core\Application::service( 'files' ),
+                \Metis\Core\Application::service( 'logger_core' )
+            )
+        );
+    }
+
     if ( ! $registry->has( 'updates' ) ) {
         $registry->singleton(
             'updates',
             static fn (): \Metis\Core\Services\UpdateService => new \Metis\Core\Services\UpdateService(
                 \Metis\Core\Application::service( 'github_update' ),
+                \Metis\Core\Application::service( 'module_updates' ),
                 \Metis\Core\Application::service( 'integrity_service' ),
                 \Metis\Core\Application::service( 'files' ),
                 \Metis\Core\Application::service( 'logger_core' )

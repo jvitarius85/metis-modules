@@ -8,10 +8,12 @@ use Metis\Core\Version;
 
 final class GitHubUpdateService {
     private const CACHE_TTL = 21600;
+    private const MODULES_MANIFEST_PATH = 'meta/modules.json';
     private const OFFICIAL_MODULES_PATH = 'meta/official-modules.json';
     private const RELEASES_MANIFEST_PATH = 'meta/releases.json';
     private const DEFAULT_MANIFEST_REF = 'stable';
     private const DEFAULT_METADATA_REF = 'main';
+    private const MODULE_SEMVER_PATTERN = '/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/';
 
     public function __construct(
         private readonly GitHubClient $github,
@@ -54,6 +56,89 @@ final class GitHubUpdateService {
     public function officialModules(bool $forceRefresh = false): array {
         $catalog = $this->moduleCatalog($forceRefresh);
         return (array) ($catalog['official_modules'] ?? []);
+    }
+
+    public function moduleRegistry(bool $forceRefresh = false): array {
+        $settings = $this->repositoryConfig();
+        $owner = (string) ($settings['owner'] ?? '');
+        $repo = (string) ($settings['repo'] ?? '');
+        if ($owner === '' || $repo === '') {
+            return $this->emptyModuleRegistry('unconfigured', 'GitHub repository settings are not configured.');
+        }
+
+        $cacheKey = sprintf(
+            'api.github_module_registry.%s.%s.%s',
+            metis_key_clean($owner),
+            metis_key_clean($repo),
+            metis_key_clean((string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''))
+        );
+
+        if (!$forceRefresh) {
+            $cached = CacheService::get($cacheKey);
+            if (is_array($cached)) {
+                return $this->normalizeModuleRegistry($cached);
+            }
+        } else {
+            CacheService::forget($cacheKey);
+        }
+
+        try {
+            $payload = $this->fetchModuleRegistryPayload(
+                $owner,
+                $repo,
+                (string) ($settings['metadata_ref'] ?? ''),
+                (string) ($settings['token'] ?? '')
+            );
+        } catch (\Throwable $exception) {
+            $status = $this->moduleRegistryErrorStatus($exception);
+            $this->logger->warn('github_module_registry_lookup_failed', [
+                'owner' => $owner,
+                'repo' => $repo,
+                'ref' => (string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''),
+                'status' => $status,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $this->emptyModuleRegistry($status, $exception->getMessage());
+        }
+
+        $registry = $this->normalizeModuleRegistry($payload);
+        if (($registry['status'] ?? '') === 'ready') {
+            CacheService::set($cacheKey, $payload, self::CACHE_TTL);
+        } else {
+            CacheService::forget($cacheKey);
+            $this->logger->warn('github_module_registry_invalid', [
+                'owner' => $owner,
+                'repo' => $repo,
+                'ref' => (string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''),
+                'status' => (string) ($registry['status'] ?? 'invalid'),
+                'message' => (string) ($registry['error'] ?? 'Module registry validation failed.'),
+            ]);
+        }
+
+        return $registry;
+    }
+
+    public function cachedModuleRegistry(): array {
+        $settings = $this->repositoryConfig();
+        $owner = (string) ($settings['owner'] ?? '');
+        $repo = (string) ($settings['repo'] ?? '');
+        if ($owner === '' || $repo === '') {
+            return $this->emptyModuleRegistry('unconfigured', 'GitHub repository settings are not configured.');
+        }
+
+        $cacheKey = sprintf(
+            'api.github_module_registry.%s.%s.%s',
+            metis_key_clean($owner),
+            metis_key_clean($repo),
+            metis_key_clean((string) ($settings['metadata_ref'] ?? $settings['ref'] ?? ''))
+        );
+        $cached = CacheService::get($cacheKey);
+        if (!is_array($cached)) {
+            return $this->emptyModuleRegistry('cache_miss', 'Module registry cache is empty.');
+        }
+
+        return $this->normalizeModuleRegistry($cached);
     }
 
     public function requiredModules(bool $forceRefresh = false): array {
@@ -491,6 +576,32 @@ final class GitHubUpdateService {
         );
     }
 
+    private function fetchModuleRegistryPayload(string $owner, string $repo, string $preferredRef, string $token): array {
+        $attempted = [];
+
+        foreach ($this->moduleCatalogRefs($preferredRef) as $ref) {
+            try {
+                return $this->github->repositoryJsonFile(
+                    $owner,
+                    $repo,
+                    self::MODULES_MANIFEST_PATH,
+                    $ref,
+                    $token
+                );
+            } catch (\RuntimeException $exception) {
+                $attempted[] = $ref !== '' ? $ref : '(default)';
+            }
+        }
+
+        throw new \RuntimeException(
+            sprintf(
+                'Unable to load [%s] from refs: %s',
+                self::MODULES_MANIFEST_PATH,
+                implode(', ', $attempted)
+            )
+        );
+    }
+
     private function fetchReleaseManifestPayload(string $owner, string $repo, string $preferredRef, string $token): array {
         $attempted = [];
 
@@ -535,6 +646,81 @@ final class GitHubUpdateService {
 
     private function hasModuleCatalogEntries(array $catalog): bool {
         return !empty($catalog['official_modules']) || !empty($catalog['required_modules']);
+    }
+
+    private function normalizeModuleRegistry(array $payload): array {
+        $schema = (int) ($payload['schema'] ?? 0);
+        if ($schema !== 1) {
+            return $this->emptyModuleRegistry('invalid_schema', sprintf('Unsupported module registry schema [%d].', $schema));
+        }
+
+        $rawModules = $payload['modules'] ?? null;
+        if (!is_array($rawModules)) {
+            return $this->emptyModuleRegistry('malformed', 'Module registry payload is missing the modules map.');
+        }
+
+        $modules = [];
+        foreach ($rawModules as $moduleId => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $slug = metis_key_clean((string) $moduleId);
+            $latest = trim((string) ($row['latest'] ?? ''));
+            if ($slug === '' || preg_match(self::MODULE_SEMVER_PATTERN, $latest) !== 1) {
+                continue;
+            }
+
+            $sha256 = strtolower(trim((string) ($row['sha256'] ?? '')));
+            if ($sha256 !== '' && preg_match('/^[a-f0-9]{64}$/', $sha256) !== 1) {
+                $sha256 = '';
+            }
+
+            $modules[$slug] = [
+                'latest' => $latest,
+                'minimum_metis' => trim((string) ($row['minimum_metis'] ?? '')),
+                'release_channel' => trim((string) ($row['release_channel'] ?? 'stable')) ?: 'stable',
+                'download_url' => trim((string) ($row['download_url'] ?? '')),
+                'sha256' => $sha256,
+            ];
+        }
+
+        ksort($modules);
+
+        return [
+            'schema' => 1,
+            'generated_at' => trim((string) ($payload['generated_at'] ?? '')),
+            'status' => 'ready',
+            'error' => '',
+            'modules' => $modules,
+        ];
+    }
+
+    private function emptyModuleRegistry(string $status, string $error): array {
+        return [
+            'schema' => 1,
+            'generated_at' => '',
+            'status' => $status,
+            'error' => $error,
+            'modules' => [],
+        ];
+    }
+
+    private function moduleRegistryErrorStatus(\Throwable $exception): string {
+        $message = strtolower(trim($exception->getMessage()));
+        if ($message === '') {
+            return 'unavailable';
+        }
+
+        if (str_contains($message, '404') || str_contains($message, 'not found') || str_contains($message, 'unable to load')) {
+            return 'missing';
+        }
+
+        if (str_contains($message, 'json') || str_contains($message, 'decode') || str_contains($message, 'schema')) {
+            return 'malformed';
+        }
+
+        return 'unavailable';
     }
 
     private function normalizeModuleSlugList(mixed $modules): array {

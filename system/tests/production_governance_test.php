@@ -48,6 +48,7 @@ $newsletterSupport = $read( 'src/Metis/Modules/Newsletter/Support.php' );
 $calendarJs = $read( 'modules/calendar/assets/calendar.js' );
 $cronRuntime = $read( 'src/Metis/Core/Cron/CronRuntime.php' );
 $releaseRuntime = $read( 'src/Metis/Core/ReleaseRuntime.php' );
+$moduleUpdateService = $read( 'src/Metis/Core/Services/ModuleUpdateService.php' );
 $backupService = $read( 'src/Metis/Backup/BackupService.php' );
 $backupRuntime = $read( 'src/Metis/Core/BackupRuntime.php' );
 $jobQueue = $read( 'src/Metis/Core/Jobs/JobQueue.php' );
@@ -172,9 +173,10 @@ $assert( str_contains( $cronRuntime, "'background_job_processing'" ), 'Backgroun
 $assert( ! str_contains( $cronRuntime, 'Queue processing is handled by the async drain.' ), 'Background job processor must be queueable instead of skipped.' );
 $assert( str_contains( $cronRuntime, "return self::drain_job_queue( 'system_cron' );" ), 'Background job processor must drain bounded batches so staged jobs can advance without waiting for another poll.' );
 $assert( str_contains( $cronRuntime, 'metis_register_core_services();' ) && str_contains( $cronRuntime, "\\Metis\\Core\\Application::service( 'operations' )" ), 'Queue drain must register core operation workers before processing jobs.' );
-$assert( str_contains( $cronRuntime, "metis_release_check_for_updates( true, 'system_cron' )" ), 'Scheduled release update checks must force-refresh trusted release metadata.' );
+$assert( str_contains( $cronRuntime, "metis_update_service()->refreshUpdateState( true, 'system_cron' )" ), 'Scheduled update checks must refresh core and module update state through the governed update service.' );
 $assert( str_contains( $cronRuntime, "'data_retention_cleanup'" ) && str_contains( $cronRuntime, 'metis_data_retention()->run' ), 'Scheduler must run governed data retention cleanup.' );
 $assert( str_contains( $cronRuntime, "'release_auto_update'" ) && str_contains( $cronRuntime, "metis_release_auto_update( 'system_cron' )" ), 'Scheduler must run guarded release auto-update checks.' );
+$assert( str_contains( $moduleUpdateService, "private const CACHE_KEY = 'updates.modules'" ) && str_contains( $moduleUpdateService, 'version_compare( $latestVersion, $installedVersion, \'>\' )' ) && str_contains( $moduleUpdateService, 'Requires Metis %s or newer.' ), 'Module update service must cache update checks, compare semantic versions natively, and gate incompatible updates by minimum Metis version.' );
 $assert( str_contains( $dataRetentionService, 'final class DataRetentionService' ), 'Data retention service must be present.' );
 foreach ( [ 'job_queue_completed', 'job_queue_failed', 'webhook_events_processed', 'email_send_events', 'audit_activity', 'audit_security', 'hermes_command_logs', 'backup_runs_failed' ] as $retentionPolicy ) {
     $assert( str_contains( $dataRetentionService, "'key' => '" . $retentionPolicy . "'" ), 'Data retention policy missing: ' . $retentionPolicy . '.' );
@@ -186,6 +188,7 @@ $assert( str_contains( $settingsAjax, 'data_retention.cleanup' ), 'Auto-remediat
 $assert( str_contains( $releaseRuntime, 'function metis_release_auto_update' ), 'Release runtime must expose guarded auto-update.' );
 $assert( str_contains( $releaseRuntime, 'release_auto_update_enabled' ) && str_contains( $releaseRuntime, 'release_auto_update_max_level' ), 'Release auto-update must be policy controlled.' );
 $assert( str_contains( $releaseRuntime, "'release.apply'" ) && str_contains( $releaseRuntime, "'operation:release.apply:auto:'" ), 'Release auto-update must queue the existing governed release apply operation.' );
+$assert( str_contains( $releaseRuntime, 'function metis_module_update_service()' ) && str_contains( $releaseRuntime, 'function metis_module_update_status(' ) && str_contains( $releaseRuntime, 'function metis_module_update_status_snapshot()' ), 'Release runtime must expose reusable module update helpers for UI, cron, and future auto-update flows.' );
 $assert( str_contains( $operationsService, "'release.auto_update'" ) && str_contains( $operationsService, 'runReleaseAutoUpdateOperation' ), 'Operations service must expose governed release auto-update execution.' );
 $assert( str_contains( $standaloneApplicationBootstrap, "'release_auto_update_enabled', true" ) && str_contains( $standaloneApplicationBootstrap, "'release_auto_update_max_level', 'patch'" ), 'Install defaults must enable patch-only trusted auto-update.' );
 $assert( str_contains( $backupService, 'ensureBackupSourceDirectories' ), 'Backup service must normalize required source directories before creating artifacts.' );
@@ -217,6 +220,9 @@ $assert( str_contains( $settingsJobsTasks, 'metis-pagination' ) && str_contains(
 $assert( ! str_contains( $settingsJobsTasks, 'metis_json_encode( (array) $job_row[\'result\']' ), 'Jobs & Tasks recent jobs panel must not render raw result JSON.' );
 $assert( str_contains( $settingsJs, 'schedulerCsrfAction' ) && str_contains( $settingsJs, "metis_csrf_action', schedulerCsrfAction(action)" ), 'Scheduler live polling must send explicit AJAX CSRF action metadata.' );
 $assert( str_contains( $settingsJs, 'schedulerAuthRejected' ) && str_contains( $settingsJs, 'stopSchedulerPolling' ), 'Scheduler live polling must stop retrying after session integrity/auth rejects.' );
+$assert( str_contains( $settingsAjax, 'metis_update_service()->refreshUpdateState( true, \'settings_ajax\' )' ), 'Settings release refresh must refresh core and module update state together.' );
+$assert( str_contains( $settingsBootstrap, 'metis_release_status_snapshot' ), 'Settings bootstrap must continue to expose cached release status snapshots.' );
+$assert( str_contains( $read( 'modules/settings/views/about.php' ), 'Updates Available' ) && str_contains( $read( 'modules/settings/views/about.php' ), 'metis_module_update_status_snapshot' ), 'Settings About view must surface module update notifications from the cached module update service.' );
 
 if ( preg_match( '/function metis_settings_health_security_offense_clause\\(\\): string \\{(?P<body>.*?)\\n\\}/s', $settingsBootstrap, $match ) === 1 ) {
     $offenseClause = strtolower( (string) ( $match['body'] ?? '' ) );
