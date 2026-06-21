@@ -1,125 +1,125 @@
 {
-    "slug": "testimonies",
-    "name": "testimonies",
+  "slug": "testimonies",
+  "name": "testimonies",
+  "label": "Testimonies",
+  "title": "Testimonies",
+  "version": "1.0.1",
+  "minimum_metis": "26.6.0",
+  "release_channel": "stable",
+  "domain": "testimonies",
+  "default_view": "dashboard",
+  "dependencies": [],
+  "entity_prefixes": [
+    {
+      "entity_type": "testimony",
+      "prefix": "TST",
+      "description": "Testimony",
+      "table_key": "testimonies",
+      "uid_column": "testimony_uid",
+      "legacy_columns": [
+        "testimony_code"
+      ]
+    },
+    {
+      "entity_type": "testimony_category",
+      "prefix": "TSC",
+      "description": "Testimony Category",
+      "table_key": "testimony_categories",
+      "uid_column": "testimony_category_uid",
+      "legacy_columns": [
+        "category_code"
+      ]
+    }
+  ],
+  "menu_order": 1,
+  "description": "Manage website testimonies and categories.",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 11H5a2 2 0 0 0-2 2v4h4\"/><path d=\"M15 11h4a2 2 0 0 1 2 2v4h-4\"/><path d=\"M7 7a3 3 0 1 1 0 .01\"/><path d=\"M17 7a3 3 0 1 1 0 .01\"/></svg>",
+  "menu": {
+    "type": "single",
+    "items": {
+      "dashboard": "Testimonies"
+    }
+  },
+  "permissions": {
+    "view": {
+      "key": "testimonies.view",
+      "action": "view",
+      "name": "Testimonies View",
+      "roles": [
+        "administrator",
+        "board",
+        "website_manager"
+      ]
+    },
+    "edit": {
+      "key": "testimonies.edit",
+      "action": "edit",
+      "name": "Testimonies Edit",
+      "roles": [
+        "administrator",
+        "website_manager"
+      ]
+    },
+    "create": {
+      "key": "testimonies.create",
+      "action": "create",
+      "name": "Testimonies Create",
+      "roles": [
+        "administrator",
+        "website_manager"
+      ]
+    },
+    "delete": {
+      "key": "testimonies.delete",
+      "action": "delete",
+      "name": "Testimonies Delete",
+      "roles": [
+        "administrator",
+        "website_manager"
+      ]
+    },
+    "publish": {
+      "key": "testimonies.publish",
+      "action": "publish",
+      "name": "Testimonies Publish",
+      "roles": [
+        "administrator",
+        "website_manager"
+      ]
+    }
+  },
+  "views": {
+    "dashboard": "dashboard.php"
+  },
+  "assets": {
+    "css": [
+      "testimonies.css"
+    ],
+    "js": [
+      "testimonies.js"
+    ],
+    "ajax": "testimonies.ajax.php"
+  },
+  "ajax_object": "metisTestimoniesAjax",
+  "category": "website",
+  "default_parent": "website",
+  "order": 23,
+  "navigation": {
+    "enabled": true,
     "label": "Testimonies",
-    "title": "Testimonies",
-    "version": "1.0.0",
-    "minimum_metis": "26.6.0",
-    "release_channel": "stable",
-    "domain": "testimonies",
-    "default_view": "dashboard",
-    "dependencies": [],
-    "entity_prefixes": [
-        {
-            "entity_type": "testimony",
-            "prefix": "TST",
-            "description": "Testimony",
-            "table_key": "testimonies",
-            "uid_column": "testimony_uid",
-            "legacy_columns": [
-                "testimony_code"
-            ]
-        },
-        {
-            "entity_type": "testimony_category",
-            "prefix": "TSC",
-            "description": "Testimony Category",
-            "table_key": "testimony_categories",
-            "uid_column": "testimony_category_uid",
-            "legacy_columns": [
-                "category_code"
-            ]
-        }
-    ],
-    "menu_order": 1,
-    "description": "Manage website testimonies and categories.",
-    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 11H5a2 2 0 0 0-2 2v4h4\"/><path d=\"M15 11h4a2 2 0 0 1 2 2v4h-4\"/><path d=\"M7 7a3 3 0 1 1 0 .01\"/><path d=\"M17 7a3 3 0 1 1 0 .01\"/></svg>",
-    "menu": {
-        "type": "single",
-        "items": {
-            "dashboard": "Testimonies"
-        }
-    },
-    "permissions": {
-        "view": {
-            "key": "testimonies.view",
-            "action": "view",
-            "name": "Testimonies View",
-            "roles": [
-                "administrator",
-                "board",
-                "website_manager"
-            ]
-        },
-        "edit": {
-            "key": "testimonies.edit",
-            "action": "edit",
-            "name": "Testimonies Edit",
-            "roles": [
-                "administrator",
-                "website_manager"
-            ]
-        },
-        "create": {
-            "key": "testimonies.create",
-            "action": "create",
-            "name": "Testimonies Create",
-            "roles": [
-                "administrator",
-                "website_manager"
-            ]
-        },
-        "delete": {
-            "key": "testimonies.delete",
-            "action": "delete",
-            "name": "Testimonies Delete",
-            "roles": [
-                "administrator",
-                "website_manager"
-            ]
-        },
-        "publish": {
-            "key": "testimonies.publish",
-            "action": "publish",
-            "name": "Testimonies Publish",
-            "roles": [
-                "administrator",
-                "website_manager"
-            ]
-        }
-    },
-    "views": {
-        "dashboard": "dashboard.php"
-    },
-    "assets": {
-        "css": [
-            "testimonies.css"
-        ],
-        "js": [
-            "testimonies.js"
-        ],
-        "ajax": "testimonies.ajax.php"
-    },
-    "ajax_object": "metisTestimoniesAjax",
-    "category": "website",
-    "default_parent": "website",
-    "order": 23,
-    "navigation": {
-        "enabled": true,
-        "label": "Testimonies",
-        "visible": true
-    },
-    "quick_actions": [
-        {
-            "key": "website_create_testimony",
-            "label": "Add Testimony",
-            "icon": "quote",
-            "type": "route",
-            "route": "/admin/testimonies/",
-            "permission": "testimonies.create",
-            "group": "website"
-        }
-    ],
-    "entry": "Module.php",
-    "services": []
+    "visible": true
+  },
+  "quick_actions": [
+    {
+      "key": "website_create_testimony",
+      "label": "Add Testimony",
+      "icon": "quote",
+      "type": "route",
+      "route": "/admin/testimonies/",
+      "permission": "testimonies.create",
+      "group": "website"
+    }
+  ],
+  "entry": "Module.php",
+  "services": []
 }

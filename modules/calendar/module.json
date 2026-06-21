@@ -1,91 +1,91 @@
 {
-    "slug": "calendar",
-    "name": "calendar",
+  "slug": "calendar",
+  "name": "calendar",
+  "label": "Calendar",
+  "version": "1.0.1",
+  "minimum_metis": "26.6.0",
+  "release_channel": "stable",
+  "domain": "calendar",
+  "default_view": "dashboard",
+  "dependencies": [],
+  "entity_prefixes": [
+    {
+      "entity_type": "calendar",
+      "prefix": "CAL",
+      "description": "Calendar",
+      "table_key": "calendar_events",
+      "uid_column": "calendar_uid",
+      "legacy_columns": []
+    }
+  ],
+  "menu_order": 1,
+  "description": "Schedule events and keep calendars in sync.",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\" ry=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/></svg>",
+  "permissions": {
+    "view": [
+      "administrator",
+      "workspace_manager",
+      "board",
+      "donor_admin",
+      "newsletter_admin"
+    ],
+    "edit": [
+      "administrator",
+      "workspace_manager",
+      "board"
+    ],
+    "create": [
+      "administrator",
+      "workspace_manager",
+      "board"
+    ],
+    "delete": [
+      "administrator",
+      "workspace_manager",
+      "board"
+    ]
+  },
+  "views": {
+    "dashboard": "dashboard.php"
+  },
+  "help_topics": [
+    "calendar.dashboard"
+  ],
+  "assets": {
+    "css": [
+      "calendar.css"
+    ],
+    "js": [
+      "calendar.js"
+    ],
+    "ajax": "calendar.ajax.php",
+    "nonce_action": "metis_calendar",
+    "ajax_object": "metisCalendarAjax"
+  },
+  "category": "core",
+  "default_parent": "communications",
+  "order": 80,
+  "navigation": {
+    "enabled": true,
     "label": "Calendar",
-    "version": "1.0.0",
-    "minimum_metis": "26.6.0",
-    "release_channel": "stable",
-    "domain": "calendar",
-    "default_view": "dashboard",
-    "dependencies": [],
-    "entity_prefixes": [
-        {
-            "entity_type": "calendar",
-            "prefix": "CAL",
-            "description": "Calendar",
-            "table_key": "calendar_events",
-            "uid_column": "calendar_uid",
-            "legacy_columns": []
-        }
-    ],
-    "menu_order": 1,
-    "description": "Schedule events and keep calendars in sync.",
-    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\" ry=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/></svg>",
-    "permissions": {
-        "view": [
-            "administrator",
-            "workspace_manager",
-            "board",
-            "donor_admin",
-            "newsletter_admin"
-        ],
-        "edit": [
-            "administrator",
-            "workspace_manager",
-            "board"
-        ],
-        "create": [
-            "administrator",
-            "workspace_manager",
-            "board"
-        ],
-        "delete": [
-            "administrator",
-            "workspace_manager",
-            "board"
-        ]
-    },
-    "views": {
-        "dashboard": "dashboard.php"
-    },
-    "help_topics": [
-        "calendar.dashboard"
-    ],
-    "assets": {
-        "css": [
-            "calendar.css"
-        ],
-        "js": [
-            "calendar.js"
-        ],
-        "ajax": "calendar.ajax.php",
-        "nonce_action": "metis_calendar",
-        "ajax_object": "metisCalendarAjax"
-    },
-    "category": "core",
-    "default_parent": "communications",
-    "order": 80,
-    "navigation": {
-        "enabled": true,
-        "label": "Calendar",
-        "visible": true
-    },
-    "quick_actions": [
-        {
-            "key": "calendar_create_event",
-            "label": "Create Event",
-            "icon": "calendar-plus",
-            "type": "modal",
-            "route": "/calendar/",
-            "handler": "metis_calendar_quick_action_event_form",
-            "submit_action": "metis_calendar_save_event",
-            "submit_label": "Save Event",
-            "permission": "calendar.create",
-            "group": "calendar"
-        }
-    ],
-    "title": "Calendar",
-    "entry": "Module.php",
-    "routes": [],
-    "services": []
+    "visible": true
+  },
+  "quick_actions": [
+    {
+      "key": "calendar_create_event",
+      "label": "Create Event",
+      "icon": "calendar-plus",
+      "type": "modal",
+      "route": "/calendar/",
+      "handler": "metis_calendar_quick_action_event_form",
+      "submit_action": "metis_calendar_save_event",
+      "submit_label": "Save Event",
+      "permission": "calendar.create",
+      "group": "calendar"
+    }
+  ],
+  "title": "Calendar",
+  "entry": "Module.php",
+  "routes": [],
+  "services": []
 }

@@ -1,81 +1,81 @@
 {
-    "slug": "media",
-    "name": "media",
+  "slug": "media",
+  "name": "media",
+  "label": "Media",
+  "version": "1.0.1",
+  "minimum_metis": "26.6.0",
+  "release_channel": "stable",
+  "domain": "media",
+  "default_view": "library",
+  "dependencies": [],
+  "menu_order": 10,
+  "description": "Centralized media library for uploads used by builders and content modules.",
+  "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><path d=\"M21 15l-5-5L5 21\"/></svg>",
+  "menu": {
+    "type": "single",
+    "items": {
+      "library": "Media"
+    }
+  },
+  "permissions": {
+    "view": {
+      "key": "media.view",
+      "action": "view",
+      "name": "Media View",
+      "roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    "edit": {
+      "key": "media.edit",
+      "action": "edit",
+      "name": "Media Edit",
+      "roles": [
+        "administrator",
+        "board",
+        "donor_admin",
+        "newsletter_admin"
+      ]
+    },
+    "delete": {
+      "key": "media.delete",
+      "action": "delete",
+      "name": "Media Delete",
+      "roles": [
+        "administrator",
+        "board",
+        "donor_admin"
+      ]
+    }
+  },
+  "views": {
+    "library": "library.php"
+  },
+  "routes": [],
+  "assets": {
+    "css": [
+      "media.css"
+    ],
+    "js": [
+      "media.js"
+    ],
+    "ajax": "media.ajax.php",
+    "nonce_action": "metis_core"
+  },
+  "ajax_object": "metisMediaAjax",
+  "category": "website",
+  "default_parent": "website",
+  "order": 20,
+  "navigation": {
+    "enabled": true,
     "label": "Media",
-    "version": "1.0.0",
-    "minimum_metis": "26.6.0",
-    "release_channel": "stable",
-    "domain": "media",
-    "default_view": "library",
-    "dependencies": [],
-    "menu_order": 10,
-    "description": "Centralized media library for uploads used by builders and content modules.",
-    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\"/><path d=\"M21 15l-5-5L5 21\"/></svg>",
-    "menu": {
-        "type": "single",
-        "items": {
-            "library": "Media"
-        }
-    },
-    "permissions": {
-        "view": {
-            "key": "media.view",
-            "action": "view",
-            "name": "Media View",
-            "roles": [
-                "administrator",
-                "board",
-                "donor_admin",
-                "newsletter_admin"
-            ]
-        },
-        "edit": {
-            "key": "media.edit",
-            "action": "edit",
-            "name": "Media Edit",
-            "roles": [
-                "administrator",
-                "board",
-                "donor_admin",
-                "newsletter_admin"
-            ]
-        },
-        "delete": {
-            "key": "media.delete",
-            "action": "delete",
-            "name": "Media Delete",
-            "roles": [
-                "administrator",
-                "board",
-                "donor_admin"
-            ]
-        }
-    },
-    "views": {
-        "library": "library.php"
-    },
-    "routes": [],
-    "assets": {
-        "css": [
-            "media.css"
-        ],
-        "js": [
-            "media.js"
-        ],
-        "ajax": "media.ajax.php",
-        "nonce_action": "metis_core"
-    },
-    "ajax_object": "metisMediaAjax",
-    "category": "website",
-    "default_parent": "website",
-    "order": 20,
-    "navigation": {
-        "enabled": true,
-        "label": "Media",
-        "visible": true
-    },
-    "quick_actions": [],
-    "title": "Media",
-    "entry": "Module.php",
-    "services": []
+    "visible": true
+  },
+  "quick_actions": [],
+  "title": "Media",
+  "entry": "Module.php",
+  "services": []
 }
