@@ -85,9 +85,24 @@
     flex-wrap: wrap;
 }
 
+.metis-module-card__head {
+    align-items: flex-start;
+}
+
 .metis-module-card__title {
     font-weight: 700;
     color: #1f2330;
+}
+
+.metis-module-card__head > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.metis-module-card__actions {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    justify-content: flex-end;
 }
 
 .metis-module-refresh {
