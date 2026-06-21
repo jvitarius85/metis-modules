@@ -1,7 +1,10 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
-require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+$metis_people_portal_root = \Metis\Core\ModulePathRegistry::modulePath( 'portal' );
+if ( is_string( $metis_people_portal_root ) && is_file( $metis_people_portal_root . '/views/_dashboard_data.php' ) ) {
+    require_once $metis_people_portal_root . '/views/_dashboard_data.php';
+}
 
 function metis_people_ajax_request_input(): array {
     return function_exists( 'metis_request_post' ) ? (array) metis_request_post() : [];

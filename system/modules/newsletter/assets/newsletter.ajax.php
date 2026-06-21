@@ -1,7 +1,10 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
-require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+$metis_newsletter_portal_root = \Metis\Core\ModulePathRegistry::modulePath( 'portal' );
+if ( is_string( $metis_newsletter_portal_root ) && is_file( $metis_newsletter_portal_root . '/views/_dashboard_data.php' ) ) {
+    require_once $metis_newsletter_portal_root . '/views/_dashboard_data.php';
+}
 
 use Metis\Modules\Newsletter\ContactService;
 use Metis\Modules\Newsletter\CampaignService;

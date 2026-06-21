@@ -2,7 +2,11 @@
 if (!defined('METIS_ROOT')) exit;
 
 require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
-require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+
+$metis_board_portal_root = \Metis\Core\ModulePathRegistry::modulePath( 'portal' );
+if ( is_string( $metis_board_portal_root ) && is_file( $metis_board_portal_root . '/views/_dashboard_data.php' ) ) {
+    require_once $metis_board_portal_root . '/views/_dashboard_data.php';
+}
 
 use Metis\Modules\Board\PacketRecipientService;
 use Metis\Modules\Board\BylawsService;
