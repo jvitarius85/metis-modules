@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "generated_at": "2026-06-20T21:20:00Z",
+  "modules": {
+    "board": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "calendar": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "contacts": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "donations": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "drive": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "finance": {
+      "latest": "2.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "forms": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "grandys_stash": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "help": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "hermes": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "import": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "media": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "newsletter": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "people": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "portal": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "profile": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "resources": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "settings": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "testimonies": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    },
+    "website": {
+      "latest": "1.0.0",
+      "minimum_metis": "26.6.0",
+      "release_channel": "stable",
+      "download_url": "",
+      "sha256": ""
+    }
+  }
+}

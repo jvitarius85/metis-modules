@@ -3,6 +3,8 @@
     "name": "portal",
     "label": "Portal",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "portal",
     "default_view": "dashboard",
     "dependencies": [],

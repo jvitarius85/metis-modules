@@ -49,6 +49,9 @@ $modules = function_exists( 'metis_get_modules' ) ? metis_get_modules() : [];
 $module_catalog = function_exists( 'metis_github_update_service' )
     ? (array) metis_github_update_service()->moduleCatalog()
     : [];
+$module_update_status = function_exists( 'metis_module_update_status_snapshot' )
+    ? (array) metis_module_update_status_snapshot()
+    : ( function_exists( 'metis_module_update_status' ) ? (array) metis_module_update_status( false ) : [] );
 $required_module_slugs = is_array( $module_catalog['required_modules'] ?? null )
     ? (array) $module_catalog['required_modules']
     : [];
@@ -57,6 +60,15 @@ $official_module_slugs = is_array( $module_catalog['official_modules'] ?? null )
     : [];
 $required_module_lookup = array_fill_keys( $required_module_slugs, true );
 $official_module_lookup = array_fill_keys( $official_module_slugs, true );
+$module_update_rows = is_array( $module_update_status['modules'] ?? null ) ? (array) $module_update_status['modules'] : [];
+$available_module_updates = array_values(
+    array_filter(
+        $module_update_rows,
+        static fn ( mixed $row ): bool => is_array( $row ) && ! empty( $row['update_available'] )
+    )
+);
+$module_update_count = (int) ( $module_update_status['update_count'] ?? count( $available_module_updates ) );
+$update_notice_count = ( ! empty( $release_status['update_available'] ) ? 1 : 0 ) + $module_update_count;
 usort( $module_details, static function ( array $a, array $b ): int {
     return strcmp( (string) ( $a['slug'] ?? '' ), (string) ( $b['slug'] ?? '' ) );
 } );
@@ -65,6 +77,62 @@ usort( $module_details, static function ( array $a, array $b ): int {
 <p class="metis-subtitle">Review the installed Metis version and current release state.</p>
 <?php metis_settings_render_messages( $saved, $errors ); ?>
 <?php metis_settings_render_section_nav( 'about' ); ?>
+
+<div class="metis-settings-card">
+    <div class="metis-settings-header">
+        <h2>Updates Available</h2>
+        <span class="metis-settings-status <?php echo $update_notice_count > 0 ? 'is-warning' : 'is-ok'; ?>"><?php echo metis_escape_html( (string) $update_notice_count ); ?></span>
+    </div>
+    <div class="metis-settings-body">
+        <div class="metis-shortcode-wrap" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
+            <div>
+                <div><strong>Core</strong></div>
+                <div class="metis-help">
+                    <?php if ( ! empty( $release_status['update_available'] ) ) : ?>
+                        <?php echo metis_escape_html( $release_installed_version ); ?> → <?php echo metis_escape_html( (string) ( $release_latest['version'] ?? $release_latest['tag'] ?? '' ) ); ?>
+                    <?php else : ?>
+                        No core update available
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div>
+                <div><strong>Modules</strong></div>
+                <div class="metis-help"><?php echo metis_escape_html( (string) $module_update_count ); ?> update<?php echo $module_update_count === 1 ? '' : 's'; ?> available</div>
+            </div>
+            <div>
+                <div><strong>Module Check</strong></div>
+                <div class="metis-help">
+                    <?php echo metis_escape_html( (string) ( $module_update_status['checked_at'] ?? 'never' ) ); ?>
+                    <?php if ( ! empty( $module_update_status['registry_status'] ) ) : ?>
+                        · <?php echo metis_escape_html( (string) $module_update_status['registry_status'] ); ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php if ( $available_module_updates !== [] ) : ?>
+            <div style="display:grid; gap:10px; margin-top:16px;">
+                <?php foreach ( $available_module_updates as $module_update ) : ?>
+                    <div style="padding:14px 16px; border:1px solid #d9deea; border-radius:12px; background:#f7f8fc; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-weight:700; color:#1f2330;"><?php echo metis_escape_html( (string) ( $module_update['name'] ?? $module_update['module'] ?? 'Module' ) ); ?></div>
+                            <div class="metis-help" style="margin:4px 0 0 0;">
+                                <?php echo metis_escape_html( (string) ( $module_update['current'] ?? 'unknown' ) ); ?> → <?php echo metis_escape_html( (string) ( $module_update['latest'] ?? 'unknown' ) ); ?>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span class="metis-chip" style="background:#fff7ed; color:#9a3412; border:1px solid #fdba74;">Update Available</span>
+                            <span class="metis-chip" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db;"><?php echo metis_escape_html( (string) ( $module_update['release_channel'] ?? 'stable' ) ); ?></span>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ( ! empty( $module_update_status['registry_error'] ) ) : ?>
+            <p class="metis-help" style="color:#b91c1c; margin-top:16px;"><?php echo metis_escape_html( (string) $module_update_status['registry_error'] ); ?></p>
+        <?php else : ?>
+            <p class="metis-help" style="margin-top:16px;">No module updates are currently available.</p>
+        <?php endif; ?>
+    </div>
+</div>
 
 <div class="metis-settings-card">
     <div class="metis-settings-header">
@@ -223,7 +291,7 @@ usort( $module_details, static function ( array $a, array $b ): int {
 
 <?php if ( $is_system_admin ) : ?>
     <div class="metis-settings-actions">
-        <button type="button" class="metis-btn" data-release-check-updates="1">Refresh Releases</button>
+        <button type="button" class="metis-btn" data-release-check-updates="1">Refresh Updates</button>
         <?php if ( $release_can_apply_latest ) : ?>
             <button
                 type="button"

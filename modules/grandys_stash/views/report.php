@@ -128,11 +128,9 @@ $range_text = ( $from !== '' || $to !== '' )
                 <tbody id="metis-stash-report-category-body">
                 <?php foreach ( ( $report['by_category'] ?? [] ) as $cat ) : ?>
                     <?php $label = $display_label( (string) ( $cat['category_name'] ?? '' ), 'Other' ); ?>
-                    <tr class="metis-premium-row">
+                    <tr class="metis-premium-row metis-stash-report-summary-row metis-clickable-row" tabindex="0" role="button" data-report-drilldown="category" data-report-value="<?php echo metis_escape_attr( (string) ( $cat['category_slug'] ?? '' ) ); ?>" data-report-label="<?php echo metis_escape_attr( $label ); ?>">
                         <td class="metis-premium-cell">
-                            <button type="button" class="metis-stash-report-trigger" data-report-drilldown="category" data-report-value="<?php echo metis_escape_attr( (string) ( $cat['category_slug'] ?? '' ) ); ?>" data-report-label="<?php echo metis_escape_attr( $label ); ?>">
-                                <?php echo metis_escape_html( $label ); ?>
-                            </button>
+                            <span class="metis-stash-report-trigger"><?php echo metis_escape_html( $label ); ?></span>
                         </td>
                         <td class="metis-premium-cell"><?php echo (int) ( $cat['item_count'] ?? 0 ); ?></td>
                         <td class="metis-premium-cell"><?php echo (int) ( $cat['fulfilled'] ?? 0 ); ?></td>
@@ -229,11 +227,9 @@ $range_text = ( $from !== '' || $to !== '' )
                 <tbody id="metis-stash-report-organization-body">
                 <?php foreach ( ( $report['by_organization'] ?? [] ) as $row ) : ?>
                     <?php $label = $display_label( (string) ( $row['organization_name'] ?? '' ), 'Independent' ); ?>
-                    <tr class="metis-premium-row">
+                    <tr class="metis-premium-row metis-stash-report-summary-row metis-clickable-row" tabindex="0" role="button" data-report-drilldown="organization" data-report-value="<?php echo metis_escape_attr( (string) ( $row['organization_key'] ?? '' ) ); ?>" data-report-label="<?php echo metis_escape_attr( $label ); ?>">
                         <td class="metis-premium-cell">
-                            <button type="button" class="metis-stash-report-trigger" data-report-drilldown="organization" data-report-value="<?php echo metis_escape_attr( (string) ( $row['organization_key'] ?? '' ) ); ?>" data-report-label="<?php echo metis_escape_attr( $label ); ?>">
-                                <?php echo metis_escape_html( $label ); ?>
-                            </button>
+                            <span class="metis-stash-report-trigger"><?php echo metis_escape_html( $label ); ?></span>
                         </td>
                         <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['organization_domain'] ?? '—' ) ); ?></td>
                         <td class="metis-premium-cell"><?php echo (int) ( $row['request_count'] ?? 0 ); ?></td>
@@ -261,11 +257,9 @@ $range_text = ( $from !== '' || $to !== '' )
                 <tbody id="metis-stash-report-person-body">
                 <?php foreach ( ( $report['by_person'] ?? [] ) as $row ) : ?>
                     <?php $label = $display_label( (string) ( $row['person_name'] ?? '' ), 'Unknown' ); ?>
-                    <tr class="metis-premium-row">
+                    <tr class="metis-premium-row metis-stash-report-summary-row metis-clickable-row" tabindex="0" role="button" data-report-drilldown="person" data-report-value="<?php echo metis_escape_attr( (string) ( $row['person_key'] ?? '' ) ); ?>" data-report-label="<?php echo metis_escape_attr( $label ); ?>">
                         <td class="metis-premium-cell">
-                            <button type="button" class="metis-stash-report-trigger" data-report-drilldown="person" data-report-value="<?php echo metis_escape_attr( (string) ( $row['person_key'] ?? '' ) ); ?>" data-report-label="<?php echo metis_escape_attr( $label ); ?>">
-                                <?php echo metis_escape_html( $label ); ?>
-                            </button>
+                            <span class="metis-stash-report-trigger"><?php echo metis_escape_html( $label ); ?></span>
                         </td>
                         <td class="metis-premium-cell"><?php echo metis_escape_html( (string) ( $row['person_email'] ?? '—' ) ); ?></td>
                         <td class="metis-premium-cell"><?php echo (int) ( $row['request_count'] ?? 0 ); ?></td>

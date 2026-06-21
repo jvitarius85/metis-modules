@@ -3,6 +3,8 @@
     "name": "settings",
     "label": "Settings",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "settings",
     "default_view": "identity",
     "dependencies": [],

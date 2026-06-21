@@ -3,6 +3,8 @@
     "name": "board",
     "label": "Board Administration",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "board",
     "default_view": "dashboard",
     "dependencies": [],

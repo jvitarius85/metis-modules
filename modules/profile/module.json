@@ -3,6 +3,8 @@
     "name": "profile",
     "label": "Profile",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "profile",
     "default_view": "dashboard",
     "dependencies": [],

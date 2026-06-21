@@ -3,6 +3,8 @@
     "name": "website",
     "label": "Website",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "website",
     "description": "First-class Website workspace for pages, posts, media, menus, redirects, templates, publishing workflows, and public site controls.",
     "default_view": "dashboard",

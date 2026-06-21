@@ -3,6 +3,8 @@
     "name": "hermes",
     "label": "Hermes",
     "version": "1.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "hermes",
     "default_view": "dashboard",
     "dependencies": [

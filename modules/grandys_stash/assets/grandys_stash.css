@@ -121,6 +121,14 @@
     cursor: pointer;
 }
 
+.metis-stash-row.metis-stash-row-odd {
+    background: var(--metis-row-odd-bg);
+}
+
+.metis-stash-row.metis-stash-row-even {
+    background: var(--metis-row-even-bg);
+}
+
 .metis-stash-row[data-ticket-url]:hover {
     background: #f7f9ff;
 }
@@ -658,6 +666,16 @@ body.metis-stash-modal-open {
     outline: none;
 }
 
+.metis-stash-report-summary-row {
+    cursor: pointer;
+}
+
+.metis-stash-report-summary-row:focus-visible {
+    outline: 2px solid rgba(72, 91, 199, 0.28);
+    outline-offset: -2px;
+    background: var(--metis-bg-soft, #f5f8fa);
+}
+
 .metis-stash-report-drilldown {
     margin: 0 0 28px;
     padding: 18px;
@@ -727,6 +745,14 @@ body.metis-stash-modal-open {
 
 .metis-stash-report-ticket-row {
     cursor: pointer;
+}
+
+.metis-stash-report-ticket-row.metis-stash-report-ticket-row-odd {
+    background: var(--metis-row-odd-bg);
+}
+
+.metis-stash-report-ticket-row.metis-stash-report-ticket-row-even {
+    background: var(--metis-row-even-bg);
 }
 
 .metis-stash-report-ticket-row:hover {

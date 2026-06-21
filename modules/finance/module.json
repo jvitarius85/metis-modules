@@ -3,6 +3,8 @@
     "name": "finance",
     "label": "Finance",
     "version": "2.0.0",
+    "minimum_metis": "26.6.0",
+    "release_channel": "stable",
     "domain": "finance",
     "default_view": "snapshot",
     "dependencies": [
