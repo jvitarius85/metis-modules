@@ -259,6 +259,28 @@ final class GitHubUpdateService {
         );
     }
 
+    public function downloadModuleArchive(string $downloadUrl, string $destination): array {
+        $settings = $this->repositoryConfig();
+        $owner = (string) ($settings['owner'] ?? '');
+        $repo = (string) ($settings['repo'] ?? '');
+        $metadataRef = (string) ($settings['metadata_ref'] ?? '');
+        $token = (string) ($settings['token'] ?? '');
+
+        if (
+            preg_match('#raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.*)$#i', $downloadUrl, $matches) === 1
+        ) {
+            $owner = trim((string) ($matches[1] ?? '')) ?: $owner;
+            $repo = trim((string) ($matches[2] ?? '')) ?: $repo;
+            $metadataRef = trim((string) ($matches[3] ?? '')) ?: $metadataRef;
+            $path = trim((string) ($matches[4] ?? ''), '/');
+            if ($owner !== '' && $repo !== '' && $path !== '') {
+                return $this->github->repositoryFile($owner, $repo, $path, $destination, $metadataRef, $token);
+            }
+        }
+
+        throw new \RuntimeException('Module archive download URL is not supported.');
+    }
+
     private function repositoryConfig(): array {
         $fileConfig = $this->config->loadFile('config/update.php', []);
         $currentVersion = (string) ($fileConfig['current_version'] ?? '');

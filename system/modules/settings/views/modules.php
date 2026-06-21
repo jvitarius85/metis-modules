@@ -105,13 +105,21 @@ usort( $modules, static fn ( array $left, array $right ): int => strcmp( (string
                                 </div>
                             </div>
                             <div class="metis-module-card__actions">
+                                <?php
+                                $module_update_icon = metis_navigation_icon_markup( 'icon:repeat' );
+                                $module_loading_icon = metis_navigation_svg_icon_markup( 'loading-circle' );
+                                ?>
                                 <button
                                     type="button"
                                     class="metis-btn metis-btn-secondary metis-btn-sm metis-module-action"
                                     data-module-install-id="<?php echo metis_escape_attr( (string) $module['id'] ); ?>"
                                     data-module-install-name="<?php echo metis_escape_attr( (string) $module['name'] ); ?>"
                                     data-module-install-version="<?php echo metis_escape_attr( (string) $module['latest'] ); ?>"
-                                ><?php echo ! empty( $module['installed'] ) ? ( ! empty( $module['update_available'] ) ? 'Update' : 'Reinstall' ) : 'Install'; ?></button>
+                                >
+                                    <span class="metis-module-action__label"><?php echo ! empty( $module['installed'] ) ? ( ! empty( $module['update_available'] ) ? 'Update' : 'Reinstall' ) : 'Install'; ?></span>
+                                    <span class="metis-module-action__icon" aria-hidden="true"><?php echo $module_update_icon; ?></span>
+                                    <span class="metis-module-action__spinner" aria-hidden="true"><?php echo $module_loading_icon; ?></span>
+                                </button>
                             </div>
                         </div>
                         <div class="metis-module-card__meta">

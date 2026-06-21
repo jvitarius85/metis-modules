@@ -220,6 +220,10 @@ usort( $module_details, static function ( array $a, array $b ): int {
                             </div>
                             <div class="metis-module-card__actions">
                                 <?php if ( $has_module_update ) : ?>
+                                    <?php
+                                    $module_update_icon = metis_navigation_icon_markup( 'icon:repeat' );
+                                    $module_loading_icon = metis_navigation_svg_icon_markup( 'loading-circle' );
+                                    ?>
                                     <button
                                         type="button"
                                         class="metis-module-refresh"
@@ -228,7 +232,10 @@ usort( $module_details, static function ( array $a, array $b ): int {
                                         data-module-install-version="<?php echo metis_escape_attr( (string) ( $module_update['latest'] ?? '' ) ); ?>"
                                         title="Install module update"
                                         aria-label="Install module update"
-                                    >&#8635;</button>
+                                    >
+                                        <span class="metis-module-refresh__icon" aria-hidden="true"><?php echo $module_update_icon; ?></span>
+                                        <span class="metis-module-refresh__spinner" aria-hidden="true"><?php echo $module_loading_icon; ?></span>
+                                    </button>
                                 <?php endif; ?>
                             </div>
                         </div>

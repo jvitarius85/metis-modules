@@ -68,7 +68,7 @@ final class ModuleInstallService {
         $extractPath = $workspace . '/extract';
 
         try {
-            $this->downloadArchive($downloadUrl, $archivePath);
+            $this->githubUpdates->downloadModuleArchive($downloadUrl, $archivePath);
             if ($sha256 !== '') {
                 $archiveHash = strtolower($this->files->hashFile($archivePath));
                 if (!hash_equals($sha256, $archiveHash)) {
@@ -145,40 +145,6 @@ final class ModuleInstallService {
                 'latest' => $latestVersion,
             ]);
         }
-    }
-
-    private function downloadArchive(string $url, string $destination): void {
-        if (function_exists('metis_runtime_remote_get')) {
-            $response = metis_runtime_remote_get($url, [
-                'timeout' => 60,
-                'headers' => [
-                    'Accept' => 'application/octet-stream',
-                ],
-            ]);
-            if ($response instanceof \MetisError) {
-                throw new \RuntimeException($response->get_error_message());
-            }
-
-            $status = (int) ($response['response']['code'] ?? 0);
-            if ($status < 200 || $status >= 300) {
-                throw new \RuntimeException(sprintf('Archive download failed with status [%d].', $status));
-            }
-
-            $body = (string) ($response['body'] ?? '');
-            if ($body === '') {
-                throw new \RuntimeException('Archive download returned an empty response.');
-            }
-
-            $this->files->write($destination, $body);
-            return;
-        }
-
-        $body = @file_get_contents($url);
-        if (!is_string($body) || $body === '') {
-            throw new \RuntimeException('Archive download failed.');
-        }
-
-        $this->files->write($destination, $body);
     }
 
     private function extractArchive(string $archivePath, string $destination): void {
