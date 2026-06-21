@@ -1,7 +1,12 @@
 <?php
 if (!defined('METIS_ROOT')) exit;
 
-require_once dirname( __DIR__, 2 ) . '/portal/views/_dashboard_data.php';
+$metis_newsletter_portal_dashboard_data = defined( 'METIS_CORE_SERVICES_PATH' )
+    ? rtrim( (string) METIS_CORE_SERVICES_PATH, '/\\' ) . '/portal/views/_dashboard_data.php'
+    : rtrim( (string) METIS_ROOT, '/\\' ) . '/system/src/Metis/Core/BuiltInServices/portal/views/_dashboard_data.php';
+if ( is_file( $metis_newsletter_portal_dashboard_data ) ) {
+    require_once $metis_newsletter_portal_dashboard_data;
+}
 
 use Metis\Modules\Newsletter\ContactService;
 use Metis\Modules\Newsletter\CampaignService;
