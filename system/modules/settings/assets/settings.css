@@ -166,6 +166,15 @@
     gap: 8px;
 }
 
+@keyframes metis-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .metis-backup-alert {
     border: 1px solid #fecaca;
     background: #fef2f2;
