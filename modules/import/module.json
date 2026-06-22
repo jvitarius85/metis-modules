@@ -2,14 +2,14 @@
   "slug": "import",
   "name": "import",
   "label": "Import",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "import",
   "default_view": "dashboard",
   "dependencies": [],
   "menu_order": 80,
-  "description": "Import content into Metis from supported export formats.",
+  "description": "Import pages, posts, media, and data from supported export formats.",
   "permissions": {
     "view": [
       "administrator",
