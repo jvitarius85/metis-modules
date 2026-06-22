@@ -32,6 +32,28 @@ function metis_forms_entries_url( int $form_id = 0 ): string { return \Metis\Mod
 function metis_forms_settings_url( int $form_id = 0 ): string { return \Metis\Modules\Forms\FormsModule::settingsUrl( $form_id ); }
 function metis_forms_ensure_schema(): void { \Metis\Modules\Forms\FormsModule::ensureSchema(); }
 function metis_forms_handle_public_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\Forms\FormsModule::handlePublicRoute( $request ); }
+function metis_forms_published_options(): array {
+    $rows = \Metis\Modules\Forms\Repository::listForms();
+    $options = [];
+    foreach ( (array) $rows as $row ) {
+        if ( ! is_array( $row ) ) {
+            continue;
+        }
+        $id = (int) ( $row['id'] ?? 0 );
+        if ( $id < 1 ) {
+            continue;
+        }
+        if ( strtolower( trim( (string) ( $row['status'] ?? 'draft' ) ) ) !== 'published' ) {
+            continue;
+        }
+        $name = trim( (string) ( $row['name'] ?? '' ) );
+        $slug = trim( (string) ( $row['slug'] ?? '' ) );
+        $label = $name !== '' ? $name : ( $slug !== '' ? $slug : ( 'Form #' . $id ) );
+        $options[] = [ 'value' => (string) $id, 'label' => $label ];
+    }
+
+    return $options;
+}
 function metis_forms_find_published_payment_form_ref( array $candidate_ids ): string {
     $candidate_ids = array_values( array_filter( array_unique( array_map(
         static fn( mixed $value ): string => trim( (string) $value ),

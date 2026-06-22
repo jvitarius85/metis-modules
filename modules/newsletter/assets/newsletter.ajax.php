@@ -489,7 +489,9 @@ metis_ajax_register_handler( 'metis_newsletter_layout_profile_save', function ()
     $requested = isset(metis_request_post()['newsletter_layout_profile'])
         ? metis_key_clean((string) metis_runtime_unslash(metis_request_post()['newsletter_layout_profile']))
         : '';
-    $profile = \Metis\Modules\Website\Services\LayoutProfileService::sanitizeNewsletterProfile($requested);
+    $profile = function_exists( 'metis_website_sanitize_newsletter_profile' )
+        ? metis_website_sanitize_newsletter_profile( $requested )
+        : 'newsletter_standard';
     Core_Settings_Service::set('newsletter_layout_profile', $profile, true);
 
     metis_portal_dashboard_forget_all();

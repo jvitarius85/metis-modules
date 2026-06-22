@@ -68,7 +68,7 @@ function metis_newsletter_resolve_media_reference_url(string $value): string {
         return $value;
     }
 
-    $tokenMatch = \Metis\Modules\Media\MediaLibraryService::findByToken($value);
+    $tokenMatch = function_exists( 'metis_media_find_by_token' ) ? metis_media_find_by_token( $value ) : null;
     if (is_array($tokenMatch)) {
         return metis_home_url('/media/' . $value);
     }
@@ -86,7 +86,7 @@ function metis_newsletter_resolve_media_reference_url(string $value): string {
         if ($candidate === '') {
             continue;
         }
-        $media = \Metis\Modules\Media\MediaLibraryService::findByFilename($candidate);
+        $media = function_exists( 'metis_media_find_by_filename' ) ? metis_media_find_by_filename( $candidate ) : null;
         if (is_array($media) && trim((string) ($media['url'] ?? '')) !== '') {
             return (string) $media['url'];
         }
@@ -179,10 +179,9 @@ function metis_newsletter_theme_colors(): array {
         return $colors;
     }
     $colors = [];
-    if (class_exists('\\Metis\\Modules\\Website\\Services\\ThemeService')) {
+    if (function_exists('metis_website_active_theme_colors')) {
         try {
-            $active = \Metis\Modules\Website\Services\ThemeService::getActiveNormalized();
-            $colors = is_array($active['colors'] ?? null) ? $active['colors'] : [];
+            $colors = metis_website_active_theme_colors();
         } catch (Throwable $e) {
             $colors = [];
         }

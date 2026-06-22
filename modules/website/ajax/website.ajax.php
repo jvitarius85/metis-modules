@@ -26,7 +26,6 @@ use Metis\Modules\Website\Services\BlockRenderer;
 use Metis\Modules\Website\Services\WebsiteRenderer;
 use Metis\Modules\Website\Services\StructuredWebsiteBuilderService;
 use Metis\Modules\Website\Services\EditorOptionsService;
-use Metis\Modules\Newsletter\WebsiteService as NewsletterWebsiteService;
 use Metis\Modules\Website\BlockRegistry;
 use Metis\Core\Editor\EditorAutosaveService;
 use Metis\Core\Editor\EditorVersionService;
@@ -416,28 +415,7 @@ function metis_website_ajax_normalize_post_parent_page_id( int $parent_page_id, 
  * @return array<int,array{value:string,label:string}>
  */
 function metis_website_ajax_form_options(): array {
-    if ( ! class_exists( '\Metis\Modules\Forms\Repository' ) ) {
-        return [];
-    }
-    $rows = \Metis\Modules\Forms\Repository::listForms();
-    $options = [];
-    foreach ( (array) $rows as $row ) {
-        if ( ! is_array( $row ) ) {
-            continue;
-        }
-        $id = (int) ( $row['id'] ?? 0 );
-        if ( $id < 1 ) {
-            continue;
-        }
-        if ( strtolower( trim( (string) ( $row['status'] ?? 'draft' ) ) ) !== 'published' ) {
-            continue;
-        }
-        $name = trim( (string) ( $row['name'] ?? '' ) );
-        $slug = trim( (string) ( $row['slug'] ?? '' ) );
-        $label = $name !== '' ? $name : ( $slug !== '' ? $slug : ( 'Form #' . $id ) );
-        $options[] = [ 'value' => (string) $id, 'label' => $label ];
-    }
-    return $options;
+    return function_exists( 'metis_forms_published_options' ) ? metis_forms_published_options() : [];
 }
 
 /**
@@ -1795,7 +1773,7 @@ metis_ajax_register_handler( 'metis_website_editor_properties_options', function
         'popups' => metis_website_ajax_popup_options(),
         'calendar_sources' => metis_website_ajax_calendar_source_options(),
         'testimony_categories' => metis_website_ajax_testimony_category_options(),
-        'newsletter_lists' => NewsletterWebsiteService::listOptions(),
+        'newsletter_lists' => function_exists( 'metis_newsletter_website_list_options' ) ? metis_newsletter_website_list_options() : [],
         'media' => metis_website_ajax_media_options(),
         'templates' => StructuredWebsiteBuilderService::templateOptions(),
         'default_template_key' => StructuredWebsiteBuilderService::defaultTemplateForPageType( $default_page_type ),

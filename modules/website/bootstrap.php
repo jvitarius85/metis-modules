@@ -7,6 +7,43 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 
 \Metis\Modules\Website\WebsiteModule::boot();
 
+function metis_website_ensure_schema(): void {
+    \Metis\Modules\Website\WebsiteModule::ensureSchema();
+}
+
+function metis_website_import_page_by_slug( string $slug ): ?object {
+    return \Metis\Modules\Website\Services\PageService::getBySlug( $slug );
+}
+
+function metis_website_import_create_page( array $data ): ?object {
+    return \Metis\Modules\Website\Services\PageService::create( $data );
+}
+
+function metis_website_import_post_by_slug( string $slug ): ?object {
+    return \Metis\Modules\Website\Services\PostService::getBySlug( $slug );
+}
+
+function metis_website_import_create_post( array $data ): ?object {
+    return \Metis\Modules\Website\Services\PostService::create( $data );
+}
+
+function metis_website_import_menu_list(): array {
+    return \Metis\Modules\Website\Services\MenuService::getAll();
+}
+
+function metis_website_import_create_menu( array $data ): int|false {
+    return \Metis\Modules\Website\Services\MenuService::create( $data );
+}
+
+function metis_website_sanitize_newsletter_profile( string $key ): string {
+    return \Metis\Modules\Website\Services\LayoutProfileService::sanitizeNewsletterProfile( $key );
+}
+
+function metis_website_active_theme_colors(): array {
+    $theme = \Metis\Modules\Website\Services\ThemeService::getActiveNormalized();
+    return is_array( $theme['colors'] ?? null ) ? $theme['colors'] : [];
+}
+
 // @metis-governance ajax-security: website AJAX handlers register nonce, csrf, permission, and SecureEnclave contracts in ajax/website.ajax.php.
 
 // ---------------------------------------------------------------------------

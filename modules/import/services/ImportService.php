@@ -3,10 +3,6 @@ declare(strict_types=1);
 
 namespace Metis\Modules\Import\Services;
 
-use Metis\Modules\Website\Services\MenuService;
-use Metis\Modules\Website\Services\PageService;
-use Metis\Modules\Website\Services\PostService;
-
 final class ImportService {
     public static function previewFromUpload( array $file, int $user_id ): array {
         self::ensureDependencies();
@@ -161,7 +157,7 @@ final class ImportService {
                     $slug = 'imported-page-' . ( $source_id > 0 ? $source_id : ( $results['pages'] + $results['skipped'] + 1 ) );
                 }
 
-                if ( PageService::getBySlug( $slug ) !== null ) {
+                if ( \metis_website_import_page_by_slug( $slug ) !== null ) {
                     $results['skipped']++;
                     continue;
                 }
@@ -173,7 +169,7 @@ final class ImportService {
                 }
 
                 $layout_json = self::jsonEncode( $layout );
-                $page = PageService::create( [
+                $page = \metis_website_import_create_page( [
                     'title' => (string) ( $item['title'] ?? 'Imported Page' ),
                     'slug' => $slug,
                     'status' => 'draft',
@@ -214,7 +210,7 @@ final class ImportService {
                     $slug = 'imported-post-' . ( $source_id > 0 ? $source_id : ( $results['posts'] + $results['skipped'] + 1 ) );
                 }
 
-                if ( PostService::getBySlug( $slug ) !== null ) {
+                if ( \metis_website_import_post_by_slug( $slug ) !== null ) {
                     $results['skipped']++;
                     continue;
                 }
@@ -226,7 +222,7 @@ final class ImportService {
                 }
 
                 $content_json = self::jsonEncode( $layout );
-                $post = PostService::create( [
+                $post = \metis_website_import_create_post( [
                     'title' => (string) ( $item['title'] ?? 'Imported Post' ),
                     'slug' => $slug,
                     'status' => 'draft',
@@ -253,7 +249,7 @@ final class ImportService {
             $menus = (array) ( $parsed['menu_groups'] ?? [] );
             $existing_names = array_map(
                 static fn ( array $m ): string => strtolower( (string) ( $m['name'] ?? '' ) ),
-                MenuService::getAll()
+                \metis_website_import_menu_list()
             );
 
             foreach ( $menus as $menu_group ) {
@@ -296,7 +292,7 @@ final class ImportService {
                     continue;
                 }
 
-                $menu_id = MenuService::create( [
+                $menu_id = \metis_website_import_create_menu( [
                     'name' => $menu_name,
                     'location' => null,
                     'items_json' => self::jsonEncode( $items ),
@@ -335,8 +331,8 @@ final class ImportService {
     }
 
     private static function ensureWebsiteSchema(): void {
-        if ( class_exists( '\\Metis\\Modules\\Website\\SchemaManager' ) ) {
-            \Metis\Modules\Website\SchemaManager::ensureSchema();
+        if ( function_exists( 'metis_website_ensure_schema' ) ) {
+            \metis_website_ensure_schema();
         }
     }
 
