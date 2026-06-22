@@ -1084,6 +1084,9 @@ function metis_ajax_import_stripe_charges(): void {
             $name_parts = array_pad( explode( ' ', trim( $name_raw ), 2 ), 2, '' );
             $first_name = trim( $name_parts[0] );
             $last_name  = trim( $name_parts[1] );
+            $customer_id = is_object( $pi->customer ?? null )
+                ? trim( (string) ( $pi->customer->id ?? '' ) )
+                : trim( (string) ( $pi->customer ?? $charge->customer ?? '' ) );
 
             $amount_cents = (int) $charge->amount;
             $fee_cents    = 0;
@@ -1162,8 +1165,10 @@ function metis_ajax_import_stripe_charges(): void {
                 'card_brand'         => $method_details['card_brand'] ?? null,
                 'card_last4'         => $method_details['card_last4'] ?? null,
                 'status'             => 'Completed',
+                'donor_email'        => $email !== '' ? $email : null,
                 'stripe_pay_int'     => $pi_id,
                 'stripe_charge_id'   => $charge_id,
+                'stripe_customer_id' => $customer_id !== '' ? $customer_id : null,
                 'stripe_balance_txn' => $bt_id     ?: null,
                 'stripe_payout_id'   => $payout_id ?: null,
                 'deposit_batch_id'   => $deposit_batch_id,
