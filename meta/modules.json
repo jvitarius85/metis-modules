@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-06-21T20:37:21Z",
+  "generated_at": "2026-06-22T01:33:07Z",
   "modules": {
     "board": {
       "latest": "1.0.2",
@@ -69,11 +69,11 @@
       ]
     },
     "drive": {
-      "latest": "1.0.1",
+      "latest": "1.0.2",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/drive.1.0.1.tar.gz",
-      "sha256": "3fef2de2bab7fbf34967be2d95c4f9f2430d9eb1c2fae1069f1f8756b0d3011f",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/drive.1.0.2.tar.gz",
+      "sha256": "bec25589d8165e3bbf674500b32902014a91e6b7908bd0a61592aef4d461f72a",
       "previous_versions": [
         {
           "version": "1.0.0",
