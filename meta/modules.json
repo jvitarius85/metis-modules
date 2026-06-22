@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-06-22T20:47:14Z",
+  "generated_at": "2026-06-22T21:10:15Z",
   "modules": {
     "board": {
       "latest": "1.1.0",
@@ -239,12 +239,17 @@
       ]
     },
     "media": {
-      "latest": "1.1.0",
+      "latest": "1.1.1",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/media.1.1.0.tar.gz",
-      "sha256": "e72b14afa91937955980719c8668c54d270d597d18a2ec8c93c2317170b09b0d",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/media.1.1.1.tar.gz",
+      "sha256": "d3cf674f88248fc5905d81efe747b3d5759d115e93f30691c4d02af02cabaec9",
       "previous_versions": [
+        {
+          "version": "1.1.0",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/media.1.1.0.tar.gz",
+          "sha256": "e72b14afa91937955980719c8668c54d270d597d18a2ec8c93c2317170b09b0d"
+        },
         {
           "version": "1.0.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/media.1.0.2.tar.gz",
