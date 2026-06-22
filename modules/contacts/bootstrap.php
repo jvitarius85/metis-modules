@@ -58,3 +58,11 @@ function metis_contacts_migrate_notes_to_cid(): array {
 function metis_contacts_cleanup_merge_notes(): array {
     return \Metis\Modules\Contacts\ContactsModule::cleanupMergeNotes();
 }
+
+function metis_contacts_email_did_map(): array {
+    return \Metis\Modules\Contacts\ContactMutationService::emailDidMap();
+}
+
+function metis_contacts_resolve_or_create_donor_contact( string $email, string $first_name = '', string $last_name = '' ): array {
+    return \Metis\Modules\Contacts\ContactMutationService::resolveOrCreateDonorContact( $email, $first_name, $last_name );
+}

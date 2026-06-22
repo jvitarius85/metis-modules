@@ -1,5 +1,17 @@
 <?php
 declare(strict_types=1);
 
-// Module contract entrypoint placeholder.
-// Runtime boot/registration is handled by src/Metis services.
+namespace Metis\Modules\Drive;
+
+final class DriveModule {
+    private static bool $booted = false;
+
+    public static function boot(): void {
+        if ( self::$booted ) {
+            return;
+        }
+
+        self::$booted = true;
+        \Metis_Logger::info( 'Drive bootstrap loaded' );
+    }
+}

@@ -19,3 +19,6 @@ function metis_finance_schedule_mode_switch( string $target_mode, string $effect
     return \Metis\Modules\Finance\FinanceModule::scheduleModeSwitch( $target_mode, $effective_at, $requested_by );
 }
 function metis_finance_currency( float $amount ): string { return \Metis\Modules\Finance\Support::currency( $amount ); }
+function metis_finance_record_offline_donation_receipt( array $payload, int $requested_by = 0 ): void {
+    \Metis\Modules\Finance\FinanceV2Service::recordOfflineDonationReceipt( $payload, $requested_by );
+}

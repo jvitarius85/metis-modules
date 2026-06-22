@@ -10,7 +10,6 @@ if ( is_file( $metis_donations_portal_dashboard_data ) ) {
 
 use Metis\Modules\Donations\StripeDepositService;
 use Metis\Modules\Donations\TransactionRecordService;
-use Metis\Modules\Contacts\ContactMutationService;
 
 /**
  * Donations Deposits AJAX Handler
@@ -1010,7 +1009,9 @@ function metis_ajax_import_stripe_charges(): void {
     $existing_pi_ids = TransactionRecordService::existingStripePaymentIntentIds();
 
     // ── Build email → did lookup ──────────────────────────────────────────────
-    $email_to_did = ContactMutationService::emailDidMap();
+    $email_to_did = function_exists( 'metis_contacts_email_did_map' )
+        ? metis_contacts_email_did_map()
+        : [];
 
     $imported   = 0;
     $skipped    = 0;
@@ -1119,7 +1120,9 @@ function metis_ajax_import_stripe_charges(): void {
             }
 
             if ( $email && ! $did ) {
-                $contact_resolution = ContactMutationService::resolveOrCreateDonorContact( $email, $first_name, $last_name );
+                $contact_resolution = function_exists( 'metis_contacts_resolve_or_create_donor_contact' )
+                    ? metis_contacts_resolve_or_create_donor_contact( $email, $first_name, $last_name )
+                    : [];
                 $did = is_string( $contact_resolution['did'] ?? null ) ? $contact_resolution['did'] : null;
 
                 if ( $did ) {

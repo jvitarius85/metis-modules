@@ -32,6 +32,49 @@ function metis_forms_entries_url( int $form_id = 0 ): string { return \Metis\Mod
 function metis_forms_settings_url( int $form_id = 0 ): string { return \Metis\Modules\Forms\FormsModule::settingsUrl( $form_id ); }
 function metis_forms_ensure_schema(): void { \Metis\Modules\Forms\FormsModule::ensureSchema(); }
 function metis_forms_handle_public_route( Metis_Http_Request $request ): Metis_Http_Response { return \Metis\Modules\Forms\FormsModule::handlePublicRoute( $request ); }
+function metis_forms_find_published_payment_form_ref( array $candidate_ids ): string {
+    $candidate_ids = array_values( array_filter( array_unique( array_map(
+        static fn( mixed $value ): string => trim( (string) $value ),
+        $candidate_ids
+    ) ) ) );
+    if ( $candidate_ids === [] ) {
+        return '';
+    }
+
+    static $resolved = [];
+    $cache_key = implode( '|', $candidate_ids );
+    if ( array_key_exists( $cache_key, $resolved ) ) {
+        return $resolved[ $cache_key ];
+    }
+
+    $match = '';
+    foreach ( \Metis\Modules\Forms\Repository::listForms( 250 ) as $summary ) {
+        $form_id = (int) ( $summary['id'] ?? 0 );
+        if ( $form_id < 1 ) {
+            continue;
+        }
+
+        $form = \Metis\Modules\Forms\Repository::getFormById( $form_id, true );
+        if ( ! is_array( $form ) ) {
+            continue;
+        }
+
+        foreach ( (array) ( $form['schema'] ?? [] ) as $field ) {
+            if ( ! is_array( $field ) || ( $field['type'] ?? '' ) !== 'payment' ) {
+                continue;
+            }
+
+            $campaign_code = trim( (string) ( $field['payment']['campaign_code'] ?? '' ) );
+            if ( $campaign_code !== '' && in_array( $campaign_code, $candidate_ids, true ) ) {
+                $match = (string) $form_id;
+                break 2;
+            }
+        }
+    }
+
+    $resolved[ $cache_key ] = $match;
+    return $match;
+}
 function metis_forms_render_embed( string $form_ref, array $options = [] ): string {
     $form_ref = trim( $form_ref );
     if ( $form_ref === '' ) {

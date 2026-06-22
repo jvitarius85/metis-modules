@@ -130,15 +130,6 @@ function metis_donations_portal_styles(): string {
 
 function metis_donations_portal_page( string $body, string $title = 'Manage Profile' ): Metis_Http_Response {
     $content = metis_donations_portal_styles() . '<div class="metis-donor-public"><main class="metis-donor-shell">' . $body . '</main></div>';
-    if ( class_exists( '\Metis\Modules\Website\Services\WebsiteRenderer' ) ) {
-        $html = \Metis\Modules\Website\Services\WebsiteRenderer::renderPublicDocument( $title, $content, [
-            'path' => (string) ( $_SERVER['REQUEST_URI'] ?? '/donor/' ),
-            'slug' => 'donor',
-            'content_type' => 'donor_portal',
-        ] );
-        return Metis_Http_Response::html( $html, 200 );
-    }
-
     $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . metis_escape_html( $title ) . '</title></head><body>' . $content . '</body></html>';
     return Metis_Http_Response::html( $html, 200 );
 }
@@ -385,7 +376,7 @@ if ( ! function_exists( "metis_parse_goals" ) ) {
 
 if ( ! function_exists( "metis_donations_render_form_embed" ) ) {
     function metis_donations_form_embed_ref_for_campaign( array $campaign ): string {
-        if ( ! class_exists( '\Metis\Modules\Forms\Repository' ) ) {
+        if ( ! function_exists( 'metis_forms_find_published_payment_form_ref' ) ) {
             return '';
         }
 
@@ -400,39 +391,7 @@ if ( ! function_exists( "metis_donations_render_form_embed" ) ) {
             return '';
         }
 
-        static $resolved = [];
-        $cache_key = implode( '|', $candidate_ids );
-        if ( array_key_exists( $cache_key, $resolved ) ) {
-            return $resolved[ $cache_key ];
-        }
-
-        $match = '';
-        foreach ( \Metis\Modules\Forms\Repository::listForms( 250 ) as $summary ) {
-            $form_id = (int) ( $summary['id'] ?? 0 );
-            if ( $form_id < 1 ) {
-                continue;
-            }
-
-            $form = \Metis\Modules\Forms\Repository::getFormById( $form_id, true );
-            if ( ! is_array( $form ) ) {
-                continue;
-            }
-
-            foreach ( (array) ( $form['schema'] ?? [] ) as $field ) {
-                if ( ! is_array( $field ) || ( $field['type'] ?? '' ) !== 'payment' ) {
-                    continue;
-                }
-
-                $campaign_code = trim( (string) ( $field['payment']['campaign_code'] ?? '' ) );
-                if ( $campaign_code !== '' && in_array( $campaign_code, $candidate_ids, true ) ) {
-                    $match = (string) $form_id;
-                    break 2;
-                }
-            }
-        }
-
-        $resolved[ $cache_key ] = $match;
-        return $match;
+        return (string) metis_forms_find_published_payment_form_ref( $candidate_ids );
     }
 
     /**
