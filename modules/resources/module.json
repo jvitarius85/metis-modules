@@ -2,13 +2,13 @@
   "slug": "resources",
   "name": "resources",
   "label": "Resources",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "resources",
   "default_view": "dashboard",
   "dependencies": [],
-  "description": "Manage structured public resource directories by type, category, and tag.",
+  "description": "Publish searchable resource directories organized by category and topic.",
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5.5A2.5 2.5 0 0 1 6.5 3H19a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8.5A2.5 2.5 0 0 0 6 20.5\"/><path d=\"M6.5 3A2.5 2.5 0 0 0 4 5.5v15\"/><path d=\"M8 7h8M8 11h8M8 15h5\"/></svg>",
   "permissions": {
     "view": [

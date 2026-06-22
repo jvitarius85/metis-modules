@@ -3,7 +3,7 @@
   "name": "testimonies",
   "label": "Testimonies",
   "title": "Testimonies",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "testimonies",
@@ -32,7 +32,7 @@
     }
   ],
   "menu_order": 1,
-  "description": "Manage website testimonies and categories.",
+  "description": "Collect, organize, and publish testimonials across your website.",
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 11H5a2 2 0 0 0-2 2v4h4\"/><path d=\"M15 11h4a2 2 0 0 1 2 2v4h-4\"/><path d=\"M7 7a3 3 0 1 1 0 .01\"/><path d=\"M17 7a3 3 0 1 1 0 .01\"/></svg>",
   "menu": {
     "type": "single",

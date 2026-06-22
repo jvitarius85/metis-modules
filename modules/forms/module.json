@@ -2,7 +2,7 @@
   "slug": "forms",
   "name": "forms",
   "label": "Forms",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "forms",
@@ -37,7 +37,7 @@
     "settings": "dashboard"
   },
   "menu_order": 1,
-  "description": "Build forms, share them, and review submissions.",
+  "description": "Create forms, collect responses, and automate data collection.",
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 3h6\"/><path d=\"M10 8h4\"/><rect x=\"4\" y=\"3\" width=\"16\" height=\"18\" rx=\"2\"/><path d=\"M8 12h8\"/><path d=\"M8 16h5\"/></svg>",
   "menu": {
     "type": "single",

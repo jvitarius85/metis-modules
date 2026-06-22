@@ -2,7 +2,7 @@
   "slug": "grandys_stash",
   "name": "grandys_stash",
   "label": "Grandy's Stash",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "grandys_stash",
@@ -13,7 +13,7 @@
     "forms"
   ],
   "menu_order": 2,
-  "description": "Track equipment intake, inventory, and distributions.",
+  "description": "Manage inventory, equipment loans, donations, and distributions.",
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 7 12 3 4 7\"/><path d=\"M20 7v10l-8 4-8-4V7\"/><path d=\"M12 21V11\"/><path d=\"M4 7l8 4 8-4\"/></svg>",
   "menu": {
     "type": "dropdown",

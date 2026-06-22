@@ -2,7 +2,7 @@
   "slug": "finance",
   "name": "finance",
   "label": "Finance",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "finance",
@@ -11,7 +11,7 @@
     "people"
   ],
   "menu_order": 6,
-  "description": "Finance V2 foundation with scheduled org mode switching.",
+  "description": "Manage accounts, transactions, budgets, and financial operations.",
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 20h18\"/><path d=\"M6 16V9\"/><path d=\"M12 16V5\"/><path d=\"M18 16v-3\"/></svg>",
   "menu": {
     "type": "dropdown",
