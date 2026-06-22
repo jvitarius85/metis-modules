@@ -1,14 +1,19 @@
 {
   "schema": 1,
-  "generated_at": "2026-06-22T16:58:59Z",
+  "generated_at": "2026-06-22T20:47:14Z",
   "modules": {
     "board": {
-      "latest": "1.0.3",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/board.1.0.3.tar.gz",
-      "sha256": "95d4c2e09a736fd0d356d03771c36f588e887d03636f0724572d525eb92c96b3",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/board.1.1.0.tar.gz",
+      "sha256": "56050d37431d27018b0d180f0e8177e58a5673957208bcd699228f628281e298",
       "previous_versions": [
+        {
+          "version": "1.0.3",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/board.1.0.3.tar.gz",
+          "sha256": "95d4c2e09a736fd0d356d03771c36f588e887d03636f0724572d525eb92c96b3"
+        },
         {
           "version": "1.0.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/board.1.0.2.tar.gz",
@@ -27,12 +32,17 @@
       ]
     },
     "calendar": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/calendar.1.0.2.tar.gz",
-      "sha256": "cba8ba89b0de7b306209a5ab932ac0e3c840154b21723a32230cb869af9ccb66",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/calendar.1.1.0.tar.gz",
+      "sha256": "18a02aaadaf4e981478d272357c61443a4a39787e7e7d2f0ea786d2f748e3937",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/calendar.1.0.2.tar.gz",
+          "sha256": "cba8ba89b0de7b306209a5ab932ac0e3c840154b21723a32230cb869af9ccb66"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/calendar.1.0.1.tar.gz",
@@ -46,12 +56,17 @@
       ]
     },
     "contacts": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/contacts.1.0.2.tar.gz",
-      "sha256": "1dad4751af19420baa6c939c74b45dfac720b5a9bd3386af5a6b32e7334fde45",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/contacts.1.1.0.tar.gz",
+      "sha256": "1906365f23983eb6d9aa8eb142f22319d49ca2a9e5767810b03db9abd580296c",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/contacts.1.0.2.tar.gz",
+          "sha256": "1dad4751af19420baa6c939c74b45dfac720b5a9bd3386af5a6b32e7334fde45"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/contacts.1.0.1.tar.gz",
@@ -65,12 +80,17 @@
       ]
     },
     "donations": {
-      "latest": "1.0.3",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/donations.1.0.3.tar.gz",
-      "sha256": "6a179e5db78c77b9c51a24783410d4a05a3fbd4cda2c1282d11e9efe83f87ce5",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/donations.1.1.0.tar.gz",
+      "sha256": "e2a03eef1f87cad6f94903172861c9554a92c2dc4c2812cdd0f33ec4d0cbde03",
       "previous_versions": [
+        {
+          "version": "1.0.3",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/donations.1.0.3.tar.gz",
+          "sha256": "6a179e5db78c77b9c51a24783410d4a05a3fbd4cda2c1282d11e9efe83f87ce5"
+        },
         {
           "version": "1.0.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/donations.1.0.2.tar.gz",
@@ -89,12 +109,17 @@
       ]
     },
     "drive": {
-      "latest": "1.0.3",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/drive.1.0.3.tar.gz",
-      "sha256": "50ea8d153bf719e61ffe13f69bdc2a5b337b7627b0a2362a15926e1abddb0d1a",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/drive.1.1.0.tar.gz",
+      "sha256": "8c781cc1747eb973400bdedb1b15fc7a80bd8d0306d0bdd1120ffc2f82b72944",
       "previous_versions": [
+        {
+          "version": "1.0.3",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/drive.1.0.3.tar.gz",
+          "sha256": "50ea8d153bf719e61ffe13f69bdc2a5b337b7627b0a2362a15926e1abddb0d1a"
+        },
         {
           "version": "1.0.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/drive.1.0.2.tar.gz",
@@ -113,12 +138,17 @@
       ]
     },
     "finance": {
-      "latest": "2.0.2",
+      "latest": "2.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/finance.2.0.2.tar.gz",
-      "sha256": "d4033b451fe1872245e6de562f01541008f53f526d564750805f7cd94c568042",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/finance.2.1.0.tar.gz",
+      "sha256": "51acf94557a2300e9fb4fd245c337fe96c7bfd91a560b6811b90d88ac70450e1",
       "previous_versions": [
+        {
+          "version": "2.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/finance.2.0.2.tar.gz",
+          "sha256": "d4033b451fe1872245e6de562f01541008f53f526d564750805f7cd94c568042"
+        },
         {
           "version": "2.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/finance.2.0.1.tar.gz",
@@ -132,12 +162,17 @@
       ]
     },
     "forms": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/forms.1.0.2.tar.gz",
-      "sha256": "9bf95b58e71effe815a8aa9c4cbbae61e6bac45551b2527e4c4d0c4d725bdc95",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/forms.1.1.0.tar.gz",
+      "sha256": "821331d8df64e11b5eaf62d8d7237df9cd107a784dc31a5924057bf6747ff13b",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/forms.1.0.2.tar.gz",
+          "sha256": "9bf95b58e71effe815a8aa9c4cbbae61e6bac45551b2527e4c4d0c4d725bdc95"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/forms.1.0.1.tar.gz",
@@ -151,12 +186,17 @@
       ]
     },
     "grandys_stash": {
-      "latest": "1.0.3",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/grandys_stash.1.0.3.tar.gz",
-      "sha256": "1536c0f743af52405cc532f6bf102914ffad543a25fbca70fb5434e08346932c",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/grandys_stash.1.1.0.tar.gz",
+      "sha256": "ba0328acc6d2249e7eccd0cad687c373e1f52c234bafd9584af7d78298b28600",
       "previous_versions": [
+        {
+          "version": "1.0.3",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/grandys_stash.1.0.3.tar.gz",
+          "sha256": "1536c0f743af52405cc532f6bf102914ffad543a25fbca70fb5434e08346932c"
+        },
         {
           "version": "1.0.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/grandys_stash.1.0.2.tar.gz",
@@ -175,12 +215,17 @@
       ]
     },
     "import": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/import.1.0.2.tar.gz",
-      "sha256": "96e55036b3ed069a45ff0a5c80028bd0755950ce069421774979fee111ce9ba5",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/import.1.1.0.tar.gz",
+      "sha256": "238a298587015767b2b4e5b68dc96ffe070cd69a449c214d1ac7663384906e37",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/import.1.0.2.tar.gz",
+          "sha256": "96e55036b3ed069a45ff0a5c80028bd0755950ce069421774979fee111ce9ba5"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/import.1.0.1.tar.gz",
@@ -194,12 +239,17 @@
       ]
     },
     "media": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/media.1.0.2.tar.gz",
-      "sha256": "39769fffbf19a5939e4f46375350e36f93789916106b1b0829296eb72bde0781",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/media.1.1.0.tar.gz",
+      "sha256": "e72b14afa91937955980719c8668c54d270d597d18a2ec8c93c2317170b09b0d",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/media.1.0.2.tar.gz",
+          "sha256": "39769fffbf19a5939e4f46375350e36f93789916106b1b0829296eb72bde0781"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/media.1.0.1.tar.gz",
@@ -213,12 +263,17 @@
       ]
     },
     "newsletter": {
-      "latest": "1.0.3",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/newsletter.1.0.3.tar.gz",
-      "sha256": "37a3a9e711717e6ee0febe80efa1a1e5d4805ee9ab840a24de77405f55656d74",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/newsletter.1.1.0.tar.gz",
+      "sha256": "1da8026d8008870acc5101dd91c6170286a5fed143d04230e28784b4379efc64",
       "previous_versions": [
+        {
+          "version": "1.0.3",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/newsletter.1.0.3.tar.gz",
+          "sha256": "37a3a9e711717e6ee0febe80efa1a1e5d4805ee9ab840a24de77405f55656d74"
+        },
         {
           "version": "1.0.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/newsletter.1.0.2.tar.gz",
@@ -237,12 +292,17 @@
       ]
     },
     "resources": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/resources.1.0.2.tar.gz",
-      "sha256": "709828ac5b8fdfa33ccbd8046303f895e781e700fd95c0754087f9d005af86f3",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/resources.1.1.0.tar.gz",
+      "sha256": "59a2c258295f32154897cb5df17ba7ef8f93d231aea90ebb649004ffa4cc3cf2",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/resources.1.0.2.tar.gz",
+          "sha256": "709828ac5b8fdfa33ccbd8046303f895e781e700fd95c0754087f9d005af86f3"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/resources.1.0.1.tar.gz",
@@ -256,12 +316,17 @@
       ]
     },
     "testimonies": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/testimonies.1.0.2.tar.gz",
-      "sha256": "6771e72a696805ee3190ee0cf819f559f122a849c426cf8e970805afac063366",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/testimonies.1.1.0.tar.gz",
+      "sha256": "8c5847749648b0a2a2f4199f797e91a07c56971c0c7e62e65c84c1a8176104c4",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/testimonies.1.0.2.tar.gz",
+          "sha256": "6771e72a696805ee3190ee0cf819f559f122a849c426cf8e970805afac063366"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/testimonies.1.0.1.tar.gz",
@@ -275,12 +340,17 @@
       ]
     },
     "website": {
-      "latest": "1.0.2",
+      "latest": "1.1.0",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/website.1.0.2.tar.gz",
-      "sha256": "a7a05936be0482b5c5de1287906b1cb18954cf6835f53fd823369d7a3e016064",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/website.1.1.0.tar.gz",
+      "sha256": "b784e676068a47292d45b8f0caee7fc08497e28860e9503aefd35f9fa448eb54",
       "previous_versions": [
+        {
+          "version": "1.0.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/website.1.0.2.tar.gz",
+          "sha256": "a7a05936be0482b5c5de1287906b1cb18954cf6835f53fd823369d7a3e016064"
+        },
         {
           "version": "1.0.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/website.1.0.1.tar.gz",

@@ -2,7 +2,7 @@
   "slug": "newsletter",
   "name": "newsletter",
   "label": "Newsletter",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "newsletter",

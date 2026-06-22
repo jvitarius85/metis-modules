@@ -2,7 +2,7 @@
   "slug": "contacts",
   "name": "contacts",
   "label": "Contacts",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "contacts",
