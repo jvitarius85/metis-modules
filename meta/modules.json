@@ -1,13 +1,13 @@
 {
     "schema": 1,
-    "generated_at": "2026-06-23T02:15:10Z",
+    "generated_at": "2026-06-23T03:02:29Z",
     "modules": {
         "board": {
-            "latest": "1.1.0",
+            "latest": "1.1.1",
             "minimum_metis": "26.6.0",
             "release_channel": "stable",
-            "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/board.1.1.0.tar.gz",
-            "sha256": "cd590ca2af28266254fa12dae0534bbb0b435f99d6e7dd387e1207408fbc0e22",
+            "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/board.1.1.1.tar.gz",
+            "sha256": "bf041482a1b575d9e4949ef006615238596dee5448320a9dfef502eff02da0ff",
             "previous_versions": [
                 {
                     "version": "1.0.3",

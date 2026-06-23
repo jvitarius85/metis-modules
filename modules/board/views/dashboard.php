@@ -2,7 +2,7 @@
 if (!defined('METIS_ROOT')) exit;
 
 require_once dirname( __DIR__ ) . '/includes/dashboard_data.php';
-require_once METIS_ROOT . '/system/src/Metis/Modules/Board/BylawsFormatter.php';
+require_once dirname( __DIR__, 2 ) . '/BylawsFormatter.php';
 
 if (!metis_board_can_view()) {
     echo '<div class="metis-alert metis-alert-error">You do not have permission to view board.</div>';
