@@ -1,6 +1,9 @@
 /logs/*
 # --- OS FILES ---
 .DS_Store
+._*
+__MACOSX/
+.build/
 
 # --- TEMP FILES ---
 *.log
