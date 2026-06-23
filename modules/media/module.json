@@ -77,5 +77,10 @@
   "quick_actions": [],
   "title": "Media",
   "entry": "Module.php",
-  "services": []
+  "services": [],
+  "maximum_metis": "26.6.99",
+  "compatible_core": {
+    "minimum": "26.6.0",
+    "maximum": "26.6.99"
+  }
 }

@@ -49,5 +49,10 @@
   "title": "Import",
   "entry": "Module.php",
   "routes": [],
-  "services": []
+  "services": [],
+  "maximum_metis": "26.6.99",
+  "compatible_core": {
+    "minimum": "26.6.0",
+    "maximum": "26.6.99"
+  }
 }

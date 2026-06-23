@@ -56,6 +56,31 @@ for slug in "${MODULE_SLUGS[@]}"; do
           fwrite(STDERR, "module.json is missing a version\n");
           exit(1);
       }
+      $minimum = trim((string) ($manifest["minimum_metis"] ?? ""));
+      if ($minimum === "") {
+          fwrite(STDERR, "module.json is missing minimum_metis\n");
+          exit(1);
+      }
+      $maximum = trim((string) ($manifest["maximum_metis"] ?? ""));
+      $compatible = $manifest["compatible_core"] ?? [];
+      if ($compatible !== [] && !is_array($compatible)) {
+          fwrite(STDERR, "module.json compatible_core must be an object\n");
+          exit(1);
+      }
+      $compatibleMinimum = trim((string) ($compatible["minimum"] ?? ""));
+      $compatibleMaximum = trim((string) ($compatible["maximum"] ?? ""));
+      if ($compatibleMinimum !== "" && $compatibleMinimum !== $minimum) {
+          fwrite(STDERR, "module.json minimum_metis must match compatible_core.minimum\n");
+          exit(1);
+      }
+      if ($maximum !== "" && version_compare($maximum, $minimum, "<")) {
+          fwrite(STDERR, "module.json maximum_metis must be >= minimum_metis\n");
+          exit(1);
+      }
+      if ($compatibleMaximum !== "" && $maximum !== "" && $compatibleMaximum !== $maximum) {
+          fwrite(STDERR, "module.json maximum_metis must match compatible_core.maximum\n");
+          exit(1);
+      }
       echo trim($manifest["version"]);
     ' "$MANIFEST"
   )"
@@ -84,3 +109,5 @@ for slug in "${MODULE_SLUGS[@]}"; do
 
   echo "Built $ARCHIVE_PATH"
 done
+
+php "$ROOT_DIR/scripts/refresh-module-registry.php" "${MODULE_SLUGS[@]}"

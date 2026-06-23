@@ -1961,6 +1961,9 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
     }
     if ( $requested_status === 'scheduled' ) {
         $data['published_at'] = $schedule_at;
+    } elseif ( $requested_status === 'published' && ! $autosave ) {
+        $data['published_layout_json'] = $normalized_layout['layout_json'];
+        $data['published_at'] = gmdate( 'Y-m-d H:i:s' );
     }
     metis_website_ajax_assert_layout_valid( $data['draft_layout_json'] );
     $blocks = metis_website_ajax_blocks_from_layout_json( $data['draft_layout_json'] );
@@ -2162,33 +2165,31 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         ] );
     }
 
-    if ( $requested_status === 'published' && ! $autosave && ! PageService::publish( $id ) ) {
-        metis_runtime_send_json_error( 'Page was saved but could not be published.', 500 );
-    }
-
     $autosave = ! empty( metis_request_post()['autosave'] );
-    $revision_note = isset( metis_request_post()['revision_note'] )
-        ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
-        : ( $autosave ? 'Autosave' : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) ) );
-    $checkpoint_layout_json = (string) ( $data['draft_layout_json'] ?? '' );
-    if ( $suppressed_layout_write && $existing_page !== null ) {
-        $checkpoint_layout_json = (string) ( $existing_page->draft_layout_json ?? $existing_page->layout_json ?? '' );
+    if ( ! $autosave ) {
+        $revision_note = isset( metis_request_post()['revision_note'] )
+            ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
+            : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) );
+        $checkpoint_layout_json = (string) ( $data['draft_layout_json'] ?? '' );
+        if ( $suppressed_layout_write && $existing_page !== null ) {
+            $checkpoint_layout_json = (string) ( $existing_page->draft_layout_json ?? $existing_page->layout_json ?? '' );
+        }
+        RevisionTimelineService::save(
+            'page',
+            $id,
+            [
+                'title' => $title,
+                'slug' => isset( $data['slug'] ) ? (string) $data['slug'] : '',
+                'status' => $requested_status,
+                'layout_json' => $checkpoint_layout_json,
+                'template_key' => (string) ( $data['template_key'] ?? '' ),
+                'seo_meta_json' => (string) ( $data['seo_meta_json'] ?? '' ),
+                'schedule_at' => (string) ( $schedule_at ?? '' ),
+                'autosave' => false,
+            ],
+            $revision_note
+        );
     }
-    RevisionTimelineService::save(
-        'page',
-        $id,
-        [
-            'title' => $title,
-            'slug' => isset( $data['slug'] ) ? (string) $data['slug'] : '',
-            'status' => $requested_status,
-            'layout_json' => $checkpoint_layout_json,
-            'template_key' => (string) ( $data['template_key'] ?? '' ),
-            'seo_meta_json' => (string) ( $data['seo_meta_json'] ?? '' ),
-            'schedule_at' => (string) ( $schedule_at ?? '' ),
-            'autosave' => $autosave,
-        ],
-        $revision_note
-    );
 
     $launch_state = metis_website_ajax_homepage_launch_state( false );
     if ( $set_homepage && $requested_status === 'published' ) {
@@ -2727,30 +2728,32 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
     }
 
     $autosave = ! empty( metis_request_post()['autosave'] );
-    $revision_note = isset( metis_request_post()['revision_note'] )
-        ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
-        : ( $autosave ? 'Autosave' : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) ) );
-    $checkpoint_content_json = (string) ( $data['draft_content_json'] ?? '' );
-    if ( $suppressed_content_write && $existing_post !== null ) {
-        $checkpoint_content_json = (string) ( $existing_post->draft_content_json ?? $existing_post->content_json ?? '' );
+    if ( ! $autosave ) {
+        $revision_note = isset( metis_request_post()['revision_note'] )
+            ? metis_textarea_clean( (string) metis_runtime_unslash( metis_request_post()['revision_note'] ) )
+            : ( $requested_status === 'published' ? 'Published' : ( $requested_status === 'scheduled' ? 'Scheduled' : 'Saved draft' ) );
+        $checkpoint_content_json = (string) ( $data['draft_content_json'] ?? '' );
+        if ( $suppressed_content_write && $existing_post !== null ) {
+            $checkpoint_content_json = (string) ( $existing_post->draft_content_json ?? $existing_post->content_json ?? '' );
+        }
+        RevisionTimelineService::save(
+            'post',
+            $id,
+            [
+                'title' => $title,
+                'slug' => isset( $data['slug'] ) ? (string) $data['slug'] : '',
+                'status' => $requested_status,
+                'content_json' => $checkpoint_content_json,
+                'template_key' => (string) ( $data['template_key'] ?? '' ),
+                'excerpt' => (string) ( $data['excerpt'] ?? '' ),
+                'content_format' => $content_format,
+                'seo_meta_json' => (string) ( $data['seo_meta_json'] ?? '' ),
+                'schedule_at' => (string) ( $schedule_at ?? '' ),
+                'autosave' => false,
+            ],
+            $revision_note
+        );
     }
-    RevisionTimelineService::save(
-        'post',
-        $id,
-        [
-            'title' => $title,
-            'slug' => isset( $data['slug'] ) ? (string) $data['slug'] : '',
-            'status' => $requested_status,
-            'content_json' => $checkpoint_content_json,
-            'template_key' => (string) ( $data['template_key'] ?? '' ),
-            'excerpt' => (string) ( $data['excerpt'] ?? '' ),
-            'content_format' => $content_format,
-            'seo_meta_json' => (string) ( $data['seo_meta_json'] ?? '' ),
-            'schedule_at' => (string) ( $schedule_at ?? '' ),
-            'autosave' => $autosave,
-        ],
-        $revision_note
-    );
 
     $post = PostService::getById( $id );
     if ( $post === null ) {

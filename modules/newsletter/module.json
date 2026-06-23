@@ -185,5 +185,10 @@
     }
   ],
   "title": "Newsletter",
-  "entry": "Module.php"
+  "entry": "Module.php",
+  "maximum_metis": "26.6.99",
+  "compatible_core": {
+    "minimum": "26.6.0",
+    "maximum": "26.6.99"
+  }
 }
