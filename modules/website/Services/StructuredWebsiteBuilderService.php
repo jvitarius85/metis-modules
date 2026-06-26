@@ -294,6 +294,14 @@ final class StructuredWebsiteBuilderService {
         }
 
         if ( $type === 'image' ) {
+            $mode = metis_key_clean( (string) ( $content['mode'] ?? 'contained' ) );
+            if ( ! in_array( $mode, [ 'contained', 'wide', 'full_width' ], true ) ) {
+                $mode = 'contained';
+            }
+            $align = metis_key_clean( (string) ( $content['align'] ?? 'center' ) );
+            if ( ! in_array( $align, [ 'left', 'center', 'right' ], true ) ) {
+                $align = 'center';
+            }
             return [
                 'src' => self::normalizeOptionalUrl( (string) ( $content['src'] ?? '' ) ),
                 'media_id' => max( 0, (int) ( $content['media_id'] ?? 0 ) ),
@@ -302,6 +310,8 @@ final class StructuredWebsiteBuilderService {
                 'caption' => self::sanitizeText( (string) ( $content['caption'] ?? '' ) ),
                 'width' => self::sanitizeImageDimension( $content['width'] ?? '' ),
                 'height' => self::sanitizeImageDimension( $content['height'] ?? '' ),
+                'mode' => $mode,
+                'align' => $align,
             ];
         }
 
@@ -1028,6 +1038,8 @@ final class StructuredWebsiteBuilderService {
                     'caption' => (string) ( $content['caption'] ?? '' ),
                     'width' => (string) ( $content['width'] ?? '' ),
                     'height' => (string) ( $content['height'] ?? '' ),
+                    'mode' => (string) ( $content['mode'] ?? 'contained' ),
+                    'align' => (string) ( $content['align'] ?? 'center' ),
                 ],
                 'style' => [],
             ];
@@ -1144,7 +1156,7 @@ final class StructuredWebsiteBuilderService {
                 }
                 $title = trim( (string) ( $item['title'] ?? '' ) );
                 if ( $title !== '' ) {
-                    $item_modules[] = [ 'id' => $section_id . '_feature_title_' . (string) $i, 'type' => 'heading', 'data' => [ 'content' => $title, 'level' => 'h3' ], 'style' => [] ];
+                    $item_modules[] = [ 'id' => $section_id . '_feature_title_' . (string) $i, 'type' => 'heading', 'data' => [ 'content' => $title, 'level' => 'h2' ], 'style' => [] ];
                 }
                 $text = trim( (string) ( $item['text'] ?? '' ) );
                 if ( $text !== '' ) {

@@ -187,19 +187,47 @@ final class BlockRenderer {
             return '';
         }
 
-        $alt   = $data['alt'] ?? '';
-        $width = $data['width'] ?? '100%';
-        $link  = $data['link'] ?? '';
+        $alt = $data['alt'] ?? '';
+        $width = $data['width'] ?? '';
+        $height = $data['height'] ?? '';
+        $link = $data['link'] ?? '';
+        if ( $link === '' ) {
+            $link = $data['link_url'] ?? '';
+        }
+        $mode = metis_key_clean( (string) ( $data['mode'] ?? 'contained' ) );
+        if ( ! in_array( $mode, [ 'contained', 'wide', 'full_width' ], true ) ) {
+            $mode = 'contained';
+        }
+        $align = metis_key_clean( (string) ( $data['align'] ?? 'center' ) );
+        if ( ! in_array( $align, [ 'left', 'center', 'right' ], true ) ) {
+            $align = 'center';
+        }
 
-        $img = sprintf( '<img src="%s" alt="%s" style="width:%s;max-width:100%%;height:auto;display:block;">',
-            metis_escape_url( $src ), metis_escape_attr( $alt ), metis_escape_attr( $width ) );
+        $img_style = [ 'max-width:100%', 'height:auto', 'display:block' ];
+        $width_value = preg_replace( '/[^0-9.]/', '', (string) $width );
+        if ( $width_value !== '' ) {
+            $img_style[] = 'width:' . $width_value . 'px';
+        } else {
+            $img_style[] = 'width:100%';
+        }
+        $height_value = preg_replace( '/[^0-9.]/', '', (string) $height );
+        if ( $height_value !== '' ) {
+            $img_style[] = 'height:' . $height_value . 'px';
+        }
+
+        $img = sprintf(
+            '<img src="%s" alt="%s" style="%s">',
+            metis_escape_url( $src ),
+            metis_escape_attr( $alt ),
+            metis_escape_attr( implode( ';', $img_style ) )
+        );
 
         if ( $link !== '' ) {
             $img = sprintf( '<a href="%s" target="_blank" rel="noopener">%s</a>', metis_escape_url( $link ), $img );
         }
 
         return sprintf( '<div class="%s"%s>%s</div>',
-            metis_escape_attr( self::buildClasses( 'metis-block-image', $style ) ),
+            metis_escape_attr( self::buildClasses( 'metis-block-image is-mode-' . str_replace( '_', '-', $mode ) . ' is-align-' . $align, $style ) ),
             self::buildInlineStyle( $style ),
             $img );
     }
@@ -612,48 +640,20 @@ final class BlockRenderer {
             $items = array_slice( $items, 0, $count );
         }
 
-        if ( $items === [] ) {
-            return sprintf(
-                '<div class="%s"%s>%s<p>%s</p></div>',
-                metis_escape_attr( self::buildClasses( 'metis-block-events metis-events-empty', $style ) ),
-                self::buildInlineStyle( $style ),
-                $nav_html,
-                metis_escape_html( $view_mode === 'card' ? 'No upcoming events.' : 'No upcoming events in this range.' )
-            );
+        if ( $view_mode === 'week' ) {
+            $html = self::renderWeekView( $items, (int) $period_start, $nav_html );
+        } elseif ( $view_mode === 'calendar' ) {
+            $html = self::renderMonthView( $items, (int) $period_start, $nav_html );
+        } else {
+            if ( $items === [] ) {
+                return sprintf(
+                    '<div class="%s"%s><div class="metis-structured-events-wrap metis-structured-events-wrap--card"><div class="metis-structured-events metis-structured-events--empty"><p>No upcoming events.</p></div></div></div>',
+                    metis_escape_attr( self::buildClasses( 'metis-block-events metis-events-empty', $style ) ),
+                    self::buildInlineStyle( $style )
+                );
+            }
+            $html = self::renderCardView( $items, $view_mode );
         }
-
-        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--' . metis_escape_attr( $view_mode ) . '">' . $nav_html . '<div class="metis-structured-events metis-structured-events--' . metis_escape_attr( $view_mode ) . '">';
-        foreach ( $items as $item ) {
-            if ( ! is_array( $item ) ) {
-                continue;
-            }
-            $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
-            $startRaw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
-            $location = trim( (string) ( $item['location'] ?? '' ) );
-            $when = '';
-            if ( $startRaw !== '' ) {
-                $ts = strtotime( $startRaw );
-                if ( $ts ) {
-                    $when = function_exists( 'metis_runtime_format_datetime' )
-                        ? metis_runtime_format_datetime( $startRaw )
-                        : date( 'M j, Y g:i A', (int) $ts );
-                }
-            }
-            $html .= '<article class="metis-event-item">';
-            $html .= '<h3 class="metis-event-title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</h3>';
-            if ( $when !== '' ) {
-                $html .= '<time class="metis-event-date">' . metis_escape_html( $when ) . '</time>';
-            }
-            if ( $location !== '' ) {
-                $html .= '<p class="metis-event-location">' . metis_escape_html( $location ) . '</p>';
-            }
-            $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
-            if ( $event_url !== '' ) {
-                $html .= '<p class="metis-event-action"><a href="' . metis_escape_attr( $event_url ) . '">See full details</a></p>';
-            }
-            $html .= '</article>';
-        }
-        $html .= '</div></div>';
 
         return sprintf(
             '<section class="%s %s"%s>%s</section>',
@@ -662,6 +662,137 @@ final class BlockRenderer {
             self::buildInlineStyle( $style ),
             $html
         );
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     */
+    private static function renderCardView( array $items, string $view_mode ): string {
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--' . metis_escape_attr( $view_mode ) . '"><div class="metis-structured-events metis-structured-events--' . metis_escape_attr( $view_mode ) . '">';
+        foreach ( $items as $item ) {
+            $html .= self::renderEventCardItem( is_array( $item ) ? $item : [] );
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     */
+    private static function renderWeekView( array $items, int $period_start, string $nav_html ): string {
+        $grouped = self::groupEventsByDay( $items );
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--week">' . $nav_html . '<div class="metis-structured-events-week-grid">';
+        for ( $day = 0; $day < 7; $day++ ) {
+            $day_ts = strtotime( '+' . $day . ' day', $period_start ) ?: $period_start;
+            $key = date( 'Y-m-d', (int) $day_ts );
+            $day_items = $grouped[ $key ] ?? [];
+            $html .= '<section class="metis-structured-events-day">';
+            $html .= '<header class="metis-structured-events-day__header"><span class="metis-structured-events-day__weekday">' . metis_escape_html( date( 'D', (int) $day_ts ) ) . '</span><strong class="metis-structured-events-day__date">' . metis_escape_html( date( 'M j', (int) $day_ts ) ) . '</strong></header>';
+            if ( $day_items === [] ) {
+                $html .= '<p class="metis-structured-events-day__empty">No events scheduled.</p>';
+            } else {
+                $html .= '<div class="metis-structured-events-day__items">';
+                foreach ( $day_items as $item ) {
+                    $html .= self::renderEventCardItem( $item, true );
+                }
+                $html .= '</div>';
+            }
+            $html .= '</section>';
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     */
+    private static function renderMonthView( array $items, int $period_start, string $nav_html ): string {
+        $grouped = self::groupEventsByDay( $items );
+        $first_cell = strtotime( 'monday this week midnight', $period_start ) ?: $period_start;
+        $last_day = strtotime( '-1 day', strtotime( '+1 month', $period_start ) ?: $period_start ) ?: $period_start;
+        $last_cell = strtotime( 'sunday this week midnight', $last_day ) ?: $last_day;
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--calendar">' . $nav_html;
+        $html .= '<div class="metis-structured-events-month-head">';
+        foreach ( [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ] as $weekday ) {
+            $html .= '<div class="metis-structured-events-month-head__cell">' . metis_escape_html( $weekday ) . '</div>';
+        }
+        $html .= '</div><div class="metis-structured-events-month-grid">';
+        for ( $cursor = $first_cell; $cursor <= $last_cell; $cursor = strtotime( '+1 day', $cursor ) ?: ( $cursor + DAY_IN_SECONDS ) ) {
+            $key = date( 'Y-m-d', (int) $cursor );
+            $day_items = $grouped[ $key ] ?? [];
+            $is_outside = date( 'Y-m', (int) $cursor ) !== date( 'Y-m', (int) $period_start );
+            $html .= '<section class="metis-structured-events-month-day' . ( $is_outside ? ' is-outside' : '' ) . '">';
+            $html .= '<header class="metis-structured-events-month-day__header"><strong>' . metis_escape_html( date( 'j', (int) $cursor ) ) . '</strong></header>';
+            if ( $day_items === [] ) {
+                $html .= '<div class="metis-structured-events-month-day__items"><p class="metis-structured-events-day__empty">No events</p></div>';
+            } else {
+                $html .= '<div class="metis-structured-events-month-day__items">';
+                foreach ( $day_items as $item ) {
+                    $html .= self::renderEventCardItem( $item, true );
+                }
+                $html .= '</div>';
+            }
+            $html .= '</section>';
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     * @return array<string,array<int,array<string,mixed>>>
+     */
+    private static function groupEventsByDay( array $items ): array {
+        $grouped = [];
+        foreach ( $items as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+            $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+            $start_ts = strtotime( $start_raw ) ?: 0;
+            if ( $start_ts <= 0 ) {
+                continue;
+            }
+            $key = date( 'Y-m-d', (int) $start_ts );
+            if ( ! isset( $grouped[ $key ] ) ) {
+                $grouped[ $key ] = [];
+            }
+            $grouped[ $key ][] = $item;
+        }
+        return $grouped;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     */
+    private static function renderEventCardItem( array $item, bool $compact = false ): string {
+        $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
+        $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+        $location = trim( (string) ( $item['location'] ?? '' ) );
+        $when = '';
+        if ( $start_raw !== '' ) {
+            $ts = strtotime( $start_raw );
+            if ( $ts ) {
+                $when = function_exists( 'metis_runtime_format_datetime' )
+                    ? metis_runtime_format_datetime( $start_raw )
+                    : date( 'M j, Y g:i A', (int) $ts );
+            }
+        }
+
+        $html = '<article class="metis-event-item' . ( $compact ? ' is-compact' : '' ) . '">';
+        $html .= '<h3 class="metis-event-title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</h3>';
+        if ( $when !== '' ) {
+            $html .= '<time class="metis-event-date">' . metis_escape_html( $when ) . '</time>';
+        }
+        if ( $location !== '' ) {
+            $html .= '<p class="metis-event-location">' . metis_escape_html( $location ) . '</p>';
+        }
+        $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
+        if ( $event_url !== '' ) {
+            $html .= '<p class="metis-event-action"><a href="' . metis_escape_attr( $event_url ) . '">See full details</a></p>';
+        }
+        $html .= '</article>';
+        return $html;
     }
 
     /**

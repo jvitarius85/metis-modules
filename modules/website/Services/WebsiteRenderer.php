@@ -3945,12 +3945,20 @@ final class WebsiteRenderer {
         $alt = self::repairMojibakeText( (string) ( $content['alt'] ?? '' ) );
         $caption = trim( self::repairMojibakeText( (string) ( $content['caption'] ?? '' ) ) );
         $link_url = trim( (string) ( $content['link_url'] ?? '' ) );
+        $mode = metis_key_clean( (string) ( $content['mode'] ?? 'contained' ) );
+        if ( ! in_array( $mode, [ 'contained', 'wide', 'full_width' ], true ) ) {
+            $mode = 'contained';
+        }
+        $align = metis_key_clean( (string) ( $content['align'] ?? 'center' ) );
+        if ( ! in_array( $align, [ 'left', 'center', 'right' ], true ) ) {
+            $align = 'center';
+        }
         $image_html = '<img src="' . metis_escape_attr( self::normalizePublicUrl( $src ) ) . '" alt="' . metis_escape_attr( $alt ) . '" loading="lazy"' . self::renderImageDimensionAttributes( $content ) . '>';
         if ( $link_url !== '' ) {
             $image_html = '<a class="metis-structured-image__link" href="' . metis_escape_attr( self::normalizePublicUrl( $link_url ) ) . '">' . $image_html . '</a>';
         }
 
-        $html = '<figure class="metis-structured-image">';
+        $html = '<figure class="metis-structured-image is-mode-' . metis_escape_attr( str_replace( '_', '-', $mode ) ) . ' is-align-' . metis_escape_attr( $align ) . '">';
         $html .= $image_html;
         if ( $caption !== '' ) {
             $html .= '<figcaption>' . metis_escape_html( $caption ) . '</figcaption>';
@@ -5079,10 +5087,6 @@ final class WebsiteRenderer {
             );
         }
 
-        if ( $items === [] ) {
-            return '<div class="metis-structured-events metis-structured-events--empty"><p>No upcoming events.</p></div>';
-        }
-
         $offset = isset( $_GET['metis_events_offset'] ) ? (int) $_GET['metis_events_offset'] : 0;
         $offset = max( -24, min( 24, $offset ) );
         $nav_html = '';
@@ -5126,66 +5130,169 @@ final class WebsiteRenderer {
             $items = array_slice( $items, 0, $limit );
         }
 
-        if ( $items === [] ) {
-            return '<div class="metis-structured-events metis-structured-events--empty">' . $nav_html . '<p>No upcoming events in this range.</p></div>';
+        if ( $view_mode === 'week' ) {
+            return self::renderStructuredWeekEventsView( $items, (int) $period_start, $nav_html );
         }
+        if ( $view_mode === 'calendar' ) {
+            return self::renderStructuredMonthEventsView( $items, (int) $period_start, $nav_html );
+        }
+        if ( $items === [] ) {
+            return '<div class="metis-structured-events-wrap metis-structured-events-wrap--card"><div class="metis-structured-events metis-structured-events--empty"><p>No upcoming events.</p></div></div>';
+        }
+        return self::renderStructuredEventCards( $items, $view_mode );
+    }
 
-        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--' . metis_escape_attr( $view_mode ) . '">' . $nav_html . '<div class="metis-structured-events metis-structured-events--' . metis_escape_attr( $view_mode ) . '">';
+    /**
+     * @param array<int,mixed> $items
+     */
+    private static function renderStructuredEventCards( array $items, string $view_mode ): string {
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--' . metis_escape_attr( $view_mode ) . '"><div class="metis-structured-events metis-structured-events--' . metis_escape_attr( $view_mode ) . '">';
+        foreach ( $items as $item ) {
+            $html .= self::renderStructuredEventCard( is_array( $item ) ? $item : [] );
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     */
+    private static function renderStructuredWeekEventsView( array $items, int $period_start, string $nav_html ): string {
+        $grouped = self::groupStructuredEventsByDay( $items );
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--week">' . $nav_html . '<div class="metis-structured-events-week-grid">';
+        for ( $day = 0; $day < 7; $day++ ) {
+            $day_ts = strtotime( '+' . $day . ' day', $period_start ) ?: $period_start;
+            $key = date( 'Y-m-d', (int) $day_ts );
+            $day_items = $grouped[ $key ] ?? [];
+            $html .= '<section class="metis-structured-events-day">';
+            $html .= '<header class="metis-structured-events-day__header"><span class="metis-structured-events-day__weekday">' . metis_escape_html( date( 'D', (int) $day_ts ) ) . '</span><strong class="metis-structured-events-day__date">' . metis_escape_html( date( 'M j', (int) $day_ts ) ) . '</strong></header>';
+            if ( $day_items === [] ) {
+                $html .= '<p class="metis-structured-events-day__empty">No events scheduled.</p>';
+            } else {
+                $html .= '<div class="metis-structured-events-day__items">';
+                foreach ( $day_items as $item ) {
+                    $html .= self::renderStructuredEventCard( $item, true );
+                }
+                $html .= '</div>';
+            }
+            $html .= '</section>';
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     */
+    private static function renderStructuredMonthEventsView( array $items, int $period_start, string $nav_html ): string {
+        $grouped = self::groupStructuredEventsByDay( $items );
+        $first_cell = strtotime( 'monday this week midnight', $period_start ) ?: $period_start;
+        $last_day = strtotime( '-1 day', strtotime( '+1 month', $period_start ) ?: $period_start ) ?: $period_start;
+        $last_cell = strtotime( 'sunday this week midnight', $last_day ) ?: $last_day;
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--calendar">' . $nav_html;
+        $html .= '<div class="metis-structured-events-month-head">';
+        foreach ( [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ] as $weekday ) {
+            $html .= '<div class="metis-structured-events-month-head__cell">' . metis_escape_html( $weekday ) . '</div>';
+        }
+        $html .= '</div><div class="metis-structured-events-month-grid">';
+        for ( $cursor = $first_cell; $cursor <= $last_cell; $cursor = strtotime( '+1 day', $cursor ) ?: ( $cursor + DAY_IN_SECONDS ) ) {
+            $key = date( 'Y-m-d', (int) $cursor );
+            $day_items = $grouped[ $key ] ?? [];
+            $is_outside = date( 'Y-m', (int) $cursor ) !== date( 'Y-m', (int) $period_start );
+            $html .= '<section class="metis-structured-events-month-day' . ( $is_outside ? ' is-outside' : '' ) . '">';
+            $html .= '<header class="metis-structured-events-month-day__header"><strong>' . metis_escape_html( date( 'j', (int) $cursor ) ) . '</strong></header>';
+            if ( $day_items === [] ) {
+                $html .= '<div class="metis-structured-events-month-day__items"><p class="metis-structured-events-day__empty">No events</p></div>';
+            } else {
+                $html .= '<div class="metis-structured-events-month-day__items">';
+                foreach ( $day_items as $item ) {
+                    $html .= self::renderStructuredEventCard( $item, true );
+                }
+                $html .= '</div>';
+            }
+            $html .= '</section>';
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    /**
+     * @param array<int,mixed> $items
+     * @return array<string,array<int,array<string,mixed>>>
+     */
+    private static function groupStructuredEventsByDay( array $items ): array {
+        $grouped = [];
         foreach ( $items as $item ) {
             if ( ! is_array( $item ) ) {
                 continue;
             }
-            $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
             $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
-            $end_raw = (string) ( $item['end']['dateTime'] ?? $item['end']['date'] ?? '' );
-            $location = trim( (string) ( $item['location'] ?? '' ) );
-            $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
-            $date_label = '';
-            $time_label = '';
-            if ( $start_raw !== '' ) {
-                $ts = strtotime( $start_raw );
-                if ( $ts ) {
-                    $date_label = function_exists( 'metis_runtime_date' )
-                        ? metis_runtime_date( 'l, M j, Y', (int) $ts )
-                        : date( 'l, M j, Y', (int) $ts );
-                    $time_label = function_exists( 'metis_runtime_date' )
-                        ? metis_runtime_date( 'g:i A', (int) $ts )
-                        : date( 'g:i A', (int) $ts );
-                    if ( $end_raw !== '' ) {
-                        $end_ts = strtotime( $end_raw );
-                        if ( $end_ts ) {
-                            $time_label .= ' - ' . ( function_exists( 'metis_runtime_date' )
-                                ? metis_runtime_date( 'g:i A', (int) $end_ts )
-                                : date( 'g:i A', (int) $end_ts ) );
-                        }
+            $start_ts = strtotime( $start_raw ) ?: 0;
+            if ( $start_ts <= 0 ) {
+                continue;
+            }
+            $key = date( 'Y-m-d', (int) $start_ts );
+            if ( ! isset( $grouped[ $key ] ) ) {
+                $grouped[ $key ] = [];
+            }
+            $grouped[ $key ][] = $item;
+        }
+        return $grouped;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     */
+    private static function renderStructuredEventCard( array $item, bool $compact = false ): string {
+        $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
+        $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+        $end_raw = (string) ( $item['end']['dateTime'] ?? $item['end']['date'] ?? '' );
+        $location = trim( (string) ( $item['location'] ?? '' ) );
+        $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
+        $date_label = '';
+        $time_label = '';
+        if ( $start_raw !== '' ) {
+            $ts = strtotime( $start_raw );
+            if ( $ts ) {
+                $date_label = function_exists( 'metis_runtime_date' )
+                    ? metis_runtime_date( 'l, M j, Y', (int) $ts )
+                    : date( 'l, M j, Y', (int) $ts );
+                $time_label = function_exists( 'metis_runtime_date' )
+                    ? metis_runtime_date( 'g:i A', (int) $ts )
+                    : date( 'g:i A', (int) $ts );
+                if ( $end_raw !== '' ) {
+                    $end_ts = strtotime( $end_raw );
+                    if ( $end_ts ) {
+                        $time_label .= ' - ' . ( function_exists( 'metis_runtime_date' )
+                            ? metis_runtime_date( 'g:i A', (int) $end_ts )
+                            : date( 'g:i A', (int) $end_ts ) );
                     }
                 }
             }
-            if ( $location !== '' && preg_match( '#(https?://\S+)$#', $location, $location_match ) === 1 ) {
-                $event_url = $event_url !== '' ? $event_url : trim( (string) $location_match[1] );
-                $location = trim( preg_replace( '#\s*;?\s*https?://\S+$#', '', $location ) ?? $location );
-            }
-            $html .= '<article class="metis-structured-events__item">';
-            $html .= '<div class="metis-structured-events__eyebrow">Upcoming Event</div>';
-            $html .= '<h3 class="metis-structured-events__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</h3>';
-            $html .= '<div class="metis-structured-events__meta">';
-            if ( $date_label !== '' ) {
-                $html .= '<span class="metis-structured-events__chip"><strong>Date</strong><span>' . metis_escape_html( $date_label ) . '</span></span>';
-            }
-            if ( $time_label !== '' ) {
-                $html .= '<span class="metis-structured-events__chip"><strong>Time</strong><span>' . metis_escape_html( $time_label ) . '</span></span>';
-            }
-            $html .= '</div>';
-            if ( $location !== '' ) {
-                $html .= '<p class="metis-structured-events__location"><span>Where</span>' . metis_escape_html( $location ) . '</p>';
-            }
-            if ( $event_url !== '' ) {
-                $html .= '<p class="metis-structured-events__cta"><a href="' . metis_escape_attr( self::normalizePublicUrl( $event_url ) ) . '">See full details</a></p>';
-            }
-            $html .= '</article>';
         }
-        $html .= '</div></div>';
+        if ( $location !== '' && preg_match( '#(https?://\S+)$#', $location, $location_match ) === 1 ) {
+            $event_url = $event_url !== '' ? $event_url : trim( (string) $location_match[1] );
+            $location = trim( preg_replace( '#\s*;?\s*https?://\S+$#', '', $location ) ?? $location );
+        }
 
+        $html = '<article class="metis-structured-events__item' . ( $compact ? ' is-compact' : '' ) . '">';
+        $html .= '<div class="metis-structured-events__eyebrow">Upcoming Event</div>';
+        $html .= '<h3 class="metis-structured-events__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</h3>';
+        $html .= '<div class="metis-structured-events__meta">';
+        if ( $date_label !== '' ) {
+            $html .= '<span class="metis-structured-events__chip"><strong>Date</strong><span>' . metis_escape_html( $date_label ) . '</span></span>';
+        }
+        if ( $time_label !== '' ) {
+            $html .= '<span class="metis-structured-events__chip"><strong>Time</strong><span>' . metis_escape_html( $time_label ) . '</span></span>';
+        }
+        $html .= '</div>';
+        if ( $location !== '' ) {
+            $html .= '<p class="metis-structured-events__location"><span>Where</span>' . metis_escape_html( $location ) . '</p>';
+        }
+        if ( $event_url !== '' ) {
+            $html .= '<p class="metis-structured-events__cta"><a href="' . metis_escape_attr( self::normalizePublicUrl( $event_url ) ) . '">See full details</a></p>';
+        }
+        $html .= '</article>';
         return $html;
     }
 
@@ -6057,7 +6164,13 @@ final class WebsiteRenderer {
             '.metis-structured-heading.is-align-center{text-align:center;}',
             '.metis-structured-heading.is-align-right{text-align:right;}',
             '.metis-structured-image{display:grid;gap:10px;justify-items:center;margin:0;}',
+            '.metis-structured-image.is-align-left{justify-items:start;}',
+            '.metis-structured-image.is-align-center{justify-items:center;}',
+            '.metis-structured-image.is-align-right{justify-items:end;}',
             '.metis-structured-image img{display:block;width:100%;max-width:min(920px,100%);height:auto;border-radius:16px;border:1px solid var(--metis-color-border,#dbe3ef);}',
+            '.metis-structured-image.is-mode-contained img{max-width:min(920px,100%);}',
+            '.metis-structured-image.is-mode-wide img{max-width:min(1120px,100%);}',
+            '.metis-structured-image.is-mode-full-width img{max-width:100%;}',
             '.metis-structured-image figcaption{max-width:72ch;text-align:center;color:var(--metis-color-muted,#64748b);}',
             '.metis-structured-button-row{display:flex;margin:0;}',
             '.metis-structured-button-row.is-center{justify-content:center;}',
@@ -6121,10 +6234,22 @@ final class WebsiteRenderer {
             '.metis-structured-events{grid-template-columns:repeat(auto-fit,minmax(240px,320px));justify-content:center;align-items:stretch;overflow:visible;padding:6px 0 14px;}',
             '.metis-structured-events--week{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}',
             '.metis-structured-events--calendar{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}',
+            '.metis-structured-events-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
+            '.metis-structured-events-day,.metis-structured-events-month-day{display:grid;gap:12px;padding:16px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:18px;background:var(--metis-surface,#fff);box-shadow:0 14px 28px rgba(15,23,42,.05);align-content:start;min-height:220px;}',
+            '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
+            '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
+            '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
+            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:10px;align-content:start;}',
+            '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
+            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;}',
+            '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
+            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
+            '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
             '.metis-structured-posts-list--cards{width:100%;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:18px;row-gap:34px;justify-content:stretch;align-items:stretch;padding:4px 0 12px;}',
             '@media (max-width:1100px){.metis-structured-posts-list--cards{grid-template-columns:repeat(2,minmax(0,1fr));}}',
             '@media (max-width:640px){.metis-structured-posts-list--cards{grid-template-columns:1fr;}}',
             '.metis-structured-events__item{background: var(--metis-surface, #fff);border:1px solid color-mix(in srgb,var(--metis-color-accent,#ff7542) 42%, var(--metis-color-border,#dbe3ef));border-radius:22px;padding:20px;box-shadow:0 14px 28px rgba(15,23,42,.06);backdrop-filter:blur(8px);}',
+            '.metis-structured-events__item.is-compact{padding:14px;border-radius:16px;box-shadow:0 8px 18px rgba(15,23,42,.05);}',
             '.metis-structured-posts-list__item{min-width:0;height:100%;display:flex;flex-direction:column;background: var(--metis-surface, #fff);border:1px solid color-mix(in srgb,var(--metis-color-accent,#ff7542) 36%, var(--metis-color-border,#dbe3ef));border-radius:14px;padding:14px;box-shadow:0 8px 18px rgba(15,23,42,.05);}',
             '.metis-structured-events__eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--metis-color-accent,#ff7542);margin:0 0 10px;}',
             '.metis-structured-events__title{margin:0 0 8px;font-size:1.08rem;line-height:1.3;}',
@@ -6144,6 +6269,8 @@ final class WebsiteRenderer {
             '.metis-structured-events__cta{margin:0;padding-top:4px;}',
             '.metis-structured-events__cta a{text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:700;}',
             '.metis-structured-events--empty,.metis-structured-posts-list--empty{color:var(--metis-color-muted,#64748b);}',
+            '@media (max-width:1100px){.metis-structured-events-week-grid,.metis-structured-events-month-grid,.metis-structured-events-month-head{grid-template-columns:repeat(2,minmax(0,1fr));}}',
+            '@media (max-width:720px){.metis-structured-events-week-grid,.metis-structured-events-month-grid,.metis-structured-events-month-head{grid-template-columns:1fr;}}',
             '.metis-public-content .metis-structured-posts-list__excerpt,.metis-structured-section__content .metis-structured-posts-list__excerpt{font-size:.9rem;line-height:1.48;}',
             '.metis-public-content .metis-structured-posts-list__excerpt p,.metis-structured-section__content .metis-structured-posts-list__excerpt p{margin:0 0 8px;}',
             '.metis-public-content .metis-structured-posts-list__cta,.metis-structured-section__content .metis-structured-posts-list__cta{margin:auto 0 0;padding-top:8px;font-size:.9rem;line-height:1.35;}',
