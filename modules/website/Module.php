@@ -6,7 +6,7 @@ namespace Metis\Modules\Website;
 use Metis\Core\Application;
 
 /**
- * Website Module
+ * Website Module 
  * 
  * Manages website pages, posts, menus, popups, and themes.
  * Provides visual builder and import capabilities.
