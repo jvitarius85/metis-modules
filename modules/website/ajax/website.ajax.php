@@ -206,6 +206,30 @@ function metis_website_ajax_users_table(): string {
     return 'users';
 }
 
+function metis_website_ajax_page_has_live_version( $page ): bool {
+    if ( ! is_object( $page ) ) {
+        return false;
+    }
+
+    if ( trim( (string) ( $page->published_layout_json ?? '' ) ) !== '' ) {
+        return true;
+    }
+
+    return trim( (string) ( $page->published_at ?? '' ) ) !== '';
+}
+
+function metis_website_ajax_post_has_live_version( $post ): bool {
+    if ( ! is_object( $post ) ) {
+        return false;
+    }
+
+    if ( trim( (string) ( $post->published_content_json ?? '' ) ) !== '' ) {
+        return true;
+    }
+
+    return trim( (string) ( $post->publish_date ?? '' ) ) !== '';
+}
+
 /**
  * @return array<int,array{value:string,label:string}>
  */
@@ -2063,6 +2087,9 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
     }
 
     $existing_page = PageService::getById( $id );
+    if ( $existing_page !== null && $requested_status === 'draft' && metis_website_ajax_page_has_live_version( $existing_page ) ) {
+        $requested_status = 'published';
+    }
     $raw_layout_json = metis_website_ajax_post_string( 'layout_json', false );
     $requested_page_type = isset( metis_request_post()['page_type'] ) ? metis_key_clean( (string) metis_runtime_unslash( metis_request_post()['page_type'] ) ) : '';
     $preliminary_page_type = $set_homepage ? 'homepage' : ( $requested_page_type === 'homepage' ? 'homepage' : 'page' );
@@ -2100,6 +2127,11 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
     }
     if ( $requested_status === 'scheduled' ) {
         $data['published_at'] = $schedule_at;
+    } elseif ( $requested_status === 'published' && ! $autosave ) {
+        $data['published_layout_json'] = $normalized_layout['layout_json'];
+        if ( trim( (string) ( $existing_page->published_at ?? '' ) ) === '' ) {
+            $data['published_at'] = gmdate( 'Y-m-d H:i:s' );
+        }
     }
     metis_website_ajax_assert_layout_valid( $data['draft_layout_json'] );
     $blocks = metis_website_ajax_blocks_from_layout_json( $data['draft_layout_json'] );
@@ -2210,6 +2242,13 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         $saved_layout_hash = md5( (string) ( $page->draft_layout_json ?? '' ) );
         if ( $expected_layout_hash !== $saved_layout_hash ) {
             metis_runtime_send_json_error( 'Page save verification failed (content mismatch).', 500 );
+        }
+    }
+    if ( $requested_status === 'published' && isset( $data['published_layout_json'] ) ) {
+        $expected_published_hash = md5( (string) $data['published_layout_json'] );
+        $saved_published_hash = md5( (string) ( $page->published_layout_json ?? '' ) );
+        if ( $expected_published_hash !== $saved_published_hash || (string) ( $page->status ?? '' ) !== 'published' ) {
+            metis_runtime_send_json_error( 'Page publish verification failed (public version mismatch).', 500 );
         }
     }
 
@@ -2624,6 +2663,9 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
         metis_runtime_send_json_error( 'Slug Title must include letters or numbers.', 400 );
     }
     $existing_post = PostService::getById( $id );
+    if ( $existing_post !== null && $requested_status === 'draft' && metis_website_ajax_post_has_live_version( $existing_post ) ) {
+        $requested_status = 'published';
+    }
     $raw_content_json = metis_website_ajax_post_string( 'content_json', false );
     $selected_template_key = metis_website_ajax_selected_template_key(
         'post',
@@ -2657,6 +2699,11 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
         $data['publish_date'] = $schedule_at;
     } elseif ( $requested_status === 'published' && $schedule_at !== null && $existing_post !== null && trim( (string) ( $existing_post->publish_date ?? '' ) ) === '' ) {
         $data['publish_date'] = $schedule_at;
+    } elseif ( $requested_status === 'published' && ! $autosave ) {
+        $data['published_content_json'] = $normalized_layout['layout_json'];
+        if ( trim( (string) ( $existing_post->publish_date ?? '' ) ) === '' ) {
+            $data['publish_date'] = gmdate( 'Y-m-d H:i:s' );
+        }
     }
     metis_website_ajax_assert_layout_valid( $data['draft_content_json'] );
     $blocks = metis_website_ajax_blocks_from_layout_json( $data['draft_content_json'] );

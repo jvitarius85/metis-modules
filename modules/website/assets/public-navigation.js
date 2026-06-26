@@ -23,7 +23,7 @@
 
   function itemTrigger(item) {
     if (!item || !item.querySelector) return null;
-    return item.querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn");
+    return item.querySelector(":scope > .metis-shell-menu-link, :scope > .metis-shell-menu-btn, :scope > .metis-shell-menu-label");
   }
 
   function itemTimerState(item) {
@@ -120,17 +120,29 @@
       body.classList.add("metis-nav-mobile-viewport");
     } else {
       body.classList.remove("metis-nav-mobile-viewport");
+      setMobileMenuExpanded(false);
       setOpen(false);
       closeOpenSubmenus(null);
     }
   }
 
+  function setMobileMenuExpanded(open) {
+    if (!isMobileViewport()) return;
+    var items = document.querySelectorAll(".metis-shell-nav-primary .metis-shell-menu-item.has-children");
+    for (var i = 0; i < items.length; i++) {
+      setItemOpen(items[i], !!open);
+    }
+  }
+
   function setOpen(open, triggerSource) {
     var active = !!open && isMobileViewport();
+    var panel = document.querySelector("[data-metis-nav-panel]");
+    var nav = document.querySelector(".metis-shell-nav-primary");
     if (active) {
       body.classList.add("metis-nav-open");
     } else {
       body.classList.remove("metis-nav-open");
+      setMobileMenuExpanded(false);
       closeOpenSubmenus(null);
     }
     var btns = document.querySelectorAll("[data-metis-nav-toggle]");
@@ -138,16 +150,20 @@
       btns[i].setAttribute("aria-expanded", active ? "true" : "false");
       btns[i].setAttribute("aria-label", active ? "Close primary menu" : "Open primary menu");
     }
-    var nav = document.querySelector(".metis-shell-nav-primary");
+    if (panel) {
+      panel.setAttribute("aria-hidden", active ? "false" : "true");
+    }
     if (nav) {
       nav.setAttribute("aria-hidden", active ? "false" : "true");
     }
     if (active) {
+      setMobileMenuExpanded(true);
       if (triggerSource && typeof triggerSource.focus === "function") {
         lastNavToggle = triggerSource;
       }
-      if (nav) {
-        var focusTarget = nav.querySelector("a[href], button:not([disabled]), [tabindex]:not([tabindex=\"-1\"])");
+      if (panel || nav) {
+        var focusScope = panel || nav;
+        var focusTarget = focusScope.querySelector("a[href], button:not([disabled]), [tabindex]:not([tabindex=\"-1\"])");
         if (focusTarget && typeof focusTarget.focus === "function") {
           window.setTimeout(function () { focusTarget.focus(); }, 0);
         }
@@ -169,7 +185,7 @@
   document.addEventListener("click", function (e) {
     var mobileViewport = isMobileViewport();
     if (body.classList.contains("metis-nav-open") && mobileViewport) {
-      var nav = e.target && e.target.closest ? e.target.closest(".metis-shell-nav-primary") : null;
+      var nav = e.target && e.target.closest ? e.target.closest("[data-metis-nav-panel]") : null;
       var tgl = e.target && e.target.closest ? e.target.closest("[data-metis-nav-toggle]") : null;
       if (!nav && !tgl) {
         setOpen(false);
@@ -188,7 +204,30 @@
     if (e.key === "Escape") {
       setOpen(false);
       closeOpenSubmenus(null);
+      return;
     }
+
+    if (e.key !== "Enter" && e.key !== " ") {
+      return;
+    }
+
+    var labelTrigger = e.target && e.target.closest
+      ? e.target.closest(".metis-shell-menu-item.has-children > .metis-shell-menu-label")
+      : null;
+    if (!labelTrigger) {
+      return;
+    }
+
+    var labelItem = labelTrigger.closest ? labelTrigger.closest(".metis-shell-menu-item.has-children") : null;
+    if (!labelItem) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (labelItem.classList.contains("is-open")) {
+      setItemOpen(labelItem, false);
+      return;
+    }
+    closeOpenSubmenus(labelItem);
+    setItemOpen(labelItem, true);
   });
 
   function bindDesktopHoverMenus() {
@@ -274,7 +313,7 @@
 
   document.addEventListener("click", function (e) {
     var trigger = e.target && e.target.closest
-      ? e.target.closest(".metis-shell-menu-item.has-children > .metis-shell-menu-link, .metis-shell-menu-item.has-children > .metis-shell-menu-btn")
+      ? e.target.closest(".metis-shell-menu-item.has-children > .metis-shell-menu-link, .metis-shell-menu-item.has-children > .metis-shell-menu-btn, .metis-shell-menu-item.has-children > .metis-shell-menu-label")
       : null;
 
     if (trigger) {
@@ -314,6 +353,12 @@
 
     var button = e.target && e.target.closest ? e.target.closest("[data-metis-nav-url]") : null;
     if (!button) {
+      var leafTrigger = e.target && e.target.closest
+        ? e.target.closest(".metis-shell-nav-primary a.metis-shell-menu-link, .metis-shell-nav-primary .metis-shell-menu-btn")
+        : null;
+      if (leafTrigger && body.classList.contains("metis-nav-open") && isMobileViewport()) {
+        window.setTimeout(function () { setOpen(false); }, 0);
+      }
       return;
     }
     var url = String(button.getAttribute("data-metis-nav-url") || "").trim();

@@ -291,6 +291,7 @@ final class PostService {
         $table  = \Metis_Tables::get( 'website_posts' );
         $update = [];
         $existing = self::getById( $id );
+        $allow_status_downgrade = ! empty( $data['allow_status_downgrade'] );
         $track_public_path_redirect = $existing !== null
             && (string) ( $existing->status ?? '' ) === 'published';
         $old_public_path = $track_public_path_redirect && $existing !== null
@@ -325,6 +326,19 @@ final class PostService {
             if ( array_key_exists( $field, $data ) ) {
                 $update[ $field ] = $data[ $field ];
             }
+        }
+
+        if (
+            ! $allow_status_downgrade
+            && isset( $update['status'] )
+            && (string) $update['status'] === 'draft'
+            && $existing !== null
+            && (
+                trim( (string) ( $existing->published_content_json ?? '' ) ) !== ''
+                || trim( (string) ( $existing->publish_date ?? '' ) ) !== ''
+            )
+        ) {
+            $update['status'] = 'published';
         }
 
         if ( array_key_exists( 'slug', $data ) ) {

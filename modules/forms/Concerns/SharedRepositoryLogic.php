@@ -202,6 +202,7 @@ trait SharedRepositoryLogic {
             'label'          => trim( metis_text_clean( (string) ( $field['label'] ?? ucwords( str_replace( '_', ' ', $key ) ) ) ) ),
             'help'           => trim( metis_textarea_clean( (string) ( $field['help'] ?? '' ) ) ),
             'placeholder'    => trim( metis_text_clean( (string) ( $field['placeholder'] ?? '' ) ) ),
+            'mask'           => self::normalizeMask( $field['mask'] ?? '' ),
             'required'       => ! empty( $field['required'] ),
             'width'          => in_array( (string) ( $field['width'] ?? 'full' ), [ 'full', 'half', 'narrow' ], true )
                 ? (string) ( $field['width'] ?? 'full' )
@@ -277,6 +278,14 @@ trait SharedRepositoryLogic {
             'min_value'  => self::nullableNumber( $validation['min_value'] ?? null ),
             'max_value'  => self::nullableNumber( $validation['max_value'] ?? null ),
         ];
+    }
+
+    private static function normalizeMask( mixed $mask ): string {
+        $normalized = metis_key_clean( (string) $mask );
+
+        return in_array( $normalized, [ '', 'phone_us', 'zip_us', 'zip_plus4_us' ], true )
+            ? $normalized
+            : '';
     }
 
     private static function randomFieldToken(): string {
@@ -598,6 +607,14 @@ trait SharedRepositoryLogic {
         if ( $required && $scalar === '' ) {
             return [ 'value' => '', 'error' => (string) ( $field['label'] ?? $key ) . ' is required.' ];
         }
+        $mask = self::normalizeMask( $field['mask'] ?? '' );
+        if ( $scalar !== '' && $mask !== '' ) {
+            $mask_result = self::normalizeMaskedValue( $scalar, $mask );
+            if ( $mask_result['error'] !== '' ) {
+                return $mask_result;
+            }
+            $scalar = $mask_result['value'];
+        }
         if ( (int) ( $validation['min_length'] ?? 0 ) > 0 && strlen( $scalar ) < (int) $validation['min_length'] && $scalar !== '' ) {
             return [ 'value' => '', 'error' => 'The entry is shorter than allowed.' ];
         }
@@ -606,6 +623,39 @@ trait SharedRepositoryLogic {
         }
 
         return [ 'value' => $scalar, 'error' => '' ];
+    }
+
+    private static function normalizeMaskedValue( string $value, string $mask ): array {
+        $digits = preg_replace( '/\D+/', '', $value ) ?? '';
+
+        if ( $mask === 'phone_us' ) {
+            if ( strlen( $digits ) !== 10 ) {
+                return [ 'value' => '', 'error' => 'Enter a valid 10-digit phone number.' ];
+            }
+
+            return [
+                'value' => sprintf( '(%s) %s-%s', substr( $digits, 0, 3 ), substr( $digits, 3, 3 ), substr( $digits, 6, 4 ) ),
+                'error' => '',
+            ];
+        }
+
+        if ( $mask === 'zip_us' ) {
+            if ( strlen( $digits ) !== 5 ) {
+                return [ 'value' => '', 'error' => 'Enter a valid 5-digit ZIP code.' ];
+            }
+
+            return [ 'value' => $digits, 'error' => '' ];
+        }
+
+        if ( $mask === 'zip_plus4_us' ) {
+            if ( strlen( $digits ) !== 9 ) {
+                return [ 'value' => '', 'error' => 'Enter a valid ZIP+4 code.' ];
+            }
+
+            return [ 'value' => substr( $digits, 0, 5 ) . '-' . substr( $digits, 5, 4 ), 'error' => '' ];
+        }
+
+        return [ 'value' => $value, 'error' => '' ];
     }
 
     private static function fieldOptionsForSubmission( array $field, array $context ): array {

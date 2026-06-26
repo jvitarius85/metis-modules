@@ -221,6 +221,7 @@ final class FormRenderer {
         }
 
         $described = $help_id !== '' ? ' aria-describedby="' . metis_escape_attr( $help_id ) . '"' : '';
+        $mask_attrs = self::maskAttributes( $field );
 
         if ( $type === 'textarea' ) {
             echo '<textarea id="' . metis_escape_attr( 'field-' . $id ) . '" class="metis-input" name="' . metis_escape_attr( $name ) . '" placeholder="' . metis_escape_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"' . ( $required ? ' required' : '' ) . $described . '></textarea>';
@@ -281,7 +282,7 @@ final class FormRenderer {
             echo '</div>';
         } else {
             $input_type = in_array( $type, [ 'email', 'number', 'date' ], true ) ? $type : 'text';
-            echo '<input id="' . metis_escape_attr( 'field-' . $id ) . '" class="metis-input" type="' . metis_escape_attr( $input_type ) . '" name="' . metis_escape_attr( $name ) . '" placeholder="' . metis_escape_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"' . ( $required ? ' required' : '' ) . $described;
+            echo '<input id="' . metis_escape_attr( 'field-' . $id ) . '" class="metis-input" type="' . metis_escape_attr( $input_type ) . '" name="' . metis_escape_attr( $name ) . '" placeholder="' . metis_escape_attr( (string) ( $field['placeholder'] ?? '' ) ) . '"' . ( $required ? ' required' : '' ) . $described . $mask_attrs;
             if ( $input_type === 'number' ) {
                 if ( ( $field['validation']['min_value'] ?? null ) !== null ) {
                     echo ' min="' . metis_escape_attr( (string) $field['validation']['min_value'] ) . '"';
@@ -295,6 +296,24 @@ final class FormRenderer {
         }
 
         echo '</section>';
+    }
+
+    private static function maskAttributes( array $field ): string {
+        $mask = metis_key_clean( (string) ( $field['mask'] ?? '' ) );
+
+        if ( $mask === 'phone_us' ) {
+            return ' data-input-mask="phone_us" inputmode="tel" pattern="\\(\\d{3}\\) \\d{3}-\\d{4}"';
+        }
+
+        if ( $mask === 'zip_us' ) {
+            return ' data-input-mask="zip_us" inputmode="numeric" pattern="\\d{5}"';
+        }
+
+        if ( $mask === 'zip_plus4_us' ) {
+            return ' data-input-mask="zip_plus4_us" inputmode="numeric" pattern="\\d{5}-\\d{4}"';
+        }
+
+        return '';
     }
 
     private static function renderPaymentField( array $field, string $dom_prefix = '' ): void {

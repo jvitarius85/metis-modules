@@ -15,14 +15,16 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
     <header class="metis-template-header metis-template-sticky-capable" role="banner">
         <div class="metis-template-header-inner">
             <div class="metis-template-header-brand"><?php echo $brandHtml; ?></div>
-            <button type="button" class="metis-shell-nav-toggle" data-metis-nav-toggle aria-expanded="false" aria-controls="metis-template-primary-menu" aria-label="Open primary menu">
+            <button type="button" class="metis-shell-nav-toggle" data-metis-nav-toggle aria-expanded="false" aria-controls="metis-template-nav-panel" aria-label="Open primary menu">
                 <span class="metis-shell-nav-toggle-lines" aria-hidden="true"><span></span><span></span><span></span></span>
                 <span class="metis-shell-nav-toggle-text">Menu</span>
             </button>
-            <nav id="metis-template-primary-menu" class="metis-template-menu metis-shell-nav metis-shell-nav-primary" aria-label="Primary menu"><?php echo $menuHtml; ?></nav>
-            <?php if (trim($ctaMenuHtml) !== ''): ?>
-                <div class="metis-template-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Primary actions"><?php echo $ctaMenuHtml; ?></div>
-            <?php endif; ?>
+            <div id="metis-template-nav-panel" class="metis-template-nav-panel" data-metis-nav-panel aria-hidden="true">
+                <nav id="metis-template-primary-menu" class="metis-template-menu metis-shell-nav metis-shell-nav-primary" aria-label="Primary menu"><?php echo $menuHtml; ?></nav>
+                <?php if (trim($ctaMenuHtml) !== ''): ?>
+                    <div class="metis-template-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Primary actions"><?php echo $ctaMenuHtml; ?></div>
+                <?php endif; ?>
+            </div>
         </div>
     </header>
     <main class="metis-template-main<?php echo $withSidebar ? ' has-sidebar' : ''; ?>" data-view="post" data-sidebar-position="<?php echo metis_escape_attr($sidebarPosition); ?>">

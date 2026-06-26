@@ -92,12 +92,16 @@ function metis_website_public_html_headers( bool $cacheable = true ): array {
         return [
             'Content-Type' => 'text/html; charset=utf-8',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
         ];
     }
 
     return [
         'Content-Type' => 'text/html; charset=utf-8',
-        'Cache-Control' => 'public, max-age=300',
+        'Cache-Control' => 'private, no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Expires' => '0',
     ];
 }
 

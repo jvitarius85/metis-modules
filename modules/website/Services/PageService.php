@@ -182,6 +182,7 @@ final class PageService {
         $table  = \Metis_Tables::get( 'website_pages' );
         $update = [];
         $existing = self::getById( $id );
+        $allow_status_downgrade = ! empty( $data['allow_status_downgrade'] );
         $track_slug_redirect = array_key_exists( 'slug', $data )
             && $existing !== null
             && (string) ( $existing->status ?? '' ) === 'published';
@@ -200,6 +201,19 @@ final class PageService {
             if ( array_key_exists( $field, $data ) ) {
                 $update[ $field ] = $data[ $field ];
             }
+        }
+
+        if (
+            ! $allow_status_downgrade
+            && isset( $update['status'] )
+            && (string) $update['status'] === 'draft'
+            && $existing !== null
+            && (
+                trim( (string) ( $existing->published_layout_json ?? '' ) ) !== ''
+                || trim( (string) ( $existing->published_at ?? '' ) ) !== ''
+            )
+        ) {
+            $update['status'] = 'published';
         }
 
         if ( array_key_exists( 'slug', $data ) ) {
@@ -248,7 +262,10 @@ final class PageService {
     }
 
     public static function unpublish( int $id ): bool {
-        return self::update( $id, [ 'status' => 'draft' ] );
+        return self::update( $id, [
+            'status' => 'draft',
+            'allow_status_downgrade' => true,
+        ] );
     }
 
     public static function delete( int $id ): bool {

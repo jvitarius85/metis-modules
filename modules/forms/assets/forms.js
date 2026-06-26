@@ -801,6 +801,7 @@
               return false;
             }
             field.type = String(value);
+            field.mask = normalizeFieldMask(field.mask || '', field.type);
             field.width = field.type === 'payment' ? 'full' : field.width;
             if (!fieldUsesChoices(field.type)) {
               field.options = [];
@@ -833,6 +834,10 @@
             break;
           case 'placeholder':
             field.placeholder = String(value);
+            break;
+          case 'mask':
+            field.mask = normalizeFieldMask(value, field.type);
+            rerender = true;
             break;
           case 'required':
             field.required = Boolean(value);
@@ -1078,6 +1083,7 @@
       root.classList.toggle('is-submitting', !!visible);
     };
     initFieldGroup(formEl, schema);
+    initMaskedInputs(formEl);
     if (window.Metis && Metis.ui && Metis.ui.select) {
       Metis.ui.select.init(root);
     }
@@ -1162,6 +1168,9 @@
 
     formEl.addEventListener('input', (event) => {
       const target = event.target;
+      if (target instanceof HTMLInputElement && target.matches('input[data-input-mask]')) {
+        applyInputMask(target);
+      }
       if (target instanceof HTMLElement && target.matches('input[name="_donation_amount_custom"]')) {
         const radios = formEl.querySelectorAll('input[name="_donation_amount_choice"]');
         radios.forEach((radio) => { radio.checked = false; });
@@ -1534,6 +1543,17 @@
           <label class="metis-forms-control metis-forms-control--full">
             <span>Placeholder</span>
             <input class="metis-input" type="text" value="${escapeAttr(field.placeholder || '')}" data-field-prop="placeholder">
+          </label>
+        ` : ''}
+        ${fieldSupportsMask(field.type) ? `
+          <label class="metis-forms-control">
+            <span>Input mask</span>
+            <select class="metis-select" data-field-prop="mask">
+              <option value=""${!field.mask ? ' selected' : ''}>None</option>
+              <option value="phone_us"${field.mask === 'phone_us' ? ' selected' : ''}>Phone number</option>
+              <option value="zip_us"${field.mask === 'zip_us' ? ' selected' : ''}>ZIP code</option>
+              <option value="zip_plus4_us"${field.mask === 'zip_plus4_us' ? ' selected' : ''}>ZIP+4</option>
+            </select>
           </label>
         ` : ''}
         ${field.type === 'number' ? `
@@ -2208,6 +2228,7 @@
       label: String(raw.label || ''),
       help: String(raw.help || ''),
       placeholder: String(raw.placeholder || ''),
+      mask: normalizeFieldMask(raw.mask || '', type),
       required: Boolean(raw.required),
       width: type === 'payment' ? 'full' : normalizeWidthValue(raw.width || 'full'),
       searchable: Boolean(raw.searchable),
@@ -2820,6 +2841,7 @@
       normalized.label = String(normalized.label || '');
       normalized.help = String(normalized.help || '');
       normalized.placeholder = String(normalized.placeholder || '');
+      normalized.mask = normalizeFieldMask(normalized.mask || '', normalized.type);
       normalized.width = normalized.type === 'payment' ? 'full' : normalizeWidthValue(normalized.width);
       normalized.repeat_limit = clamp(Number(normalized.repeat_limit || 5), 1, 25);
       normalized.validation = normalizeValidationPayload(normalized.validation || {});
@@ -2867,6 +2889,12 @@
     };
   }
 
+  function normalizeFieldMask(value, type) {
+    if (!fieldSupportsMask(type)) return '';
+    const mask = String(value || '').trim();
+    return ['phone_us', 'zip_us', 'zip_plus4_us'].includes(mask) ? mask : '';
+  }
+
   function normalizeConditionPayload(conditions) {
     const allowed = new Set(['equals', 'not_equals', 'contains', 'empty', 'not_empty']);
     return (conditions || []).map((condition) => ({
@@ -2879,6 +2907,52 @@
   function normalizeChoiceSourceType(value) {
     const type = String(value || '');
     return ['static', 'grandys_categories', 'grandys_items', 'campaigns'].includes(type) ? type : '';
+  }
+
+  function fieldSupportsMask(type) {
+    return ['text'].includes(String(type || ''));
+  }
+
+  function initMaskedInputs(root) {
+    if (!(root instanceof HTMLElement)) return;
+    root.querySelectorAll('input[data-input-mask]').forEach((input) => {
+      if (!(input instanceof HTMLInputElement)) return;
+      applyInputMask(input);
+    });
+  }
+
+  function applyInputMask(input) {
+    if (!(input instanceof HTMLInputElement)) return;
+    const mask = String(input.getAttribute('data-input-mask') || '').trim();
+    if (!mask) return;
+    const digits = String(input.value || '').replace(/\D+/g, '');
+    if (mask === 'phone_us') {
+      const limited = digits.slice(0, 10);
+      if (!limited) {
+        input.value = '';
+        return;
+      }
+      if (limited.length < 4) {
+        input.value = `(${limited}`;
+        return;
+      }
+      if (limited.length < 7) {
+        input.value = `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+        return;
+      }
+      input.value = `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6, 10)}`;
+      return;
+    }
+    if (mask === 'zip_us') {
+      input.value = digits.slice(0, 5);
+      return;
+    }
+    if (mask === 'zip_plus4_us') {
+      const limited = digits.slice(0, 9);
+      input.value = limited.length > 5
+        ? `${limited.slice(0, 5)}-${limited.slice(5)}`
+        : limited;
+    }
   }
 
   function getSelectedNode(schema, selection) {
