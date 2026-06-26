@@ -28,6 +28,12 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
                 <?php if (trim($ctaMenuHtml) !== ''): ?>
                     <div class="metis-template-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Primary actions"><?php echo $ctaMenuHtml; ?></div>
                 <?php endif; ?>
+                <div class="metis-template-mobile-menu" aria-label="Mobile menu">
+                    <nav class="metis-template-mobile-menu-primary metis-shell-nav metis-shell-nav-primary" aria-label="Mobile primary menu"><?php echo $menuHtml; ?></nav>
+                    <?php if (trim($ctaMenuHtml) !== ''): ?>
+                        <div class="metis-template-mobile-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Mobile primary actions"><?php echo $ctaMenuHtml; ?></div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </header>

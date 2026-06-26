@@ -111,26 +111,22 @@
   }
 
   function isMobileViewport() {
-    var width = window.innerWidth || document.documentElement.clientWidth || 0;
-    return width <= mobileBreakpoint;
+    if (typeof window.matchMedia === "function") {
+      return window.matchMedia("(max-width: " + String(mobileBreakpoint) + "px)").matches;
+    }
+    var visualWidth = window.visualViewport && window.visualViewport.width ? window.visualViewport.width : 0;
+    var width = visualWidth || window.innerWidth || document.documentElement.clientWidth || 0;
+    return width > 0 && width <= mobileBreakpoint;
   }
 
   function syncViewportMode() {
-    if (isMobileViewport()) {
+    var mobileViewport = isMobileViewport();
+    if (mobileViewport) {
       body.classList.add("metis-nav-mobile-viewport");
     } else {
       body.classList.remove("metis-nav-mobile-viewport");
-      setMobileMenuExpanded(false);
       setOpen(false);
       closeOpenSubmenus(null);
-    }
-  }
-
-  function setMobileMenuExpanded(open) {
-    if (!isMobileViewport()) return;
-    var items = document.querySelectorAll(".metis-shell-nav-primary .metis-shell-menu-item.has-children");
-    for (var i = 0; i < items.length; i++) {
-      setItemOpen(items[i], !!open);
     }
   }
 
@@ -142,7 +138,6 @@
       body.classList.add("metis-nav-open");
     } else {
       body.classList.remove("metis-nav-open");
-      setMobileMenuExpanded(false);
       closeOpenSubmenus(null);
     }
     var btns = document.querySelectorAll("[data-metis-nav-toggle]");
@@ -157,7 +152,6 @@
       nav.setAttribute("aria-hidden", active ? "false" : "true");
     }
     if (active) {
-      setMobileMenuExpanded(true);
       if (triggerSource && typeof triggerSource.focus === "function") {
         lastNavToggle = triggerSource;
       }
