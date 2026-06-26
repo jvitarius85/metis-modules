@@ -1,9 +1,19 @@
 {
   "schema": 1,
   "channel": "stable",
-  "latest": "v26.6.26.4",
-  "generated_at": "2026-06-26T19:59:55Z",
+  "latest": "v26.6.26.5",
+  "generated_at": "2026-06-26T20:24:08Z",
   "releases": [
+    {
+      "tag": "v26.6.26.5",
+      "version": "26.6.26.5",
+      "published_at": "2026-06-26T20:24:08Z",
+      "zip_url": "https://codeload.github.com/jvitarius85/metis/zip/refs/tags/v26.6.26.5",
+      "sha256": "",
+      "notes_url": "https://github.com/jvitarius85/metis/releases/tag/v26.6.26.5",
+      "minimum_php": "8.3",
+      "requires_backup": true
+    },
     {
       "tag": "v26.6.26.4",
       "version": "26.6.26.4",
