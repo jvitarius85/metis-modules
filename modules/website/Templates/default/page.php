@@ -3,6 +3,8 @@ if (!defined('METIS_ROOT')) { exit; }
 $brandHtml = isset($brand_html) ? (string) $brand_html : '';
 $menuHtml = isset($menu_html) ? (string) $menu_html : '';
 $ctaMenuHtml = isset($cta_menu_html) ? (string) $cta_menu_html : '';
+$mobileMenuHtml = isset($mobile_menu_html) ? (string) $mobile_menu_html : '';
+$mobileCtaHtml = isset($mobile_cta_html) ? (string) $mobile_cta_html : '';
 $footerHtml = isset($footer_html) ? (string) $footer_html : '';
 $pageHeaderHtml = isset($page_header_html) ? (string) $page_header_html : '';
 $contentHtml = isset($content_html) ? (string) $content_html : '';
@@ -26,9 +28,9 @@ if ($sidebarPosition !== 'left' && $sidebarPosition !== 'right') { $sidebarPosit
                     <div class="metis-template-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Primary actions"><?php echo $ctaMenuHtml; ?></div>
                 <?php endif; ?>
                 <div class="metis-template-mobile-menu" aria-label="Mobile menu">
-                    <nav class="metis-template-mobile-menu-primary metis-shell-nav metis-shell-nav-primary" aria-label="Mobile primary menu"><?php echo $menuHtml; ?></nav>
-                    <?php if (trim($ctaMenuHtml) !== ''): ?>
-                        <div class="metis-template-mobile-menu-cta metis-shell-nav metis-shell-nav-cta" aria-label="Mobile primary actions"><?php echo $ctaMenuHtml; ?></div>
+                    <nav class="metis-template-mobile-nav" aria-label="Mobile primary menu"><?php echo $mobileMenuHtml; ?></nav>
+                    <?php if (trim($mobileCtaHtml) !== ''): ?>
+                        <div class="metis-template-mobile-actions" aria-label="Mobile primary actions"><?php echo $mobileCtaHtml; ?></div>
                     <?php endif; ?>
                 </div>
             </div>

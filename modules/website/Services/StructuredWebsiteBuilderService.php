@@ -296,6 +296,8 @@ final class StructuredWebsiteBuilderService {
         if ( $type === 'image' ) {
             return [
                 'src' => self::normalizeOptionalUrl( (string) ( $content['src'] ?? '' ) ),
+                'media_id' => max( 0, (int) ( $content['media_id'] ?? 0 ) ),
+                'link_url' => self::normalizeOptionalUrl( (string) ( $content['link_url'] ?? '' ) ),
                 'alt' => self::sanitizeText( (string) ( $content['alt'] ?? '' ) ),
                 'caption' => self::sanitizeText( (string) ( $content['caption'] ?? '' ) ),
                 'width' => self::sanitizeImageDimension( $content['width'] ?? '' ),
@@ -444,7 +446,16 @@ final class StructuredWebsiteBuilderService {
             }
             $limit = (int) ( $content['limit'] ?? 5 );
             $limit = max( 1, min( 50, $limit ) );
-            return [ 'source' => $source, 'limit' => $limit ];
+            $view_mode = metis_key_clean( (string) ( $content['view_mode'] ?? 'card' ) );
+            if ( ! in_array( $view_mode, [ 'card', 'week', 'calendar' ], true ) ) {
+                $view_mode = 'card';
+            }
+            return [
+                'source' => $source,
+                'limit' => $limit,
+                'view_mode' => $view_mode,
+                'calendar_id' => self::sanitizeText( (string) ( $content['calendar_id'] ?? '' ) ),
+            ];
         }
 
         if ( $type === 'form' ) {
@@ -1011,7 +1022,12 @@ final class StructuredWebsiteBuilderService {
                 'type' => 'image',
                 'data' => [
                     'src' => (string) ( $content['src'] ?? '' ),
+                    'media_id' => max( 0, (int) ( $content['media_id'] ?? 0 ) ),
+                    'link_url' => self::normalizeOptionalUrl( (string) ( $content['link_url'] ?? '' ) ),
                     'alt' => (string) ( $content['alt'] ?? '' ),
+                    'caption' => (string) ( $content['caption'] ?? '' ),
+                    'width' => (string) ( $content['width'] ?? '' ),
+                    'height' => (string) ( $content['height'] ?? '' ),
                 ],
                 'style' => [],
             ];
@@ -1235,6 +1251,9 @@ final class StructuredWebsiteBuilderService {
                 'id' => $section_id . '_events',
                 'type' => 'events_block',
                 'data' => [
+                    'source' => (string) ( $content['source'] ?? 'calendar' ),
+                    'view_mode' => (string) ( $content['view_mode'] ?? 'card' ),
+                    'calendar_id' => (string) ( $content['calendar_id'] ?? '' ),
                     'count' => max( 1, min( 50, (int) ( $content['limit'] ?? 5 ) ) ),
                 ],
                 'style' => [],

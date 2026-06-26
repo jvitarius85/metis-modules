@@ -508,6 +508,10 @@ final class BlockRenderer {
         if ( ! in_array( $source, [ 'calendar', 'manual' ], true ) ) {
             $source = 'calendar';
         }
+        $view_mode = metis_key_clean( (string) ( $data['view_mode'] ?? 'card' ) );
+        if ( ! in_array( $view_mode, [ 'card', 'week', 'calendar' ], true ) ) {
+            $view_mode = 'card';
+        }
 
         $requested_calendar_id = trim( (string) ( $data['calendar_id'] ?? '' ) );
         $items = [];
@@ -563,18 +567,62 @@ final class BlockRenderer {
                     return $aTs <=> $bTs;
                 }
             );
+        }
+
+        $offset = isset( $_GET['metis_events_offset'] ) ? (int) $_GET['metis_events_offset'] : 0;
+        $offset = max( -24, min( 24, $offset ) );
+        $nav_html = '';
+
+        if ( $view_mode === 'week' ) {
+            $base_start = strtotime( 'monday this week midnight' );
+            if ( ! $base_start ) {
+                $base_start = strtotime( 'today midnight' ) ?: time();
+            }
+            $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' week', (int) $base_start ) ?: $base_start;
+            $period_end = strtotime( '+7 days', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
+            $items = array_values( array_filter(
+                $items,
+                static function ( $item ) use ( $period_start, $period_end ): bool {
+                    if ( ! is_array( $item ) ) {
+                        return false;
+                    }
+                    $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+                    $start_ts = strtotime( $start_raw ) ?: 0;
+                    return $start_ts >= $period_start && $start_ts < $period_end;
+                }
+            ) );
+            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next week</a></div>';
+        } elseif ( $view_mode === 'calendar' ) {
+            $base_start = strtotime( date( 'Y-m-01 00:00:00' ) );
+            $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' month', (int) $base_start ) ?: $base_start;
+            $period_end = strtotime( '+1 month', (int) $period_start ) ?: ( $period_start + ( 31 * DAY_IN_SECONDS ) );
+            $items = array_values( array_filter(
+                $items,
+                static function ( $item ) use ( $period_start, $period_end ): bool {
+                    if ( ! is_array( $item ) ) {
+                        return false;
+                    }
+                    $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+                    $start_ts = strtotime( $start_raw ) ?: 0;
+                    return $start_ts >= $period_start && $start_ts < $period_end;
+                }
+            ) );
+            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next month</a></div>';
+        } else {
             $items = array_slice( $items, 0, $count );
         }
 
         if ( $items === [] ) {
             return sprintf(
-                '<div class="%s"%s><p>No upcoming events.</p></div>',
+                '<div class="%s"%s>%s<p>%s</p></div>',
                 metis_escape_attr( self::buildClasses( 'metis-block-events metis-events-empty', $style ) ),
-                self::buildInlineStyle( $style )
+                self::buildInlineStyle( $style ),
+                $nav_html,
+                metis_escape_html( $view_mode === 'card' ? 'No upcoming events.' : 'No upcoming events in this range.' )
             );
         }
 
-        $html = '';
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--' . metis_escape_attr( $view_mode ) . '">' . $nav_html . '<div class="metis-structured-events metis-structured-events--' . metis_escape_attr( $view_mode ) . '">';
         foreach ( $items as $item ) {
             if ( ! is_array( $item ) ) {
                 continue;
@@ -599,12 +647,18 @@ final class BlockRenderer {
             if ( $location !== '' ) {
                 $html .= '<p class="metis-event-location">' . metis_escape_html( $location ) . '</p>';
             }
+            $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
+            if ( $event_url !== '' ) {
+                $html .= '<p class="metis-event-action"><a href="' . metis_escape_attr( $event_url ) . '">See full details</a></p>';
+            }
             $html .= '</article>';
         }
+        $html .= '</div></div>';
 
         return sprintf(
-            '<section class="%s"%s>%s</section>',
+            '<section class="%s %s"%s>%s</section>',
             metis_escape_attr( self::buildClasses( 'metis-block-events', $style ) ),
+            metis_escape_attr( 'metis-block-events--' . $view_mode ),
             self::buildInlineStyle( $style ),
             $html
         );

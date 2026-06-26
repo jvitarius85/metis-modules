@@ -32,6 +32,174 @@ if ( ! function_exists( 'metis_website_editor_required_nonce_actions' ) ) {
 }
 
 if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
+    function metis_website_editor_icon_picker_library_json(): string {
+        static $json = null;
+        if ( is_string( $json ) ) {
+            return $json;
+        }
+
+        $category_for_icon = static function ( string $slug ): string {
+            $slug = strtolower( trim( $slug ) );
+            if ( $slug === '' ) {
+                return 'general';
+            }
+
+            $explicit = [
+                'accounting' => 'finance',
+                'accessibility' => 'accessibility',
+                'add' => 'ui',
+                'android' => 'brands',
+                'animals' => 'animals',
+                'apple' => 'brands',
+                'apple-ios' => 'brands',
+                'campfire' => 'activities',
+                'bat' => 'animals',
+                'braille-blind' => 'accessibility',
+                'briefcase' => 'people',
+                'cards' => 'activities',
+                'calendar' => 'actions',
+                'dice' => 'activities',
+                'chart-scatter' => 'analytics',
+                'checkbox' => 'ui',
+                'checkbox-checked' => 'ui',
+                'checkbox-checked-filled' => 'ui',
+                'checkbox-indeterminate' => 'ui',
+                'checkbox-indeterminate-filled' => 'ui',
+                'checkmark-filled' => 'ui',
+                'checkmark-outline' => 'ui',
+                'close-filled' => 'ui',
+                'close-outline' => 'ui',
+                'refresh' => 'ui',
+                'coffee' => 'food-drinks',
+                'contacts' => 'people',
+                'credit-card' => 'finance',
+                'croissant' => 'food-drinks',
+                'database' => 'infrastructure',
+                'diagram-alt' => 'analytics',
+                'diagram' => 'analytics',
+                'disability-ramp' => 'accessibility',
+                'divider' => 'ui',
+                'donut' => 'food-drinks',
+                'drive' => 'files',
+                'drink' => 'food-drinks',
+                'emoji' => 'ui',
+                'facebook' => 'brands',
+                'fries' => 'food-drinks',
+                'generate-pdf' => 'files',
+                'globe' => 'communication',
+                'google' => 'brands',
+                'grid' => 'ui',
+                'h1' => 'editor',
+                'heat-map' => 'analytics',
+                'hiking' => 'activities',
+                'invite' => 'communication',
+                'italic' => 'editor',
+                'instagram' => 'brands',
+                'list' => 'editor',
+                'list-boxes' => 'editor',
+                'list-bulleted' => 'editor',
+                'list-checked' => 'editor',
+                'list-dropdown' => 'editor',
+                'loading-circle' => 'status',
+                'meeting' => 'people',
+                'module' => 'ui',
+                'microsoft' => 'brands',
+                'movie' => 'activities',
+                'muffin' => 'food-drinks',
+                'need' => 'donations',
+                'notification' => 'communication',
+                'pie' => 'food-drinks',
+                'pie-slice' => 'food-drinks',
+                'pizza' => 'food-drinks',
+                'puzzle' => 'activities',
+                'radio-button' => 'ui',
+                'radio-button-checked' => 'ui',
+                'redo' => 'ui',
+                'reward' => 'donations',
+                'burger' => 'food-drinks',
+                'burrito' => 'food-drinks',
+                'cake' => 'food-drinks',
+                'cat' => 'animals',
+                'jenga' => 'activities',
+                'cupcake' => 'food-drinks',
+                'dog' => 'animals',
+                'paw-print' => 'animals',
+                'pig' => 'animals',
+                'sankey-diagram' => 'analytics',
+                'sankey-diagram-alt' => 'analytics',
+                'shield-cross' => 'health',
+                'sign-language' => 'accessibility',
+                'stripe' => 'brands',
+                'sushi' => 'food-drinks',
+                'taco' => 'food-drinks',
+                'undo' => 'ui',
+                'vote' => 'activities',
+                'website' => 'layout',
+                'youtube' => 'brands',
+            ];
+            if ( isset( $explicit[ $slug ] ) ) {
+                return $explicit[ $slug ];
+            }
+
+            $contains_any = static function ( string $value, array $needles ): bool {
+                foreach ( $needles as $needle ) {
+                    if ( $needle !== '' && str_contains( $value, (string) $needle ) ) {
+                        return true;
+                    }
+                }
+
+                return false;
+            };
+
+            if ( $contains_any( $slug, [ 'accessibility', 'braille', 'blind', 'sign-language', 'hearing' ] ) ) return 'accessibility';
+            if ( str_contains( $slug, 'checkmark' ) || str_contains( $slug, 'checkbox' ) || str_contains( $slug, 'radio-' ) || str_contains( $slug, 'add-' ) || str_contains( $slug, 'close-' ) || str_contains( $slug, 'collapse' ) || str_contains( $slug, 'expand' ) || in_array( $slug, [ 'add', 'grid', 'emoji', 'divider', 'undo', 'redo' ], true ) ) return 'ui';
+            if ( str_starts_with( $slug, 'arrow-' ) || str_starts_with( $slug, 'align-' ) || str_starts_with( $slug, 'distribute-' ) || str_starts_with( $slug, 'next-' ) || str_starts_with( $slug, 'repeat' ) || str_contains( $slug, 'tabs' ) ) return 'layout';
+            if ( str_starts_with( $slug, 'text-' ) || str_contains( $slug, 'indent' ) || in_array( $slug, [ 'h1', 'italic' ], true ) || str_contains( $slug, 'list-' ) || str_contains( $slug, 'code' ) || str_contains( $slug, 'data-format' ) || str_contains( $slug, 'data-table' ) ) return 'editor';
+            if ( $contains_any( $slug, [ 'accounting', 'finance', 'currency', 'money', 'wallet', 'piggy-bank', 'purchase', 'pricing', 'coin', 'cashing-check', 'credit-card' ] ) ) return 'finance';
+            if ( $contains_any( $slug, [ 'donat', 'donor', 'campaign', 'hand-donation', 'handshake', 'reward', 'need' ] ) ) return 'donations';
+            if ( $contains_any( $slug, [ 'activity', 'activities', 'camp', 'campfire', 'cards', 'dice', 'game', 'hike', 'hiking', 'jenga', 'movie', 'puzzle', 'vote' ] ) ) return 'activities';
+            if ( $contains_any( $slug, [ 'food', 'drink', 'burger', 'burrito', 'cake', 'coffee', 'croissant', 'cupcake', 'donut', 'fries', 'muffin', 'pie', 'pizza', 'sushi', 'taco' ] ) ) return 'food-drinks';
+            if ( $contains_any( $slug, [ 'shield', 'padlock', 'lock', 'security', 'fingerprint', 'passkey', 'scan', 'auth', 'license' ] ) ) return 'security';
+            if ( $contains_any( $slug, [ 'health', 'medical', 'stethoscope', 'reminder-medical' ] ) ) return 'health';
+            if ( $contains_any( $slug, [ 'chart', 'graph', 'heat-map', 'dashboard', 'report', 'progress', 'finance', 'phrase-sentiment' ] ) ) return 'analytics';
+            if ( str_starts_with( $slug, 'document' ) || str_starts_with( $slug, 'doc' ) || in_array( $slug, [ 'pdf', 'csv', 'json', 'png', 'ppt', 'raw', 'svg', 'txt', 'xls', 'zip', 'gif', 'mp3', 'mp4', 'mov', 'wmv', 'tif', 'vmdk-disk', 'bat' ], true ) ) return 'files';
+            if ( $contains_any( $slug, [ 'image', 'screen', 'mobile', 'tablet' ] ) ) return 'files';
+            if ( $contains_any( $slug, [ 'email', 'chat', 'notification', 'forum', 'share', 'link', 'phone', 'newsletter', 'service-desk', 'wikis' ] ) ) return 'communication';
+            if ( in_array( $slug, [ 'animal', 'animals', 'bat', 'cat', 'dog', 'paw', 'paw-print', 'pig', 'pet', 'pets' ], true ) ) return 'animals';
+            if ( str_starts_with( $slug, 'user' ) || str_starts_with( $slug, 'group' ) || str_starts_with( $slug, 'home' ) || str_starts_with( $slug, 'building' ) || str_starts_with( $slug, 'workspace' ) || str_starts_with( $slug, 'apps' ) ) return 'people';
+            if ( $contains_any( $slug, [ 'server', 'data-base', 'database', 'ibm-watsonx' ] ) ) return 'infrastructure';
+            if ( str_starts_with( $slug, 'settings' ) || str_contains( $slug, 'task' ) || str_contains( $slug, 'calendar' ) || str_contains( $slug, 'time' ) || str_contains( $slug, 'event' ) || str_contains( $slug, 'save' ) || str_contains( $slug, 'edit' ) || str_contains( $slug, 'cut' ) || str_contains( $slug, 'pen' ) || str_contains( $slug, 'printer' ) || str_contains( $slug, 'folder' ) || str_contains( $slug, 'box' ) || str_contains( $slug, 'template' ) || str_contains( $slug, 'add-' ) || str_contains( $slug, 'close-' ) || str_contains( $slug, 'download' ) || str_contains( $slug, 'upload' ) || str_contains( $slug, 'export' ) || str_contains( $slug, 'collapse' ) || str_contains( $slug, 'expand' ) || str_contains( $slug, 'trash' ) || str_contains( $slug, 'logout' ) || str_contains( $slug, 'paper-clip' ) || str_contains( $slug, 'arrows-horizontal' ) ) return 'actions';
+            if ( str_starts_with( $slug, 'help' ) || str_contains( $slug, 'information' ) || str_contains( $slug, 'accessibility' ) || str_contains( $slug, 'in-progress' ) || str_contains( $slug, 'need' ) || str_contains( $slug, 'result' ) || str_contains( $slug, 'loading' ) || str_contains( $slug, 'favorite' ) || str_contains( $slug, 'reminder' ) ) return 'status';
+            if ( str_starts_with( $slug, 'logo-' ) ) return 'brands';
+
+            return 'general';
+        };
+
+        $items = [];
+        $svg_icon_keys = function_exists( 'metis_navigation_svg_icon_keys' ) ? metis_navigation_svg_icon_keys() : [];
+        foreach ( $svg_icon_keys as $icon_key ) {
+            $icon_key = metis_key_clean( str_replace( '_', '-', (string) $icon_key ) );
+            if ( $icon_key === '' ) {
+                continue;
+            }
+            $svg_markup = function_exists( 'metis_navigation_svg_icon_markup' ) ? (string) metis_navigation_svg_icon_markup( $icon_key ) : '';
+            $items[] = [
+                'key' => $icon_key,
+                'label' => ucwords( str_replace( '-', ' ', $icon_key ) ),
+                'svg' => $svg_markup,
+                'url' => $svg_markup === '' && function_exists( 'metis_navigation_svg_icon_url' ) ? (string) metis_navigation_svg_icon_url( $icon_key ) : '',
+                'category' => $category_for_icon( $icon_key ),
+            ];
+        }
+
+        $json = function_exists( 'metis_json_encode' ) ? (string) metis_json_encode( $items ) : (string) json_encode( $items );
+        if ( $json === '' ) {
+            $json = '[]';
+        }
+
+        return $json;
+    }
+
     function metis_website_build_editor_bootstrap( array $args = [] ): array {
         $editor_new = trim( (string) ( $args['editor_new'] ?? '' ) );
         $editor_key = trim( (string) ( $args['editor_key'] ?? '' ) );
@@ -130,6 +298,7 @@ if ( ! function_exists( 'metis_website_render_editor_bootstrap' ) ) {
         <link rel="stylesheet" href="<?php echo metis_escape_attr( $payload['simple_editor_css'] ); ?>">
         <style id="metis-simple-editor-theme-vars"><?php echo metis_escape_html( $payload['editor_theme_css'] ); ?></style>
         <div id="metis-editor-inline-root"></div>
+        <script type="application/json" id="metis-editor-icon-library-json"><?php echo metis_website_editor_icon_picker_library_json(); ?></script>
         <div
             id="metis-editor-bootstrap"
             data-editor-key="<?php echo metis_escape_attr( (string) $payload['editor_boot_key'] ); ?>"

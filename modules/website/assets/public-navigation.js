@@ -61,6 +61,15 @@
     }
   }
 
+  function setMobileItemOpen(item, open) {
+    if (!item || !item.classList) return;
+    item.classList.toggle("is-open", !!open);
+    var trigger = item.querySelector("[data-metis-mobile-toggle]");
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
+
   function triggerUrl(trigger) {
     if (!trigger) return "";
     var dataUrl = String(trigger.getAttribute("data-metis-nav-url") || "").trim();
@@ -306,6 +315,25 @@
   }
 
   document.addEventListener("click", function (e) {
+    var mobileToggle = e.target && e.target.closest ? e.target.closest("[data-metis-mobile-toggle]") : null;
+    if (mobileToggle) {
+      var mobileItem = mobileToggle.closest ? mobileToggle.closest(".metis-mobile-nav-item.has-children") : null;
+      if (!mobileItem) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var mobileList = mobileItem.parentElement;
+      if (mobileList) {
+        for (var m = 0; m < mobileList.children.length; m++) {
+          var sibling = mobileList.children[m];
+          if (sibling !== mobileItem && sibling.classList && sibling.classList.contains("metis-mobile-nav-item") && sibling.classList.contains("has-children")) {
+            setMobileItemOpen(sibling, false);
+          }
+        }
+      }
+      setMobileItemOpen(mobileItem, !mobileItem.classList.contains("is-open"));
+      return;
+    }
+
     var trigger = e.target && e.target.closest
       ? e.target.closest(".metis-shell-menu-item.has-children > .metis-shell-menu-link, .metis-shell-menu-item.has-children > .metis-shell-menu-btn, .metis-shell-menu-item.has-children > .metis-shell-menu-label")
       : null;
@@ -348,7 +376,7 @@
     var button = e.target && e.target.closest ? e.target.closest("[data-metis-nav-url]") : null;
     if (!button) {
       var leafTrigger = e.target && e.target.closest
-        ? e.target.closest(".metis-shell-nav-primary a.metis-shell-menu-link, .metis-shell-nav-primary .metis-shell-menu-btn")
+        ? e.target.closest(".metis-shell-nav-primary a.metis-shell-menu-link, .metis-shell-nav-primary .metis-shell-menu-btn, .metis-template-mobile-nav a.metis-mobile-nav-link, .metis-template-mobile-actions a.metis-mobile-nav-action")
         : null;
       if (leafTrigger && body.classList.contains("metis-nav-open") && isMobileViewport()) {
         window.setTimeout(function () { setOpen(false); }, 0);
