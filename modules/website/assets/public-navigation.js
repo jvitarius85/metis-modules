@@ -174,15 +174,21 @@
     return window.location.href.replace(/[?#].*$/, "");
   }
 
-  function buildEventsPrintHref(view, currentCursor) {
-    var href = currentPageHref() || "#";
-    var params = new URLSearchParams();
-    params.set("metis_events_cursor", currentCursor);
-    params.set("metis_events_print", "1");
-    if (view === "week") {
-      params.set("metis_events_view", "week");
+  function buildEventsPrintHref(view, cursor) {
+    var href = currentPageHref() || window.location.href || "/";
+    var url = new URL(href, window.location.href);
+    url.searchParams.set("metis_events_print", "1");
+    if (view) {
+      url.searchParams.set("metis_events_view", view);
     }
-    return href + "?" + params.toString();
+    if (cursor) {
+      url.searchParams.set("metis_events_cursor", cursor);
+    } else {
+      url.searchParams.delete("metis_events_cursor");
+    }
+    url.searchParams.delete("metis_events_offset");
+    url.searchParams.delete("_metis_events_nav");
+    return url.toString();
   }
 
   function openCalendarPrintView(block, fallbackHref) {
@@ -695,10 +701,10 @@
       ? event.target.closest("[data-metis-events-print]")
       : null;
     if (printButton) {
+      var printBlock = printButton.closest ? printButton.closest("[data-metis-events-block=\"1\"]") : null;
+      var printHref = s(printButton.getAttribute("data-metis-events-print") || printButton.getAttribute("href") || "");
       event.preventDefault();
       event.stopPropagation();
-      var printHref = s(printButton.getAttribute("data-metis-events-print") || printButton.getAttribute("href") || "").trim();
-      var printBlock = printButton.closest ? printButton.closest("[data-metis-events-block=\"1\"]") : null;
       openCalendarPrintView(printBlock, printHref);
       return;
     }
