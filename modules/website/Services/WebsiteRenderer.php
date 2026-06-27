@@ -5205,7 +5205,7 @@ final class WebsiteRenderer {
             $next_period_start = strtotime( '+1 week', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
             $prev_cursor = date( 'Y-m-d', (int) $prev_period_start );
             $next_cursor = date( 'Y-m-d', (int) $next_period_start );
-            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">Next week</a></div>';
+            $nav_html = self::structuredEventsNavHtml( 'week', date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ), $prev_cursor, $next_cursor, $offset - 1, $offset + 1 );
         } elseif ( $view_mode === 'calendar' ) {
             $base_start = strtotime( date( 'Y-m-01 00:00:00' ) );
             $period_start = $cursor_ts > 0
@@ -5248,7 +5248,7 @@ final class WebsiteRenderer {
             $next_period_start = strtotime( '+1 month', (int) $period_start ) ?: $period_start;
             $prev_cursor = date( 'Y-m-01', (int) $prev_period_start );
             $next_cursor = date( 'Y-m-01', (int) $next_period_start );
-            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">Next month</a></div>';
+            $nav_html = self::structuredEventsNavHtml( 'calendar', date( 'F Y', (int) $period_start ), $prev_cursor, $next_cursor, $offset - 1, $offset + 1 );
         } else {
             $items = array_slice( $items, 0, $limit );
         }
@@ -5311,12 +5311,12 @@ final class WebsiteRenderer {
      */
     private static function renderStructuredMonthEventsView( array $items, array $all_items, int $period_start, string $nav_html ): string {
         $grouped = self::groupStructuredEventsByDay( $items );
-        $first_cell = strtotime( 'monday this week midnight', $period_start ) ?: $period_start;
+        $first_cell = strtotime( 'sunday this week midnight', $period_start ) ?: $period_start;
         $last_day = strtotime( '-1 day', strtotime( '+1 month', $period_start ) ?: $period_start ) ?: $period_start;
         $last_cell = strtotime( 'sunday this week midnight', $last_day ) ?: $last_day;
         $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--calendar" data-metis-events-block="1" data-metis-events-view="calendar" data-metis-events-cursor-current="' . metis_escape_attr( date( 'Y-m-01', $period_start ) ) . '">' . self::structuredEventsClientStateMarkup( $all_items, 'calendar' ) . $nav_html;
         $html .= '<div class="metis-structured-events-month-head">';
-        foreach ( [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ] as $weekday ) {
+        foreach ( [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ] as $weekday ) {
             $html .= '<div class="metis-structured-events-month-head__cell">' . metis_escape_html( $weekday ) . '</div>';
         }
         $html .= '</div><div class="metis-structured-events-month-grid">';
@@ -5382,6 +5382,7 @@ final class WebsiteRenderer {
             }
             $payload['items'][] = [
                 'title' => trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) ),
+                'tile_title' => self::structuredEventTileTitle( trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) ) ),
                 'date_key' => date( 'Y-m-d', (int) $start_ts ),
                 'start_ts' => (int) $start_ts,
                 'time_label' => self::structuredEventPeekTimeLabel( $item ),
@@ -5425,12 +5426,13 @@ final class WebsiteRenderer {
      */
     private static function renderStructuredEventPeek( array $item, string $uid ): string {
         $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
+        $tile_title = self::structuredEventTileTitle( $title );
         $has_time = trim( (string) ( $item['start']['dateTime'] ?? '' ) ) !== '';
         $time_label = self::structuredEventPeekTimeLabel( $item );
 
         $html = '<div class="metis-structured-events-peek' . ( $has_time ? '' : ' is-all-day' ) . '">';
         $html .= '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-controls="metis-events-peek-' . metis_escape_attr( $uid ) . '">';
-        $html .= '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__dot" aria-hidden="true"></span><span class="metis-structured-events-peek__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</span></span>';
+        $html .= '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__title">' . metis_escape_html( $tile_title !== '' ? $tile_title : ( $title !== '' ? $title : 'Event' ) ) . '</span></span>';
         if ( $time_label !== '' ) {
             $html .= '<span class="metis-structured-events-peek__time">' . metis_escape_html( $time_label ) . '</span>';
         }
@@ -5459,6 +5461,39 @@ final class WebsiteRenderer {
                 ? metis_runtime_date( 'g:ia', (int) $ts )
                 : date( 'g:ia', (int) $ts )
         );
+    }
+
+    private static function structuredEventsNavHtml( string $view, string $label, string $prev_cursor, string $next_cursor, int $prev_offset, int $next_offset ): string {
+        $prev_label = $view === 'week' ? 'Previous week' : 'Previous month';
+        $next_label = $view === 'week' ? 'Next week' : 'Next month';
+
+        return '<div class="metis-structured-events__nav">'
+            . '<a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $prev_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">' . metis_escape_html( $prev_label ) . '</a>'
+            . '<div class="metis-structured-events__nav-title">' . metis_escape_html( $label ) . '</div>'
+            . '<div class="metis-structured-events__nav-actions"><button type="button" class="metis-structured-events__print-btn" data-metis-events-print="1">Print</button><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $next_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">' . metis_escape_html( $next_label ) . '</a></div>'
+            . '</div>';
+    }
+
+    private static function structuredEventTileTitle( string $title ): string {
+        $clean = trim( $title );
+        if ( $clean === '' ) {
+            return '';
+        }
+
+        $org_name = class_exists( 'Core_Settings_Service' ) ? trim( (string) \Core_Settings_Service::get( 'org_name', '' ) ) : '';
+        if ( $org_name === '' && function_exists( 'metis_portal_name' ) ) {
+            $org_name = trim( (string) metis_portal_name() );
+        }
+        $org_name = preg_replace( '/\s+/', ' ', (string) $org_name ) ?? '';
+        if ( $org_name !== '' ) {
+            $pattern = '/^' . preg_quote( $org_name, '/' ) . '\s*[-:]\s*/i';
+            $stripped = preg_replace( $pattern, '', $clean );
+            if ( is_string( $stripped ) && trim( $stripped ) !== '' ) {
+                return trim( $stripped );
+            }
+        }
+
+        return $clean;
     }
 
     /**
@@ -6454,41 +6489,45 @@ final class WebsiteRenderer {
             '.metis-public-content .metis-text-align-center,.metis-structured-section__content .metis-text-align-center{text-align:center;}',
             '.metis-public-content .metis-text-align-right,.metis-structured-section__content .metis-text-align-right{text-align:right;}',
             '.metis-structured-events-wrap{display:grid;gap:14px;}',
-            '.metis-structured-events__nav{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;}',
-            '.metis-structured-events__nav a{text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:700;}',
-            '.metis-structured-events__nav span{font-weight:700;color:var(--metis-color-text,#0f172a);}',
+            '.metis-structured-events-wrap--calendar{width:min(100%,1120px);margin:0 auto;}',
+            '.metis-structured-events__nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:10px;}',
+            '.metis-structured-events__nav-title{justify-self:center;font-size:clamp(1.35rem,2.8vw,2rem);font-weight:800;letter-spacing:-.03em;color:var(--metis-color-text,#0f172a);text-transform:capitalize;}',
+            '.metis-structured-events__nav-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;}',
+            '.metis-structured-events__nav-btn,.metis-structured-events__print-btn{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,var(--metis-color-border,#dbe3ef));border-radius:14px;background:var(--metis-color-surface,#fff);text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:800;line-height:1;cursor:pointer;box-shadow:none;transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;}',
+            '.metis-structured-events__nav-btn:hover,.metis-structured-events__nav-btn:focus-visible,.metis-structured-events__print-btn:hover,.metis-structured-events__print-btn:focus-visible{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 10%,#fff);border-color:var(--metis-color-primary,#485bc7);color:var(--metis-color-primary,#485bc7);transform:translateY(-1px);}',
             '.metis-structured-events,.metis-structured-posts-list{display:grid;gap:16px;}',
             '.metis-structured-events{grid-template-columns:repeat(auto-fit,minmax(240px,320px));justify-content:center;align-items:stretch;overflow:visible;padding:6px 0 14px;}',
             '.metis-structured-events--week{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}',
             '.metis-structured-events--calendar{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}',
             '.metis-structured-events-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
-            '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:12px;padding:16px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:18px;background:var(--metis-surface,#fff);box-shadow:0 14px 28px rgba(15,23,42,.05);align-content:start;overflow:visible;}',
+            '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:10px;padding:13px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:14px;background:var(--metis-surface,#fff);box-shadow:0 12px 24px rgba(15,23,42,.05);align-content:start;overflow:visible;}',
             '.metis-structured-events-day{min-height:220px;}',
-            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:0;aspect-ratio:1 / 1;}',
+            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:150px;aspect-ratio:1.08 / 1;}',
             '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
             '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
             '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
             '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:8px;align-content:start;min-width:0;overflow:visible;}',
             '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
-            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;}',
+            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;}',
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
-            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;align-items:stretch;}',
+            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;align-items:stretch;}',
             '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
             '.metis-structured-events-mobile-list{display:none;gap:14px;}',
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
             '.metis-structured-events-peek:hover,.metis-structured-events-peek:focus-within{z-index:32;}',
             '.metis-structured-events-peek__trigger{width:100%;display:grid;gap:3px;padding:2px 0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:visible;}',
-            '.metis-structured-events-peek__line{display:flex;align-items:flex-start;gap:8px;min-width:0;max-width:100%;}',
-            '.metis-structured-events-peek__dot{width:10px;height:10px;border-radius:999px;background:var(--metis-color-primary,#7e22ce);flex:0 0 auto;}',
-            '.metis-structured-events-peek__time{font-size:.82rem;line-height:1.2;font-weight:500;color:var(--metis-color-muted,#64748b);padding-left:18px;}',
-            '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.3;font-weight:600;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
+            '.metis-structured-events-peek__line{display:flex;align-items:flex-start;gap:0;min-width:0;max-width:100%;}',
+            '.metis-structured-events-peek__time{font-size:.82rem;line-height:1.2;font-weight:700;color:#ffffff;padding-left:0;opacity:.98;}',
+            '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.22;font-weight:700;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
+            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:7px 8px;box-shadow:none;}',
+            '.metis-structured-events-peek:not(.is-all-day) .metis-structured-events-peek__title{color:#ffffff;}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:2px 0;min-height:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);}',
-            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__dot{display:block;}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:var(--metis-color-text,#0f172a);font-weight:600;}',
             '.metis-structured-events-peek__panel{position:absolute;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 32px));opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease;}',
             '.metis-structured-events-peek:hover .metis-structured-events-peek__panel,.metis-structured-events-peek:focus-within .metis-structured-events-peek__panel{opacity:1;pointer-events:auto;transform:translateY(0);}',
             '.metis-structured-events-month-day:nth-child(7n) .metis-structured-events-peek__panel,.metis-structured-events-day:nth-child(7n) .metis-structured-events-peek__panel{left:auto;right:0;}',
+            '@media print{@page{size:landscape;margin:.45in;}body.metis-public-site .metis-site-header,body.metis-public-site .metis-shell-footer,body.metis-public-site .metis-public-floating-launcher,body.metis-public-site .metis-structured-events__nav-actions{display:none !important;}body.metis-public-site .metis-structured-events-wrap--calendar{width:100% !important;max-width:none !important;margin:0 !important;}body.metis-public-site .metis-structured-events__nav{grid-template-columns:1fr !important;}body.metis-public-site .metis-structured-events__nav-btn{display:none !important;}body.metis-public-site .metis-structured-events__nav-title{justify-self:start !important;font-size:20pt !important;}body.metis-public-site .metis-structured-events-month-grid{gap:7px !important;}body.metis-public-site .metis-structured-events-month-day{min-height:110px !important;break-inside:avoid;border-radius:10px !important;box-shadow:none !important;}body.metis-public-site .metis-structured-events-peek__panel{display:none !important;}body.metis-public-site .metis-structured-events-mobile-list{display:none !important;}}',
             '.metis-structured-posts-list--cards{width:100%;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:18px;row-gap:34px;justify-content:stretch;align-items:stretch;padding:4px 0 12px;}',
             '@media (max-width:1100px){.metis-structured-posts-list--cards{grid-template-columns:repeat(2,minmax(0,1fr));}}',
             '@media (max-width:640px){.metis-structured-posts-list--cards{grid-template-columns:1fr;}}',

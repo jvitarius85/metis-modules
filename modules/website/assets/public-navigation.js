@@ -151,9 +151,7 @@
   }
 
   function startOfWeek(date) {
-    var day = date.getDay();
-    var delta = day === 0 ? -6 : 1 - day;
-    return addDays(date, delta);
+    return addDays(date, -date.getDay());
   }
 
   function endOfWeek(date) {
@@ -181,22 +179,23 @@
     var nextLabel = view === "week" ? "Next week" : "Next month";
     var href = escapeHtml(currentPageHref() || "#");
     return '<div class="metis-structured-events__nav">' +
-      '<a href="' + href + '" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
-      '<span>' + escapeHtml(label) + '</span>' +
-      '<a href="' + href + '" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a>' +
+      '<a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
+      '<div class="metis-structured-events__nav-title">' + escapeHtml(label) + '</div>' +
+      '<div class="metis-structured-events__nav-actions"><button type="button" class="metis-structured-events__print-btn" data-metis-events-print="1">Print</button><a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a></div>' +
       '</div>';
   }
 
   function renderEventPeekHtml(item, uid) {
-    var title = s(item && item.title || "Event").trim() || "Event";
+    var fullTitle = s(item && item.title || "Event").trim() || "Event";
+    var title = s(item && (item.tile_title || item.title) || "Event").trim() || "Event";
     var timeLabel = s(item && item.time_label || "").trim();
     var panelId = "metis-events-peek-" + uid;
     return '<div class="metis-structured-events-peek' + (timeLabel ? "" : " is-all-day") + '">' +
       '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-controls="' + escapeHtml(panelId) + '">' +
-      '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__dot" aria-hidden="true"></span><span class="metis-structured-events-peek__title">' + escapeHtml(title) + '</span></span>' +
+      '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__title">' + escapeHtml(title) + '</span></span>' +
       (timeLabel ? '<span class="metis-structured-events-peek__time">' + escapeHtml(timeLabel) + '</span>' : "") +
       '</button>' +
-      '<div id="' + escapeHtml(panelId) + '" class="metis-structured-events-peek__panel" role="dialog" aria-label="' + escapeHtml(title) + '">' + s(item && item.detail_html || "") + '</div>' +
+      '<div id="' + escapeHtml(panelId) + '" class="metis-structured-events-peek__panel" role="dialog" aria-label="' + escapeHtml(fullTitle) + '">' + s(item && item.detail_html || "") + '</div>' +
       '</div>';
   }
 
@@ -237,7 +236,7 @@
     var html = s(block._metisEventsStateScript || "");
     html += renderEventsNavHtml("calendar", formatMonthYear(monthStart), isoDateKey(prevMonthStart), isoDateKey(nextMonthStart));
     html += '<div class="metis-structured-events-month-head">';
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach(function (weekday) {
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(function (weekday) {
       html += '<div class="metis-structured-events-month-head__cell">' + weekday + '</div>';
     });
     html += '</div><div class="metis-structured-events-month-grid">';
@@ -648,6 +647,15 @@
   }
 
   document.addEventListener("click", function (event) {
+    var printButton = event.target && event.target.closest
+      ? event.target.closest("[data-metis-events-print]")
+      : null;
+    if (printButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.print();
+      return;
+    }
     var navLink = event.target && event.target.closest
       ? event.target.closest("[data-metis-events-nav]")
       : null;
