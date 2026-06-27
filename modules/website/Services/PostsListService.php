@@ -8,7 +8,7 @@ use Metis\Modules\Website\Entities\Post;
 final class PostsListService {
     /**
      * @param array<string,mixed> $config
-     * @return array{limit:int,source:string,specific_page:int,category_ids:array<int,int>,sort:string}
+     * @return array{limit:int,source:string,specific_page:int,category_ids:array<int,int>,tag_ids:array<int,int>,sort:string}
      */
     public static function normalizeConfig( array $config ): array {
         $limit = isset( $config['limit'] ) ? (int) $config['limit'] : (int) ( $config['count'] ?? 5 );
@@ -41,6 +41,18 @@ final class PostsListService {
             )
         );
 
+        $tag_ids = array_values(
+            array_unique(
+                array_filter(
+                    array_map(
+                        'intval',
+                        is_array( $config['tag_ids'] ?? null ) ? $config['tag_ids'] : []
+                    ),
+                    static fn( int $id ): bool => $id > 0
+                )
+            )
+        );
+
         $sort = metis_key_clean( (string) ( $config['sort'] ?? 'latest' ) );
         if ( $sort !== 'latest' ) {
             $sort = 'latest';
@@ -51,6 +63,7 @@ final class PostsListService {
             'source' => $source,
             'specific_page' => $specific_page,
             'category_ids' => $category_ids,
+            'tag_ids' => $tag_ids,
             'sort' => $sort,
         ];
     }
@@ -67,6 +80,9 @@ final class PostsListService {
 
         if ( $has_category_filter ) {
             $query['post_category_ids'] = $normalized['category_ids'];
+        }
+        if ( $normalized['tag_ids'] !== [] ) {
+            $query['post_tag_ids'] = $normalized['tag_ids'];
         }
 
         if ( $normalized['source'] === 'specific_page' && $normalized['specific_page'] > 0 ) {

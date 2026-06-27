@@ -74,6 +74,13 @@ final class PostService {
             $where[] = "EXISTS (SELECT 1 FROM {$map_table} pcm WHERE pcm.post_id = {$table}.id AND pcm.category_id IN ({$placeholders}))";
             $params = array_merge( $params, $post_category_ids );
         }
+        $post_tag_ids = self::normalizeTagIds( $options['post_tag_ids'] ?? [] );
+        if ( $post_tag_ids !== [] ) {
+            $tag_map_table = self::tagMapTable();
+            $placeholders = implode( ',', array_fill( 0, count( $post_tag_ids ), '%d' ) );
+            $where[] = "EXISTS (SELECT 1 FROM {$tag_map_table} ptm WHERE ptm.post_id = {$table}.id AND ptm.tag_id IN ({$placeholders}))";
+            $params = array_merge( $params, $post_tag_ids );
+        }
 
         $rows = $db->fetchAll(
             "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY publish_date DESC, created_at DESC LIMIT %d OFFSET %d',
@@ -151,6 +158,13 @@ final class PostService {
             $where[] = "EXISTS (SELECT 1 FROM {$map_table} pcm WHERE pcm.post_id = {$table}.id AND pcm.category_id IN ({$placeholders}))";
             $params = array_merge( $params, $post_category_ids );
         }
+        $post_tag_ids = self::normalizeTagIds( $filters['post_tag_ids'] ?? [] );
+        if ( $post_tag_ids !== [] ) {
+            $tag_map_table = self::tagMapTable();
+            $placeholders = implode( ',', array_fill( 0, count( $post_tag_ids ), '%d' ) );
+            $where[] = "EXISTS (SELECT 1 FROM {$tag_map_table} ptm WHERE ptm.post_id = {$table}.id AND ptm.tag_id IN ({$placeholders}))";
+            $params = array_merge( $params, $post_tag_ids );
+        }
 
         $where_clause = $where !== [] ? ' WHERE ' . implode( ' AND ', $where ) : '';
         $sql          = "SELECT * FROM {$table}{$where_clause} ORDER BY publish_date DESC, created_at DESC";
@@ -209,6 +223,13 @@ final class PostService {
             $placeholders = implode( ',', array_fill( 0, count( $post_category_ids ), '%d' ) );
             $where[] = "EXISTS (SELECT 1 FROM {$map_table} pcm WHERE pcm.post_id = {$table}.id AND pcm.category_id IN ({$placeholders}))";
             $params = array_merge( $params, $post_category_ids );
+        }
+        $post_tag_ids = self::normalizeTagIds( $filters['post_tag_ids'] ?? [] );
+        if ( $post_tag_ids !== [] ) {
+            $tag_map_table = self::tagMapTable();
+            $placeholders = implode( ',', array_fill( 0, count( $post_tag_ids ), '%d' ) );
+            $where[] = "EXISTS (SELECT 1 FROM {$tag_map_table} ptm WHERE ptm.post_id = {$table}.id AND ptm.tag_id IN ({$placeholders}))";
+            $params = array_merge( $params, $post_tag_ids );
         }
 
         $where_clause = $where !== [] ? ' WHERE ' . implode( ' AND ', $where ) : '';
@@ -281,6 +302,9 @@ final class PostService {
             PostCategoryService::syncPostCategories( $new_id, self::normalizeCategoryIds( $data['post_category_ids'] ?? [] ) );
         } elseif ( ! empty( $insert['post_category_id'] ) ) {
             PostCategoryService::syncPostCategories( $new_id, [ (int) $insert['post_category_id'] ] );
+        }
+        if ( array_key_exists( 'post_tag_ids', $data ) ) {
+            PostTagService::syncPostTags( $new_id, self::normalizeTagIds( $data['post_tag_ids'] ?? [] ) );
         }
 
         return self::getById( $new_id );
@@ -363,6 +387,9 @@ final class PostService {
 
         if ( array_key_exists( 'post_category_ids', $data ) ) {
             PostCategoryService::syncPostCategories( $id, self::normalizeCategoryIds( $data['post_category_ids'] ?? [] ) );
+        }
+        if ( array_key_exists( 'post_tag_ids', $data ) ) {
+            PostTagService::syncPostTags( $id, self::normalizeTagIds( $data['post_tag_ids'] ?? [] ) );
         }
 
         if ( $track_public_path_redirect && $old_public_path !== '' ) {
@@ -602,7 +629,7 @@ final class PostService {
     }
 
     private static function postFromRow( array $row ): Post {
-        return self::hydrateCategories( Post::fromRow( $row ) );
+        return self::hydrateTags( self::hydrateCategories( Post::fromRow( $row ) ) );
     }
 
     private static function hydrateCategories( Post $post ): Post {
@@ -614,6 +641,25 @@ final class PostService {
         if ( $ids !== [] ) {
             $post->post_category_id = (int) $ids[0];
         }
+        return $post;
+    }
+
+    private static function hydrateTags( Post $post ): Post {
+        $tag_ids = PostTagService::tagIdsForPost( (int) ( $post->id ?? 0 ) );
+        $post->post_tag_ids = $tag_ids;
+        $post->post_tags = array_values(
+            array_filter(
+                array_map(
+                    static function ( int $tag_id ): string {
+                        $row = PostTagService::getById( $tag_id );
+                        return is_array( $row ) ? trim( (string) ( $row['name'] ?? '' ) ) : '';
+                    },
+                    $tag_ids
+                ),
+                static fn ( string $name ): bool => $name !== ''
+            )
+        );
+
         return $post;
     }
 
@@ -643,8 +689,40 @@ final class PostService {
         return array_values( array_unique( $ids ) );
     }
 
+    /**
+     * @param mixed $raw_ids
+     * @return array<int,int>
+     */
+    private static function normalizeTagIds( mixed $raw_ids ): array {
+        if ( is_string( $raw_ids ) ) {
+            $decoded = json_decode( $raw_ids, true );
+            if ( is_array( $decoded ) ) {
+                $raw_ids = $decoded;
+            } else {
+                $raw_ids = array_filter( array_map( 'trim', explode( ',', $raw_ids ) ), static fn( string $value ): bool => $value !== '' );
+            }
+        }
+        if ( ! is_array( $raw_ids ) ) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ( $raw_ids as $raw_id ) {
+            $id = (int) $raw_id;
+            if ( $id > 0 ) {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values( array_unique( $ids ) );
+    }
+
     private static function mapTable(): string {
         return \Metis_Tables::get( 'website_post_category_map' );
+    }
+
+    private static function tagMapTable(): string {
+        return \Metis_Tables::get( 'website_post_tag_map' );
     }
 
     private static function hasColumn( string $column ): bool {

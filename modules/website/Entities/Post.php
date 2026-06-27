@@ -28,6 +28,10 @@ final class Post {
     public ?int    $post_category_id         = null;
     /** @var array<int,int> */
     public array   $post_category_ids        = [];
+    /** @var array<int,int> */
+    public array   $post_tag_ids             = [];
+    /** @var array<int,string> */
+    public array   $post_tags                = [];
     public ?int    $parent_page_id           = null;
     public ?int    $author_id                = null;
     public ?int    $featured_image_id        = null;
@@ -55,6 +59,8 @@ final class Post {
         $p->template_key        = $row['template_key'] ?? null;
         $p->post_category_id    = isset( $row['post_category_id'] ) ? (int) $row['post_category_id'] : null;
         $p->post_category_ids   = [];
+        $p->post_tag_ids        = [];
+        $p->post_tags           = [];
         $p->parent_page_id      = isset( $row['parent_page_id'] ) ? (int) $row['parent_page_id'] : null;
         $p->author_id           = isset( $row['author_id'] ) ? (int) $row['author_id'] : null;
         $p->featured_image_id   = isset( $row['featured_image_id'] ) ? (int) $row['featured_image_id'] : null;
@@ -84,6 +90,8 @@ final class Post {
             'template_key'           => $this->template_key,
             'post_category_id'       => $this->post_category_id,
             'post_category_ids'      => array_values( array_map( 'intval', $this->post_category_ids ) ),
+            'post_tag_ids'           => array_values( array_map( 'intval', $this->post_tag_ids ) ),
+            'post_tags'              => array_values( array_map( 'strval', $this->post_tags ) ),
             'parent_page_id'         => $this->parent_page_id,
             'author_id'              => $this->author_id,
             'featured_image_id'      => $this->featured_image_id,

@@ -605,6 +605,7 @@ final class StructuredWebsiteBuilderService {
             $limit = (int) ( $content['limit'] ?? 5 );
             $limit = max( 1, min( 50, $limit ) );
             $category_ids = array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) );
+            $tag_ids = array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['tag_ids'] ?? null ) ? $content['tag_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) );
             $sort = metis_key_clean( (string) ( $content['sort'] ?? 'latest' ) );
             if ( $sort !== 'latest' ) {
                 $sort = 'latest';
@@ -613,6 +614,7 @@ final class StructuredWebsiteBuilderService {
                 'source' => $source,
                 'specific_page' => $specific_page,
                 'category_ids' => $category_ids,
+                'tag_ids' => $tag_ids,
                 'limit' => $limit,
                 'sort' => $sort,
             ];
@@ -1355,6 +1357,7 @@ final class StructuredWebsiteBuilderService {
                     'source' => $source,
                     'parent_page_id' => max( 0, (int) ( $content['specific_page'] ?? 0 ) ),
                     'category_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['category_ids'] ?? null ) ? $content['category_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
+                    'tag_ids' => array_values( array_unique( array_filter( array_map( 'intval', is_array( $content['tag_ids'] ?? null ) ? $content['tag_ids'] : [] ), static fn( int $id ): bool => $id > 0 ) ) ),
                     'sort' => 'latest',
                 ],
                 'style' => [],

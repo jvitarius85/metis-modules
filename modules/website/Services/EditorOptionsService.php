@@ -187,6 +187,17 @@ final class EditorOptionsService {
     }
 
     /**
+     * @return array<int,array{value:string,label:string,name:string,slug:string}>
+     */
+    public static function postTagOptions(): array {
+        if ( ! class_exists( PostTagService::class ) ) {
+            return [];
+        }
+
+        return PostTagService::options( true );
+    }
+
+    /**
      * @return array<int,array{value:string,label:string}>
      */
     public static function popupOptions(): array {

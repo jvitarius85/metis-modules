@@ -74,6 +74,9 @@ if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
                 'contacts' => 'people',
                 'credit-card' => 'finance',
                 'croissant' => 'food-drinks',
+                'bus' => 'transport',
+                'cable-car' => 'transport',
+                'car' => 'transport',
                 'database' => 'infrastructure',
                 'diagram-alt' => 'analytics',
                 'diagram' => 'analytics',
@@ -108,6 +111,7 @@ if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
                 'muffin' => 'food-drinks',
                 'need' => 'donations',
                 'notification' => 'communication',
+                'person-hand-raised' => 'people',
                 'pie' => 'food-drinks',
                 'pie-slice' => 'food-drinks',
                 'pizza' => 'food-drinks',
@@ -130,6 +134,7 @@ if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
                 'shield-cross' => 'health',
                 'sign-language' => 'accessibility',
                 'stripe' => 'brands',
+                'subway' => 'transport',
                 'sushi' => 'food-drinks',
                 'taco' => 'food-drinks',
                 'undo' => 'ui',
@@ -159,6 +164,7 @@ if ( ! function_exists( 'metis_website_build_editor_bootstrap' ) ) {
             if ( $contains_any( $slug, [ 'donat', 'donor', 'campaign', 'hand-donation', 'handshake', 'reward', 'need' ] ) ) return 'donations';
             if ( $contains_any( $slug, [ 'activity', 'activities', 'camp', 'campfire', 'cards', 'dice', 'game', 'hike', 'hiking', 'jenga', 'movie', 'puzzle', 'vote' ] ) ) return 'activities';
             if ( $contains_any( $slug, [ 'food', 'drink', 'burger', 'burrito', 'cake', 'coffee', 'croissant', 'cupcake', 'donut', 'fries', 'muffin', 'pie', 'pizza', 'sushi', 'taco' ] ) ) return 'food-drinks';
+            if ( $contains_any( $slug, [ 'bus', 'car', 'cable-car', 'subway', 'transit', 'vehicle' ] ) ) return 'transport';
             if ( $contains_any( $slug, [ 'shield', 'padlock', 'lock', 'security', 'fingerprint', 'passkey', 'scan', 'auth', 'license' ] ) ) return 'security';
             if ( $contains_any( $slug, [ 'health', 'medical', 'stethoscope', 'reminder-medical' ] ) ) return 'health';
             if ( $contains_any( $slug, [ 'chart', 'graph', 'heat-map', 'dashboard', 'report', 'progress', 'finance', 'phrase-sentiment' ] ) ) return 'analytics';

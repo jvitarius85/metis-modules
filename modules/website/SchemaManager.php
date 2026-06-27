@@ -26,6 +26,8 @@ final class SchemaManager {
         $posts_table = \Metis_Tables::get( 'website_posts' );
         $post_categories_table = \Metis_Tables::get( 'website_post_categories' );
         $post_category_map_table = \Metis_Tables::get( 'website_post_category_map' );
+        $post_tags_table = \Metis_Tables::get( 'website_post_tags' );
+        $post_tag_map_table = \Metis_Tables::get( 'website_post_tag_map' );
         $global_layouts_table = \Metis_Tables::get( 'website_global_layouts' );
         $menus_table = \Metis_Tables::get( 'website_menus' );
         $banners_table = \Metis_Tables::get( 'website_banners' );
@@ -140,6 +142,38 @@ final class SchemaManager {
             KEY post_id (post_id),
             KEY category_id (category_id),
             KEY primary_lookup (post_id, is_primary)
+        ) {$charset_collate};" );
+
+        \metis_db_delta( "CREATE TABLE {$post_tags_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            tag_code VARCHAR(16) DEFAULT NULL,
+            name VARCHAR(191) NOT NULL,
+            slug VARCHAR(191) NOT NULL,
+            status VARCHAR(24) NOT NULL DEFAULT 'active',
+            sort_order INT NOT NULL DEFAULT 0,
+            created_by BIGINT UNSIGNED DEFAULT NULL,
+            updated_by BIGINT UNSIGNED DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY tag_code (tag_code),
+            UNIQUE KEY slug (slug),
+            KEY status (status),
+            KEY sort_order (sort_order),
+            KEY name (name)
+        ) {$charset_collate};" );
+
+        \metis_db_delta( "CREATE TABLE {$post_tag_map_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            post_id BIGINT UNSIGNED NOT NULL,
+            tag_id BIGINT UNSIGNED NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY post_tag_unique (post_id, tag_id),
+            KEY post_id (post_id),
+            KEY tag_id (tag_id),
+            KEY post_tag_lookup (tag_id, post_id)
         ) {$charset_collate};" );
 
         // Global layouts (headers, footers)

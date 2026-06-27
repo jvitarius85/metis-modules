@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-06-27T20:59:47Z",
+  "generated_at": "2026-06-27T23:35:38Z",
   "modules": {
     "board": {
       "latest": "1.1.1",
@@ -673,12 +673,17 @@
       }
     },
     "website": {
-      "latest": "1.2.12",
+      "latest": "1.2.13",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/website.1.2.12.tar.gz",
-      "sha256": "79fcfe13b338ad090a20db2d0a6f07c9665d149bfa41869ccf73dccef838bd63",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/website.1.2.13.tar.gz",
+      "sha256": "eb35e33d451ef6f5a870065e2f26dfe506601cebbd08339f7286d821adb800c5",
       "previous_versions": [
+        {
+          "version": "1.2.12",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/website.1.2.12.tar.gz",
+          "sha256": "79fcfe13b338ad090a20db2d0a6f07c9665d149bfa41869ccf73dccef838bd63"
+        },
         {
           "version": "1.2.11",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/previous-versions/website.1.2.11.tar.gz",
