@@ -109,7 +109,13 @@ final class EditorOptionsService {
                 if ( $id === '' ) {
                     continue;
                 }
-                $label = trim( (string) ( $cfg['label'] ?? $cfg['name'] ?? '' ) );
+                $label = trim( (string) ( $cfg['calendar_label'] ?? $cfg['calendar_name'] ?? $cfg['label'] ?? $cfg['name'] ?? '' ) );
+                if ( $label === '' && function_exists( 'metis_calendar_sync_state' ) ) {
+                    $state = \metis_calendar_sync_state( $id );
+                    if ( is_array( $state ) ) {
+                        $label = trim( (string) ( $state['calendar_name'] ?? '' ) );
+                    }
+                }
                 $options[] = [ 'value' => $id, 'label' => ( $label !== '' ? $label : $id ) ];
             }
             if ( $options !== [] ) {

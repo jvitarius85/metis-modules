@@ -437,7 +437,7 @@ final class StructuredWebsiteBuilderService {
                 }
             }
             if ( $out === [] ) {
-                $out[] = [ 'icon' => '', 'title' => 'Feature', 'text' => '', 'cta' => [ 'label' => '', 'url' => '#' ] ];
+                $out[] = [ 'icon' => '', 'title' => 'Card', 'text' => '', 'cta' => [ 'label' => '', 'url' => '#' ] ];
             }
             return [ 'columns' => $cols, 'items' => $out ];
         }
@@ -1178,7 +1178,12 @@ final class StructuredWebsiteBuilderService {
                 $item_modules = [];
                 $icon = trim( (string) ( $item['icon'] ?? '' ) );
                 if ( $icon !== '' ) {
-                    $item_modules[] = [ 'id' => $section_id . '_feature_icon_' . (string) $i, 'type' => 'text', 'data' => [ 'content' => '<p>' . metis_escape_html( $icon ) . '</p>', 'tag' => 'div' ], 'style' => [] ];
+                    $icon_markup = function_exists( 'metis_navigation_svg_icon_markup' ) ? (string) metis_navigation_svg_icon_markup( $icon ) : '';
+                    if ( $icon_markup !== '' ) {
+                        $item_modules[] = [ 'id' => $section_id . '_feature_icon_' . (string) $i, 'type' => 'html', 'data' => [ 'html' => '<div class="metis-structured-feature-grid__icon" aria-hidden="true">' . $icon_markup . '</div>' ], 'style' => [] ];
+                    } else {
+                        $item_modules[] = [ 'id' => $section_id . '_feature_icon_' . (string) $i, 'type' => 'text', 'data' => [ 'content' => '<p>' . metis_escape_html( $icon ) . '</p>', 'tag' => 'div' ], 'style' => [] ];
+                    }
                 }
                 $title = trim( (string) ( $item['title'] ?? '' ) );
                 if ( $title !== '' ) {
@@ -1193,12 +1198,15 @@ final class StructuredWebsiteBuilderService {
                 if ( $label !== '' ) {
                     $item_modules[] = [
                         'id' => $section_id . '_feature_cta_' . (string) $i,
-                        'type' => 'button',
+                        'type' => 'button_group',
                         'data' => [
-                            'label' => $label,
-                            'url' => self::normalizeUrl( (string) ( $cta['url'] ?? '#' ) ),
-                            'bgcolor' => '#485bc7',
-                            'color' => '#ffffff',
+                            'buttons' => [
+                                [
+                                    'label' => $label,
+                                    'url' => self::normalizeUrl( (string) ( $cta['url'] ?? '#' ) ),
+                                ],
+                            ],
+                            'align' => 'left',
                         ],
                         'style' => [],
                     ];

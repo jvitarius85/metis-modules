@@ -5313,7 +5313,7 @@ final class WebsiteRenderer {
             $html .= '<section class="metis-structured-events-month-day' . ( $is_outside ? ' is-outside' : '' ) . '">';
             $html .= '<header class="metis-structured-events-month-day__header"><strong>' . metis_escape_html( date( 'j', (int) $cursor ) ) . '</strong></header>';
             if ( $day_items === [] ) {
-                $html .= '<div class="metis-structured-events-month-day__items"><p class="metis-structured-events-day__empty">No events</p></div>';
+                $html .= '<div class="metis-structured-events-month-day__items" aria-hidden="true"></div>';
             } else {
                 $html .= '<div class="metis-structured-events-month-day__items">';
                 foreach ( $day_items as $item_index => $item ) {
@@ -6406,7 +6406,9 @@ final class WebsiteRenderer {
             '.metis-structured-events--week{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}',
             '.metis-structured-events--calendar{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}',
             '.metis-structured-events-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
-            '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:12px;padding:16px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:18px;background:var(--metis-surface,#fff);box-shadow:0 14px 28px rgba(15,23,42,.05);align-content:start;min-height:220px;overflow:visible;}',
+            '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:12px;padding:16px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:18px;background:var(--metis-surface,#fff);box-shadow:0 14px 28px rgba(15,23,42,.05);align-content:start;overflow:visible;}',
+            '.metis-structured-events-day{min-height:220px;}',
+            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:0;aspect-ratio:1 / 1;}',
             '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
             '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
             '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
@@ -6414,7 +6416,7 @@ final class WebsiteRenderer {
             '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
             '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;}',
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
-            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
+            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;align-items:stretch;}',
             '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
             '.metis-structured-events-mobile-list{display:none;gap:14px;}',
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
@@ -7047,6 +7049,7 @@ final class WebsiteRenderer {
             '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_accent{--metis-menu-button-bg:var(--metis-color-accent,#ff7542);--metis-menu-button-text:#fff;--metis-menu-button-border:transparent;}',
             '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_text{--metis-menu-button-bg:var(--metis-color-text,#1a1f2b);--metis-menu-button-text:var(--metis-color-bg,#fff);--metis-menu-button-border:transparent;}',
             '.metis-template .metis-template-menu-cta .metis-shell-menu-item>.metis-shell-menu-btn--metis_surface{--metis-menu-button-bg:var(--metis-color-surface,#fff);--metis-menu-button-text:var(--metis-color-text,#1a1f2b);--metis-menu-button-border:var(--metis-color-border,#d8deea);}',
+            '.metis-template .metis-shell-menu-item>.metis-shell-menu-btn,.metis-template .metis-shell-menu-item>.metis-shell-menu-btn:hover,.metis-template .metis-shell-menu-item>.metis-shell-menu-btn:focus-visible,.metis-template .metis-shell-menu-item.is-active>.metis-shell-menu-btn,.metis-template .metis-shell-menu-item.is-active-ancestor>.metis-shell-menu-btn{box-shadow:none !important;filter:none !important;}',
             '.metis-template .metis-template-menu .metis-shell-menu-label:not([tabindex]){cursor:default;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item.has-children{z-index:40;}',
             '.metis-template .metis-template-menu .metis-shell-menu-item.has-children>.metis-shell-menu-label{cursor:pointer;}',

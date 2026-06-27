@@ -400,12 +400,18 @@
 
     var requestUrl = new URL(link && link.href ? link.href : window.location.href, window.location.href);
     requestUrl.searchParams.set("metis_events_offset", String(offset));
+    requestUrl.searchParams.set("_metis_events_nav", String(Date.now()));
     block.setAttribute("data-metis-events-loading", "1");
     block.classList.add("is-loading");
 
     window.fetch(requestUrl.toString(), {
+      cache: "no-store",
       credentials: "same-origin",
-      headers: { "X-Requested-With": "XMLHttpRequest" }
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      }
     }).then(function (response) {
       if (!response.ok) throw new Error("Calendar request failed.");
       return response.text();
