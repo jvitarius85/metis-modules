@@ -5288,20 +5288,26 @@ final class WebsiteRenderer {
      */
     private static function renderStructuredEventPeek( array $item, string $uid ): string {
         $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
+        $has_time = trim( (string) ( $item['start']['dateTime'] ?? '' ) ) !== '';
         $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
-        $time_label = 'All day';
-        if ( $start_raw !== '' ) {
+        $time_label = '';
+        if ( $has_time && $start_raw !== '' ) {
             $ts = strtotime( $start_raw );
             if ( $ts ) {
-                $time_label = function_exists( 'metis_runtime_date' )
-                    ? metis_runtime_date( 'g:i A', (int) $ts )
-                    : date( 'g:i A', (int) $ts );
+                $time_label = strtolower(
+                    function_exists( 'metis_runtime_date' )
+                        ? metis_runtime_date( 'g:ia', (int) $ts )
+                        : date( 'g:ia', (int) $ts )
+                );
             }
         }
 
-        $html = '<div class="metis-structured-events-peek">';
+        $html = '<div class="metis-structured-events-peek' . ( $has_time ? '' : ' is-all-day' ) . '">';
         $html .= '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-controls="metis-events-peek-' . metis_escape_attr( $uid ) . '">';
-        $html .= '<span class="metis-structured-events-peek__time">' . metis_escape_html( $time_label ) . '</span>';
+        $html .= '<span class="metis-structured-events-peek__dot" aria-hidden="true"></span>';
+        if ( $time_label !== '' ) {
+            $html .= '<span class="metis-structured-events-peek__time">' . metis_escape_html( $time_label ) . '</span>';
+        }
         $html .= '<span class="metis-structured-events-peek__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</span>';
         $html .= '</button>';
         $html .= '<div id="metis-events-peek-' . metis_escape_attr( $uid ) . '" class="metis-structured-events-peek__panel" role="dialog" aria-label="' . metis_escape_attr( $title !== '' ? $title : 'Event details' ) . '">';
@@ -6321,9 +6327,13 @@ final class WebsiteRenderer {
             '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
             '.metis-structured-events-peek:hover,.metis-structured-events-peek:focus-within{z-index:32;}',
-            '.metis-structured-events-peek__trigger{width:100%;display:grid;gap:3px;justify-items:start;padding:10px 12px;border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 14%, var(--metis-color-border,#dbe3ef));border-radius:12px;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 80%, transparent);color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;}',
-            '.metis-structured-events-peek__time{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
-            '.metis-structured-events-peek__title{font-size:.9rem;line-height:1.3;font-weight:700;text-wrap:balance;}',
+            '.metis-structured-events-peek__trigger{width:100%;display:flex;align-items:center;gap:8px;padding:4px 0;border:0;border-radius:10px;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;}',
+            '.metis-structured-events-peek__dot{width:10px;height:10px;border-radius:999px;background:var(--metis-color-primary,#7e22ce);flex:0 0 auto;}',
+            '.metis-structured-events-peek__time{font-size:.9rem;line-height:1.2;font-weight:500;color:var(--metis-color-text,#0f172a);flex:0 0 auto;}',
+            '.metis-structured-events-peek__title{font-size:.9rem;line-height:1.2;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}',
+            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:0 10px;min-height:30px;border-radius:999px;background:var(--metis-color-success,#15803d);color:#fff;}',
+            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__dot{display:none;}',
+            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:#fff;font-weight:700;}',
             '.metis-structured-events-peek__panel{position:absolute;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 32px));opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease;}',
             '.metis-structured-events-peek:hover .metis-structured-events-peek__panel,.metis-structured-events-peek:focus-within .metis-structured-events-peek__panel{opacity:1;pointer-events:auto;transform:translateY(0);}',
             '.metis-structured-events-month-day:nth-child(7n) .metis-structured-events-peek__panel,.metis-structured-events-day:nth-child(7n) .metis-structured-events-peek__panel{left:auto;right:0;}',
