@@ -5090,6 +5090,7 @@ final class WebsiteRenderer {
         $offset = isset( $_GET['metis_events_offset'] ) ? (int) $_GET['metis_events_offset'] : 0;
         $offset = max( -24, min( 24, $offset ) );
         $nav_html = '';
+        $all_items = $items;
 
         if ( $view_mode === 'week' ) {
             $base_start = strtotime( 'monday this week midnight' );
@@ -5099,7 +5100,7 @@ final class WebsiteRenderer {
             $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' week', (int) $base_start ) ?: $base_start;
             $period_end = strtotime( '+7 days', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
             $items = array_values( array_filter(
-                $items,
+                $all_items,
                 static function ( $item ) use ( $period_start, $period_end ): bool {
                     if ( ! is_array( $item ) ) {
                         return false;
@@ -5109,13 +5110,34 @@ final class WebsiteRenderer {
                     return $start_ts >= $period_start && $start_ts < $period_end;
                 }
             ) );
+            if ( $items === [] && $offset === 0 && $all_items !== [] ) {
+                $first_item = is_array( $all_items[0] ?? null ) ? $all_items[0] : [];
+                $first_start_raw = (string) ( $first_item['start']['dateTime'] ?? $first_item['start']['date'] ?? '' );
+                $first_start_ts = strtotime( $first_start_raw ) ?: 0;
+                if ( $first_start_ts > 0 ) {
+                    $base_start = strtotime( 'monday this week midnight', (int) $first_start_ts ) ?: $first_start_ts;
+                    $period_start = $base_start;
+                    $period_end = strtotime( '+7 days', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
+                    $items = array_values( array_filter(
+                        $all_items,
+                        static function ( $item ) use ( $period_start, $period_end ): bool {
+                            if ( ! is_array( $item ) ) {
+                                return false;
+                            }
+                            $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+                            $start_ts = strtotime( $start_raw ) ?: 0;
+                            return $start_ts >= $period_start && $start_ts < $period_end;
+                        }
+                    ) );
+                }
+            }
             $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next week</a></div>';
         } elseif ( $view_mode === 'calendar' ) {
             $base_start = strtotime( date( 'Y-m-01 00:00:00' ) );
             $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' month', (int) $base_start ) ?: $base_start;
             $period_end = strtotime( '+1 month', (int) $period_start ) ?: ( $period_start + ( 31 * DAY_IN_SECONDS ) );
             $items = array_values( array_filter(
-                $items,
+                $all_items,
                 static function ( $item ) use ( $period_start, $period_end ): bool {
                     if ( ! is_array( $item ) ) {
                         return false;
@@ -5125,6 +5147,27 @@ final class WebsiteRenderer {
                     return $start_ts >= $period_start && $start_ts < $period_end;
                 }
             ) );
+            if ( $items === [] && $offset === 0 && $all_items !== [] ) {
+                $first_item = is_array( $all_items[0] ?? null ) ? $all_items[0] : [];
+                $first_start_raw = (string) ( $first_item['start']['dateTime'] ?? $first_item['start']['date'] ?? '' );
+                $first_start_ts = strtotime( $first_start_raw ) ?: 0;
+                if ( $first_start_ts > 0 ) {
+                    $base_start = strtotime( date( 'Y-m-01 00:00:00', (int) $first_start_ts ) ) ?: $first_start_ts;
+                    $period_start = $base_start;
+                    $period_end = strtotime( '+1 month', (int) $period_start ) ?: ( $period_start + ( 31 * DAY_IN_SECONDS ) );
+                    $items = array_values( array_filter(
+                        $all_items,
+                        static function ( $item ) use ( $period_start, $period_end ): bool {
+                            if ( ! is_array( $item ) ) {
+                                return false;
+                            }
+                            $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+                            $start_ts = strtotime( $start_raw ) ?: 0;
+                            return $start_ts >= $period_start && $start_ts < $period_end;
+                        }
+                    ) );
+                }
+            }
             $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next month</a></div>';
         } else {
             $items = array_slice( $items, 0, $limit );
@@ -6164,9 +6207,9 @@ final class WebsiteRenderer {
             '.metis-structured-heading.is-align-center{text-align:center;}',
             '.metis-structured-heading.is-align-right{text-align:right;}',
             '.metis-structured-image{display:grid;gap:10px;justify-items:center;margin:0;width:100%;}',
-            '.metis-structured-image.is-align-left{justify-items:start;}',
-            '.metis-structured-image.is-align-center{justify-items:center;}',
-            '.metis-structured-image.is-align-right{justify-items:end;}',
+            '.metis-structured-image.is-align-left{justify-items:start;margin-left:0;margin-right:auto;}',
+            '.metis-structured-image.is-align-center{justify-items:center;margin-left:auto;margin-right:auto;}',
+            '.metis-structured-image.is-align-right{justify-items:end;margin-left:auto;margin-right:0;}',
             '.metis-structured-image img{display:block;width:100%;height:auto;border-radius:16px;border:1px solid var(--metis-color-border,#dbe3ef);}',
             '.metis-structured-image.is-mode-contained{max-width:min(920px,100%);}',
             '.metis-structured-image.is-mode-wide{max-width:min(1120px,100%);}',
