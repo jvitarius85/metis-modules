@@ -174,14 +174,58 @@
     return window.location.href.replace(/[?#].*$/, "");
   }
 
-  function renderEventsNavHtml(view, label, prevCursor, nextCursor) {
+  function buildEventsPrintHref(view, currentCursor) {
+    var href = currentPageHref() || "#";
+    var params = new URLSearchParams();
+    params.set("metis_events_cursor", currentCursor);
+    params.set("metis_events_print", "1");
+    if (view === "week") {
+      params.set("metis_events_view", "week");
+    }
+    return href + "?" + params.toString();
+  }
+
+  function openCalendarPrintView(block, fallbackHref) {
+    if (!block || typeof window.open !== "function") {
+      if (fallbackHref) {
+        window.open(fallbackHref, "_blank", "noopener");
+      }
+      return;
+    }
+
+    var printWindow = window.open("", "_blank", "noopener");
+    if (!printWindow) {
+      if (fallbackHref) {
+        window.open(fallbackHref, "_blank", "noopener");
+      }
+      return;
+    }
+
+    var assets = "";
+    var nodes = document.querySelectorAll('link[rel="stylesheet"], style');
+    for (var i = 0; i < nodes.length; i += 1) {
+      assets += nodes[i].outerHTML || "";
+    }
+
+    var titleNode = block.querySelector(".metis-structured-events__nav-title");
+    var title = titleNode ? s(titleNode.textContent || "").trim() : "Calendar";
+    var blockHtml = block.outerHTML || "";
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(title) + '</title><base href="' + escapeHtml(document.baseURI || currentPageHref() || "/") + '">' + assets + '</head><body class="metis-public-site metis-events-print-mode">' + blockHtml + '<script>window.addEventListener("load",function(){window.setTimeout(function(){window.print();},150);},{once:true});<\/script></body></html>';
+
+    printWindow.document.open();
+    printWindow.document.write(doc);
+    printWindow.document.close();
+  }
+
+  function renderEventsNavHtml(view, label, currentCursor, prevCursor, nextCursor) {
     var prevLabel = view === "week" ? "Previous week" : "Previous month";
     var nextLabel = view === "week" ? "Next week" : "Next month";
     var href = escapeHtml(currentPageHref() || "#");
+    var printHref = escapeHtml(buildEventsPrintHref(view, currentCursor));
     return '<div class="metis-structured-events__nav">' +
       '<a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
       '<div class="metis-structured-events__nav-title">' + escapeHtml(label) + '</div>' +
-      '<div class="metis-structured-events__nav-actions"><button type="button" class="metis-structured-events__print-btn" data-metis-events-print="1">Print</button><a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a></div>' +
+      '<div class="metis-structured-events__nav-actions"><a href="' + printHref + '" target="_blank" rel="noopener" class="metis-structured-events__print-btn" data-metis-events-print="' + printHref + '">Print</a><a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a></div>' +
       '</div>';
   }
 
@@ -234,7 +278,7 @@
     });
 
     var html = s(block._metisEventsStateScript || "");
-    html += renderEventsNavHtml("calendar", formatMonthYear(monthStart), isoDateKey(prevMonthStart), isoDateKey(nextMonthStart));
+    html += renderEventsNavHtml("calendar", formatMonthYear(monthStart), currentKey, isoDateKey(prevMonthStart), isoDateKey(nextMonthStart));
     html += '<div class="metis-structured-events-month-head">';
     ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(function (weekday) {
       html += '<div class="metis-structured-events-month-head__cell">' + weekday + '</div>';
@@ -277,7 +321,7 @@
     });
 
     var html = s(block._metisEventsStateScript || "");
-    html += renderEventsNavHtml("week", formatWeekRangeLabel(weekStart, addDays(weekEnd, -1)), isoDateKey(prevWeek), isoDateKey(nextWeek));
+    html += renderEventsNavHtml("week", formatWeekRangeLabel(weekStart, addDays(weekEnd, -1)), startKey, isoDateKey(prevWeek), isoDateKey(nextWeek));
     html += '<div class="metis-structured-events-week-grid">';
     for (var day = 0; day < 7; day += 1) {
       var dayDate = addDays(weekStart, day);
@@ -653,7 +697,9 @@
     if (printButton) {
       event.preventDefault();
       event.stopPropagation();
-      window.print();
+      var printHref = s(printButton.getAttribute("data-metis-events-print") || printButton.getAttribute("href") || "").trim();
+      var printBlock = printButton.closest ? printButton.closest("[data-metis-events-block=\"1\"]") : null;
+      openCalendarPrintView(printBlock, printHref);
       return;
     }
     var navLink = event.target && event.target.closest

@@ -1180,9 +1180,25 @@ final class StructuredWebsiteBuilderService {
                 if ( $icon !== '' ) {
                     $icon_markup = function_exists( 'metis_navigation_svg_icon_markup' ) ? (string) metis_navigation_svg_icon_markup( $icon ) : '';
                     if ( $icon_markup !== '' ) {
-                        $item_modules[] = [ 'id' => $section_id . '_feature_icon_' . (string) $i, 'type' => 'html', 'data' => [ 'html' => '<div class="metis-structured-feature-grid__icon" aria-hidden="true">' . $icon_markup . '</div>' ], 'style' => [] ];
+                        $item_modules[] = [
+                            'id' => $section_id . '_feature_icon_' . (string) $i,
+                            'type' => 'text',
+                            'data' => [
+                                'content' => '<div class="metis-structured-feature-grid__icon" aria-hidden="true">' . $icon_markup . '</div>',
+                                'tag' => 'div',
+                            ],
+                            'style' => [],
+                        ];
                     } else {
-                        $item_modules[] = [ 'id' => $section_id . '_feature_icon_' . (string) $i, 'type' => 'text', 'data' => [ 'content' => '<p>' . metis_escape_html( $icon ) . '</p>', 'tag' => 'div' ], 'style' => [] ];
+                        $item_modules[] = [
+                            'id' => $section_id . '_feature_icon_' . (string) $i,
+                            'type' => 'text',
+                            'data' => [
+                                'content' => '<div class="metis-structured-feature-grid__icon" aria-hidden="true">' . metis_escape_html( $icon ) . '</div>',
+                                'tag' => 'div',
+                            ],
+                            'style' => [],
+                        ];
                     }
                 }
                 $title = trim( (string) ( $item['title'] ?? '' ) );
@@ -1206,7 +1222,7 @@ final class StructuredWebsiteBuilderService {
                                     'url' => self::normalizeUrl( (string) ( $cta['url'] ?? '#' ) ),
                                 ],
                             ],
-                            'align' => 'left',
+                            'align' => 'center',
                         ],
                         'style' => [],
                     ];
