@@ -390,6 +390,61 @@
     navigate(url);
   });
 
+  function fetchEventsBlock(block, offset, link) {
+    if (!block || block.getAttribute("data-metis-events-loading") === "1") {
+      return;
+    }
+    var allBlocks = Array.prototype.slice.call(document.querySelectorAll("[data-metis-events-block=\"1\"]"));
+    var blockIndex = allBlocks.indexOf(block);
+    if (blockIndex < 0) blockIndex = 0;
+
+    var requestUrl = new URL(link && link.href ? link.href : window.location.href, window.location.href);
+    requestUrl.searchParams.set("metis_events_offset", String(offset));
+    block.setAttribute("data-metis-events-loading", "1");
+    block.classList.add("is-loading");
+
+    window.fetch(requestUrl.toString(), {
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    }).then(function (response) {
+      if (!response.ok) throw new Error("Calendar request failed.");
+      return response.text();
+    }).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      var nextBlocks = doc.querySelectorAll("[data-metis-events-block=\"1\"]");
+      var nextBlock = nextBlocks[blockIndex] || nextBlocks[0];
+      if (!nextBlock) throw new Error("Calendar markup missing.");
+      block.replaceWith(nextBlock);
+    }).catch(function () {
+      if (link && link.href) {
+        window.location.assign(link.href);
+      }
+    }).finally(function () {
+      var liveBlocks = document.querySelectorAll("[data-metis-events-block=\"1\"]");
+      for (var i = 0; i < liveBlocks.length; i++) {
+        liveBlocks[i].removeAttribute("data-metis-events-loading");
+        liveBlocks[i].classList.remove("is-loading");
+      }
+    });
+  }
+
+  document.addEventListener("click", function (event) {
+    var navLink = event.target && event.target.closest
+      ? event.target.closest("[data-metis-events-nav]")
+      : null;
+    if (!navLink) {
+      return;
+    }
+    var block = navLink.closest ? navLink.closest("[data-metis-events-block=\"1\"]") : null;
+    if (!block) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    var offset = parseInt(String(navLink.getAttribute("data-metis-events-offset") || "0"), 10);
+    fetchEventsBlock(block, isFinite(offset) ? offset : 0, navLink);
+  });
+
   function syncCondensedHeader() {
     var y = window.scrollY || window.pageYOffset || 0;
     if (y > 32) {

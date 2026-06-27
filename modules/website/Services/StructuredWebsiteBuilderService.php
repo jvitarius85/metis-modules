@@ -236,7 +236,33 @@ final class StructuredWebsiteBuilderService {
      */
     private static function normalizeSectionSettings( array $settings ): array {
         $background = metis_key_clean( (string) ( $settings['background'] ?? 'default' ) );
-        if ( ! in_array( $background, [ 'default', 'surface', 'muted', 'primary_tint', 'accent_tint' ], true ) ) {
+        if ( $background === 'surface' ) {
+            $background = 'metis_surface';
+        } elseif ( $background === 'muted' ) {
+            $background = 'metis_row_even_bg';
+        } elseif ( $background === 'primary_tint' ) {
+            $background = 'metis_primary';
+        } elseif ( $background === 'accent_tint' ) {
+            $background = 'metis_accent';
+        }
+        if ( ! in_array( $background, [
+            'default',
+            'metis_primary',
+            'metis_primary_dark',
+            'metis_accent',
+            'metis_bg',
+            'metis_surface',
+            'metis_border',
+            'metis_text',
+            'metis_text_muted',
+            'metis_header_bg',
+            'metis_row_odd_bg',
+            'metis_row_even_bg',
+            'metis_row_hover_bg',
+            'metis_sidebar_bg',
+            'metis_sidebar_icon_color',
+            'metis_sidebar_active_color',
+        ], true ) ) {
             $background = 'default';
         }
         return $background === 'default' ? [] : [ 'background' => $background ];
