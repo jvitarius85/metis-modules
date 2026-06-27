@@ -991,7 +991,8 @@ function metis_website_ajax_validate_accessibility_blocks( array $blocks, string
         if ( isset( $data['col_blocks'] ) && is_array( $data['col_blocks'] ) ) {
             foreach ( $data['col_blocks'] as $col_index => $col_blocks ) {
                 if ( is_array( $col_blocks ) ) {
-                    metis_website_ajax_validate_accessibility_blocks( $col_blocks, $block_path . '.col_blocks.' . (string) $col_index, $state, $errors );
+                    $column_state = $state;
+                    metis_website_ajax_validate_accessibility_blocks( $col_blocks, $block_path . '.col_blocks.' . (string) $col_index, $column_state, $errors );
                 }
             }
         }
