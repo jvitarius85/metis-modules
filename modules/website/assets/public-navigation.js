@@ -390,7 +390,7 @@
     navigate(url);
   });
 
-  function fetchEventsBlock(block, offset, link) {
+  function fetchEventsBlock(block, offset, link, cursor) {
     if (!block || block.getAttribute("data-metis-events-loading") === "1") {
       return;
     }
@@ -400,6 +400,11 @@
 
     var requestUrl = new URL(link && link.href ? link.href : window.location.href, window.location.href);
     requestUrl.searchParams.set("metis_events_offset", String(offset));
+    if (cursor) {
+      requestUrl.searchParams.set("metis_events_cursor", cursor);
+    } else {
+      requestUrl.searchParams.delete("metis_events_cursor");
+    }
     requestUrl.searchParams.set("_metis_events_nav", String(Date.now()));
     block.setAttribute("data-metis-events-loading", "1");
     block.classList.add("is-loading");
@@ -448,7 +453,8 @@
     event.preventDefault();
     event.stopPropagation();
     var offset = parseInt(String(navLink.getAttribute("data-metis-events-offset") || "0"), 10);
-    fetchEventsBlock(block, isFinite(offset) ? offset : 0, navLink);
+    var cursor = s(navLink.getAttribute("data-metis-events-cursor") || "");
+    fetchEventsBlock(block, isFinite(offset) ? offset : 0, navLink, cursor);
   });
 
   function syncCondensedHeader() {

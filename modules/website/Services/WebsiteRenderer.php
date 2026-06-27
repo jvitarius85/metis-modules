@@ -5155,6 +5155,8 @@ final class WebsiteRenderer {
 
         $offset = isset( $_GET['metis_events_offset'] ) ? (int) $_GET['metis_events_offset'] : 0;
         $offset = max( -24, min( 24, $offset ) );
+        $cursor_raw = trim( (string) ( $_GET['metis_events_cursor'] ?? '' ) );
+        $cursor_ts = $cursor_raw !== '' ? ( strtotime( $cursor_raw ) ?: 0 ) : 0;
         $nav_html = '';
         $all_items = $items;
 
@@ -5163,7 +5165,9 @@ final class WebsiteRenderer {
             if ( ! $base_start ) {
                 $base_start = strtotime( 'today midnight' ) ?: time();
             }
-            $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' week', (int) $base_start ) ?: $base_start;
+            $period_start = $cursor_ts > 0
+                ? ( strtotime( 'monday this week midnight', (int) $cursor_ts ) ?: $cursor_ts )
+                : ( strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' week', (int) $base_start ) ?: $base_start );
             $period_end = strtotime( '+7 days', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
             $items = array_values( array_filter(
                 $all_items,
@@ -5197,10 +5201,16 @@ final class WebsiteRenderer {
                     ) );
                 }
             }
-            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next week</a></div>';
+            $prev_period_start = strtotime( '-1 week', (int) $period_start ) ?: ( $period_start - ( 7 * DAY_IN_SECONDS ) );
+            $next_period_start = strtotime( '+1 week', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
+            $prev_cursor = date( 'Y-m-d', (int) $prev_period_start );
+            $next_cursor = date( 'Y-m-d', (int) $next_period_start );
+            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">Next week</a></div>';
         } elseif ( $view_mode === 'calendar' ) {
             $base_start = strtotime( date( 'Y-m-01 00:00:00' ) );
-            $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' month', (int) $base_start ) ?: $base_start;
+            $period_start = $cursor_ts > 0
+                ? ( strtotime( date( 'Y-m-01 00:00:00', (int) $cursor_ts ) ) ?: $cursor_ts )
+                : ( strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' month', (int) $base_start ) ?: $base_start );
             $period_end = strtotime( '+1 month', (int) $period_start ) ?: ( $period_start + ( 31 * DAY_IN_SECONDS ) );
             $items = array_values( array_filter(
                 $all_items,
@@ -5234,7 +5244,11 @@ final class WebsiteRenderer {
                     ) );
                 }
             }
-            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next month</a></div>';
+            $prev_period_start = strtotime( '-1 month', (int) $period_start ) ?: $period_start;
+            $next_period_start = strtotime( '+1 month', (int) $period_start ) ?: $period_start;
+            $prev_cursor = date( 'Y-m-01', (int) $prev_period_start );
+            $next_cursor = date( 'Y-m-01', (int) $next_period_start );
+            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">Next month</a></div>';
         } else {
             $items = array_slice( $items, 0, $limit );
         }
@@ -6412,7 +6426,7 @@ final class WebsiteRenderer {
             '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
             '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
             '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
-            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:8px;align-content:start;}',
+            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:8px;align-content:start;min-width:0;overflow:hidden;}',
             '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
             '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;}',
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
@@ -6422,13 +6436,13 @@ final class WebsiteRenderer {
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
             '.metis-structured-events-peek:hover,.metis-structured-events-peek:focus-within{z-index:32;}',
-            '.metis-structured-events-peek__trigger{width:100%;display:flex;align-items:center;gap:8px;padding:4px 0;border:0;border-radius:10px;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;}',
+            '.metis-structured-events-peek__trigger{width:100%;display:flex;align-items:flex-start;gap:8px;padding:2px 0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:hidden;}',
             '.metis-structured-events-peek__dot{width:10px;height:10px;border-radius:999px;background:var(--metis-color-primary,#7e22ce);flex:0 0 auto;}',
             '.metis-structured-events-peek__time{font-size:.9rem;line-height:1.2;font-weight:500;color:var(--metis-color-text,#0f172a);flex:0 0 auto;}',
-            '.metis-structured-events-peek__title{font-size:.9rem;line-height:1.2;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}',
-            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:0 10px;min-height:30px;border-radius:999px;background:var(--metis-color-success,#15803d);color:#fff;}',
-            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__dot{display:none;}',
-            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:#fff;font-weight:700;}',
+            '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.3;font-weight:600;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
+            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:2px 0;min-height:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);}',
+            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__dot{display:block;}',
+            '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:var(--metis-color-text,#0f172a);font-weight:600;}',
             '.metis-structured-events-peek__panel{position:absolute;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 32px));opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease;}',
             '.metis-structured-events-peek:hover .metis-structured-events-peek__panel,.metis-structured-events-peek:focus-within .metis-structured-events-peek__panel{opacity:1;pointer-events:auto;transform:translateY(0);}',
             '.metis-structured-events-month-day:nth-child(7n) .metis-structured-events-peek__panel,.metis-structured-events-day:nth-child(7n) .metis-structured-events-peek__panel{left:auto;right:0;}',
@@ -6571,9 +6585,9 @@ final class WebsiteRenderer {
 
         $button = $scope . ' .metis-shell-menu-item > .metis-shell-menu-btn';
         return implode( "\n", [
-            $button . '{position:relative !important;isolation:isolate;min-width:max-content !important;padding:.78rem 1.16rem !important;background:var(--metis-menu-button-bg,var(--metis-color-accent,#ff7542)) !important;color:var(--metis-menu-button-text,#fff) !important;border:1px solid var(--metis-menu-button-border,rgba(255,255,255,.38)) !important;border-radius:999px !important;box-shadow:0 12px 26px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-accent,#ff7542)) 34%,transparent),inset 0 0 0 1px rgba(255,255,255,.22) !important;font-weight:800 !important;opacity:1 !important;}',
-            $button . '::before{content:"";position:absolute;inset:2px;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0));z-index:-1;pointer-events:none;}',
-            $button . ':hover,' . $button . ':focus-visible{filter:none !important;transform:translateY(-1px);box-shadow:0 16px 30px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-accent,#ff7542)) 40%,transparent),inset 0 0 0 1px rgba(255,255,255,.28) !important;}',
+            $button . '{position:relative !important;isolation:isolate;min-width:max-content !important;padding:.78rem 1.16rem !important;background:var(--metis-menu-button-bg,var(--metis-color-accent,#ff7542)) !important;color:var(--metis-menu-button-text,#fff) !important;border:1px solid var(--metis-menu-button-border,rgba(255,255,255,.38)) !important;border-radius:999px !important;box-shadow:none !important;font-weight:800 !important;opacity:1 !important;filter:none !important;}',
+            $button . '::before{display:none !important;}',
+            $button . ':hover,' . $button . ':focus-visible{filter:none !important;transform:translateY(-1px);box-shadow:none !important;}',
         ] );
     }
 
@@ -6590,7 +6604,7 @@ final class WebsiteRenderer {
             'body.metis-public-site .metis-template .metis-template-menu-cta{flex:0 0 auto;min-width:0;}',
             '.metis-shell-header-inner,.metis-template .metis-template-header-inner{transition:padding .22s ease,gap .22s ease;}',
             '.metis-shell-brand-logo-header,.metis-template .metis-template-brand-logo{transition:max-height .22s ease;}',
-            '.metis-shell-header.is-scrolled,.metis-template .metis-template-sticky-capable.is-scrolled{box-shadow:0 12px 28px rgba(15,23,42,.12);}',
+            '.metis-shell-header.is-scrolled,.metis-template .metis-template-sticky-capable.is-scrolled{box-shadow:none !important;}',
             '.metis-shell-header.is-scrolled .metis-shell-header-inner{padding-top:7px;padding-bottom:7px;}',
             '.metis-shell-header.is-scrolled .metis-shell-brand-logo-header{max-height:64px;}',
             'body.metis-public-site .metis-template .metis-template-sticky-capable.is-scrolled{padding-top:6px !important;padding-bottom:6px !important;}',
@@ -6626,7 +6640,7 @@ final class WebsiteRenderer {
             . 'body.metis-nav-mobile-viewport .metis-template .metis-mobile-nav-item.is-open > .metis-mobile-nav-sub{display:block !important;}'
             . 'body.metis-nav-mobile-viewport .metis-template .metis-mobile-nav-sub .metis-mobile-nav-link{padding:10px 0 !important;font-size:.96rem !important;font-weight:600 !important;}'
             . 'body.metis-nav-mobile-viewport .metis-template .metis-mobile-nav-actions{display:grid !important;grid-template-columns:1fr !important;gap:12px !important;}'
-            . 'body.metis-nav-mobile-viewport .metis-template .metis-mobile-nav-action{display:flex !important;align-items:center !important;justify-content:center !important;width:100% !important;min-height:52px !important;padding:1rem 1.25rem !important;border-radius:14px !important;text-decoration:none !important;font-weight:800 !important;box-sizing:border-box !important;background:var(--metis-menu-button-bg,#485bc7) !important;color:var(--metis-menu-button-text,#ffffff) !important;border:1px solid var(--metis-menu-button-border,transparent) !important;box-shadow:0 14px 30px rgba(15,23,42,.12) !important;}'
+            . 'body.metis-nav-mobile-viewport .metis-template .metis-mobile-nav-action{display:flex !important;align-items:center !important;justify-content:center !important;width:100% !important;min-height:52px !important;padding:1rem 1.25rem !important;border-radius:14px !important;text-decoration:none !important;font-weight:800 !important;box-sizing:border-box !important;background:var(--metis-menu-button-bg,#485bc7) !important;color:var(--metis-menu-button-text,#ffffff) !important;border:1px solid var(--metis-menu-button-border,transparent) !important;box-shadow:none !important;}'
             . 'body.metis-nav-open .metis-public-popup-launcher{opacity:0 !important;pointer-events:none !important;}'
             . '}';
     }
@@ -6660,8 +6674,8 @@ final class WebsiteRenderer {
             $list . '{display:flex !important;flex-wrap:nowrap !important;gap:.35rem !important;align-items:center !important;justify-content:center !important;width:100%;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;overflow:visible !important;}',
             $item . '{position:relative;display:flex !important;align-items:center !important;justify-content:center !important;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;}',
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:center !important;min-width:max-content;min-height:0 !important;padding:.78rem 1.08rem !important;border:0 !important;border-radius:999px !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-text,#1a1f2b) !important;font-size:var(--metis-menu-font-size,14px) !important;font-weight:700 !important;letter-spacing:0 !important;line-height:1 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .2s ease;}',
-            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:var(--metis-color-primary,#485bc7) !important;color:var(--metis-color-button_text,#fff) !important;box-shadow:0 8px 18px color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,transparent);}',
-            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:0 10px 22px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 30%,transparent) !important;}',
+            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:var(--metis-color-primary,#485bc7) !important;color:var(--metis-color-button_text,#fff) !important;box-shadow:none !important;}',
+            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:none !important;}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
             $item . ' > .metis-shell-menu-sub{position:absolute !important;top:100% !important;left:50% !important;z-index:1200 !important;min-width:max(100%,14rem) !important;width:max-content !important;margin:0 !important;padding:.45rem !important;border:1px solid var(--metis-color-border,#d8deea) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:none !important;visibility:hidden;opacity:0;pointer-events:none;transform:translate(-50%,8px) scale(.96) !important;transform-origin:top center;transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility .18s ease;overflow:visible !important;}',
@@ -6696,7 +6710,7 @@ final class WebsiteRenderer {
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{position:relative;display:flex !important;align-items:center !important;justify-content:center !important;min-width:max-content;min-height:0 !important;padding:1rem 1.08rem !important;border:0 !important;border-radius:12px !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-text,#1a1f2b) !important;font-size:var(--metis-menu-font-size,14px) !important;font-weight:700 !important;letter-spacing:0 !important;line-height:1 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease;}',
             $item . ' > .metis-shell-menu-link::after,' . $item . ' > .metis-shell-menu-btn::after{content:"";position:absolute;left:1rem;right:1rem;bottom:.43rem;height:2px;border-radius:999px;background:var(--metis-color-accent,#ff7542);transform:scaleX(0);transform-origin:left center;transition:transform .22s ease;}',
             $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 8%,transparent) !important;color:var(--metis-color-primary,#485bc7) !important;}',
-            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:0 12px 24px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 24%,transparent) !important;}',
+            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible,' . $item . '.is-active > .metis-shell-menu-btn,' . $item . '.is-active-ancestor > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;box-shadow:none !important;}',
             $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link::after,' . $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-btn::after{transform:scaleX(1);}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
@@ -6766,9 +6780,9 @@ final class WebsiteRenderer {
             $list . '{display:flex !important;flex-wrap:wrap !important;align-items:center !important;justify-content:center !important;gap:.65rem .8rem !important;width:100%;margin:0 !important;padding:.55rem !important;list-style:none !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 84%,var(--metis-color-primary,#485bc7) 16%) !important;border-radius:20px !important;background:color-mix(in srgb,var(--metis-color-surface,#fff) 92%,var(--metis-color-primary,#485bc7) 8%) !important;box-shadow:none !important;overflow:visible !important;}',
             $item . '{position:relative;display:flex !important;align-items:stretch !important;justify-content:center !important;min-width:max-content;margin:0 !important;padding:0 !important;list-style:none !important;}',
             $item . ' > .metis-shell-menu-link,' . $item . ' > .metis-shell-menu-btn{display:flex !important;align-items:center !important;justify-content:center !important;gap:.55rem !important;min-width:max-content;min-height:46px !important;padding:.82rem 1.1rem !important;border:1px solid transparent !important;border-radius:14px !important;background:transparent !important;box-shadow:none !important;color:var(--metis-color-primary,#485bc7) !important;font-size:var(--metis-menu-font-size,14px) !important;font-weight:760 !important;letter-spacing:-.01em !important;line-height:1.1 !important;text-decoration:none !important;text-transform:none !important;white-space:nowrap !important;transition:background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease;}',
-            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:var(--metis-color-surface,#fff) !important;border-color:color-mix(in srgb,var(--metis-color-border,#d8deea) 80%,var(--metis-color-primary,#485bc7) 20%) !important;color:color-mix(in srgb,var(--metis-color-primary,#485bc7) 88%,#0f172a) !important;box-shadow:0 10px 22px rgba(15,23,42,.10) !important;transform:translateY(-1px);}',
-            $item . ' > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;border-color:transparent !important;box-shadow:0 12px 24px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 22%,transparent) !important;}',
-            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible{transform:translateY(-1px);filter:none !important;box-shadow:0 14px 28px color-mix(in srgb,var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) 28%,transparent) !important;}',
+            $item . ':is(:hover,:focus-within,.is-active,.is-active-ancestor) > .metis-shell-menu-link{background:var(--metis-color-surface,#fff) !important;border-color:color-mix(in srgb,var(--metis-color-border,#d8deea) 80%,var(--metis-color-primary,#485bc7) 20%) !important;color:color-mix(in srgb,var(--metis-color-primary,#485bc7) 88%,#0f172a) !important;box-shadow:none !important;transform:translateY(-1px);}',
+            $item . ' > .metis-shell-menu-btn{background:var(--metis-menu-button-bg,var(--metis-color-primary,#485bc7)) !important;color:var(--metis-menu-button-text,#fff) !important;border-color:transparent !important;box-shadow:none !important;}',
+            $item . ' > .metis-shell-menu-btn:hover,' . $item . ' > .metis-shell-menu-btn:focus-visible{transform:translateY(-1px);filter:none !important;box-shadow:none !important;}',
             $item . '.has-children > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{color:currentColor;border-color:currentColor;transition:transform .2s ease;}',
             $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-link .metis-shell-menu-sub-indicator,' . $item . '.has-children:is(:hover,:focus-within,.is-open) > .metis-shell-menu-btn .metis-shell-menu-sub-indicator{transform:rotate(225deg) translate(1px,50%);}',
             $item . ' > .metis-shell-menu-sub{position:absolute !important;top:calc(100% + .45rem) !important;left:0 !important;z-index:1200 !important;min-width:max(100%,15rem) !important;width:max-content !important;margin:0 !important;padding:.6rem !important;border:1px solid color-mix(in srgb,var(--metis-color-border,#d8deea) 86%,#ffffff) !important;border-radius:18px !important;background:var(--metis-color-surface,#fff) !important;box-shadow:none !important;visibility:hidden;opacity:0;pointer-events:none;transform:translateY(10px) scale(.98) !important;transform-origin:top left;transition:opacity .18s ease,transform .22s ease,visibility .18s ease;overflow:visible !important;}',

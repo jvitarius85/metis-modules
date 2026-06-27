@@ -599,6 +599,8 @@ final class BlockRenderer {
 
         $offset = isset( $_GET['metis_events_offset'] ) ? (int) $_GET['metis_events_offset'] : 0;
         $offset = max( -24, min( 24, $offset ) );
+        $cursor_raw = trim( (string) ( $_GET['metis_events_cursor'] ?? '' ) );
+        $cursor_ts = $cursor_raw !== '' ? ( strtotime( $cursor_raw ) ?: 0 ) : 0;
         $nav_html = '';
 
         if ( $view_mode === 'week' ) {
@@ -606,7 +608,9 @@ final class BlockRenderer {
             if ( ! $base_start ) {
                 $base_start = strtotime( 'today midnight' ) ?: time();
             }
-            $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' week', (int) $base_start ) ?: $base_start;
+            $period_start = $cursor_ts > 0
+                ? ( strtotime( 'monday this week midnight', (int) $cursor_ts ) ?: $cursor_ts )
+                : ( strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' week', (int) $base_start ) ?: $base_start );
             $period_end = strtotime( '+7 days', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
             $items = array_values( array_filter(
                 $items,
@@ -619,10 +623,16 @@ final class BlockRenderer {
                     return $start_ts >= $period_start && $start_ts < $period_end;
                 }
             ) );
-            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next week</a></div>';
+            $prev_period_start = strtotime( '-1 week', (int) $period_start ) ?: ( $period_start - ( 7 * DAY_IN_SECONDS ) );
+            $next_period_start = strtotime( '+1 week', (int) $period_start ) ?: ( $period_start + ( 7 * DAY_IN_SECONDS ) );
+            $prev_cursor = date( 'Y-m-d', (int) $prev_period_start );
+            $next_cursor = date( 'Y-m-d', (int) $next_period_start );
+            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">Previous week</a><span>' . metis_escape_html( date( 'M j', (int) $period_start ) . ' - ' . date( 'M j, Y', (int) ( $period_end - DAY_IN_SECONDS ) ) ) . '</span><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">Next week</a></div>';
         } elseif ( $view_mode === 'calendar' ) {
             $base_start = strtotime( date( 'Y-m-01 00:00:00' ) );
-            $period_start = strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' month', (int) $base_start ) ?: $base_start;
+            $period_start = $cursor_ts > 0
+                ? ( strtotime( date( 'Y-m-01 00:00:00', (int) $cursor_ts ) ) ?: $cursor_ts )
+                : ( strtotime( ( $offset >= 0 ? '+' : '' ) . $offset . ' month', (int) $base_start ) ?: $base_start );
             $period_end = strtotime( '+1 month', (int) $period_start ) ?: ( $period_start + ( 31 * DAY_IN_SECONDS ) );
             $items = array_values( array_filter(
                 $items,
@@ -635,7 +645,11 @@ final class BlockRenderer {
                     return $start_ts >= $period_start && $start_ts < $period_end;
                 }
             ) );
-            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset - 1 ) ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_offset=' . metis_escape_attr( (string) ( $offset + 1 ) ) . '">Next month</a></div>';
+            $prev_period_start = strtotime( '-1 month', (int) $period_start ) ?: $period_start;
+            $next_period_start = strtotime( '+1 month', (int) $period_start ) ?: $period_start;
+            $prev_cursor = date( 'Y-m-01', (int) $prev_period_start );
+            $next_cursor = date( 'Y-m-01', (int) $next_period_start );
+            $nav_html = '<div class="metis-structured-events__nav"><a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset - 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">Previous month</a><span>' . metis_escape_html( date( 'F Y', (int) $period_start ) ) . '</span><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) ( $offset + 1 ) ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">Next month</a></div>';
         } else {
             $items = array_slice( $items, 0, $count );
         }
