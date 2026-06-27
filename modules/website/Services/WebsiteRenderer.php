@@ -5254,10 +5254,10 @@ final class WebsiteRenderer {
         }
 
         if ( $view_mode === 'week' ) {
-            return self::renderStructuredWeekEventsView( $items, (int) $period_start, $nav_html );
+            return self::renderStructuredWeekEventsView( $items, $all_items, (int) $period_start, $nav_html );
         }
         if ( $view_mode === 'calendar' ) {
-            return self::renderStructuredMonthEventsView( $items, (int) $period_start, $nav_html );
+            return self::renderStructuredMonthEventsView( $items, $all_items, (int) $period_start, $nav_html );
         }
         if ( $items === [] ) {
             return '<div class="metis-structured-events-wrap metis-structured-events-wrap--card"><div class="metis-structured-events metis-structured-events--empty"><p>No upcoming events.</p></div></div>';
@@ -5280,9 +5280,9 @@ final class WebsiteRenderer {
     /**
      * @param array<int,mixed> $items
      */
-    private static function renderStructuredWeekEventsView( array $items, int $period_start, string $nav_html ): string {
+    private static function renderStructuredWeekEventsView( array $items, array $all_items, int $period_start, string $nav_html ): string {
         $grouped = self::groupStructuredEventsByDay( $items );
-        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--week" data-metis-events-block="1" data-metis-events-view="week">' . $nav_html . '<div class="metis-structured-events-week-grid">';
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--week" data-metis-events-block="1" data-metis-events-view="week" data-metis-events-cursor-current="' . metis_escape_attr( date( 'Y-m-d', $period_start ) ) . '">' . self::structuredEventsClientStateMarkup( $all_items, 'week' ) . $nav_html . '<div class="metis-structured-events-week-grid">';
         for ( $day = 0; $day < 7; $day++ ) {
             $day_ts = strtotime( '+' . $day . ' day', $period_start ) ?: $period_start;
             $key = date( 'Y-m-d', (int) $day_ts );
@@ -5309,12 +5309,12 @@ final class WebsiteRenderer {
     /**
      * @param array<int,mixed> $items
      */
-    private static function renderStructuredMonthEventsView( array $items, int $period_start, string $nav_html ): string {
+    private static function renderStructuredMonthEventsView( array $items, array $all_items, int $period_start, string $nav_html ): string {
         $grouped = self::groupStructuredEventsByDay( $items );
         $first_cell = strtotime( 'monday this week midnight', $period_start ) ?: $period_start;
         $last_day = strtotime( '-1 day', strtotime( '+1 month', $period_start ) ?: $period_start ) ?: $period_start;
         $last_cell = strtotime( 'sunday this week midnight', $last_day ) ?: $last_day;
-        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--calendar" data-metis-events-block="1" data-metis-events-view="calendar">' . $nav_html;
+        $html = '<div class="metis-structured-events-wrap metis-structured-events-wrap--calendar" data-metis-events-block="1" data-metis-events-view="calendar" data-metis-events-cursor-current="' . metis_escape_attr( date( 'Y-m-01', $period_start ) ) . '">' . self::structuredEventsClientStateMarkup( $all_items, 'calendar' ) . $nav_html;
         $html .= '<div class="metis-structured-events-month-head">';
         foreach ( [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ] as $weekday ) {
             $html .= '<div class="metis-structured-events-month-head__cell">' . metis_escape_html( $weekday ) . '</div>';
@@ -5365,6 +5365,39 @@ final class WebsiteRenderer {
 
     /**
      * @param array<int,mixed> $items
+     */
+    private static function structuredEventsClientStateMarkup( array $items, string $view_mode ): string {
+        $payload = [
+            'view' => $view_mode,
+            'items' => [],
+        ];
+        foreach ( $items as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+            $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+            $start_ts = strtotime( $start_raw ) ?: 0;
+            if ( $start_ts <= 0 ) {
+                continue;
+            }
+            $payload['items'][] = [
+                'title' => trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) ),
+                'date_key' => date( 'Y-m-d', (int) $start_ts ),
+                'start_ts' => (int) $start_ts,
+                'time_label' => self::structuredEventPeekTimeLabel( $item ),
+                'detail_html' => self::renderStructuredEventCard( $item, true ),
+            ];
+        }
+
+        $json = function_exists( 'metis_json_encode' )
+            ? (string) metis_json_encode( $payload )
+            : (string) json_encode( $payload );
+
+        return '<script type="application/json" class="metis-structured-events-state">' . $json . '</script>';
+    }
+
+    /**
+     * @param array<int,mixed> $items
      * @return array<string,array<int,array<string,mixed>>>
      */
     private static function groupStructuredEventsByDay( array $items ): array {
@@ -5393,31 +5426,39 @@ final class WebsiteRenderer {
     private static function renderStructuredEventPeek( array $item, string $uid ): string {
         $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
         $has_time = trim( (string) ( $item['start']['dateTime'] ?? '' ) ) !== '';
-        $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
-        $time_label = '';
-        if ( $has_time && $start_raw !== '' ) {
-            $ts = strtotime( $start_raw );
-            if ( $ts ) {
-                $time_label = strtolower(
-                    function_exists( 'metis_runtime_date' )
-                        ? metis_runtime_date( 'g:ia', (int) $ts )
-                        : date( 'g:ia', (int) $ts )
-                );
-            }
-        }
+        $time_label = self::structuredEventPeekTimeLabel( $item );
 
         $html = '<div class="metis-structured-events-peek' . ( $has_time ? '' : ' is-all-day' ) . '">';
         $html .= '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-controls="metis-events-peek-' . metis_escape_attr( $uid ) . '">';
-        $html .= '<span class="metis-structured-events-peek__dot" aria-hidden="true"></span>';
+        $html .= '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__dot" aria-hidden="true"></span><span class="metis-structured-events-peek__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</span></span>';
         if ( $time_label !== '' ) {
             $html .= '<span class="metis-structured-events-peek__time">' . metis_escape_html( $time_label ) . '</span>';
         }
-        $html .= '<span class="metis-structured-events-peek__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</span>';
         $html .= '</button>';
         $html .= '<div id="metis-events-peek-' . metis_escape_attr( $uid ) . '" class="metis-structured-events-peek__panel" role="dialog" aria-label="' . metis_escape_attr( $title !== '' ? $title : 'Event details' ) . '">';
         $html .= self::renderStructuredEventCard( $item, true );
         $html .= '</div></div>';
         return $html;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     */
+    private static function structuredEventPeekTimeLabel( array $item ): string {
+        $start_raw = (string) ( $item['start']['dateTime'] ?? '' );
+        if ( $start_raw === '' ) {
+            return '';
+        }
+        $ts = strtotime( $start_raw );
+        if ( ! $ts ) {
+            return '';
+        }
+
+        return strtolower(
+            function_exists( 'metis_runtime_date' )
+                ? metis_runtime_date( 'g:ia', (int) $ts )
+                : date( 'g:ia', (int) $ts )
+        );
     }
 
     /**
@@ -6226,6 +6267,7 @@ final class WebsiteRenderer {
             self::modernBarMenuCss( 'body.metis-menu-style-h_modern_bar .metis-shell-nav-primary' ),
             self::showcaseButtonsMenuCss( 'body.metis-menu-style-h_showcase_buttons .metis-shell-nav-primary', 'body.metis-menu-style-h_showcase_buttons .metis-shell-header' ),
             self::menuButtonAttentionCss( '.metis-shell-nav-primary' ),
+            self::menuButtonAttentionCss( '.metis-shell-nav-utility' ),
             'body.metis-layout-modern_split .metis-shell-header-inner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:24px;}',
             'body.metis-layout-modern_split .metis-shell-nav-primary .metis-shell-menu-list{justify-content:center;gap:8px 18px;}',
             'body.metis-layout-modern_split .metis-shell-nav-utility .metis-shell-menu-list{justify-content:flex-end;}',
@@ -6426,7 +6468,7 @@ final class WebsiteRenderer {
             '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
             '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
             '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
-            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:8px;align-content:start;min-width:0;overflow:hidden;}',
+            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:8px;align-content:start;min-width:0;overflow:visible;}',
             '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
             '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;}',
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
@@ -6436,9 +6478,10 @@ final class WebsiteRenderer {
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
             '.metis-structured-events-peek:hover,.metis-structured-events-peek:focus-within{z-index:32;}',
-            '.metis-structured-events-peek__trigger{width:100%;display:flex;align-items:flex-start;gap:8px;padding:2px 0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:hidden;}',
+            '.metis-structured-events-peek__trigger{width:100%;display:grid;gap:3px;padding:2px 0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:visible;}',
+            '.metis-structured-events-peek__line{display:flex;align-items:flex-start;gap:8px;min-width:0;max-width:100%;}',
             '.metis-structured-events-peek__dot{width:10px;height:10px;border-radius:999px;background:var(--metis-color-primary,#7e22ce);flex:0 0 auto;}',
-            '.metis-structured-events-peek__time{font-size:.9rem;line-height:1.2;font-weight:500;color:var(--metis-color-text,#0f172a);flex:0 0 auto;}',
+            '.metis-structured-events-peek__time{font-size:.82rem;line-height:1.2;font-weight:500;color:var(--metis-color-muted,#64748b);padding-left:18px;}',
             '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.3;font-weight:600;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:2px 0;min-height:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__dot{display:block;}',

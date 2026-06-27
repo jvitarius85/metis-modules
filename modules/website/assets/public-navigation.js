@@ -96,6 +96,214 @@
     return true;
   }
 
+  function s(value) {
+    return value == null ? "" : String(value);
+  }
+
+  function escapeHtml(value) {
+    return s(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function parseEventsState(block) {
+    if (!block) return null;
+    if (block._metisEventsStateParsed) return block._metisEventsState || null;
+    block._metisEventsStateParsed = true;
+    var script = block.querySelector(".metis-structured-events-state");
+    if (!script) {
+      block._metisEventsState = null;
+      return null;
+    }
+    try {
+      block._metisEventsState = JSON.parse(script.textContent || "{}");
+      block._metisEventsStateScript = script.outerHTML || "";
+    } catch (error) {
+      block._metisEventsState = null;
+      block._metisEventsStateScript = "";
+    }
+    return block._metisEventsState || null;
+  }
+
+  function parseIsoDate(value) {
+    var match = s(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+  }
+
+  function isoDateKey(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return "";
+    var year = String(date.getFullYear());
+    var month = String(date.getMonth() + 1).padStart(2, "0");
+    var day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  }
+
+  function addDays(date, count) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
+  }
+
+  function addMonths(date, count) {
+    return new Date(date.getFullYear(), date.getMonth() + count, 1);
+  }
+
+  function startOfWeek(date) {
+    var day = date.getDay();
+    var delta = day === 0 ? -6 : 1 - day;
+    return addDays(date, delta);
+  }
+
+  function endOfWeek(date) {
+    return addDays(startOfWeek(date), 6);
+  }
+
+  function formatMonthYear(date) {
+    return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date);
+  }
+
+  function formatShortDate(date) {
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+  }
+
+  function formatWeekRangeLabel(startDate, endDate) {
+    return formatShortDate(startDate) + " - " + new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(endDate);
+  }
+
+  function currentPageHref() {
+    return window.location.href.replace(/[?#].*$/, "");
+  }
+
+  function renderEventsNavHtml(view, label, prevCursor, nextCursor) {
+    var prevLabel = view === "week" ? "Previous week" : "Previous month";
+    var nextLabel = view === "week" ? "Next week" : "Next month";
+    var href = escapeHtml(currentPageHref() || "#");
+    return '<div class="metis-structured-events__nav">' +
+      '<a href="' + href + '" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
+      '<span>' + escapeHtml(label) + '</span>' +
+      '<a href="' + href + '" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a>' +
+      '</div>';
+  }
+
+  function renderEventPeekHtml(item, uid) {
+    var title = s(item && item.title || "Event").trim() || "Event";
+    var timeLabel = s(item && item.time_label || "").trim();
+    var panelId = "metis-events-peek-" + uid;
+    return '<div class="metis-structured-events-peek' + (timeLabel ? "" : " is-all-day") + '">' +
+      '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-controls="' + escapeHtml(panelId) + '">' +
+      '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__dot" aria-hidden="true"></span><span class="metis-structured-events-peek__title">' + escapeHtml(title) + '</span></span>' +
+      (timeLabel ? '<span class="metis-structured-events-peek__time">' + escapeHtml(timeLabel) + '</span>' : "") +
+      '</button>' +
+      '<div id="' + escapeHtml(panelId) + '" class="metis-structured-events-peek__panel" role="dialog" aria-label="' + escapeHtml(title) + '">' + s(item && item.detail_html || "") + '</div>' +
+      '</div>';
+  }
+
+  function renderEventsMobileList(items, emptyMessage) {
+    if (!items.length) {
+      return '<div class="metis-structured-events-mobile-list"><p class="metis-structured-events-day__empty">' + escapeHtml(emptyMessage) + '</p></div>';
+    }
+    return '<div class="metis-structured-events-mobile-list">' + items.map(function (item) {
+      return s(item && item.detail_html || "");
+    }).join("") + '</div>';
+  }
+
+  function filterEventsForRange(items, startKey, endKeyExclusive) {
+    return (Array.isArray(items) ? items : []).filter(function (item) {
+      var key = s(item && item.date_key || "");
+      return key >= startKey && key < endKeyExclusive;
+    });
+  }
+
+  function renderCalendarBlockLocally(block, state, cursor) {
+    var monthStart = parseIsoDate(cursor) || parseIsoDate(block.getAttribute("data-metis-events-cursor-current") || "");
+    if (!monthStart) return false;
+    monthStart = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+    var nextMonthStart = addMonths(monthStart, 1);
+    var prevMonthStart = addMonths(monthStart, -1);
+    var firstCell = startOfWeek(monthStart);
+    var lastCell = endOfWeek(addDays(nextMonthStart, -1));
+    var currentKey = isoDateKey(monthStart);
+    var nextKey = isoDateKey(nextMonthStart);
+    var grouped = Object.create(null);
+    var monthItems = filterEventsForRange(state.items || [], currentKey, nextKey);
+    monthItems.forEach(function (item) {
+      var key = s(item && item.date_key || "");
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    });
+
+    var html = s(block._metisEventsStateScript || "");
+    html += renderEventsNavHtml("calendar", formatMonthYear(monthStart), isoDateKey(prevMonthStart), isoDateKey(nextMonthStart));
+    html += '<div class="metis-structured-events-month-head">';
+    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach(function (weekday) {
+      html += '<div class="metis-structured-events-month-head__cell">' + weekday + '</div>';
+    });
+    html += '</div><div class="metis-structured-events-month-grid">';
+    for (var cursorDate = new Date(firstCell.getTime()); cursorDate <= lastCell; cursorDate = addDays(cursorDate, 1)) {
+      var dayKey = isoDateKey(cursorDate);
+      var dayItems = grouped[dayKey] || [];
+      var outside = cursorDate.getMonth() !== monthStart.getMonth() || cursorDate.getFullYear() !== monthStart.getFullYear();
+      html += '<section class="metis-structured-events-month-day' + (outside ? ' is-outside' : '') + '">';
+      html += '<header class="metis-structured-events-month-day__header"><strong>' + escapeHtml(String(cursorDate.getDate())) + '</strong></header>';
+      html += '<div class="metis-structured-events-month-day__items">';
+      dayItems.forEach(function (item, index) {
+        html += renderEventPeekHtml(item, dayKey + '-month-' + String(index));
+      });
+      html += '</div></section>';
+    }
+    html += '</div>';
+    html += renderEventsMobileList(monthItems, 'No events this month.');
+    block.innerHTML = html;
+    block.setAttribute("data-metis-events-cursor-current", currentKey);
+    return true;
+  }
+
+  function renderWeekBlockLocally(block, state, cursor) {
+    var weekDate = parseIsoDate(cursor) || parseIsoDate(block.getAttribute("data-metis-events-cursor-current") || "");
+    if (!weekDate) return false;
+    var weekStart = startOfWeek(weekDate);
+    var weekEnd = addDays(weekStart, 7);
+    var prevWeek = addDays(weekStart, -7);
+    var nextWeek = addDays(weekStart, 7);
+    var startKey = isoDateKey(weekStart);
+    var endKey = isoDateKey(weekEnd);
+    var grouped = Object.create(null);
+    var weekItems = filterEventsForRange(state.items || [], startKey, endKey);
+    weekItems.forEach(function (item) {
+      var key = s(item && item.date_key || "");
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    });
+
+    var html = s(block._metisEventsStateScript || "");
+    html += renderEventsNavHtml("week", formatWeekRangeLabel(weekStart, addDays(weekEnd, -1)), isoDateKey(prevWeek), isoDateKey(nextWeek));
+    html += '<div class="metis-structured-events-week-grid">';
+    for (var day = 0; day < 7; day += 1) {
+      var dayDate = addDays(weekStart, day);
+      var dayKey = isoDateKey(dayDate);
+      var dayItems = grouped[dayKey] || [];
+      html += '<section class="metis-structured-events-day">';
+      html += '<header class="metis-structured-events-day__header"><span class="metis-structured-events-day__weekday">' + escapeHtml(new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(dayDate)) + '</span><strong class="metis-structured-events-day__date">' + escapeHtml(formatShortDate(dayDate)) + '</strong></header>';
+      if (!dayItems.length) {
+        html += '<p class="metis-structured-events-day__empty">No events scheduled.</p>';
+      } else {
+        html += '<div class="metis-structured-events-day__items">';
+        dayItems.forEach(function (item, index) {
+          html += renderEventPeekHtml(item, dayKey + '-week-' + String(index));
+        });
+        html += '</div>';
+      }
+      html += '</section>';
+    }
+    html += '</div>';
+    html += renderEventsMobileList(weekItems, 'No events scheduled this week.');
+    block.innerHTML = html;
+    block.setAttribute("data-metis-events-cursor-current", startKey);
+    return true;
+  }
+
   function closeOpenSubmenus(exceptItem) {
     if (!exceptItem) {
       var openedAll = document.querySelectorAll(".metis-shell-menu-item.has-children.is-open");
@@ -454,6 +662,15 @@
     event.stopPropagation();
     var offset = parseInt(String(navLink.getAttribute("data-metis-events-offset") || "0"), 10);
     var cursor = s(navLink.getAttribute("data-metis-events-cursor") || "");
+    var localState = parseEventsState(block);
+    if (localState && (localState.view === "calendar" || localState.view === "week")) {
+      var rendered = localState.view === "calendar"
+        ? renderCalendarBlockLocally(block, localState, cursor)
+        : renderWeekBlockLocally(block, localState, cursor);
+      if (rendered) {
+        return;
+      }
+    }
     fetchEventsBlock(block, isFinite(offset) ? offset : 0, navLink, cursor);
   });
 
