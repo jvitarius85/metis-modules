@@ -6560,7 +6560,7 @@ final class WebsiteRenderer {
             '.metis-structured-events-peek__line{display:flex;align-items:flex-start;gap:0;min-width:0;max-width:100%;}',
             '.metis-structured-events-peek__time{font-size:.78rem;line-height:1.1;font-weight:700;color:#ffffff;padding-left:0;opacity:.98;}',
             '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.22;font-weight:700;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
-            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:2px 4px;box-shadow:none;max-width:100%;overflow:hidden;}',
+            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:2px 4px;box-shadow:none;max-width:100%;overflow:visible;}',
             '.metis-structured-events-peek:not(.is-all-day) .metis-structured-events-peek__title{color:#ffffff;}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:2px 0;min-height:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:var(--metis-color-text,#0f172a);font-weight:600;}',
