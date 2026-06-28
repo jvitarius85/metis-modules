@@ -346,6 +346,53 @@
     }
   }
 
+  function setPeekOpen(peek, open) {
+    if (!peek || !peek.classList) return;
+    peek.classList.toggle("is-open", !!open);
+    var trigger = peek.querySelector(".metis-structured-events-peek__trigger");
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
+
+  function closeAllPeeks(exceptPeek) {
+    var peeks = document.querySelectorAll(".metis-structured-events-peek.is-open");
+    for (var i = 0; i < peeks.length; i += 1) {
+      if (exceptPeek && peeks[i] === exceptPeek) {
+        continue;
+      }
+      setPeekOpen(peeks[i], false);
+    }
+  }
+
+  function peekTimerState(peek) {
+    if (!peek) return { close: 0 };
+    if (!peek._metisPeekTimer) {
+      peek._metisPeekTimer = { close: 0 };
+    }
+    return peek._metisPeekTimer;
+  }
+
+  function clearPeekCloseTimer(peek) {
+    var state = peekTimerState(peek);
+    if (state.close) {
+      window.clearTimeout(state.close);
+      state.close = 0;
+    }
+  }
+
+  function schedulePeekClose(peek) {
+    if (!peek) return;
+    clearPeekCloseTimer(peek);
+    var state = peekTimerState(peek);
+    state.close = window.setTimeout(function () {
+      if (peek.matches(":hover") || peek.contains(document.activeElement)) {
+        return;
+      }
+      setPeekOpen(peek, false);
+    }, 140);
+  }
+
   function setOpen(open, triggerSource) {
     var active = !!open && isMobileViewport();
     var panel = document.querySelector("[data-metis-nav-panel]");
@@ -408,6 +455,50 @@
         closeOpenSubmenus(null);
       }
     }
+  });
+
+  document.addEventListener("pointerenter", function (event) {
+    var peek = event.target && event.target.closest
+      ? event.target.closest(".metis-structured-events-peek")
+      : null;
+    if (!peek) {
+      return;
+    }
+    clearPeekCloseTimer(peek);
+    closeAllPeeks(peek);
+    setPeekOpen(peek, true);
+  }, true);
+
+  document.addEventListener("pointerleave", function (event) {
+    var peek = event.target && event.target.closest
+      ? event.target.closest(".metis-structured-events-peek")
+      : null;
+    if (!peek) {
+      return;
+    }
+    schedulePeekClose(peek);
+  }, true);
+
+  document.addEventListener("focusin", function (event) {
+    var peek = event.target && event.target.closest
+      ? event.target.closest(".metis-structured-events-peek")
+      : null;
+    if (!peek) {
+      return;
+    }
+    clearPeekCloseTimer(peek);
+    closeAllPeeks(peek);
+    setPeekOpen(peek, true);
+  });
+
+  document.addEventListener("focusout", function (event) {
+    var peek = event.target && event.target.closest
+      ? event.target.closest(".metis-structured-events-peek")
+      : null;
+    if (!peek) {
+      return;
+    }
+    schedulePeekClose(peek);
   });
 
   document.addEventListener("keydown", function (e) {
@@ -662,17 +753,9 @@
       var peek = peekTrigger.closest ? peekTrigger.closest(".metis-structured-events-peek") : null;
       if (peek) {
         var shouldOpen = !peek.classList.contains("is-open");
-        var openPeeks = document.querySelectorAll(".metis-structured-events-peek.is-open");
-        for (var p = 0; p < openPeeks.length; p += 1) {
-          openPeeks[p].classList.remove("is-open");
-          var openTrigger = openPeeks[p].querySelector(".metis-structured-events-peek__trigger");
-          if (openTrigger) {
-            openTrigger.setAttribute("aria-expanded", "false");
-          }
-        }
+        closeAllPeeks(peek);
         if (shouldOpen) {
-          peek.classList.add("is-open");
-          peekTrigger.setAttribute("aria-expanded", "true");
+          setPeekOpen(peek, true);
         }
       }
       return;
@@ -682,14 +765,7 @@
       ? event.target.closest(".metis-structured-events-peek.is-open")
       : null;
     if (!openPeek) {
-      var liveOpenPeeks = document.querySelectorAll(".metis-structured-events-peek.is-open");
-      for (var q = 0; q < liveOpenPeeks.length; q += 1) {
-        liveOpenPeeks[q].classList.remove("is-open");
-        var liveTrigger = liveOpenPeeks[q].querySelector(".metis-structured-events-peek__trigger");
-        if (liveTrigger) {
-          liveTrigger.setAttribute("aria-expanded", "false");
-        }
-      }
+      closeAllPeeks(null);
     }
 
     var navLink = event.target && event.target.closest

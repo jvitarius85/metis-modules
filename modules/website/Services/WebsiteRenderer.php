@@ -6553,6 +6553,7 @@ final class WebsiteRenderer {
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
             '.metis-structured-events-month-day:hover,.metis-structured-events-month-day:focus-within,.metis-structured-events-day:hover,.metis-structured-events-day:focus-within{z-index:18;}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
+            '.metis-structured-events-peek.is-open{z-index:32;}',
             '.metis-structured-events-peek:hover,.metis-structured-events-peek:focus-within{z-index:32;}',
             '.metis-structured-events-peek__trigger{width:100%;display:grid;gap:2px;padding:0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:visible;}',
             '.metis-structured-events-peek__trigger:focus-visible{outline:2px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 42%,transparent);outline-offset:3px;border-radius:10px;}',
