@@ -17,8 +17,8 @@
     body.classList.add("metis-menu-dropdown-click");
   }
   var lastNavToggle = null;
-  var hoverOpenDelay = 60;
-  var hoverCloseDelay = 360;
+  var hoverOpenDelay = 40;
+  var hoverCloseDelay = 220;
   var hoverTimers = typeof WeakMap === "function" ? new WeakMap() : null;
 
   function itemTrigger(item) {

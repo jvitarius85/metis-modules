@@ -878,6 +878,11 @@
     gap: 18px;
 }
 
+.metis-forms-repeater {
+    display: grid;
+    gap: 14px;
+}
+
 .metis-forms-repeater-grid,
 .metis-forms-preview-repeater {
     display: grid;
@@ -1118,10 +1123,21 @@
 }
 
 .metis-forms-repeater-row {
+    display: grid;
+    gap: 14px;
     padding: 18px;
     border: 1px solid var(--metis-forms-line);
     border-radius: 18px;
     background: var(--metis-forms-bg);
+}
+
+.metis-forms-repeater-row [data-remove-row] {
+    justify-self: start;
+}
+
+.metis-forms-repeater > [data-add-row] {
+    justify-self: start;
+    margin-top: 4px;
 }
 
 .metis-forms-preview-subfield {
