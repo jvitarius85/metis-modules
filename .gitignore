@@ -8,5 +8,4 @@ __MACOSX/
 # --- TEMP FILES ---
 *.log
 *.tmp
-.DS_Store
-.DS_Store
+*.DS_Store
