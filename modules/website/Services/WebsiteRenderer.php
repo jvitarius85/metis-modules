@@ -5311,9 +5311,12 @@ final class WebsiteRenderer {
      */
     private static function renderStructuredMonthEventsView( array $items, array $all_items, int $period_start, string $nav_html ): string {
         $grouped = self::groupStructuredEventsByDay( $items );
-        $first_cell = strtotime( 'sunday this week midnight', $period_start ) ?: $period_start;
+        $first_day_week_index = (int) date( 'w', (int) $period_start );
+        $first_cell = strtotime( '-' . $first_day_week_index . ' day', (int) $period_start ) ?: $period_start;
         $last_day = strtotime( '-1 day', strtotime( '+1 month', $period_start ) ?: $period_start ) ?: $period_start;
-        $last_cell = strtotime( 'sunday this week midnight', $last_day ) ?: $last_day;
+        $last_day_week_index = (int) date( 'w', (int) $last_day );
+        $days_to_saturday = 6 - $last_day_week_index;
+        $last_cell = strtotime( '+' . $days_to_saturday . ' day', (int) $last_day ) ?: $last_day;
         $print_bootstrap = self::structuredEventsPrintModeActive()
             ? '<script>(function(){document.addEventListener("DOMContentLoaded",function(){document.body.classList.add("metis-events-print-mode");window.setTimeout(function(){window.print();},150);},{once:true});})();</script>'
             : '';
@@ -6517,7 +6520,7 @@ final class WebsiteRenderer {
             '.metis-public-content .metis-text-align-center,.metis-structured-section__content .metis-text-align-center{text-align:center;}',
             '.metis-public-content .metis-text-align-right,.metis-structured-section__content .metis-text-align-right{text-align:right;}',
             '.metis-structured-events-wrap{display:grid;gap:14px;}',
-            '.metis-structured-events-wrap--calendar{width:min(1440px,calc(100vw - 24px));max-width:100%;margin:0 auto;overflow-x:auto;padding-bottom:4px;}',
+            '.metis-structured-events-wrap--calendar{position:relative;left:50%;width:min(1560px,calc(100vw - 24px));max-width:min(1560px,calc(100vw - 24px));margin-left:calc(-50vw + 12px);margin-right:calc(-50vw + 12px);overflow:visible;padding-bottom:4px;}',
             '.metis-structured-events__nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:12px;}',
             '.metis-structured-events__nav-title{justify-self:center;font-size:clamp(1.35rem,2.8vw,2rem);font-weight:800;letter-spacing:-.03em;color:var(--metis-color-primary,#485bc7);text-transform:capitalize;}',
             '.metis-structured-events__nav-actions{display:flex;align-items:center;justify-content:flex-end;justify-self:end;gap:10px;}',
@@ -6531,15 +6534,15 @@ final class WebsiteRenderer {
             '.metis-structured-events-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
             '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:8px;padding:12px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:14px;background:var(--metis-surface,#fff);box-shadow:0 12px 24px rgba(15,23,42,.05);align-content:start;overflow:visible;min-width:0;}',
             '.metis-structured-events-day{min-height:220px;}',
-            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:170px;}',
+            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:168px;}',
             '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
             '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
             '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
             '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:6px;align-content:start;min-width:0;overflow:visible;}',
             '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
-            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;min-width:1240px;}',
+            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;width:100%;}',
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
-            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(170px,1fr));grid-auto-rows:minmax(170px,auto);gap:10px;align-items:stretch;min-width:1240px;}',
+            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(168px,auto);gap:10px;align-items:stretch;width:100%;}',
             '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
             '.metis-structured-events-mobile-list{display:none;gap:14px;}',
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
@@ -6551,7 +6554,7 @@ final class WebsiteRenderer {
             '.metis-structured-events-peek__line{display:flex;align-items:flex-start;gap:0;min-width:0;max-width:100%;}',
             '.metis-structured-events-peek__time{font-size:.8rem;line-height:1.15;font-weight:700;color:#ffffff;padding-left:0;opacity:.98;}',
             '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.22;font-weight:700;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
-            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:4px 6px;box-shadow:none;max-width:100%;overflow:hidden;}',
+            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:3px 5px;box-shadow:none;max-width:100%;overflow:hidden;}',
             '.metis-structured-events-peek:not(.is-all-day) .metis-structured-events-peek__title{color:#ffffff;}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:2px 0;min-height:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:var(--metis-color-text,#0f172a);font-weight:600;}',
