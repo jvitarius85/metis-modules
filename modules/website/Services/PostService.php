@@ -336,6 +336,9 @@ final class PostService {
         if ( self::hasColumn( 'post_category_id' ) ) {
             $fields[] = 'post_category_id';
         }
+        if ( self::hasColumn( 'author_id' ) ) {
+            $fields[] = 'author_id';
+        }
         if ( self::hasColumn( 'parent_page_id' ) ) {
             $fields[] = 'parent_page_id';
         }

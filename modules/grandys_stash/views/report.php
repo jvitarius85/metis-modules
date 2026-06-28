@@ -9,8 +9,15 @@ if ( ! metis_grandys_stash_can_view() ) {
 $from = metis_text_clean( (string) ( metis_request_get()['from'] ?? '' ) );
 $to   = metis_text_clean( (string) ( metis_request_get()['to'] ?? '' ) );
 $report = \Metis\Modules\GrandyStash\GrandyStashRepository::reportData( $from, $to );
-$report_tickets = \Metis\Modules\GrandyStash\GrandyStashRepository::reportTickets( $from, $to );
+$report_page = \Metis\Modules\GrandyStash\GrandyStashRepository::reportTicketPage( [
+    'from'     => $from,
+    'to'       => $to,
+    'page'     => 1,
+    'per_page' => 25,
+] );
+$report_options = \Metis\Modules\GrandyStash\GrandyStashRepository::reportBuilderOptions( $from, $to );
 $summary = $report['summary'] ?? [];
+$can_export = function_exists( 'metis_grandys_stash_can_export' ) && metis_grandys_stash_can_export();
 $display_label = static function ( string $value, string $fallback = 'Other' ): string {
     $value = trim( $value );
     if ( $value === '' ) {
@@ -29,6 +36,7 @@ $range_text = ( $from !== '' || $to !== '' )
 
 <div class="metis-stash-app metis-stash-reports"
      data-stash-view="reports"
+     data-can-export="<?php echo metis_escape_attr( $can_export ? '1' : '0' ); ?>"
      data-view-base-url="<?php echo metis_escape_attr( metis_grandys_stash_view_url() ); ?>">
 
     <h1 class="metis-page-title"><?php echo metis_escape_html( metis_current_module_view_title( "Grandy's Stash Reports" ) ); ?></h1>
@@ -91,7 +99,12 @@ $range_text = ( $from !== '' || $to !== '' )
                     <h2 id="metis-stash-report-drilldown-title">Report Builder</h2>
                     <p id="metis-stash-report-drilldown-subtitle">Filter tickets from the current report range without leaving the page.</p>
                 </div>
-                <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-report-drilldown-clear">Clear</button>
+                <div class="metis-stash-report-head-actions">
+                    <?php if ( $can_export ) : ?>
+                    <button type="button" class="metis-btn metis-btn-xs" id="metis-stash-report-export-pdf">Download PDF</button>
+                    <?php endif; ?>
+                    <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-report-drilldown-clear">Clear</button>
+                </div>
             </div>
             <div class="metis-stash-report-drilldown-tools">
                 <input type="search" id="metis-stash-report-drilldown-search" class="metis-input" placeholder="Search code, person, organization, type, status, or items">
@@ -155,6 +168,17 @@ $range_text = ( $from !== '' || $to !== '' )
             <datalist id="metis-stash-report-item-options"></datalist>
             <datalist id="metis-stash-report-organization-options"></datalist>
             <datalist id="metis-stash-report-person-options"></datalist>
+            <section class="metis-stash-report-trend-card" aria-labelledby="metis-stash-report-trend-title">
+                <div class="metis-stash-report-trend-head">
+                    <div>
+                        <h3 id="metis-stash-report-trend-title">Monthly Trends</h3>
+                        <p id="metis-stash-report-trend-subtitle">Requests, donations, and completed tickets across the current report window.</p>
+                    </div>
+                </div>
+                <div id="metis-stash-report-trend-graph" class="metis-stash-report-trend-graph">
+                    <div class="metis-muted">Trend data will appear here.</div>
+                </div>
+            </section>
             <table class="metis-premium-table metis-stash-report-drilldown-table">
                 <thead>
                     <tr class="metis-premium-row metis-premium-header">
@@ -173,6 +197,21 @@ $range_text = ( $from !== '' || $to !== '' )
                     <tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="9">Loading tickets.</td></tr>
                 </tbody>
             </table>
+            <div class="metis-stash-report-pagination">
+                <label class="metis-stash-report-pagination-size">
+                    <span>Rows</span>
+                    <select id="metis-stash-report-per-page" class="metis-input">
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+                <div class="metis-stash-report-pagination-actions">
+                    <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-report-page-prev">Previous</button>
+                    <span id="metis-stash-report-page-info" class="metis-stash-report-page-info">Page 1 of 1</span>
+                    <button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" id="metis-stash-report-page-next">Next</button>
+                </div>
+            </div>
         </section>
 
         <section style="margin-bottom:28px;">
@@ -370,7 +409,8 @@ $range_text = ( $from !== '' || $to !== '' )
 
     <script id="metis-stash-boot" type="application/json"><?php echo metis_json_encode( [
         'report'        => $report,
-        'reportTickets' => $report_tickets,
+        'reportPage'    => $report_page,
+        'reportOptions' => $report_options,
         'reportFilters' => [
             'from' => $from,
             'to'   => $to,

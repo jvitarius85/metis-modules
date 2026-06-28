@@ -4284,23 +4284,178 @@ final class GrandyStashRepository {
     }
 
     public static function reportTickets( string $from = '', string $to = '' ): array {
-        $db = self::db();
-        $tickets_table = \Metis_Tables::get( 'grandys_stash_tickets' );
-        $groups_table = \Metis_Tables::get( 'grandys_stash_groups' );
-        $organizations_table = \Metis_Tables::get( 'grandys_stash_organizations' );
-        $items_table = \Metis_Tables::get( 'grandys_stash_ticket_items' );
-        $catalog_table = \Metis_Tables::get( 'grandys_stash_catalog' );
-        $people_table = \Metis_Tables::get( 'people' );
+        return self::reportTicketRows( self::normalizeReportTicketArgs( [
+            'from' => $from,
+            'to'   => $to,
+        ] ), 500, 0 );
+    }
 
-        $where = "1=1";
+    public static function reportTicketPage( array $args = [] ): array {
+        $normalized = self::normalizeReportTicketArgs( $args );
+        $total      = self::reportTicketCount( $normalized );
+        $per_page   = (int) $normalized['per_page'];
+        $page       = min( max( 1, (int) $normalized['page'] ), max( 1, (int) ceil( $total / $per_page ) ) );
+        $offset     = ( $page - 1 ) * $per_page;
+        $rows       = self::reportTicketRows( $normalized, $per_page, $offset );
+        $total_pages = max( 1, (int) ceil( $total / $per_page ) );
+
+        return [
+            'rows' => $rows,
+            'pagination' => [
+                'page'        => $page,
+                'per_page'    => $per_page,
+                'total'       => $total,
+                'total_pages' => $total_pages,
+                'has_prev'    => $page > 1,
+                'has_next'    => $page < $total_pages,
+            ],
+        ];
+    }
+
+    public static function reportTicketExportRows( array $args = [] ): array {
+        return self::reportTicketRows( self::normalizeReportTicketArgs( $args ), null, 0 );
+    }
+
+    public static function reportBuilderOptions( string $from = '', string $to = '' ): array {
+        $db                  = self::db();
+        $tickets_table       = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $groups_table        = \Metis_Tables::get( 'grandys_stash_groups' );
+        $organizations_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $items_table         = \Metis_Tables::get( 'grandys_stash_ticket_items' );
+        $catalog_table       = \Metis_Tables::get( 'grandys_stash_catalog' );
+        $people_table        = \Metis_Tables::get( 'people' );
+
+        $where  = [ '1=1' ];
         $params = [];
+        self::appendReportDateRangeWhere( $where, $params, $from, $to, 't' );
+        $where_sql = implode( ' AND ', $where );
+
+        $assigned = $db->fetchAll(
+            "SELECT DISTINCT COALESCE(NULLIF(assignee.display_name, ''), NULLIF(t.assigned_name, ''), '') AS label
+             FROM {$tickets_table} t
+             LEFT JOIN {$people_table} assignee ON assignee.id = t.assigned_to
+             WHERE {$where_sql}
+               AND COALESCE(NULLIF(assignee.display_name, ''), NULLIF(t.assigned_name, ''), '') <> ''
+             ORDER BY label ASC
+             LIMIT 200",
+            $params
+        ) ?: [];
+
+        $organizations = $db->fetchAll(
+            "SELECT DISTINCT COALESCE(NULLIF(o.name, ''), NULLIF(t.organization_name, ''), 'Independent') AS label
+             FROM {$tickets_table} t
+             LEFT JOIN {$organizations_table} o ON o.id = t.organization_id
+             WHERE {$where_sql}
+             ORDER BY label ASC
+             LIMIT 300",
+            $params
+        ) ?: [];
+
+        $people = $db->fetchAll(
+            "SELECT DISTINCT COALESCE(NULLIF(g.name, ''), NULLIF(t.submit_name, ''), 'Unknown') AS label
+             FROM {$tickets_table} t
+             LEFT JOIN {$groups_table} g ON g.id = t.group_id
+             WHERE {$where_sql}
+             ORDER BY label ASC
+             LIMIT 300",
+            $params
+        ) ?: [];
+
+        $items = $db->fetchAll(
+            "SELECT DISTINCT COALESCE(NULLIF(c.item_name, ''), NULLIF(i.item_name, ''), NULLIF(i.description, ''), 'Unknown') AS label
+             FROM {$items_table} i
+             INNER JOIN {$tickets_table} t ON t.id = i.ticket_id
+             LEFT JOIN {$catalog_table} c ON c.id = i.catalog_item_id
+             WHERE {$where_sql}
+             ORDER BY label ASC
+             LIMIT 400",
+            $params
+        ) ?: [];
+
+        return [
+            'assigned'      => array_values( array_filter( array_map( static fn ( array $row ): string => trim( (string) ( $row['label'] ?? '' ) ), $assigned ) ) ),
+            'organizations' => array_values( array_filter( array_map( static fn ( array $row ): string => trim( (string) ( $row['label'] ?? '' ) ), $organizations ) ) ),
+            'people'        => array_values( array_filter( array_map( static fn ( array $row ): string => trim( (string) ( $row['label'] ?? '' ) ), $people ) ) ),
+            'items'         => array_values( array_filter( array_map( static fn ( array $row ): string => trim( (string) ( $row['label'] ?? '' ) ), $items ) ) ),
+        ];
+    }
+
+    private static function normalizeReportTicketArgs( array $args ): array {
+        $page     = max( 1, (int) ( $args['page'] ?? 1 ) );
+        $per_page = (int) ( $args['per_page'] ?? 25 );
+        if ( ! in_array( $per_page, [ 25, 50, 100 ], true ) ) {
+            $per_page = 25;
+        }
+
+        $sort_field = (string) ( $args['sort_field'] ?? 'submitted_at' );
+        $allowed_sort_fields = [
+            'submitted_at',
+            'code',
+            'submit_name',
+            'organization_label',
+            'assigned_label',
+            'type',
+            'urgency',
+            'status',
+        ];
+        if ( ! in_array( $sort_field, $allowed_sort_fields, true ) ) {
+            $sort_field = 'submitted_at';
+        }
+
+        $sort_direction = strtolower( (string) ( $args['sort_direction'] ?? 'desc' ) ) === 'asc' ? 'asc' : 'desc';
+
+        return [
+            'from'           => trim( (string) ( $args['from'] ?? '' ) ),
+            'to'             => trim( (string) ( $args['to'] ?? '' ) ),
+            'page'           => $page,
+            'per_page'       => $per_page,
+            'search'         => trim( (string) ( $args['search'] ?? '' ) ),
+            'category'       => strtolower( trim( (string) ( $args['category'] ?? '' ) ) ),
+            'item'           => trim( (string) ( $args['item'] ?? '' ) ),
+            'organization'   => trim( (string) ( $args['organization'] ?? '' ) ),
+            'person'         => trim( (string) ( $args['person'] ?? '' ) ),
+            'urgency'        => strtolower( trim( (string) ( $args['urgency'] ?? '' ) ) ),
+            'type'           => strtolower( trim( (string) ( $args['type'] ?? '' ) ) ),
+            'status'         => strtoupper( trim( (string) ( $args['status'] ?? '' ) ) ),
+            'assigned'       => trim( (string) ( $args['assigned'] ?? '' ) ),
+            'sort_field'     => $sort_field,
+            'sort_direction' => $sort_direction,
+        ];
+    }
+
+    private static function appendReportDateRangeWhere( array &$where, array &$params, string $from, string $to, string $ticket_alias = 't' ): void {
         if ( $from !== '' ) {
-            $where .= " AND t.submitted_at >= %s";
+            $where[]  = "{$ticket_alias}.submitted_at >= %s";
             $params[] = $from . ' 00:00:00';
         }
         if ( $to !== '' ) {
-            $where .= " AND t.submitted_at <= %s";
+            $where[]  = "{$ticket_alias}.submitted_at <= %s";
             $params[] = $to . ' 23:59:59';
+        }
+    }
+
+    private static function reportTicketCount( array $args ): int {
+        $db    = self::db();
+        $query = self::buildReportTicketQueryParts( $args );
+        $row   = $db->fetchOne(
+            "SELECT COUNT(*) AS total
+             {$query['from_sql']}
+             WHERE {$query['where_sql']}",
+            $query['params']
+        ) ?: [];
+
+        return (int) ( $row['total'] ?? 0 );
+    }
+
+    private static function reportTicketRows( array $args, ?int $limit = null, int $offset = 0 ): array {
+        $db            = self::db();
+        $items_table   = \Metis_Tables::get( 'grandys_stash_ticket_items' );
+        $catalog_table = \Metis_Tables::get( 'grandys_stash_catalog' );
+        $query         = self::buildReportTicketQueryParts( $args );
+
+        $limit_sql = '';
+        if ( $limit !== null ) {
+            $limit_sql = ' LIMIT ' . max( 1, (int) $limit ) . ' OFFSET ' . max( 0, $offset );
         }
 
         return $db->fetchAll(
@@ -4349,15 +4504,144 @@ final class GrandyStashRepository {
                      FROM {$items_table} ti3
                      LEFT JOIN {$catalog_table} ci3 ON ci3.id = ti3.catalog_item_id
                      WHERE ti3.ticket_id = t.id) AS items_summary
-             FROM {$tickets_table} t
+             {$query['from_sql']}
+             WHERE {$query['where_sql']}
+             ORDER BY {$query['order_sql']}{$limit_sql}",
+            $query['params']
+        ) ?: [];
+    }
+
+    private static function buildReportTicketQueryParts( array $args ): array {
+        $db                  = self::db();
+        $tickets_table       = \Metis_Tables::get( 'grandys_stash_tickets' );
+        $groups_table        = \Metis_Tables::get( 'grandys_stash_groups' );
+        $organizations_table = \Metis_Tables::get( 'grandys_stash_organizations' );
+        $items_table         = \Metis_Tables::get( 'grandys_stash_ticket_items' );
+        $catalog_table       = \Metis_Tables::get( 'grandys_stash_catalog' );
+        $people_table        = \Metis_Tables::get( 'people' );
+
+        $where  = [ '1=1' ];
+        $params = [];
+        self::appendReportDateRangeWhere( $where, $params, (string) $args['from'], (string) $args['to'], 't' );
+
+        if ( $args['category'] !== '' ) {
+            $where[]  = "EXISTS (
+                SELECT 1
+                FROM {$items_table} report_item
+                LEFT JOIN {$catalog_table} report_catalog ON report_catalog.id = report_item.catalog_item_id
+                WHERE report_item.ticket_id = t.id
+                  AND LOWER(COALESCE(NULLIF(report_catalog.category_slug, ''), NULLIF(report_item.category, ''), 'other')) = %s
+            )";
+            $params[] = $args['category'];
+        }
+
+        if ( $args['item'] !== '' ) {
+            $where[]  = "EXISTS (
+                SELECT 1
+                FROM {$items_table} report_item
+                LEFT JOIN {$catalog_table} report_catalog ON report_catalog.id = report_item.catalog_item_id
+                WHERE report_item.ticket_id = t.id
+                  AND LOWER(COALESCE(NULLIF(report_catalog.item_name, ''), NULLIF(report_item.item_name, ''), NULLIF(report_item.description, ''), '')) LIKE %s
+            )";
+            $params[] = self::reportLike( $db, (string) $args['item'] );
+        }
+
+        if ( $args['organization'] !== '' ) {
+            $where[]  = "LOWER(CONCAT_WS(' ',
+                COALESCE(NULLIF(o.name, ''), NULLIF(t.organization_name, ''), 'Independent'),
+                COALESCE(NULLIF(o.domain, ''), ''),
+                CASE
+                    WHEN COALESCE(NULLIF(o.domain, ''), '') <> '' THEN CONCAT('domain:', LOWER(o.domain))
+                    WHEN COALESCE(t.organization_id, 0) > 0 THEN CONCAT('org:', t.organization_id)
+                    WHEN COALESCE(NULLIF(t.organization_name, ''), '') <> '' THEN CONCAT('name:', LOWER(t.organization_name))
+                    ELSE 'independent'
+                END
+            )) LIKE %s";
+            $params[] = self::reportLike( $db, (string) $args['organization'] );
+        }
+
+        if ( $args['person'] !== '' ) {
+            $where[]  = "LOWER(CONCAT_WS(' ',
+                COALESCE(NULLIF(g.name, ''), NULLIF(t.submit_name, ''), 'Unknown'),
+                COALESCE(NULLIF(g.email, ''), NULLIF(t.submit_email, ''), ''),
+                CASE
+                    WHEN COALESCE(t.group_id, 0) > 0 THEN CONCAT('group:', t.group_id)
+                    WHEN COALESCE(NULLIF(t.submit_email, ''), '') <> '' THEN CONCAT('email:', LOWER(t.submit_email))
+                    ELSE CONCAT('name:', LOWER(COALESCE(NULLIF(t.submit_name, ''), 'unknown')))
+                END
+            )) LIKE %s";
+            $params[] = self::reportLike( $db, (string) $args['person'] );
+        }
+
+        if ( $args['urgency'] !== '' ) {
+            $where[]  = 'LOWER(t.urgency) = %s';
+            $params[] = strtolower( (string) $args['urgency'] );
+        }
+        if ( $args['type'] !== '' ) {
+            $where[]  = 'LOWER(t.type) = %s';
+            $params[] = strtolower( (string) $args['type'] );
+        }
+        if ( $args['status'] !== '' ) {
+            $where[]  = 'UPPER(t.status) = %s';
+            $params[] = strtoupper( (string) $args['status'] );
+        }
+        if ( $args['assigned'] !== '' ) {
+            $where[]  = "LOWER(COALESCE(NULLIF(assignee.display_name, ''), NULLIF(t.assigned_name, ''), '')) = %s";
+            $params[] = strtolower( (string) $args['assigned'] );
+        }
+
+        if ( $args['search'] !== '' ) {
+            $like = self::reportLike( $db, (string) $args['search'] );
+            $where[] = "(
+                LOWER(COALESCE(t.code, '')) LIKE %s
+                OR LOWER(COALESCE(t.submit_name, '')) LIKE %s
+                OR LOWER(COALESCE(t.submit_email, '')) LIKE %s
+                OR LOWER(COALESCE(t.type, '')) LIKE %s
+                OR LOWER(COALESCE(t.status, '')) LIKE %s
+                OR LOWER(COALESCE(t.urgency, '')) LIKE %s
+                OR LOWER(COALESCE(NULLIF(o.name, ''), NULLIF(t.organization_name, ''), 'Independent')) LIKE %s
+                OR LOWER(COALESCE(NULLIF(assignee.display_name, ''), NULLIF(t.assigned_name, ''), '')) LIKE %s
+                OR EXISTS (
+                    SELECT 1
+                    FROM {$items_table} report_item
+                    LEFT JOIN {$catalog_table} report_catalog ON report_catalog.id = report_item.catalog_item_id
+                    WHERE report_item.ticket_id = t.id
+                      AND LOWER(CONCAT_WS(' ',
+                          COALESCE(NULLIF(report_catalog.item_name, ''), NULLIF(report_item.item_name, ''), NULLIF(report_item.description, ''), ''),
+                          COALESCE(NULLIF(report_catalog.category_name, ''), NULLIF(report_item.category, ''), '')
+                      )) LIKE %s
+                )
+            )";
+            array_push( $params, $like, $like, $like, $like, $like, $like, $like, $like, $like );
+        }
+
+        $sort_map = [
+            'submitted_at'      => 't.submitted_at',
+            'code'              => 't.code',
+            'submit_name'       => 't.submit_name',
+            'organization_label'=> "COALESCE(NULLIF(o.name, ''), NULLIF(t.organization_name, ''), 'Independent')",
+            'assigned_label'    => "COALESCE(NULLIF(assignee.display_name, ''), NULLIF(t.assigned_name, ''), '')",
+            'type'              => 't.type',
+            'urgency'           => 't.urgency',
+            'status'            => 't.status',
+        ];
+
+        $sort_field = $sort_map[ (string) $args['sort_field'] ] ?? 't.submitted_at';
+        $direction  = strtolower( (string) $args['sort_direction'] ) === 'asc' ? 'ASC' : 'DESC';
+
+        return [
+            'from_sql'  => "FROM {$tickets_table} t
              LEFT JOIN {$groups_table} g ON g.id = t.group_id
              LEFT JOIN {$organizations_table} o ON o.id = t.organization_id
-             LEFT JOIN {$people_table} assignee ON assignee.id = t.assigned_to
-             WHERE {$where}
-             ORDER BY t.submitted_at DESC, t.id DESC
-             LIMIT 500",
-            $params
-        ) ?: [];
+             LEFT JOIN {$people_table} assignee ON assignee.id = t.assigned_to",
+            'where_sql' => implode( ' AND ', $where ),
+            'order_sql' => "{$sort_field} {$direction}, t.id {$direction}",
+            'params'    => $params,
+        ];
+    }
+
+    private static function reportLike( object $db, string $value ): string {
+        return '%' . strtolower( $db->esc_like( trim( $value ) ) ) . '%';
     }
 
     // ─── Email preferences ──────────────────────────────

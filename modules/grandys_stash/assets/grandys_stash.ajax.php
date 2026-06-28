@@ -80,6 +80,212 @@ function metis_grandys_stash_register_ajax_controllers(): void {
 
 metis_grandys_stash_register_ajax_controllers();
 
+function metis_grandys_stash_report_request_args(): array {
+    return [
+        'from'           => metis_text_clean( (string) ( metis_request_post()['from'] ?? '' ) ),
+        'to'             => metis_text_clean( (string) ( metis_request_post()['to'] ?? '' ) ),
+        'page'           => max( 1, (int) ( metis_request_post()['page'] ?? 1 ) ),
+        'per_page'       => (int) ( metis_request_post()['per_page'] ?? 25 ),
+        'search'         => metis_text_clean( (string) ( metis_runtime_unslash( metis_request_post()['search'] ?? '' ) ) ),
+        'category'       => metis_key_clean( (string) ( metis_request_post()['category'] ?? '' ) ),
+        'item'           => metis_text_clean( (string) ( metis_runtime_unslash( metis_request_post()['item'] ?? '' ) ) ),
+        'organization'   => metis_text_clean( (string) ( metis_runtime_unslash( metis_request_post()['organization'] ?? '' ) ) ),
+        'person'         => metis_text_clean( (string) ( metis_runtime_unslash( metis_request_post()['person'] ?? '' ) ) ),
+        'urgency'        => metis_key_clean( (string) ( metis_request_post()['urgency'] ?? '' ) ),
+        'type'           => metis_key_clean( (string) ( metis_request_post()['type'] ?? '' ) ),
+        'status'         => strtoupper( metis_key_clean( (string) ( metis_request_post()['status'] ?? '' ) ) ),
+        'assigned'       => metis_text_clean( (string) ( metis_runtime_unslash( metis_request_post()['assigned'] ?? '' ) ) ),
+        'sort_field'     => metis_key_clean( (string) ( metis_request_post()['sort_field'] ?? 'submitted_at' ) ),
+        'sort_direction' => strtolower( (string) ( metis_request_post()['sort_direction'] ?? 'desc' ) ) === 'asc' ? 'asc' : 'desc',
+    ];
+}
+
+function metis_grandys_stash_report_badge_class( string $kind, string $value ): string {
+    $value = strtolower( trim( $value ) );
+    if ( $kind === 'type' ) {
+        return 'metis-stash-type-badge metis-stash-type-' . ( $value === 'donation' ? 'donation' : 'request' );
+    }
+
+    $allowed = [ 'new', 'reviewing', 'waitlist', 'ready', 'completed', 'closed', 'pending', 'available', 'fulfilled', 'unavailable' ];
+    if ( ! in_array( $value, $allowed, true ) ) {
+        $value = 'completed';
+    }
+
+    return 'metis-stash-status-badge metis-stash-status-' . $value;
+}
+
+function metis_grandys_stash_report_trend_svg( array $monthly ): string {
+    if ( $monthly === [] ) {
+        return '<div style="color:#667085;font-size:12px;">Not enough data to graph a trend for this range.</div>';
+    }
+
+    $points = array_reverse( array_slice( $monthly, 0, 12 ) );
+    $max = 1;
+    foreach ( $points as $point ) {
+        $max = max(
+            $max,
+            (int) ( $point['tickets'] ?? 0 ),
+            (int) ( $point['requests'] ?? 0 ),
+            (int) ( $point['donations'] ?? 0 ),
+            (int) ( $point['completed'] ?? 0 )
+        );
+    }
+
+    $width  = 760;
+    $height = 240;
+    $left   = 46;
+    $right  = 18;
+    $top    = 20;
+    $bottom = 42;
+    $plot_w = $width - $left - $right;
+    $plot_h = $height - $top - $bottom;
+    $count  = max( 1, count( $points ) - 1 );
+
+    $build_polyline = static function ( string $key ) use ( $points, $count, $left, $top, $plot_w, $plot_h, $max ): string {
+        $coords = [];
+        foreach ( $points as $index => $point ) {
+            $x = $left + ( $count === 0 ? 0 : ( $plot_w * ( $index / $count ) ) );
+            $value = (int) ( $point[ $key ] ?? 0 );
+            $y = $top + $plot_h - ( $plot_h * ( $value / $max ) );
+            $coords[] = round( $x, 2 ) . ',' . round( $y, 2 );
+        }
+        return implode( ' ', $coords );
+    };
+
+    $labels = [];
+    foreach ( $points as $index => $point ) {
+        $x = $left + ( $count === 0 ? 0 : ( $plot_w * ( $index / $count ) ) );
+        $labels[] = '<text x="' . round( $x, 2 ) . '" y="' . ( $height - 16 ) . '" text-anchor="middle" font-size="10" fill="#667085">' . metis_escape_html( (string) ( $point['month'] ?? '' ) ) . '</text>';
+    }
+
+    $grid = [];
+    for ( $step = 0; $step <= 4; $step++ ) {
+        $y = $top + ( $plot_h * ( $step / 4 ) );
+        $value = (int) round( $max - ( $max * ( $step / 4 ) ) );
+        $grid[] = '<line x1="' . $left . '" y1="' . round( $y, 2 ) . '" x2="' . ( $width - $right ) . '" y2="' . round( $y, 2 ) . '" stroke="#e4e7ec" stroke-width="1" />';
+        $grid[] = '<text x="' . ( $left - 8 ) . '" y="' . round( $y + 4, 2 ) . '" text-anchor="end" font-size="10" fill="#667085">' . $value . '</text>';
+    }
+
+    $legend = [
+        [ '#175cd3', 'Tickets' ],
+        [ '#3d5a1e', 'Requests' ],
+        [ '#8e4b10', 'Donations' ],
+        [ '#344054', 'Completed' ],
+    ];
+
+    $legend_html = [];
+    foreach ( $legend as $index => $row ) {
+        $x = $left + ( $index * 150 );
+        $legend_html[] = '<rect x="' . $x . '" y="4" width="12" height="12" rx="6" fill="' . $row[0] . '" />';
+        $legend_html[] = '<text x="' . ( $x + 18 ) . '" y="14" font-size="11" fill="#344054">' . metis_escape_html( $row[1] ) . '</text>';
+    }
+
+    return '<svg viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" height="240" role="img" aria-label="Monthly ticket trends">' .
+        implode( '', $legend_html ) .
+        implode( '', $grid ) .
+        '<line x1="' . $left . '" y1="' . ( $top + $plot_h ) . '" x2="' . ( $width - $right ) . '" y2="' . ( $top + $plot_h ) . '" stroke="#98a2b3" stroke-width="1.2" />' .
+        '<polyline fill="none" stroke="#175cd3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' . $build_polyline( 'tickets' ) . '" />' .
+        '<polyline fill="none" stroke="#3d5a1e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' . $build_polyline( 'requests' ) . '" />' .
+        '<polyline fill="none" stroke="#8e4b10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' . $build_polyline( 'donations' ) . '" />' .
+        '<polyline fill="none" stroke="#344054" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' . $build_polyline( 'completed' ) . '" />' .
+        implode( '', $labels ) .
+    '</svg>';
+}
+
+function metis_grandys_stash_report_pdf_html( array $report, array $rows, array $filters ): string {
+    $summary = is_array( $report['summary'] ?? null ) ? $report['summary'] : [];
+    $range   = trim( (string) ( $filters['from'] ?? '' ) ) !== '' || trim( (string) ( $filters['to'] ?? '' ) ) !== ''
+        ? ( trim( (string) ( $filters['from'] ?? '' ) ) ?: 'Start' ) . ' to ' . ( trim( (string) ( $filters['to'] ?? '' ) ) ?: 'Today' )
+        : 'All available ticket history';
+
+    $meta_parts = [ 'Range: ' . $range ];
+    foreach ( [ 'category', 'item', 'organization', 'person', 'urgency', 'type', 'status', 'assigned', 'search' ] as $key ) {
+        $value = trim( (string) ( $filters[ $key ] ?? '' ) );
+        if ( $value !== '' ) {
+            $meta_parts[] = ucfirst( str_replace( '_', ' ', $key ) ) . ': ' . $value;
+        }
+    }
+
+    $kpis = [
+        [ 'Total Tickets', (int) ( $summary['total_tickets'] ?? 0 ) ],
+        [ 'People Served', (int) ( $report['people_served'] ?? 0 ) ],
+        [ 'Items Fulfilled', (int) ( $report['items_fulfilled'] ?? 0 ) ],
+        [ 'Completed', (int) ( $summary['completed'] ?? 0 ) ],
+        [ 'Open', (int) ( $summary['open_tickets'] ?? 0 ) ],
+        [ 'Avg Days', (string) ( $report['avg_days_to_complete'] ?? '0' ) ],
+    ];
+
+    $kpi_html = '';
+    foreach ( $kpis as $card ) {
+        $kpi_html .= '<td style="width:16.66%;padding:0 8px 0 0;vertical-align:top;">' .
+            '<div style="border:1px solid #d0d5dd;border-radius:14px;padding:14px 16px;background:#f8fafc;">' .
+                '<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#667085;">' . metis_escape_html( (string) $card[0] ) . '</div>' .
+                '<div style="margin-top:8px;font-size:24px;font-weight:700;color:#101828;">' . metis_escape_html( (string) $card[1] ) . '</div>' .
+            '</div>' .
+        '</td>';
+    }
+
+    $row_html = '';
+    foreach ( $rows as $index => $row ) {
+        $bg = $index % 2 === 0 ? '#ffffff' : '#f8fafc';
+        $type_label = strtolower( (string) ( $row['type'] ?? 'request' ) ) === 'donation' ? 'Donation' : 'Request';
+        $status_label = strtoupper( (string) ( $row['status'] ?? 'NEW' ) );
+        $row_html .= '<tr style="background:' . $bg . ';">' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;">' . metis_escape_html( metis_runtime_format_date( (string) ( $row['submitted_at'] ?? '' ) ) ) . '</td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;font-weight:700;">' . metis_escape_html( (string) ( $row['code'] ?? '' ) ) . '</td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;">' . metis_escape_html( (string) ( $row['submit_name'] ?? 'Unknown' ) ) . '</td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;">' . metis_escape_html( (string) ( $row['organization_label'] ?? 'Independent' ) ) . '</td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;">' . metis_escape_html( (string) ( $row['assigned_label'] ?? '—' ) ) . '</td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;"><span class="' . metis_escape_attr( metis_grandys_stash_report_badge_class( 'type', (string) ( $row['type'] ?? 'request' ) ) ) . '">' . metis_escape_html( $type_label ) . '</span></td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;">' . metis_escape_html( ucfirst( (string) ( $row['urgency'] ?? 'standard' ) ) ) . '</td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;"><span class="' . metis_escape_attr( metis_grandys_stash_report_badge_class( 'status', $status_label ) ) . '">' . metis_escape_html( $status_label ) . '</span></td>' .
+            '<td style="padding:8px 10px;border:1px solid #e4e7ec;font-size:11px;">' . metis_escape_html( (string) ( $row['items_summary'] ?? '—' ) ) . '</td>' .
+        '</tr>';
+    }
+
+    if ( $row_html === '' ) {
+        $row_html = '<tr><td colspan="9" style="padding:12px;border:1px solid #e4e7ec;font-size:12px;color:#667085;">No tickets matched the selected filters.</td></tr>';
+    }
+
+    $css = '
+        body{font-family:Figtree,DejaVu Sans,sans-serif;color:#101828;font-size:12px;}
+        h1{font-size:28px;margin:0 0 8px;}
+        h2{font-size:16px;margin:22px 0 10px;}
+        p{margin:0 0 8px;}
+        .meta{color:#475467;font-size:12px;line-height:1.5;}
+        .metis-stash-type-badge,.metis-stash-status-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:700;line-height:1.4;}
+        .metis-stash-type-request{background:#edf6e3;border:1px solid #b7d08f;color:#3d5a1e;}
+        .metis-stash-type-donation{background:#f4ecd9;border:1px solid #d1bb84;color:#5a4a22;}
+        .metis-stash-status-new{background:#eff8ff;border:1px solid #b2ddff;color:#175cd3;}
+        .metis-stash-status-reviewing{background:#fef3f2;border:1px solid #fecdca;color:#b42318;}
+        .metis-stash-status-waitlist{background:#fffaeb;border:1px solid #fedf89;color:#b54708;}
+        .metis-stash-status-ready{background:#ecfdf3;border:1px solid #abefc6;color:#067647;}
+        .metis-stash-status-completed{background:#f0f2f5;border:1px solid #d0d5dd;color:#344054;}
+        .metis-stash-status-closed{background:#f0f2f5;border:1px solid #d0d5dd;color:#667085;}
+        table{border-collapse:collapse;width:100%;}
+    ';
+
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' . $css . '</style></head><body>' .
+        '<h1>Grandy&apos;s Stash Report</h1>' .
+        '<p class="meta">' . metis_escape_html( implode( ' | ', $meta_parts ) ) . '</p>' .
+        '<table style="width:100%;margin-top:18px;"><tr>' . $kpi_html . '</tr></table>' .
+        '<h2>Monthly Trends</h2>' .
+        metis_grandys_stash_report_trend_svg( (array) ( $report['monthly'] ?? [] ) ) .
+        '<h2>Filtered Tickets</h2>' .
+        '<table style="margin-top:10px;"><thead><tr>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Submitted</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Code</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Name</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Organization</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Assigned</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Type</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Urgency</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Status</th>' .
+            '<th style="padding:8px 10px;border:1px solid #d0d5dd;background:#eef2ff;font-size:11px;text-align:left;">Items</th>' .
+        '</tr></thead><tbody>' . $row_html . '</tbody></table>' .
+    '</body></html>';
+}
+
 // ─── Dashboard state ─────────────────────────────────
 
 metis_ajax_register_handler( 'metis_grandys_stash_state', function (): void {
@@ -443,14 +649,29 @@ metis_ajax_register_handler( 'metis_grandys_stash_update_inventory', function ()
 
 metis_ajax_register_handler( 'metis_grandys_stash_export', function (): void {
     metis_grandys_stash_ajax_guard( 'grandys_stash.export' );
-    $filters = [
-        'date_from' => isset( metis_request_post()['date_from'] ) ? metis_text_clean( metis_runtime_unslash( metis_request_post()['date_from'] ) ) : '',
-        'date_to'   => isset( metis_request_post()['date_to'] )   ? metis_text_clean( metis_runtime_unslash( metis_request_post()['date_to'] ) )   : '',
-        'type'      => isset( metis_request_post()['type'] )       ? metis_key_clean( metis_request_post()['type'] )                                : '',
-        'status'    => isset( metis_request_post()['status'] )     ? strtoupper( metis_key_clean( metis_request_post()['status'] ) )               : '',
-    ];
-    $rows = GrandyStashRepository::exportTickets( $filters );
-    metis_runtime_send_json_success( [ 'rows' => $rows, 'count' => count( $rows ) ] );
+    $format = strtolower( metis_key_clean( (string) ( metis_request_post()['format'] ?? 'json' ) ) );
+    $args   = metis_grandys_stash_report_request_args();
+
+    if ( $format === 'pdf' ) {
+        $report = GrandyStashRepository::reportData( (string) $args['from'], (string) $args['to'] );
+        $rows   = GrandyStashRepository::reportTicketExportRows( $args );
+        $html   = metis_grandys_stash_report_pdf_html( $report, $rows, $args );
+        $pdf    = new Core_PDF_Service();
+        $pdf->download_with_footer(
+            $html,
+            'Mobilize Waco - Grandy\'s Stash Report',
+            'grandys-stash-report-' . date( 'Y-m-d' ) . '.pdf',
+            [ 'paper' => 'letter', 'orientation' => 'landscape' ]
+        );
+        return;
+    }
+
+    $page = GrandyStashRepository::reportTicketPage( $args );
+    metis_runtime_send_json_success( [
+        'rows'       => (array) ( $page['rows'] ?? [] ),
+        'pagination' => (array) ( $page['pagination'] ?? [] ),
+        'count'      => (int) ( $page['pagination']['total'] ?? 0 ),
+    ] );
 } );
 
 metis_ajax_register_handler( 'metis_grandys_stash_delete_ticket', function (): void {
@@ -617,14 +838,14 @@ metis_ajax_register_handler( 'metis_grandys_stash_wipe_legacy_imports', function
 
 metis_ajax_register_handler( 'metis_grandys_stash_report', function (): void {
     metis_grandys_stash_ajax_guard();
-    $from = metis_text_clean( (string) ( metis_request_post()['from'] ?? '' ) );
-    $to   = metis_text_clean( (string) ( metis_request_post()['to'] ?? '' ) );
+    $args = metis_grandys_stash_report_request_args();
     metis_runtime_send_json_success( [
-        'report'  => GrandyStashRepository::reportData( $from, $to ),
-        'tickets' => GrandyStashRepository::reportTickets( $from, $to ),
-        'filters' => [
-            'from' => $from,
-            'to'   => $to,
+        'report'        => GrandyStashRepository::reportData( (string) $args['from'], (string) $args['to'] ),
+        'reportPage'    => GrandyStashRepository::reportTicketPage( $args ),
+        'reportOptions' => GrandyStashRepository::reportBuilderOptions( (string) $args['from'], (string) $args['to'] ),
+        'filters'       => [
+            'from' => (string) $args['from'],
+            'to'   => (string) $args['to'],
         ],
     ] );
 } );

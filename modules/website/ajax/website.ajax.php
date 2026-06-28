@@ -237,6 +237,17 @@ function metis_website_ajax_author_options(): array {
     return EditorOptionsService::authorOptions();
 }
 
+function metis_website_ajax_post_author_source_id( array $row ): int {
+    $author_source_id = (int) ( $row['author_id'] ?? 0 );
+    if ( $author_source_id < 1 ) {
+        $author_source_id = (int) ( $row['created_by'] ?? 0 );
+    }
+    if ( $author_source_id < 1 ) {
+        $author_source_id = (int) ( $row['updated_by'] ?? 0 );
+    }
+    return $author_source_id;
+}
+
 /**
  * @return array<string,mixed>
  */
@@ -2562,13 +2573,8 @@ metis_ajax_register_handler( 'metis_website_post_get', function (): void {
     }
 
     $payload = $post->toArray();
-    $author_source_id = (int) ( $payload['created_by'] ?? 0 );
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $payload['author_id'] ?? 0 );
-    }
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $payload['updated_by'] ?? 0 );
-    }
+    $author_source_id = metis_website_ajax_post_author_source_id( $payload );
+    $payload['author_id'] = $author_source_id;
     $payload['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $payload['last_edit'] = (string) ( $payload['updated_at'] ?? '' );
     $payload['published_date'] = (string) ( $payload['publish_date'] ?? '' );
@@ -2603,6 +2609,7 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
     $autosave = ! empty( metis_request_post()['autosave'] );
     $post_category_ids = metis_website_ajax_post_category_ids_with_default( metis_website_ajax_post_category_ids_input() );
     $post_tag_ids = metis_website_ajax_post_tag_ids_merged_with_names( metis_website_ajax_post_tag_ids_input() );
+    $author_id = isset( metis_request_post()['author_id'] ) ? (int) metis_request_post()['author_id'] : 0;
     $post_category_id = $post_category_ids !== []
         ? (int) $post_category_ids[0]
         : ( isset( metis_request_post()['post_category_id'] ) ? (int) metis_request_post()['post_category_id'] : ( isset( metis_request_post()['category_id'] ) ? (int) metis_request_post()['category_id'] : 0 ) );
@@ -2668,6 +2675,7 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
         'post_category_id'   => $post_category_id > 0 ? $post_category_id : null,
         'post_category_ids'  => $post_category_ids,
         'post_tag_ids'       => $post_tag_ids,
+        'author_id'          => $author_id > 0 ? $author_id : null,
         'parent_page_id'     => $parent_page_id > 0 ? $parent_page_id : null,
         'featured_image_id'  => $featured_image_id > 0 ? $featured_image_id : null,
         'featured_image_caption' => $featured_image_caption !== '' ? $featured_image_caption : null,
@@ -2706,13 +2714,8 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
 
     $post = PostService::getById( (int) $post->id ) ?? $post;
     $row = $post->toArray();
-    $author_source_id = (int) ( $row['created_by'] ?? 0 );
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $row['author_id'] ?? 0 );
-    }
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $row['updated_by'] ?? 0 );
-    }
+    $author_source_id = metis_website_ajax_post_author_source_id( $row );
+    $row['author_id'] = $author_source_id;
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['publish_date'] ?? '' );
@@ -2757,6 +2760,7 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
     $autosave = ! empty( metis_request_post()['autosave'] );
     $post_category_ids = metis_website_ajax_post_category_ids_with_default( metis_website_ajax_post_category_ids_input() );
     $post_tag_ids = metis_website_ajax_post_tag_ids_merged_with_names( metis_website_ajax_post_tag_ids_input() );
+    $author_id = isset( metis_request_post()['author_id'] ) ? (int) metis_request_post()['author_id'] : 0;
     $post_category_id = $post_category_ids !== []
         ? (int) $post_category_ids[0]
         : ( isset( metis_request_post()['post_category_id'] ) ? (int) metis_request_post()['post_category_id'] : ( isset( metis_request_post()['category_id'] ) ? (int) metis_request_post()['category_id'] : 0 ) );
@@ -2813,6 +2817,7 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
         'post_category_id'   => $post_category_id > 0 ? $post_category_id : null,
         'post_category_ids'  => $post_category_ids,
         'post_tag_ids'       => $post_tag_ids,
+        'author_id'          => $author_id > 0 ? $author_id : null,
         'parent_page_id'     => $parent_page_id > 0 ? $parent_page_id : null,
         'featured_image_id'  => $featured_image_id > 0 ? $featured_image_id : null,
         'featured_image_caption' => $featured_image_caption !== '' ? $featured_image_caption : null,
@@ -2941,13 +2946,8 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
     }
 
     $row = $post->toArray();
-    $author_source_id = (int) ( $row['created_by'] ?? 0 );
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $row['author_id'] ?? 0 );
-    }
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $row['updated_by'] ?? 0 );
-    }
+    $author_source_id = metis_website_ajax_post_author_source_id( $row );
+    $row['author_id'] = $author_source_id;
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['publish_date'] ?? '' );
@@ -2990,13 +2990,8 @@ metis_ajax_register_handler( 'metis_website_post_publish', function (): void {
     }
 
     $row = $post->toArray();
-    $author_source_id = (int) ( $row['created_by'] ?? 0 );
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $row['author_id'] ?? 0 );
-    }
-    if ( $author_source_id < 1 ) {
-        $author_source_id = (int) ( $row['updated_by'] ?? 0 );
-    }
+    $author_source_id = metis_website_ajax_post_author_source_id( $row );
+    $row['author_id'] = $author_source_id;
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['publish_date'] ?? '' );

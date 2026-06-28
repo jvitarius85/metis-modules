@@ -4,7 +4,7 @@
   const ajax = window.metisGrandyStashAjax || {};
   if (!root || !bootNode) return;
 
-  let state = parseJson(bootNode.textContent, { stats: {}, tickets: [], assignees: [], groups: [], organizations: [], report: null, reportTickets: [], reportFilters: {} });
+  let state = parseJson(bootNode.textContent, { stats: {}, tickets: [], assignees: [], groups: [], organizations: [], report: null, reportPage: { rows: [], pagination: {} }, reportOptions: {}, reportFilters: {} });
   let currentFilter = normalizeFilter('action');
   let currentSort = normalizeSort('submitted_desc');
   let currentTicketId = 0;
@@ -12,6 +12,7 @@
   let selectedManagerKind = '';
   let reportDrilldown = null;
   let reportSort = { field: 'submitted_at', direction: 'desc' };
+  let reportRefreshTimer = 0;
 
   const canManage = root.dataset.canManage === '1';
   const canCreate = root.dataset.canCreate === '1';
@@ -21,6 +22,7 @@
   const canInventory = root.dataset.canInventory === '1';
   const canDelete = root.dataset.canDelete === '1';
   const canBulkDelete = root.dataset.canBulkDelete === '1';
+  const canExport = root.dataset.canExport === '1';
   const currentUserId = parseInt(root.dataset.currentPersonId || ajax.person_id || ajax.user_id || '0', 10);
   const isTicketPage = root.dataset.ticketPage === '1';
   const stashView = String(root.dataset.stashView || '');
@@ -91,6 +93,7 @@
     reportDrilldownCount: qs('#metis-stash-report-drilldown-count'),
     reportDrilldownBody: qs('#metis-stash-report-drilldown-body'),
     reportDrilldownClear: qs('#metis-stash-report-drilldown-clear'),
+    reportExportPdf: qs('#metis-stash-report-export-pdf'),
     reportBuilderCategory: qs('#metis-stash-report-builder-category'),
     reportBuilderItem: qs('#metis-stash-report-builder-item'),
     reportBuilderOrganization: qs('#metis-stash-report-builder-organization'),
@@ -102,6 +105,11 @@
     reportBuilderItemOptions: qs('#metis-stash-report-item-options'),
     reportBuilderOrganizationOptions: qs('#metis-stash-report-organization-options'),
     reportBuilderPersonOptions: qs('#metis-stash-report-person-options'),
+    reportTrendGraph: qs('#metis-stash-report-trend-graph'),
+    reportPerPage: qs('#metis-stash-report-per-page'),
+    reportPagePrev: qs('#metis-stash-report-page-prev'),
+    reportPageNext: qs('#metis-stash-report-page-next'),
+    reportPageInfo: qs('#metis-stash-report-page-info'),
     groupRows: qs('#metis-stash-group-rows'),
     groupSearch: qs('#metis-stash-group-search'),
     groupModal: qs('#metis-stash-group-modal'),
@@ -331,10 +339,12 @@
     if (stashView !== 'reports') return;
     await refreshReport();
   });
-  ui.reportDrilldownSearch?.addEventListener('input', renderReportDrilldown);
+  ui.reportDrilldownSearch?.addEventListener('input', function () {
+    queueReportRefresh(1);
+  });
   ui.reportDrilldownClear?.addEventListener('click', function () {
     clearReportBuilder();
-    renderReportDrilldown();
+    queueReportRefresh(1, true);
   });
   [
     ui.reportBuilderCategory,
@@ -346,8 +356,24 @@
     ui.reportBuilderStatus,
     ui.reportBuilderAssigned
   ].forEach(function (node) {
-    node?.addEventListener('input', renderReportDrilldown);
-    node?.addEventListener('change', renderReportDrilldown);
+    node?.addEventListener('input', function () { queueReportRefresh(1); });
+    node?.addEventListener('change', function () { queueReportRefresh(1, true); });
+  });
+  ui.reportPerPage?.addEventListener('change', function () {
+    queueReportRefresh(1, true);
+  });
+  ui.reportPagePrev?.addEventListener('click', function () {
+    const page = Number(state.reportPage?.pagination?.page || 1);
+    if (page > 1) queueReportRefresh(page - 1, true);
+  });
+  ui.reportPageNext?.addEventListener('click', function () {
+    const page = Number(state.reportPage?.pagination?.page || 1);
+    const totalPages = Number(state.reportPage?.pagination?.total_pages || 1);
+    if (page < totalPages) queueReportRefresh(page + 1, true);
+  });
+  ui.reportExportPdf?.addEventListener('click', function () {
+    if (!canExport) return;
+    submitReportPdfExport();
   });
   ui.reportDrilldownBody?.addEventListener('click', function (e) {
     const reportTicketRow = e.target.closest('.metis-stash-report-ticket-row[data-ticket-url]');
@@ -378,7 +404,7 @@
       reportSort.field = field;
       reportSort.direction = field === 'submitted_at' ? 'desc' : 'asc';
     }
-    renderReportDrilldown();
+    queueReportRefresh(1, true);
   });
 
   root.addEventListener('keydown', function (e) {
@@ -869,12 +895,10 @@
 
   async function refreshReport() {
     try {
-      const data = await request('metis_grandys_stash_report', {
-        from: String(ui.reportFrom?.value || ''),
-        to: String(ui.reportTo?.value || '')
-      });
+      const data = await request('metis_grandys_stash_report', buildReportRequestPayload(1));
       state.report = data.report || null;
-      state.reportTickets = Array.isArray(data.tickets) ? data.tickets : [];
+      state.reportPage = data.reportPage || { rows: [], pagination: {} };
+      state.reportOptions = data.reportOptions || {};
       state.reportFilters = data.filters || { from: '', to: '' };
       clearReportBuilder(true);
       renderReportView();
@@ -898,6 +922,7 @@
     setText(ui.reportOrgCount, 'Organizations: ' + formatNumber((report.by_organization || []).length));
     setText(ui.reportPersonCount, 'People: ' + formatNumber((report.by_person || []).length));
     setText(ui.reportEquipmentCount, 'Equipment: ' + formatNumber((report.by_equipment || []).length));
+    renderReportTrendGraph(report.monthly || []);
 
     renderReportRows(
       ui.reportCategoryBody,
@@ -1003,7 +1028,7 @@
     if (kind === 'category' && ui.reportBuilderCategory) ui.reportBuilderCategory.value = String(value || '');
     if (kind === 'organization' && ui.reportBuilderOrganization) ui.reportBuilderOrganization.value = String(label || '');
     if (kind === 'person' && ui.reportBuilderPerson) ui.reportBuilderPerson.value = String(label || '');
-    renderReportDrilldown();
+    queueReportRefresh(1, true);
     ui.reportDrilldown?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -1017,121 +1042,22 @@
         : 'Filter tickets from the current report range without leaving the page.'
     );
 
-    const searchTerm = String(ui.reportDrilldownSearch?.value || '').toLowerCase().trim();
-    const builderCategory = String(ui.reportBuilderCategory?.value || '').toLowerCase().trim();
-    const builderItem = String(ui.reportBuilderItem?.value || '').toLowerCase().trim();
-    const builderOrganization = String(ui.reportBuilderOrganization?.value || '').toLowerCase().trim();
-    const builderPerson = String(ui.reportBuilderPerson?.value || '').toLowerCase().trim();
-    const builderUrgency = String(ui.reportBuilderUrgency?.value || '').toLowerCase().trim();
-    const builderType = String(ui.reportBuilderType?.value || '').toLowerCase().trim();
-    const builderStatus = String(ui.reportBuilderStatus?.value || '').toLowerCase().trim();
-    const builderAssigned = String(ui.reportBuilderAssigned?.value || '').toLowerCase().trim();
-    const rows = (Array.isArray(state.reportTickets) ? state.reportTickets : [])
-      .filter(function (ticket) { return reportTicketMatchesDrilldown(ticket, reportDrilldown); })
-      .filter(function (ticket) { return reportTicketMatchesBuilder(ticket, {
-        category: builderCategory,
-        item: builderItem,
-        organization: builderOrganization,
-        person: builderPerson,
-        urgency: builderUrgency,
-        type: builderType,
-        status: builderStatus,
-        assigned: builderAssigned
-      }); })
-      .filter(function (ticket) { return reportTicketMatchesSearch(ticket, searchTerm); })
-      .sort(compareReportTickets);
+    const rows = Array.isArray(state.reportPage?.rows) ? state.reportPage.rows : [];
+    const pagination = state.reportPage?.pagination || {};
+    const total = Number(pagination.total || rows.length || 0);
+    const currentPage = Number(pagination.page || 1);
+    const totalPages = Number(pagination.total_pages || 1);
 
-    setText(ui.reportDrilldownCount, formatNumber(rows.length) + ' result' + (rows.length === 1 ? '' : 's'));
+    setText(ui.reportDrilldownCount, formatNumber(total) + ' result' + (total === 1 ? '' : 's'));
     ui.reportDrilldownBody.innerHTML = rows.length
       ? rows.map(buildReportTicketRow).join('')
       : '<tr class="metis-premium-row"><td class="metis-premium-cell metis-muted" colspan="9">No tickets match the current builder filters.</td></tr>';
     applyVisibleRowStates(qsa('.metis-stash-report-ticket-row', ui.reportDrilldownBody), 'metis-stash-report-ticket-row');
+    setText(ui.reportPageInfo, 'Page ' + currentPage + ' of ' + totalPages);
+    if (ui.reportPagePrev) ui.reportPagePrev.disabled = !pagination.has_prev;
+    if (ui.reportPageNext) ui.reportPageNext.disabled = !pagination.has_next;
+    if (ui.reportPerPage) ui.reportPerPage.value = String(pagination.per_page || ui.reportPerPage.value || '25');
     updateReportSortIndicators();
-  }
-
-  function reportTicketMatchesDrilldown(ticket, drilldownState) {
-    if (!drilldownState) return true;
-    const categorySlugs = ',' + String(ticket.category_slugs || '').toLowerCase() + ',';
-    if (drilldownState.kind === 'category') {
-      return categorySlugs.includes(',' + drilldownState.value + ',');
-    }
-    if (drilldownState.kind === 'organization') {
-      return String(ticket.organization_key || '').toLowerCase() === drilldownState.value;
-    }
-    if (drilldownState.kind === 'person') {
-      return String(ticket.person_key || '').toLowerCase() === drilldownState.value;
-    }
-    return false;
-  }
-
-  function reportTicketMatchesBuilder(ticket, filters) {
-    if (filters.category) {
-      const categorySlugs = ',' + String(ticket.category_slugs || '').toLowerCase() + ',';
-      if (!categorySlugs.includes(',' + filters.category + ',')) return false;
-    }
-    if (filters.item) {
-      const itemBlob = String(ticket.items_summary || '').toLowerCase();
-      if (!itemBlob.includes(filters.item)) return false;
-    }
-    if (filters.organization) {
-      const organizationBlob = [
-        ticket.organization_label,
-        ticket.organization_name,
-        ticket.organization_key
-      ].join(' ').toLowerCase();
-      if (!organizationBlob.includes(filters.organization)) return false;
-    }
-    if (filters.person) {
-      const personBlob = [
-        ticket.submit_name,
-        ticket.submit_email,
-        ticket.group_name,
-        ticket.person_key
-      ].join(' ').toLowerCase();
-      if (!personBlob.includes(filters.person)) return false;
-    }
-    if (filters.urgency && String(ticket.urgency || '').toLowerCase() !== filters.urgency) return false;
-    if (filters.type && String(ticket.type || '').toLowerCase() !== filters.type) return false;
-    if (filters.status && String(ticket.status || '').toLowerCase() !== filters.status) return false;
-    if (filters.assigned) {
-      const assignedBlob = [
-        ticket.assigned_label,
-        ticket.assigned_to
-      ].join(' ').toLowerCase();
-      if (!assignedBlob.includes(filters.assigned)) return false;
-    }
-    return true;
-  }
-
-  function reportTicketMatchesSearch(ticket, searchTerm) {
-    if (!searchTerm) return true;
-    const blob = [
-      ticket.code,
-      ticket.submit_name,
-      ticket.submit_email,
-      ticket.organization_label,
-      ticket.assigned_label,
-      ticket.type,
-      ticket.urgency,
-      ticket.status,
-      ticket.items_summary,
-      ticket.category_labels
-    ].join(' ').toLowerCase();
-    return blob.includes(searchTerm);
-  }
-
-  function compareReportTickets(a, b) {
-    const direction = reportSort.direction === 'asc' ? 1 : -1;
-    if (reportSort.field === 'submitted_at') {
-      return compareTime(a.submitted_at, b.submitted_at) * direction;
-    }
-    const valueA = String(a[reportSort.field] || '').toLowerCase();
-    const valueB = String(b[reportSort.field] || '').toLowerCase();
-    return valueA.localeCompare(valueB, undefined, { numeric: true, sensitivity: 'base' }) * direction;
-  }
-
-  function compareTime(a, b) {
-    return (Date.parse(String(a || '').replace(' ', 'T') + 'Z') || 0) - (Date.parse(String(b || '').replace(' ', 'T') + 'Z') || 0);
   }
 
   function compactItemSummary(value) {
@@ -1161,15 +1087,17 @@
     const fullItemSummary = String(ticket.items_summary || ticket.category_labels || '—');
     const compactSummary = compactItemSummary(fullItemSummary);
     const ticketCode = String(ticket.code || '');
+    const ticketType = String(ticket.type || 'request').toLowerCase();
+    const ticketStatus = String(ticket.status || 'NEW').toUpperCase();
     return '<tr class="metis-premium-row metis-stash-report-ticket-row metis-clickable-row" tabindex="0" role="link" aria-label="Open ticket ' + esc(ticketCode) + '" data-ticket-url="' + esc(buildTicketUrl(ticketCode)) + '">' +
       '<td class="metis-premium-cell">' + esc(shortDate(ticket.submitted_at || '')) + '</td>' +
       '<td class="metis-premium-cell"><strong>' + esc(ticketCode) + '</strong></td>' +
       '<td class="metis-premium-cell">' + esc(ticket.submit_name || 'Unknown') + '</td>' +
       '<td class="metis-premium-cell">' + esc(reportLabel(ticket.organization_label || ticket.organization_name || 'Independent')) + '</td>' +
       '<td class="metis-premium-cell">' + esc(reportLabel(ticket.assigned_label || '—')) + '</td>' +
-      '<td class="metis-premium-cell">' + esc(labelize(ticket.type || '')) + '</td>' +
+      '<td class="metis-premium-cell"><span class="metis-stash-type-badge metis-stash-type-' + esc(ticketType === 'donation' ? 'donation' : 'request') + '">' + esc(labelize(ticketType || 'request')) + '</span></td>' +
       '<td class="metis-premium-cell">' + esc(labelize(ticket.urgency || '')) + '</td>' +
-      '<td class="metis-premium-cell">' + esc(labelize(ticket.status || '')) + '</td>' +
+      '<td class="metis-premium-cell"><span class="metis-stash-status-badge metis-stash-status-' + esc(ticketStatus.toLowerCase()) + '">' + esc(ticketStatus) + '</span></td>' +
       '<td class="metis-premium-cell metis-stash-report-items-cell" title="' + esc(fullItemSummary) + '">' + esc(compactSummary) + '</td>' +
       '</tr>';
   }
@@ -1184,32 +1112,167 @@
     );
     populateSelectOptions(
       ui.reportBuilderAssigned,
-      uniqueOptionPairs((Array.isArray(state.reportTickets) ? state.reportTickets : []).map(function (ticket) {
-        return { value: String(ticket.assigned_label || '').trim(), label: reportLabel(ticket.assigned_label || 'Unassigned') };
+      uniqueOptionPairs((Array.isArray(state.reportOptions?.assigned) ? state.reportOptions.assigned : []).map(function (label) {
+        return { value: String(label || '').trim(), label: reportLabel(label || 'Unassigned') };
       }).filter(function (row) { return row.value !== ''; })),
       'Anyone'
     );
     populateDatalistOptions(
       ui.reportBuilderItemOptions,
-      uniqueStrings((Array.isArray(state.reportTickets) ? state.reportTickets : []).flatMap(function (ticket) {
-        return String(ticket.items_summary || '')
-          .split(/\s*,\s*/)
-          .map(function (value) { return reportLabel(value); })
-          .filter(Boolean);
+      uniqueStrings((Array.isArray(state.reportOptions?.items) ? state.reportOptions.items : []).map(function (value) {
+        return reportLabel(value);
       }))
     );
     populateDatalistOptions(
       ui.reportBuilderOrganizationOptions,
-      uniqueStrings((Array.isArray(state.reportTickets) ? state.reportTickets : []).map(function (ticket) {
-        return reportLabel(ticket.organization_label || ticket.organization_name || 'Independent');
+      uniqueStrings((Array.isArray(state.reportOptions?.organizations) ? state.reportOptions.organizations : []).map(function (value) {
+        return reportLabel(value);
       }))
     );
     populateDatalistOptions(
       ui.reportBuilderPersonOptions,
-      uniqueStrings((Array.isArray(state.reportTickets) ? state.reportTickets : []).map(function (ticket) {
-        return reportLabel(ticket.submit_name || ticket.group_name || 'Unknown');
+      uniqueStrings((Array.isArray(state.reportOptions?.people) ? state.reportOptions.people : []).map(function (value) {
+        return reportLabel(value);
       }))
     );
+  }
+
+  function buildReportRequestPayload(pageOverride) {
+    return {
+      from: String(ui.reportFrom?.value || ''),
+      to: String(ui.reportTo?.value || ''),
+      page: String(pageOverride || state.reportPage?.pagination?.page || 1),
+      per_page: String(ui.reportPerPage?.value || state.reportPage?.pagination?.per_page || 25),
+      search: String(ui.reportDrilldownSearch?.value || ''),
+      category: String(ui.reportBuilderCategory?.value || ''),
+      item: String(ui.reportBuilderItem?.value || ''),
+      organization: String(ui.reportBuilderOrganization?.value || ''),
+      person: String(ui.reportBuilderPerson?.value || ''),
+      urgency: String(ui.reportBuilderUrgency?.value || ''),
+      type: String(ui.reportBuilderType?.value || ''),
+      status: String(ui.reportBuilderStatus?.value || ''),
+      assigned: String(ui.reportBuilderAssigned?.value || ''),
+      sort_field: reportSort.field,
+      sort_direction: reportSort.direction
+    };
+  }
+
+  function queueReportRefresh(pageOverride, immediate) {
+    if (stashView !== 'reports') return;
+    window.clearTimeout(reportRefreshTimer);
+    if (immediate) {
+      refreshReportPage(pageOverride);
+      return;
+    }
+    reportRefreshTimer = window.setTimeout(function () {
+      refreshReportPage(pageOverride);
+    }, 250);
+  }
+
+  async function refreshReportPage(pageOverride) {
+    if (stashView !== 'reports') return;
+    try {
+      const data = await request('metis_grandys_stash_report', buildReportRequestPayload(pageOverride));
+      state.report = data.report || state.report || null;
+      state.reportPage = data.reportPage || state.reportPage || { rows: [], pagination: {} };
+      state.reportOptions = data.reportOptions || state.reportOptions || {};
+      state.reportFilters = data.filters || state.reportFilters || { from: '', to: '' };
+      renderReportView();
+    } catch (err) {
+      showAlert(err.message, 'error');
+    }
+  }
+
+  function submitReportPdfExport() {
+    if (!ajax.ajax_url) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = ajax.ajax_url;
+    form.style.display = 'none';
+
+    Object.entries(Object.assign({}, buildReportRequestPayload(1), {
+      action: 'metis_grandys_stash_export',
+      nonce: ajax.nonce || '',
+      format: 'pdf'
+    })).forEach(function (entry) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = String(entry[0]);
+      input.value = String(entry[1] ?? '');
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    window.setTimeout(function () {
+      form.remove();
+    }, 1000);
+  }
+
+  function renderReportTrendGraph(monthlyRows) {
+    if (!ui.reportTrendGraph) return;
+    const rows = Array.isArray(monthlyRows) ? monthlyRows.slice().reverse().slice(-12) : [];
+    if (!rows.length) {
+      ui.reportTrendGraph.innerHTML = '<div class="metis-muted">Not enough data to graph a trend for this range.</div>';
+      return;
+    }
+
+    const maxValue = rows.reduce(function (max, row) {
+      return Math.max(max, Number(row.tickets || 0), Number(row.requests || 0), Number(row.donations || 0), Number(row.completed || 0));
+    }, 1);
+    const width = 720;
+    const height = 260;
+    const left = 42;
+    const right = 20;
+    const top = 18;
+    const bottom = 44;
+    const plotW = width - left - right;
+    const plotH = height - top - bottom;
+    const pointCount = Math.max(1, rows.length - 1);
+    const series = [
+      { key: 'tickets', label: 'Tickets', color: '#175cd3' },
+      { key: 'requests', label: 'Requests', color: '#3d5a1e' },
+      { key: 'donations', label: 'Donations', color: '#8e4b10' },
+      { key: 'completed', label: 'Completed', color: '#344054' }
+    ];
+
+    function pointFor(index, value) {
+      const x = left + (plotW * (index / pointCount));
+      const y = top + plotH - (plotH * (Number(value || 0) / maxValue));
+      return [x, y];
+    }
+
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(function (ratio) {
+      const y = top + plotH - (plotH * ratio);
+      const value = Math.round(maxValue * ratio);
+      return '<line x1="' + left + '" y1="' + y.toFixed(2) + '" x2="' + (width - right) + '" y2="' + y.toFixed(2) + '" stroke="#e4e7ec" stroke-width="1"></line>' +
+        '<text x="' + (left - 8) + '" y="' + (y + 4).toFixed(2) + '" text-anchor="end" font-size="10" fill="#667085">' + esc(String(value)) + '</text>';
+    }).join('');
+
+    const polylines = series.map(function (entry) {
+      const points = rows.map(function (row, index) {
+        const point = pointFor(index, row[entry.key] || 0);
+        return point[0].toFixed(2) + ',' + point[1].toFixed(2);
+      }).join(' ');
+      return '<polyline fill="none" stroke="' + entry.color + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' + points + '"></polyline>';
+    }).join('');
+
+    const labels = rows.map(function (row, index) {
+      const point = pointFor(index, 0);
+      return '<text x="' + point[0].toFixed(2) + '" y="' + (height - 16) + '" text-anchor="middle" font-size="10" fill="#667085">' + esc(String(row.month || row.month_label || '')) + '</text>';
+    }).join('');
+
+    const legend = series.map(function (entry) {
+      return '<span class="metis-stash-report-trend-legend-item"><span class="metis-stash-report-trend-swatch" style="background:' + entry.color + ';"></span>' + esc(entry.label) + '</span>';
+    }).join('');
+
+    ui.reportTrendGraph.innerHTML = '<div class="metis-stash-report-trend-legend">' + legend + '</div>' +
+      '<svg class="metis-stash-report-trend-svg" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" aria-hidden="true">' +
+        grid +
+        '<line x1="' + left + '" y1="' + (top + plotH) + '" x2="' + (width - right) + '" y2="' + (top + plotH) + '" stroke="#98a2b3" stroke-width="1.2"></line>' +
+        polylines +
+        labels +
+      '</svg>';
   }
 
   function populateSelectOptions(node, options, defaultLabel) {
