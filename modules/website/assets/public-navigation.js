@@ -174,52 +174,14 @@
     return window.location.href.replace(/[?#].*$/, "");
   }
 
-  function buildEventsPrintHref(view, cursor) {
-    var href = currentPageHref() || window.location.href || "/";
-    var url = new URL(href, window.location.href);
-    url.searchParams.set("metis_events_print", "1");
-    if (view) {
-      url.searchParams.set("metis_events_view", view);
-    }
-    if (cursor) {
-      url.searchParams.set("metis_events_cursor", cursor);
-    } else {
-      url.searchParams.delete("metis_events_cursor");
-    }
-    url.searchParams.delete("metis_events_offset");
-    url.searchParams.delete("_metis_events_nav");
-    return url.toString();
-  }
-
-  function openCalendarPrintView(block, fallbackHref) {
-    var href = s(fallbackHref || "");
-    if (!href && block) {
-      var currentView = s(block.getAttribute("data-metis-events-view") || "calendar");
-      var currentCursor = s(block.getAttribute("data-metis-events-cursor-current") || "");
-      href = buildEventsPrintHref(currentView, currentCursor);
-    }
-    if (!href) {
-      return;
-    }
-
-    var printWindow = typeof window.open === "function"
-      ? window.open(href, "_blank", "noopener")
-      : null;
-
-    if (!printWindow) {
-      window.location.assign(href);
-    }
-  }
-
   function renderEventsNavHtml(view, label, currentCursor, prevCursor, nextCursor) {
     var prevLabel = view === "week" ? "Previous week" : "Previous month";
     var nextLabel = view === "week" ? "Next week" : "Next month";
     var href = escapeHtml(currentPageHref() || "#");
-    var printHref = escapeHtml(buildEventsPrintHref(view, currentCursor));
     return '<div class="metis-structured-events__nav">' +
       '<a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
       '<div class="metis-structured-events__nav-title">' + escapeHtml(label) + '</div>' +
-      '<div class="metis-structured-events__nav-actions"><a href="' + printHref + '" target="_blank" rel="noopener" class="metis-structured-events__print-btn" data-metis-events-print="' + printHref + '">Print</a><a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a></div>' +
+      '<div class="metis-structured-events__nav-actions"><a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a></div>' +
       '</div>';
   }
 
@@ -730,17 +692,6 @@
       }
     }
 
-    var printButton = event.target && event.target.closest
-      ? event.target.closest("[data-metis-events-print]")
-      : null;
-    if (printButton) {
-      var printBlock = printButton.closest ? printButton.closest("[data-metis-events-block=\"1\"]") : null;
-      var printHref = s(printButton.getAttribute("data-metis-events-print") || printButton.getAttribute("href") || "");
-      event.preventDefault();
-      event.stopPropagation();
-      openCalendarPrintView(printBlock, printHref);
-      return;
-    }
     var navLink = event.target && event.target.closest
       ? event.target.closest("[data-metis-events-nav]")
       : null;

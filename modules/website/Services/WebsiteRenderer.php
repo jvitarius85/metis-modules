@@ -5469,12 +5469,11 @@ final class WebsiteRenderer {
     private static function structuredEventsNavHtml( string $view, string $label, string $current_cursor, string $prev_cursor, string $next_cursor, int $prev_offset, int $next_offset ): string {
         $prev_label = $view === 'week' ? 'Previous week' : 'Previous month';
         $next_label = $view === 'week' ? 'Next week' : 'Next month';
-        $print_url = self::structuredEventsPrintUrl( $view, $current_cursor );
 
         return '<div class="metis-structured-events__nav">'
             . '<a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $prev_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">' . metis_escape_html( $prev_label ) . '</a>'
             . '<div class="metis-structured-events__nav-title">' . metis_escape_html( $label ) . '</div>'
-            . '<div class="metis-structured-events__nav-actions"><a href="' . metis_escape_attr( $print_url ) . '" class="metis-structured-events__print-btn" data-metis-events-print="' . metis_escape_attr( $print_url ) . '" target="_blank" rel="noopener">Print</a><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $next_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">' . metis_escape_html( $next_label ) . '</a></div>'
+            . '<div class="metis-structured-events__nav-actions"><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $next_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">' . metis_escape_html( $next_label ) . '</a></div>'
             . '</div>';
     }
 
@@ -6518,44 +6517,45 @@ final class WebsiteRenderer {
             '.metis-public-content .metis-text-align-center,.metis-structured-section__content .metis-text-align-center{text-align:center;}',
             '.metis-public-content .metis-text-align-right,.metis-structured-section__content .metis-text-align-right{text-align:right;}',
             '.metis-structured-events-wrap{display:grid;gap:14px;}',
-            '.metis-structured-events-wrap--calendar{width:min(1280px,calc(100vw - 32px));max-width:100%;margin:0 auto;}',
+            '.metis-structured-events-wrap--calendar{width:min(1440px,calc(100vw - 24px));max-width:100%;margin:0 auto;overflow-x:auto;padding-bottom:4px;}',
             '.metis-structured-events__nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:12px;}',
             '.metis-structured-events__nav-title{justify-self:center;font-size:clamp(1.35rem,2.8vw,2rem);font-weight:800;letter-spacing:-.03em;color:var(--metis-color-primary,#485bc7);text-transform:capitalize;}',
             '.metis-structured-events__nav-actions{display:flex;align-items:center;justify-content:flex-end;justify-self:end;gap:10px;}',
-            '.metis-structured-events__nav-btn,.metis-structured-events__print-btn{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,var(--metis-color-border,#dbe3ef));border-radius:14px;background:var(--metis-color-surface,#fff);text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:800;line-height:1;cursor:pointer;box-shadow:none;transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;}',
+            '.metis-structured-events__nav-btn{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,var(--metis-color-border,#dbe3ef));border-radius:14px;background:var(--metis-color-surface,#fff);text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:800;line-height:1;cursor:pointer;box-shadow:none;transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;}',
             '.metis-structured-events__nav > .metis-structured-events__nav-btn{justify-self:start;width:auto;max-width:100%;white-space:nowrap;}',
-            '.metis-structured-events__nav-btn:hover,.metis-structured-events__nav-btn:focus-visible,.metis-structured-events__print-btn:hover,.metis-structured-events__print-btn:focus-visible{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 10%,#fff);border-color:var(--metis-color-primary,#485bc7);color:var(--metis-color-primary,#485bc7);transform:translateY(-1px);}',
+            '.metis-structured-events__nav-btn:hover,.metis-structured-events__nav-btn:focus-visible{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 10%,#fff);border-color:var(--metis-color-primary,#485bc7);color:var(--metis-color-primary,#485bc7);transform:translateY(-1px);}',
             '.metis-structured-events,.metis-structured-posts-list{display:grid;gap:16px;}',
             '.metis-structured-events{grid-template-columns:repeat(auto-fit,minmax(240px,320px));justify-content:center;align-items:stretch;overflow:visible;padding:6px 0 14px;}',
             '.metis-structured-events--week{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}',
             '.metis-structured-events--calendar{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}',
             '.metis-structured-events-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:14px;}',
-            '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:10px;padding:14px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:14px;background:var(--metis-surface,#fff);box-shadow:0 12px 24px rgba(15,23,42,.05);align-content:start;overflow:visible;min-width:0;}',
+            '.metis-structured-events-day,.metis-structured-events-month-day{position:relative;display:grid;gap:8px;padding:12px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:14px;background:var(--metis-surface,#fff);box-shadow:0 12px 24px rgba(15,23,42,.05);align-content:start;overflow:visible;min-width:0;}',
             '.metis-structured-events-day{min-height:220px;}',
-            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:175px;}',
+            '.metis-structured-events-month-day{grid-template-rows:auto minmax(0,1fr);min-height:170px;}',
             '.metis-structured-events-day__header,.metis-structured-events-month-day__header{display:flex;align-items:center;justify-content:space-between;gap:8px;}',
             '.metis-structured-events-day__weekday,.metis-structured-events-month-day__header strong{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--metis-color-primary,#485bc7);}',
             '.metis-structured-events-day__date{font-size:1rem;color:var(--metis-color-text,#0f172a);}',
-            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:10px;align-content:start;min-width:0;overflow:visible;}',
+            '.metis-structured-events-day__items,.metis-structured-events-month-day__items{display:grid;gap:6px;align-content:start;min-width:0;overflow:visible;}',
             '.metis-structured-events-day__empty{margin:0;color:var(--metis-color-muted,#64748b);font-size:.92rem;}',
-            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;}',
+            '.metis-structured-events-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;min-width:1240px;}',
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
-            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(175px,auto);gap:14px;align-items:stretch;}',
+            '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(170px,1fr));grid-auto-rows:minmax(170px,auto);gap:10px;align-items:stretch;min-width:1240px;}',
             '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
             '.metis-structured-events-mobile-list{display:none;gap:14px;}',
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
+            '.metis-structured-events-month-day:hover,.metis-structured-events-month-day:focus-within,.metis-structured-events-day:hover,.metis-structured-events-day:focus-within{z-index:18;}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
             '.metis-structured-events-peek:hover,.metis-structured-events-peek:focus-within{z-index:32;}',
-            '.metis-structured-events-peek__trigger{width:100%;display:grid;gap:3px;padding:2px 0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:visible;}',
+            '.metis-structured-events-peek__trigger{width:100%;display:grid;gap:2px;padding:0;border:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);text-align:left;cursor:pointer;box-sizing:border-box;min-width:0;max-width:100%;overflow:visible;}',
             '.metis-structured-events-peek__trigger:focus-visible{outline:2px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 42%,transparent);outline-offset:3px;border-radius:10px;}',
             '.metis-structured-events-peek__line{display:flex;align-items:flex-start;gap:0;min-width:0;max-width:100%;}',
-            '.metis-structured-events-peek__time{font-size:.82rem;line-height:1.2;font-weight:700;color:#ffffff;padding-left:0;opacity:.98;}',
+            '.metis-structured-events-peek__time{font-size:.8rem;line-height:1.15;font-weight:700;color:#ffffff;padding-left:0;opacity:.98;}',
             '.metis-structured-events-peek__title{font-size:.88rem;line-height:1.22;font-weight:700;white-space:normal;overflow:hidden;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0;word-break:break-word;}',
-            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:6px 8px;box-shadow:none;max-width:100%;overflow:hidden;}',
+            '.metis-structured-events-peek:not(.is-all-day){display:block;background:var(--metis-color-accent,#ff7542);border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 24%,transparent);border-radius:12px;padding:4px 6px;box-shadow:none;max-width:100%;overflow:hidden;}',
             '.metis-structured-events-peek:not(.is-all-day) .metis-structured-events-peek__title{color:#ffffff;}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__trigger{padding:2px 0;min-height:0;border-radius:0;background:transparent;color:var(--metis-color-text,#0f172a);}',
             '.metis-structured-events-peek.is-all-day .metis-structured-events-peek__title{color:var(--metis-color-text,#0f172a);font-weight:600;}',
-            '.metis-structured-events-peek__panel{position:absolute;top:calc(100% + 10px);left:0;width:min(360px,calc(100vw - 32px));opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease;}',
+            '.metis-structured-events-peek__panel{position:absolute;z-index:40;top:calc(100% + 8px);left:0;width:min(360px,calc(100vw - 32px));opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease;}',
             '.metis-structured-events-peek:hover .metis-structured-events-peek__panel,.metis-structured-events-peek:focus-within .metis-structured-events-peek__panel,.metis-structured-events-peek.is-open .metis-structured-events-peek__panel{opacity:1;pointer-events:auto;transform:translateY(0);}',
             '.metis-structured-events-month-day:nth-child(7n) .metis-structured-events-peek__panel,.metis-structured-events-day:nth-child(7n) .metis-structured-events-peek__panel{left:auto;right:0;}',
             'body.metis-events-print-mode .metis-site-header,body.metis-events-print-mode .metis-shell-footer,body.metis-events-print-mode .metis-public-floating-launcher,body.metis-events-print-mode .metis-structured-events__nav-actions{display:none !important;}',
@@ -6587,8 +6587,8 @@ final class WebsiteRenderer {
             '.metis-structured-events__cta{margin:0;padding-top:4px;}',
             '.metis-structured-events__cta a{text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:700;}',
             '.metis-structured-events--empty,.metis-structured-posts-list--empty{color:var(--metis-color-muted,#64748b);}',
-            '@media (max-width:1100px){.metis-structured-events-week-grid,.metis-structured-events-month-grid,.metis-structured-events-month-head{grid-template-columns:repeat(2,minmax(0,1fr));}}',
-            '@media (max-width:720px){.metis-structured-events-week-grid,.metis-structured-events-month-grid,.metis-structured-events-month-head{grid-template-columns:1fr;}.metis-structured-events-wrap--calendar .metis-structured-events-month-head,.metis-structured-events-wrap--calendar .metis-structured-events-month-grid,.metis-structured-events-wrap--week .metis-structured-events-week-grid{display:none;}.metis-structured-events-wrap--calendar .metis-structured-events-mobile-list,.metis-structured-events-wrap--week .metis-structured-events-mobile-list{display:grid;}}',
+            '@media (max-width:1100px){.metis-structured-events-week-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}',
+            '@media (max-width:720px){.metis-structured-events-week-grid{grid-template-columns:1fr;}.metis-structured-events-wrap--week .metis-structured-events-week-grid{display:none;}.metis-structured-events-wrap--week .metis-structured-events-mobile-list{display:grid;}}',
             '.metis-public-content .metis-structured-posts-list__excerpt,.metis-structured-section__content .metis-structured-posts-list__excerpt{font-size:.9rem;line-height:1.48;}',
             '.metis-public-content .metis-structured-posts-list__excerpt p,.metis-structured-section__content .metis-structured-posts-list__excerpt p{margin:0 0 8px;}',
             '.metis-public-content .metis-structured-posts-list__cta,.metis-structured-section__content .metis-structured-posts-list__cta{margin:auto 0 0;padding-top:8px;font-size:.9rem;line-height:1.35;}',
