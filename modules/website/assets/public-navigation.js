@@ -179,9 +179,11 @@
     var nextLabel = view === "week" ? "Next week" : "Next month";
     var href = escapeHtml(currentPageHref() || "#");
     return '<div class="metis-structured-events__nav">' +
-      '<a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
       '<div class="metis-structured-events__nav-title">' + escapeHtml(label) + '</div>' +
-      '<div class="metis-structured-events__nav-actions"><a href="' + href + '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a></div>' +
+      '<div class="metis-structured-events__nav-actions">' +
+      '<a href="' + href + '" class="metis-structured-events__nav-btn is-prev" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(prevCursor) + '">' + escapeHtml(prevLabel) + '</a>' +
+      '<a href="' + href + '" class="metis-structured-events__nav-btn is-next" data-metis-events-nav="1" data-metis-events-cursor="' + escapeHtml(nextCursor) + '">' + escapeHtml(nextLabel) + '</a>' +
+      '</div>' +
       '</div>';
   }
 
@@ -199,12 +201,66 @@
       '</div>';
   }
 
+  function formatMobileDayLabel(dateKey) {
+    var date = parseIsoDate(dateKey);
+    if (!date) return dateKey;
+    return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" }).format(date);
+  }
+
+  function renderEventsMobileRow(item) {
+    var title = s(item && item.title || "Event").trim() || "Event";
+    var location = s(item && item.location || "").trim();
+    var eventUrl = s(item && item.event_url || "").trim();
+    var allDayLabel = s(item && item.list_all_day_label || "").trim();
+    var timeStart = s(item && item.list_time_start || "").trim();
+    var timeEnd = s(item && item.list_time_end || "").trim();
+    var contentTag = eventUrl ? "a" : "div";
+    var hrefAttr = eventUrl ? ' href="' + escapeHtml(eventUrl) + '"' : "";
+    var html = '<article class="metis-structured-events-mobile-row" role="listitem">';
+    html += '<span class="metis-structured-events-mobile-row__accent" aria-hidden="true"></span>';
+    html += '<' + contentTag + ' class="metis-structured-events-mobile-row__main"' + hrefAttr + '>';
+    html += '<div class="metis-structured-events-mobile-row__copy">';
+    html += '<strong class="metis-structured-events-mobile-row__title">' + escapeHtml(title) + '</strong>';
+    if (location) {
+      html += '<span class="metis-structured-events-mobile-row__meta">' + escapeHtml(location) + '</span>';
+    }
+    html += '</div>';
+    html += '<div class="metis-structured-events-mobile-row__time">';
+    if (allDayLabel) {
+      html += '<span class="metis-structured-events-mobile-row__time-main">' + escapeHtml(allDayLabel) + '</span>';
+    } else if (timeStart) {
+      html += '<span class="metis-structured-events-mobile-row__time-main">' + escapeHtml(timeStart) + '</span>';
+      if (timeEnd) {
+        html += '<span class="metis-structured-events-mobile-row__time-sub">' + escapeHtml(timeEnd) + '</span>';
+      }
+    }
+    html += '</div>';
+    html += '</' + contentTag + '>';
+    html += '</article>';
+    return html;
+  }
+
   function renderEventsMobileList(items, emptyMessage) {
     if (!items.length) {
       return '<div class="metis-structured-events-mobile-list"><p class="metis-structured-events-day__empty">' + escapeHtml(emptyMessage) + '</p></div>';
     }
-    return '<div class="metis-structured-events-mobile-list">' + items.map(function (item) {
-      return s(item && item.detail_html || "");
+    var grouped = Object.create(null);
+    items.forEach(function (item) {
+      var key = s(item && item.date_key || "");
+      if (!key) return;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    });
+    var dayKeys = Object.keys(grouped).sort();
+    return '<div class="metis-structured-events-mobile-list" role="list">' + dayKeys.map(function (dayKey) {
+      return '<section class="metis-structured-events-mobile-day">' +
+        '<header class="metis-structured-events-mobile-day__header">' + escapeHtml(formatMobileDayLabel(dayKey)) + '</header>' +
+        '<div class="metis-structured-events-mobile-day__items" role="list">' +
+        grouped[dayKey].map(function (item) {
+          return renderEventsMobileRow(item);
+        }).join("") +
+        '</div>' +
+        '</section>';
     }).join("") + '</div>';
   }
 

@@ -5360,16 +5360,93 @@ final class WebsiteRenderer {
             return '<div class="metis-structured-events-mobile-list"><p class="metis-structured-events-day__empty">' . metis_escape_html( $empty_message ) . '</p></div>';
         }
 
-        $html = '<div class="metis-structured-events-mobile-list">';
-        foreach ( $items as $item ) {
-            if ( ! is_array( $item ) ) {
-                continue;
+        $grouped = self::groupStructuredEventsByDay( $items );
+        if ( $grouped === [] ) {
+            return '<div class="metis-structured-events-mobile-list"><p class="metis-structured-events-day__empty">' . metis_escape_html( $empty_message ) . '</p></div>';
+        }
+
+        ksort( $grouped );
+        $html = '<div class="metis-structured-events-mobile-list" role="list">';
+        foreach ( $grouped as $date_key => $day_items ) {
+            $day_ts = strtotime( (string) $date_key ) ?: 0;
+            $day_label = $day_ts > 0
+                ? self::formatSystemDate( (int) $day_ts )
+                : (string) $date_key;
+            $html .= '<section class="metis-structured-events-mobile-day">';
+            $html .= '<header class="metis-structured-events-mobile-day__header">' . metis_escape_html( $day_label ) . '</header>';
+            $html .= '<div class="metis-structured-events-mobile-day__items" role="list">';
+            foreach ( $day_items as $item ) {
+                if ( ! is_array( $item ) ) {
+                    continue;
+                }
+                $html .= self::renderStructuredEventMobileRow( $item );
             }
-            $html .= self::renderStructuredEventCard( $item, true );
+            $html .= '</div></section>';
         }
         $html .= '</div>';
 
         return $html;
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     * @return array<string,string>
+     */
+    private static function structuredEventDisplayData( array $item ): array {
+        $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
+        $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
+        $end_raw = (string) ( $item['end']['dateTime'] ?? $item['end']['date'] ?? '' );
+        $location = trim( (string) ( $item['location'] ?? '' ) );
+        $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
+        $date_label = '';
+        $time_label = '';
+        $time_start = '';
+        $time_end = '';
+        $all_day_label = '';
+        $is_all_day = trim( (string) ( $item['start']['dateTime'] ?? '' ) ) === '';
+
+        if ( $start_raw !== '' ) {
+            $ts = strtotime( $start_raw );
+            if ( $ts ) {
+                $date_label = function_exists( 'metis_runtime_date' )
+                    ? metis_runtime_date( 'l, M j, Y', (int) $ts )
+                    : date( 'l, M j, Y', (int) $ts );
+                if ( ! $is_all_day ) {
+                    $time_start = function_exists( 'metis_runtime_date' )
+                        ? metis_runtime_date( 'g:i A', (int) $ts )
+                        : date( 'g:i A', (int) $ts );
+                    $time_label = $time_start;
+                } else {
+                    $all_day_label = 'All-day';
+                    $time_label = $all_day_label;
+                }
+                if ( ! $is_all_day && $end_raw !== '' ) {
+                    $end_ts = strtotime( $end_raw );
+                    if ( $end_ts ) {
+                        $time_end = function_exists( 'metis_runtime_date' )
+                            ? metis_runtime_date( 'g:i A', (int) $end_ts )
+                            : date( 'g:i A', (int) $end_ts );
+                        $time_label .= ' - ' . $time_end;
+                    }
+                }
+            }
+        }
+        if ( $location !== '' && preg_match( '#(https?://\S+)$#', $location, $location_match ) === 1 ) {
+            $event_url = $event_url !== '' ? $event_url : trim( (string) $location_match[1] );
+            $location = trim( preg_replace( '#\s*;?\s*https?://\S+$#', '', $location ) ?? $location );
+        }
+
+        return [
+            'title' => $title !== '' ? $title : 'Event',
+            'location' => $location,
+            'event_url' => $event_url,
+            'date_label' => $date_label,
+            'time_label' => $time_label,
+            'time_start' => $time_start,
+            'time_end' => $time_end,
+            'all_day_label' => $all_day_label,
+            'is_all_day' => $is_all_day ? '1' : '0',
+        ];
     }
 
     /**
@@ -5389,12 +5466,19 @@ final class WebsiteRenderer {
             if ( $start_ts <= 0 ) {
                 continue;
             }
+            $display = self::structuredEventDisplayData( $item );
             $payload['items'][] = [
-                'title' => trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) ),
-                'tile_title' => self::structuredEventTileTitle( trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) ) ),
+                'title' => $display['title'],
+                'tile_title' => self::structuredEventTileTitle( $display['title'] ),
                 'date_key' => date( 'Y-m-d', (int) $start_ts ),
                 'start_ts' => (int) $start_ts,
                 'time_label' => self::structuredEventPeekTimeLabel( $item ),
+                'list_time_start' => $display['time_start'],
+                'list_time_end' => $display['time_end'],
+                'list_all_day_label' => $display['all_day_label'],
+                'location' => $display['location'],
+                'event_url' => $display['event_url'] !== '' ? self::normalizePublicUrl( $display['event_url'] ) : '',
+                'is_all_day' => $display['is_all_day'] === '1',
                 'detail_html' => self::renderStructuredEventCard( $item, true ),
             ];
         }
@@ -5477,10 +5561,47 @@ final class WebsiteRenderer {
         $next_label = $view === 'week' ? 'Next week' : 'Next month';
 
         return '<div class="metis-structured-events__nav">'
-            . '<a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $prev_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">' . metis_escape_html( $prev_label ) . '</a>'
             . '<div class="metis-structured-events__nav-title">' . metis_escape_html( $label ) . '</div>'
-            . '<div class="metis-structured-events__nav-actions"><a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" class="metis-structured-events__nav-btn" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $next_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">' . metis_escape_html( $next_label ) . '</a></div>'
+            . '<div class="metis-structured-events__nav-actions">'
+            . '<a href="?metis_events_cursor=' . metis_escape_attr( $prev_cursor ) . '" class="metis-structured-events__nav-btn is-prev" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $prev_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $prev_cursor ) . '">' . metis_escape_html( $prev_label ) . '</a>'
+            . '<a href="?metis_events_cursor=' . metis_escape_attr( $next_cursor ) . '" class="metis-structured-events__nav-btn is-next" data-metis-events-nav="1" data-metis-events-offset="' . metis_escape_attr( (string) $next_offset ) . '" data-metis-events-cursor="' . metis_escape_attr( $next_cursor ) . '">' . metis_escape_html( $next_label ) . '</a>'
+            . '</div>'
             . '</div>';
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     */
+    private static function renderStructuredEventMobileRow( array $item ): string {
+        $display = self::structuredEventDisplayData( $item );
+        $content_open = $display['event_url'] !== ''
+            ? '<a class="metis-structured-events-mobile-row__main" href="' . metis_escape_attr( self::normalizePublicUrl( $display['event_url'] ) ) . '">'
+            : '<div class="metis-structured-events-mobile-row__main">';
+        $content_close = $display['event_url'] !== '' ? '</a>' : '</div>';
+
+        $html = '<article class="metis-structured-events-mobile-row" role="listitem">';
+        $html .= '<span class="metis-structured-events-mobile-row__accent" aria-hidden="true"></span>';
+        $html .= $content_open;
+        $html .= '<div class="metis-structured-events-mobile-row__copy">';
+        $html .= '<strong class="metis-structured-events-mobile-row__title">' . metis_escape_html( $display['title'] ) . '</strong>';
+        if ( $display['location'] !== '' ) {
+            $html .= '<span class="metis-structured-events-mobile-row__meta">' . metis_escape_html( $display['location'] ) . '</span>';
+        }
+        $html .= '</div>';
+        $html .= '<div class="metis-structured-events-mobile-row__time">';
+        if ( $display['all_day_label'] !== '' ) {
+            $html .= '<span class="metis-structured-events-mobile-row__time-main">' . metis_escape_html( $display['all_day_label'] ) . '</span>';
+        } elseif ( $display['time_start'] !== '' ) {
+            $html .= '<span class="metis-structured-events-mobile-row__time-main">' . metis_escape_html( $display['time_start'] ) . '</span>';
+            if ( $display['time_end'] !== '' ) {
+                $html .= '<span class="metis-structured-events-mobile-row__time-sub">' . metis_escape_html( $display['time_end'] ) . '</span>';
+            }
+        }
+        $html .= '</div>';
+        $html .= $content_close;
+        $html .= '</article>';
+
+        return $html;
     }
 
     private static function structuredEventsPrintModeActive(): bool {
@@ -5527,40 +5648,16 @@ final class WebsiteRenderer {
      * @param array<string,mixed> $item
      */
     private static function renderStructuredEventCard( array $item, bool $compact = false ): string {
-        $title = trim( (string) ( $item['summary'] ?? $item['title'] ?? 'Event' ) );
-        $start_raw = (string) ( $item['start']['dateTime'] ?? $item['start']['date'] ?? '' );
-        $end_raw = (string) ( $item['end']['dateTime'] ?? $item['end']['date'] ?? '' );
-        $location = trim( (string) ( $item['location'] ?? '' ) );
-        $event_url = trim( (string) ( $item['htmlLink'] ?? $item['url'] ?? '' ) );
-        $date_label = '';
-        $time_label = '';
-        if ( $start_raw !== '' ) {
-            $ts = strtotime( $start_raw );
-            if ( $ts ) {
-                $date_label = function_exists( 'metis_runtime_date' )
-                    ? metis_runtime_date( 'l, M j, Y', (int) $ts )
-                    : date( 'l, M j, Y', (int) $ts );
-                $time_label = function_exists( 'metis_runtime_date' )
-                    ? metis_runtime_date( 'g:i A', (int) $ts )
-                    : date( 'g:i A', (int) $ts );
-                if ( $end_raw !== '' ) {
-                    $end_ts = strtotime( $end_raw );
-                    if ( $end_ts ) {
-                        $time_label .= ' - ' . ( function_exists( 'metis_runtime_date' )
-                            ? metis_runtime_date( 'g:i A', (int) $end_ts )
-                            : date( 'g:i A', (int) $end_ts ) );
-                    }
-                }
-            }
-        }
-        if ( $location !== '' && preg_match( '#(https?://\S+)$#', $location, $location_match ) === 1 ) {
-            $event_url = $event_url !== '' ? $event_url : trim( (string) $location_match[1] );
-            $location = trim( preg_replace( '#\s*;?\s*https?://\S+$#', '', $location ) ?? $location );
-        }
+        $display = self::structuredEventDisplayData( $item );
+        $title = $display['title'];
+        $location = $display['location'];
+        $event_url = $display['event_url'];
+        $date_label = $display['date_label'];
+        $time_label = $display['time_label'];
 
         $html = '<article class="metis-structured-events__item' . ( $compact ? ' is-compact' : '' ) . '">';
         $html .= '<div class="metis-structured-events__eyebrow">Upcoming Event</div>';
-        $html .= '<h3 class="metis-structured-events__title">' . metis_escape_html( $title !== '' ? $title : 'Event' ) . '</h3>';
+        $html .= '<h3 class="metis-structured-events__title">' . metis_escape_html( $title ) . '</h3>';
         $html .= '<div class="metis-structured-events__meta">';
         if ( $date_label !== '' ) {
             $html .= '<span class="metis-structured-events__chip"><strong>Date</strong><span>' . metis_escape_html( $date_label ) . '</span></span>';
@@ -6408,7 +6505,7 @@ final class WebsiteRenderer {
             '.metis-structured-columns__col.is-w33{grid-column:span 4;}',
             '.metis-structured-columns__col.is-w50{grid-column:span 6;}',
             '.metis-structured-columns__col.is-w100{grid-column:span 12;}',
-            '.metis-structured-feature-grid{display:grid;gap:22px;}',
+            '.metis-structured-feature-grid{display:grid;gap:28px;align-items:start;}',
             '.metis-structured-feature-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}',
             '.metis-structured-feature-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}',
             '.metis-structured-feature-grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}',
@@ -6527,11 +6624,11 @@ final class WebsiteRenderer {
             '.metis-public-content .metis-text-align-right,.metis-structured-section__content .metis-text-align-right{text-align:right;}',
             '.metis-structured-events-wrap{display:grid;gap:14px;}',
             '.metis-structured-events-wrap--calendar{width:100%;max-width:none;margin:0;overflow:visible;padding-bottom:4px;}',
-            '.metis-structured-events__nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:12px;}',
-            '.metis-structured-events__nav-title{justify-self:center;font-size:clamp(1.35rem,2.8vw,2rem);font-weight:800;letter-spacing:-.03em;color:var(--metis-color-primary,#485bc7);text-transform:capitalize;}',
-            '.metis-structured-events__nav-actions{display:flex;align-items:center;justify-content:flex-end;justify-self:end;gap:10px;}',
-            '.metis-structured-events__nav-btn{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,var(--metis-color-border,#dbe3ef));border-radius:14px;background:var(--metis-color-surface,#fff);text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:800;line-height:1;cursor:pointer;box-shadow:none;transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;}',
-            '.metis-structured-events__nav > .metis-structured-events__nav-btn{justify-self:start;width:auto;max-width:100%;white-space:nowrap;}',
+            '.metis-structured-events__nav{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:12px;}',
+            '.metis-structured-events__nav-title{justify-self:start;font-size:clamp(1.35rem,2.8vw,2rem);font-weight:800;letter-spacing:-.03em;color:var(--metis-color-primary,#485bc7);text-transform:capitalize;}',
+            '.metis-structured-events__nav-actions{display:inline-flex;align-items:stretch;justify-content:flex-end;justify-self:end;gap:0;border:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 28%,var(--metis-color-border,#dbe3ef));border-radius:999px;background:var(--metis-color-surface,#fff);overflow:hidden;box-shadow:none;}',
+            '.metis-structured-events__nav-btn{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 18px;border:0;border-right:1px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 20%,var(--metis-color-border,#dbe3ef));border-radius:0;background:transparent;text-decoration:none;color:var(--metis-color-primary,#485bc7);font-weight:800;line-height:1;cursor:pointer;box-shadow:none;transition:background-color .18s ease,color .18s ease,transform .18s ease;}',
+            '.metis-structured-events__nav-btn.is-next{border-right:0;}',
             '.metis-structured-events__nav-btn:hover,.metis-structured-events__nav-btn:focus-visible{background:color-mix(in srgb,var(--metis-color-primary,#485bc7) 10%,#fff);border-color:var(--metis-color-primary,#485bc7);color:var(--metis-color-primary,#485bc7);transform:translateY(-1px);}',
             '.metis-structured-events,.metis-structured-posts-list{display:grid;gap:16px;}',
             '.metis-structured-events{grid-template-columns:repeat(auto-fit,minmax(240px,320px));justify-content:center;align-items:stretch;overflow:visible;padding:6px 0 14px;}',
@@ -6550,7 +6647,20 @@ final class WebsiteRenderer {
             '.metis-structured-events-month-head__cell{padding:0 6px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--metis-color-primary,#485bc7);text-align:center;}',
             '.metis-structured-events-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(168px,auto);gap:10px;align-items:stretch;width:100%;}',
             '.metis-structured-events-month-day.is-outside{opacity:.62;background:color-mix(in srgb,var(--metis-color-surface_alt,#f8fafc) 88%, #fff);}',
-            '.metis-structured-events-mobile-list{display:none;gap:14px;}',
+            '.metis-structured-events-mobile-list{display:none;gap:24px;}',
+            '.metis-structured-events-mobile-day{display:grid;gap:8px;}',
+            '.metis-structured-events-mobile-day__header{margin:0;padding:0 2px 8px;font-size:1.15rem;line-height:1.2;font-weight:800;color:var(--metis-color-text,#0f172a);border-bottom:1px solid color-mix(in srgb,var(--metis-color-border,#dbe3ef) 88%,#fff);}',
+            '.metis-structured-events-mobile-day__items{display:grid;gap:0;}',
+            '.metis-structured-events-mobile-row{position:relative;display:block;border-bottom:1px solid color-mix(in srgb,var(--metis-color-border,#dbe3ef) 88%,#fff);}',
+            '.metis-structured-events-mobile-row:last-child{border-bottom:0;}',
+            '.metis-structured-events-mobile-row__accent{position:absolute;left:0;top:16px;bottom:16px;width:4px;border-radius:999px;background:var(--metis-color-accent,#ff7542);opacity:.95;}',
+            '.metis-structured-events-mobile-row__main{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;padding:14px 2px 14px 18px;color:inherit;text-decoration:none;}',
+            '.metis-structured-events-mobile-row__copy{display:grid;gap:4px;min-width:0;}',
+            '.metis-structured-events-mobile-row__title{display:block;font-size:1rem;line-height:1.28;font-weight:800;color:var(--metis-color-text,#0f172a);word-break:break-word;}',
+            '.metis-structured-events-mobile-row__meta{display:block;font-size:.92rem;line-height:1.35;color:var(--metis-color-muted,#64748b);word-break:break-word;}',
+            '.metis-structured-events-mobile-row__time{display:grid;gap:2px;min-width:76px;text-align:right;justify-items:end;color:var(--metis-color-text,#0f172a);}',
+            '.metis-structured-events-mobile-row__time-main{font-size:.98rem;line-height:1.15;font-weight:800;}',
+            '.metis-structured-events-mobile-row__time-sub{font-size:.92rem;line-height:1.15;color:var(--metis-color-muted,#64748b);}',
             '.metis-structured-events-wrap.is-loading{opacity:.65;pointer-events:none;}',
             '.metis-structured-events-month-day:hover,.metis-structured-events-month-day:focus-within,.metis-structured-events-day:hover,.metis-structured-events-day:focus-within{z-index:18;}',
             '.metis-structured-events-peek{position:relative;z-index:1;}',
@@ -6701,10 +6811,10 @@ final class WebsiteRenderer {
             '@media (max-width: 980px){.metis-shell-header-inner{padding:12px 16px;flex-wrap:wrap;display:flex !important;}.metis-shell-menu-list{gap:8px 10px;}.metis-shell-body-grid{grid-template-columns:1fr;}.metis-simple-grid-2,.metis-simple-grid-3{grid-template-columns:1fr;}.metis-shell-brand-logo-header{max-height:76px;}.metis-shell-brand-logo-footer{max-height:70px;}.metis-shell-footer-menu-grid{grid-template-columns:1fr;}.metis-shell-nav-utility{width:100%;}.metis-shell-nav-utility .metis-shell-menu-list{justify-content:flex-start;}.metis-shell-footer-variant-inline .metis-shell-footer-inner{display:block;}body.metis-layout-centered_editorial .metis-shell-header-inner{display:flex !important;}body.metis-layout-centered_editorial .metis-shell-header-row-main{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:100%;}body.metis-layout-centered_editorial .metis-shell-brand{order:1;margin-right:auto;}body.metis-layout-centered_editorial .metis-shell-nav-primary{order:3;width:100%;}body.metis-layout-centered_editorial .metis-shell-nav-primary .metis-shell-menu-list{justify-content:flex-start;}body.metis-layout-centered_editorial .metis-shell-nav-utility{order:2;margin-left:auto;}body.metis-layout-story_sidebar .metis-shell-header{position:relative;width:100%;height:auto;left:auto;top:auto;bottom:auto;border-right:0;border-bottom:1px solid var(--metis-color-border,#e2e8f0);}body.metis-layout-story_sidebar .metis-shell-header-inner{height:auto;padding:12px 16px;}body.metis-layout-story_sidebar .metis-shell-header-row-main{flex-direction:row;flex-wrap:wrap;}body.metis-layout-story_sidebar .metis-shell-body,body.metis-layout-story_sidebar .metis-site-footer{margin-left:0;}body.metis-layout-story_sidebar .metis-shell-nav-primary .metis-shell-menu-list{flex-direction:row;flex-wrap:wrap;}body.metis-layout-minimal_focus .metis-shell-nav-toggle{display:inline-flex;}body.metis-layout-minimal_focus .metis-shell-nav-primary{width:min(320px,90vw);}body.metis-layout-showcase_grid .metis-shell-header-row-main{display:flex;flex-wrap:wrap;}body.metis-layout-showcase_grid .metis-shell-nav-primary{width:100%;}.metis-newsletter-signup-grid{grid-template-columns:1fr;}.metis-public-popup{padding:14px;}.metis-public-popup__dialog{max-height:calc(100vh - 28px);padding:18px 14px 16px;}.metis-public-popup__body{max-height:calc(100vh - 118px);}.metis-public-popup__close{top:-10px;right:-10px;inline-size:46px;block-size:46px;min-inline-size:46px;min-block-size:46px;max-inline-size:46px;max-block-size:46px;flex-basis:46px;}.metis-public-popup__dialog.has-payment-form{max-width:min(100vw - 16px,94vw);max-height:calc(100vh - 20px);padding:14px 12px 16px;}.metis-public-popup__dialog.has-payment-form .metis-forms-payment-choice-grid,.metis-public-popup__dialog.has-payment-form .metis-forms-frequency-choices .metis-forms-payment-choice-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}',
             '@media (min-width: 981px) and (max-width: 1260px){.metis-shell-header-inner{padding-left:40px;padding-right:40px;gap:20px;}.metis-shell-nav-utility{padding-right:10px;}.metis-shell-nav-utility .metis-shell-menu-list{padding-right:6px;}body.metis-public-site .metis-template .metis-template-sticky-capable{padding-left:32px !important;padding-right:32px !important;}body.metis-public-site .metis-template .metis-template-header-inner{gap:32px !important;}.metis-template .metis-template-nav-panel{padding-right:10px !important;}body.metis-public-site .metis-template .metis-template-nav-panel{gap:14px !important;}}',
             self::mobileFlyoutMenuCss(),
-            '@media (max-width: 900px){.metis-block-grid{grid-template-columns:1fr !important;}.metis-structured-columns{grid-template-columns:1fr;gap:22px;}.metis-structured-columns__col.is-w25,.metis-structured-columns__col.is-w33,.metis-structured-columns__col.is-w50,.metis-structured-columns__col.is-w100{grid-column:1/-1;}.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4{grid-template-columns:1fr;row-gap:24px;}.metis-structured-feature-grid__item{margin:0;}.metis-structured-cta--split,.metis-structured-hero-block{grid-template-columns:1fr;}.metis-structured-hero-block{padding:18px;}}',
-            '@media (max-width: 720px){.metis-structured-events-wrap--week .metis-structured-events-week-grid,.metis-structured-events-wrap--calendar .metis-structured-events-month-head,.metis-structured-events-wrap--calendar .metis-structured-events-month-grid{display:none;}.metis-structured-events-wrap--week .metis-structured-events-mobile-list,.metis-structured-events-wrap--calendar .metis-structured-events-mobile-list{display:grid;}.metis-structured-events__nav{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;align-items:start;}.metis-structured-events__nav-title{grid-column:1/-1;order:1;justify-self:center;margin-bottom:10px;}.metis-structured-events__nav>.metis-structured-events__nav-btn{order:2;justify-self:stretch;width:100%;border-top-right-radius:0;border-bottom-right-radius:0;}.metis-structured-events__nav-actions{order:3;justify-self:stretch;justify-content:stretch;}.metis-structured-events__nav-actions .metis-structured-events__nav-btn{width:100%;border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;}.metis-structured-events__nav>.metis-structured-events__nav-btn,.metis-structured-events__nav-actions .metis-structured-events__nav-btn{min-height:46px;padding:0 14px;}.metis-structured-feature-grid{gap:24px;}.metis-structured-feature-grid__item{padding:16px;gap:8px;}.metis-structured-feature-grid__icon{width:88px;height:88px;margin-bottom:6px;}.metis-structured-feature-grid__icon svg{width:58px;height:58px;}.metis-public-content .metis-structured-posts-list__title,.metis-structured-section__content .metis-structured-posts-list__title{font-size:.96rem;line-height:1.24;}.metis-public-content .metis-structured-posts-list__excerpt,.metis-structured-section__content .metis-structured-posts-list__excerpt{font-size:.86rem;line-height:1.42;}}',
+            '@media (max-width: 900px){.metis-block-grid{grid-template-columns:1fr !important;}.metis-structured-columns{grid-template-columns:1fr;gap:22px;}.metis-structured-columns__col.is-w25,.metis-structured-columns__col.is-w33,.metis-structured-columns__col.is-w50,.metis-structured-columns__col.is-w100{grid-column:1/-1;}.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4{grid-template-columns:1fr;row-gap:34px;}.metis-structured-feature-grid__item{margin:0;height:auto;min-height:0;}.metis-structured-cta--split,.metis-structured-hero-block{grid-template-columns:1fr;}.metis-structured-hero-block{padding:18px;}}',
+            '@media (max-width: 720px){.metis-structured-events-wrap--week .metis-structured-events-week-grid,.metis-structured-events-wrap--calendar .metis-structured-events-month-head,.metis-structured-events-wrap--calendar .metis-structured-events-month-grid{display:none;}.metis-structured-events-wrap--week .metis-structured-events-mobile-list,.metis-structured-events-wrap--calendar .metis-structured-events-mobile-list{display:grid;}.metis-structured-events__nav{grid-template-columns:1fr;gap:10px;align-items:start;}.metis-structured-events__nav-title{justify-self:center;order:1;margin-bottom:0;}.metis-structured-events__nav-actions{order:2;justify-self:stretch;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;}.metis-structured-events__nav-actions .metis-structured-events__nav-btn{min-height:48px;padding:0 14px;}.metis-structured-feature-grid{gap:34px;}.metis-structured-feature-grid__item{padding:16px 16px 18px;gap:10px;height:auto;min-height:0;}.metis-structured-feature-grid__icon{width:88px;height:88px;margin-bottom:8px;}.metis-structured-feature-grid__icon svg{width:58px;height:58px;}.metis-public-content .metis-structured-posts-list__title,.metis-structured-section__content .metis-structured-posts-list__title{font-size:.96rem;line-height:1.24;}.metis-public-content .metis-structured-posts-list__excerpt,.metis-structured-section__content .metis-structured-posts-list__excerpt{font-size:.86rem;line-height:1.42;}}',
             '@media (max-width: 640px){.metis-structured-events{padding:4px 0 10px;gap:12px;}.metis-structured-events__item{padding:16px 16px 14px;border-radius:18px;}.metis-structured-events__eyebrow{margin-bottom:8px;font-size:.68rem;}.metis-structured-events__title{font-size:.98rem;line-height:1.22;}.metis-structured-events__meta{gap:8px;margin-bottom:12px;}.metis-structured-events__chip{min-width:0;padding:8px 10px;border-radius:12px;}.metis-structured-events__chip strong{font-size:.66rem;}.metis-structured-events__chip span{font-size:.88rem;}.metis-structured-events__location{margin-bottom:12px;font-size:.95rem;line-height:1.45;}.metis-structured-events__cta{padding-top:2px;}}',
-            '@media (max-width: 560px){.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4{grid-template-columns:1fr;row-gap:26px;}.metis-structured-feature-grid__item{padding:14px;}.metis-structured-feature-grid__icon{width:80px;height:80px;}.metis-structured-feature-grid__icon svg{width:54px;height:54px;}.metis-structured-feature-grid__title{font-size:.96rem;line-height:1.2;}.metis-structured-feature-grid__text{font-size:.84rem;line-height:1.4;}.metis-structured-feature-grid__cta-btn{min-width:0;width:100%;padding:10px 12px;font-size:.92rem;}}',
+            '@media (max-width: 560px){.metis-structured-feature-grid.cols-2,.metis-structured-feature-grid.cols-3,.metis-structured-feature-grid.cols-4{grid-template-columns:1fr;row-gap:38px;}.metis-structured-feature-grid__item{padding:14px 14px 18px;height:auto;min-height:0;}.metis-structured-feature-grid__icon{width:80px;height:80px;}.metis-structured-feature-grid__icon svg{width:54px;height:54px;}.metis-structured-feature-grid__title{font-size:.96rem;line-height:1.2;}.metis-structured-feature-grid__text{font-size:.84rem;line-height:1.4;}.metis-structured-feature-grid__cta-btn{min-width:0;width:100%;padding:10px 12px;font-size:.92rem;}.metis-structured-events-mobile-row__main{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding-left:16px;}.metis-structured-events-mobile-row__time{min-width:70px;}}',
         ] );
     }
 
