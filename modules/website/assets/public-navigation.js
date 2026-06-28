@@ -192,35 +192,23 @@
   }
 
   function openCalendarPrintView(block, fallbackHref) {
-    if (!block || typeof window.open !== "function") {
-      if (fallbackHref) {
-        window.open(fallbackHref, "_blank", "noopener");
-      }
+    var href = s(fallbackHref || "");
+    if (!href && block) {
+      var currentView = s(block.getAttribute("data-metis-events-view") || "calendar");
+      var currentCursor = s(block.getAttribute("data-metis-events-cursor-current") || "");
+      href = buildEventsPrintHref(currentView, currentCursor);
+    }
+    if (!href) {
       return;
     }
 
-    var printWindow = window.open("", "_blank", "noopener");
+    var printWindow = typeof window.open === "function"
+      ? window.open(href, "_blank", "noopener")
+      : null;
+
     if (!printWindow) {
-      if (fallbackHref) {
-        window.open(fallbackHref, "_blank", "noopener");
-      }
-      return;
+      window.location.assign(href);
     }
-
-    var assets = "";
-    var nodes = document.querySelectorAll('link[rel="stylesheet"], style');
-    for (var i = 0; i < nodes.length; i += 1) {
-      assets += nodes[i].outerHTML || "";
-    }
-
-    var titleNode = block.querySelector(".metis-structured-events__nav-title");
-    var title = titleNode ? s(titleNode.textContent || "").trim() : "Calendar";
-    var blockHtml = block.outerHTML || "";
-    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(title) + '</title><base href="' + escapeHtml(document.baseURI || currentPageHref() || "/") + '">' + assets + '</head><body class="metis-public-site metis-events-print-mode">' + blockHtml + '<script>window.addEventListener("load",function(){window.setTimeout(function(){window.print();},150);},{once:true});<\/script></body></html>';
-
-    printWindow.document.open();
-    printWindow.document.write(doc);
-    printWindow.document.close();
   }
 
   function renderEventsNavHtml(view, label, currentCursor, prevCursor, nextCursor) {
@@ -241,7 +229,7 @@
     var timeLabel = s(item && item.time_label || "").trim();
     var panelId = "metis-events-peek-" + uid;
     return '<div class="metis-structured-events-peek' + (timeLabel ? "" : " is-all-day") + '">' +
-      '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-controls="' + escapeHtml(panelId) + '">' +
+      '<button type="button" class="metis-structured-events-peek__trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="' + escapeHtml(panelId) + '">' +
       '<span class="metis-structured-events-peek__line"><span class="metis-structured-events-peek__title">' + escapeHtml(title) + '</span></span>' +
       (timeLabel ? '<span class="metis-structured-events-peek__time">' + escapeHtml(timeLabel) + '</span>' : "") +
       '</button>' +
@@ -462,6 +450,14 @@
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
+      var openPeeks = document.querySelectorAll(".metis-structured-events-peek.is-open");
+      for (var p = 0; p < openPeeks.length; p += 1) {
+        openPeeks[p].classList.remove("is-open");
+        var peekTrigger = openPeeks[p].querySelector(".metis-structured-events-peek__trigger");
+        if (peekTrigger) {
+          peekTrigger.setAttribute("aria-expanded", "false");
+        }
+      }
       setOpen(false);
       closeOpenSubmenus(null);
       return;
@@ -697,6 +693,43 @@
   }
 
   document.addEventListener("click", function (event) {
+    var peekTrigger = event.target && event.target.closest
+      ? event.target.closest(".metis-structured-events-peek__trigger")
+      : null;
+    if (peekTrigger) {
+      var peek = peekTrigger.closest ? peekTrigger.closest(".metis-structured-events-peek") : null;
+      if (peek) {
+        var shouldOpen = !peek.classList.contains("is-open");
+        var openPeeks = document.querySelectorAll(".metis-structured-events-peek.is-open");
+        for (var p = 0; p < openPeeks.length; p += 1) {
+          openPeeks[p].classList.remove("is-open");
+          var openTrigger = openPeeks[p].querySelector(".metis-structured-events-peek__trigger");
+          if (openTrigger) {
+            openTrigger.setAttribute("aria-expanded", "false");
+          }
+        }
+        if (shouldOpen) {
+          peek.classList.add("is-open");
+          peekTrigger.setAttribute("aria-expanded", "true");
+        }
+      }
+      return;
+    }
+
+    var openPeek = event.target && event.target.closest
+      ? event.target.closest(".metis-structured-events-peek.is-open")
+      : null;
+    if (!openPeek) {
+      var liveOpenPeeks = document.querySelectorAll(".metis-structured-events-peek.is-open");
+      for (var q = 0; q < liveOpenPeeks.length; q += 1) {
+        liveOpenPeeks[q].classList.remove("is-open");
+        var liveTrigger = liveOpenPeeks[q].querySelector(".metis-structured-events-peek__trigger");
+        if (liveTrigger) {
+          liveTrigger.setAttribute("aria-expanded", "false");
+        }
+      }
+    }
+
     var printButton = event.target && event.target.closest
       ? event.target.closest("[data-metis-events-print]")
       : null;
