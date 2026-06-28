@@ -163,6 +163,20 @@ final class DonationsModule {
             . '</span>';
     }
 
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'donations',
+                'title' => 'Donations',
+                'desc' => 'Giving activity, deposit batching, and campaign performance.',
+                'url' => self::baseUrl(),
+                'metrics' => (array) ( $context['donations_metrics'] ?? $context['finance_metrics'] ?? [] ),
+                'priority' => 30,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
+
     private static function paymentMethodVisibleText( ?string $method, mixed $transaction = null ): string {
         $method = strtolower( trim( (string) $method ) );
         $get = static function ( string $key ) use ( $transaction ): string {

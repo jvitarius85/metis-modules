@@ -36,4 +36,18 @@ final class DriveModule {
 
         self::ensureSchema();
     }
+
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'drive',
+                'title' => 'Drive',
+                'desc' => 'Connected drives and user home configuration.',
+                'url' => \metis_portal_url( 'drive', 'dashboard' ),
+                'metrics' => (array) ( $context['drive_metrics'] ?? [] ),
+                'priority' => 80,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
 }

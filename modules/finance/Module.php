@@ -55,4 +55,17 @@ final class FinanceModule {
         return ModeService::scheduleSwitch( $targetMode, $effectiveAt, $requestedBy );
     }
     public static function modeSwitchStatus(): array { return ModeService::switchStatus(); }
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'finance',
+                'title' => 'Finance',
+                'desc' => 'Revenue, deposits, and reconciliation status.',
+                'url' => self::baseUrl(),
+                'metrics' => (array) ( $context['finance_metrics'] ?? [] ),
+                'priority' => 35,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
 }

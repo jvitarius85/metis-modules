@@ -63,4 +63,17 @@ final class BoardModule {
     public static function docTypeLabel( string $doc_type ): string { return Support::docTypeLabel( $doc_type ); }
     public static function extractAgendaDecisionPoints( array $agenda ): array { return Support::extractAgendaDecisionPoints( $agenda ); }
     public static function syncDecisionPoints( int $meeting_id, array $agenda ): int { return Support::syncDecisionPoints( $meeting_id, $agenda ); }
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'board',
+                'title' => 'Board',
+                'desc' => 'Meetings, decisions, attendance, and open actions.',
+                'url' => self::baseUrl(),
+                'metrics' => (array) ( $context['board_metrics'] ?? [] ),
+                'priority' => 10,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
 }

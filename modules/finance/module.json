@@ -2,7 +2,7 @@
   "slug": "finance",
   "name": "finance",
   "label": "Finance",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "finance",

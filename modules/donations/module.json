@@ -2,7 +2,7 @@
   "slug": "donations",
   "name": "donations",
   "label": "Donations",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "dependencies": [],

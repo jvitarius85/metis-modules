@@ -120,6 +120,20 @@ final class GrandyStashModule {
 
         return Response::html( $body, 200, [ 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0' ] );
     }
+
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'grandys_stash',
+                'title' => 'Grandy\'s Stash',
+                'desc' => 'Request queue, waitlist pressure, and fulfillment.',
+                'url' => self::baseUrl(),
+                'metrics' => (array) ( $context['grandys_metrics'] ?? [] ),
+                'priority' => 50,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
 }
 
 \class_alias( __NAMESPACE__ . '\\GrandyStashModule', 'Metis\\Modules\\GrandyStashModule' );

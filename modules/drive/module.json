@@ -2,7 +2,7 @@
   "slug": "drive",
   "name": "drive",
   "label": "Drive",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "drive",

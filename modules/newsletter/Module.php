@@ -163,6 +163,21 @@ final class NewsletterModule {
             'message' => sprintf( 'Queued campaign "%s" for sending.', (string) ( $campaign['name'] ?? $request['subject'] ?? 'campaign' ) ),
         ];
     }
+
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'newsletter',
+                'title' => 'Communications',
+                'desc' => 'Newsletter queue and campaign activity.',
+                'url' => self::baseUrl(),
+                'metrics' => (array) ( $context['newsletter_metrics'] ?? [] ),
+                'priority' => 40,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
+
     public static function scheduleCampaign( array $request ): array {
         $campaignId = self::requireCampaignId( $request );
         $scheduledAt = trim( (string) ( $request['scheduled_at'] ?? '' ) );

@@ -255,4 +255,18 @@ final class CalendarModule {
 
         return [ 'ok' => true, 'count' => count( $results ), 'calendars' => $results ];
     }
+
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'calendar',
+                'title' => 'Calendar',
+                'desc' => 'Workspace calendar readiness and connected listings.',
+                'url' => \metis_portal_url( 'calendar', 'dashboard' ),
+                'metrics' => (array) ( $context['calendar_metrics'] ?? [] ),
+                'priority' => 70,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
 }

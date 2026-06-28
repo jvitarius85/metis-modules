@@ -79,6 +79,20 @@ final class ContactsModule {
         return SchemaManager::tableExists( $table );
     }
 
+    public static function dashboardWidgets( array $context = [] ): array {
+        return [
+            [
+                'key' => 'contacts',
+                'title' => 'Contacts',
+                'desc' => 'Directory coverage, donor IDs, and duplicate cleanup.',
+                'url' => self::baseUrl(),
+                'metrics' => (array) ( $context['contacts_metrics'] ?? [] ),
+                'priority' => 60,
+                'updated' => \metis_current_datetime()->format( 'M j, g:i a' ),
+            ],
+        ];
+    }
+
     public static function columnExists( string $table, string $column ): bool {
         return SchemaManager::columnExists( $table, $column );
     }
