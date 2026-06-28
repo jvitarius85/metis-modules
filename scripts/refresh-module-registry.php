@@ -71,7 +71,7 @@ foreach ($requestedSlugs as $slug) {
     $entry['compatible_core'] = $compatibleCore;
     $entry['release_channel'] = trim((string) ($manifest['release_channel'] ?? ($entry['release_channel'] ?? 'stable')));
     $entry['download_url'] = sprintf(
-        'https://raw.githubusercontent.com/jvitarius85/metis-private/main/module-releases/%s.%s.tar.gz',
+        'https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/%s.%s.tar.gz',
         $slug,
         $version
     );

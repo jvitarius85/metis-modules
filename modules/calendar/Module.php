@@ -13,6 +13,7 @@ final class CalendarModule {
 
         self::$booted = true;
         \Metis_Logger::info( 'Calendar bootstrap loaded' );
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
 
         if ( \Metis\Core\Application::has_service( 'job_workers' ) ) {
             \metis_job_workers()->register(
@@ -58,6 +59,20 @@ final class CalendarModule {
     public static function getCalendarMeta( array $cfg, bool $allow_remote = false ): array { return GoogleCalendarService::getCalendarMeta( $cfg, $allow_remote ); }
     public static function listCalendars( array $cfg ): array { return GoogleCalendarService::listCalendars( $cfg ); }
     public static function ensureSchema(): void { SyncStore::ensureSchema(); }
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'calendar_schema',
+                [ __FILE__, __DIR__ . '/SyncStore.php' ],
+                static function (): void {
+                    SyncStore::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
+    }
     public static function syncInterval(): int { return SyncStore::syncInterval(); }
     public static function backgroundSyncInterval(): int { return SyncStore::backgroundSyncInterval(); }
     public static function syncLookbackDays(): int { return SyncStore::syncLookbackDays(); }

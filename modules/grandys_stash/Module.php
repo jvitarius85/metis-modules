@@ -15,7 +15,31 @@ final class GrandyStashModule {
         }
 
         self::$booted = true;
+        \metis_on( 'init', [ self::class, 'ensureRuntimeSchema' ], 5 );
         \metis_on( 'init', [ self::class, 'registerCronTasks' ], 8 );
+    }
+
+    public static function ensureSchema(): void {
+        GrandyStashRepository::ensureModuleReady();
+    }
+
+    public static function ensureRuntimeSchema(): void {
+        if ( function_exists( 'metis_runtime_run_once_per_signature' ) ) {
+            \metis_runtime_run_once_per_signature(
+                'grandys_stash_schema',
+                [
+                    __FILE__,
+                    __DIR__ . '/GrandyStashRepository.php',
+                    __DIR__ . '/GrandyStashSchemaManager.php',
+                ],
+                static function (): void {
+                    self::ensureSchema();
+                }
+            );
+            return;
+        }
+
+        self::ensureSchema();
     }
 
     public static function ensureReady(): void {
