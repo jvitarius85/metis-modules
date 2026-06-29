@@ -110,6 +110,9 @@ final class SeoService {
         if ( $description === '' || self::isLowSignalSummary( $description ) ) {
             $description = self::seoDescriptionFromContent( $sections, $hero );
         }
+        if ( $description === '' || self::isLowSignalSummary( $description ) ) {
+            $description = self::defaultSiteDescription( $context, $page_data, $title );
+        }
         $description = self::seoTrim( self::seoTextFromHtml( $description ), 160 );
         if ( self::isLowSignalSummary( $description ) ) {
             $description = '';
@@ -145,6 +148,10 @@ final class SeoService {
         if ( $twitter_image !== '' ) {
             $twitter_image = self::normalizePublicUrl( $twitter_image );
         }
+        $site_name = self::siteName();
+        $published_time = self::schemaDate( (string) ( $page_data['publish_date'] ?? $context['seo_published_at'] ?? '' ) );
+        $modified_time = self::schemaDate( (string) ( $page_data['updated_at'] ?? $context['seo_updated_at'] ?? '' ) );
+        $author_name = trim( (string) ( $page_data['author_name'] ?? $context['seo_author_name'] ?? '' ) );
 
         return [
             'title' => $title,
@@ -158,6 +165,10 @@ final class SeoService {
             'twitter_title' => $twitter_title,
             'twitter_description' => $twitter_description,
             'twitter_image' => $twitter_image,
+            'og_site_name' => $site_name,
+            'article_published_time' => $published_time,
+            'article_modified_time' => $modified_time,
+            'author_name' => $author_name,
             'noindex' => $noindex,
             'structured_data' => self::structuredDataPayload(
                 $context,
@@ -192,6 +203,10 @@ final class SeoService {
         $twitter_title = trim( (string) ( $seo_data['twitter_title'] ?? '' ) );
         $twitter_description = trim( (string) ( $seo_data['twitter_description'] ?? '' ) );
         $twitter_image = trim( (string) ( $seo_data['twitter_image'] ?? '' ) );
+        $og_site_name = trim( (string) ( $seo_data['og_site_name'] ?? '' ) );
+        $article_published_time = trim( (string) ( $seo_data['article_published_time'] ?? '' ) );
+        $article_modified_time = trim( (string) ( $seo_data['article_modified_time'] ?? '' ) );
+        $author_name = trim( (string) ( $seo_data['author_name'] ?? '' ) );
         $structured_data = is_array( $seo_data['structured_data'] ?? null ) ? $seo_data['structured_data'] : [];
         $content_type = metis_key_clean( (string) ( $context['content_type'] ?? '' ) );
 
@@ -217,6 +232,9 @@ final class SeoService {
         if ( $og_image !== '' ) {
             $head[] = '  <meta property="og:image" content="' . metis_escape_attr( $og_image ) . '">';
         }
+        if ( $og_site_name !== '' ) {
+            $head[] = '  <meta property="og:site_name" content="' . metis_escape_attr( $og_site_name ) . '">';
+        }
         if ( $twitter_card !== '' ) {
             $head[] = '  <meta name="twitter:card" content="' . metis_escape_attr( $twitter_card ) . '">';
         }
@@ -228,6 +246,17 @@ final class SeoService {
         }
         if ( $twitter_image !== '' ) {
             $head[] = '  <meta name="twitter:image" content="' . metis_escape_attr( $twitter_image ) . '">';
+        }
+        if ( $content_type === 'post' ) {
+            if ( $article_published_time !== '' ) {
+                $head[] = '  <meta property="article:published_time" content="' . metis_escape_attr( $article_published_time ) . '">';
+            }
+            if ( $article_modified_time !== '' ) {
+                $head[] = '  <meta property="article:modified_time" content="' . metis_escape_attr( $article_modified_time ) . '">';
+            }
+            if ( $author_name !== '' ) {
+                $head[] = '  <meta name="author" content="' . metis_escape_attr( $author_name ) . '">';
+            }
         }
         if ( $structured_data !== [] ) {
             $json = function_exists( 'metis_json_encode' )
@@ -785,6 +814,51 @@ final class SeoService {
     private static function schemaDate( string $value ): string {
         $timestamp = strtotime( trim( $value ) );
         return $timestamp !== false ? gmdate( 'c', $timestamp ) : '';
+    }
+
+    private static function siteName(): string {
+        $site_name = class_exists( 'Core_Settings_Service' ) ? trim( (string) \Core_Settings_Service::get( 'org_name', '' ) ) : '';
+        if ( $site_name === '' && function_exists( 'metis_portal_name' ) ) {
+            $site_name = trim( (string) metis_portal_name() );
+        }
+        return $site_name !== '' ? $site_name : 'Website';
+    }
+
+    private static function siteTagline(): string {
+        return class_exists( 'Core_Settings_Service' )
+            ? trim( (string) \Core_Settings_Service::get( 'org_tagline', '' ) )
+            : '';
+    }
+
+    /**
+     * @param array<string,mixed> $context
+     * @param array<string,mixed> $page_data
+     */
+    private static function defaultSiteDescription( array $context, array $page_data, string $title ): string {
+        $site_name = self::siteName();
+        $tagline = self::siteTagline();
+        $is_homepage = ! empty( $context['is_homepage'] ) || trim( (string) ( $context['path'] ?? '' ) ) === '/';
+        $title = trim( $title );
+
+        if ( $is_homepage ) {
+            if ( $tagline !== '' && $title !== '' ) {
+                return $title . '. ' . $tagline;
+            }
+            if ( $tagline !== '' ) {
+                return $tagline;
+            }
+        }
+
+        $excerpt = self::seoTextFromHtml( (string) ( $page_data['excerpt'] ?? '' ) );
+        if ( $excerpt !== '' ) {
+            return $excerpt;
+        }
+
+        if ( $title !== '' && $site_name !== '' ) {
+            return 'Learn more about ' . $title . ' at ' . $site_name . '.';
+        }
+
+        return $tagline;
     }
 
     private static function db(): object {

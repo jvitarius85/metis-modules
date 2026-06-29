@@ -1050,6 +1050,7 @@ final class WebsiteRenderer {
         if ( is_array( $resolved_hero ) ) {
             $hero = $resolved_hero;
         }
+        $context['homepage_has_primary_heading'] = ! empty( $context['is_homepage'] ) && trim( (string) ( $hero['headline'] ?? '' ) ) !== '';
         $seo = SeoService::buildRenderPayload( $input, $context, $page_data, $sections, $hero, $title, $description, $token_values );
         $title = (string) ( $seo['title'] ?? $title );
         $description = (string) ( $seo['description'] ?? $description );
@@ -1434,7 +1435,11 @@ final class WebsiteRenderer {
         }
 
         if ( ! empty( $context['is_homepage'] ) ) {
-            return '';
+            if ( ! empty( $context['homepage_has_primary_heading'] ) ) {
+                return '';
+            }
+
+            return self::buildDefaultPageHeaderHtml( $page_data, true );
         }
 
         return self::buildDefaultPageHeaderHtml( $page_data );
@@ -1450,10 +1455,14 @@ final class WebsiteRenderer {
     /**
      * @param array<string,mixed> $page_data
      */
-    private static function buildDefaultPageHeaderHtml( array $page_data ): string {
+    private static function buildDefaultPageHeaderHtml( array $page_data, bool $visually_hidden = false ): string {
         $title = trim( (string) ( $page_data['title'] ?? '' ) );
         if ( $title === '' ) {
             return '';
+        }
+
+        if ( $visually_hidden ) {
+            return '<div class="metis-u-visually-hidden"><h1 class="metis-template-page-header__title">' . metis_escape_html( $title ) . '</h1></div>';
         }
 
         $html = '<section class="metis-template-page-header metis-structured-section metis-structured-section--heading-band is-bg-primary-tint">';
@@ -3619,7 +3628,7 @@ final class WebsiteRenderer {
         if ( $header !== '' || $subtext !== '' ) {
             $header_html .= '<header class="metis-structured-section__head">';
             if ( $header !== '' ) {
-                $header_html .= '<h1 class="metis-structured-section__title">' . metis_escape_html( $header ) . '</h1>';
+                $header_html .= '<h2 class="metis-structured-section__title">' . metis_escape_html( $header ) . '</h2>';
             }
             if ( $subtext !== '' ) {
                 $header_html .= '<p class="metis-structured-section__subtext">' . metis_escape_html( $subtext ) . '</p>';
@@ -3641,7 +3650,7 @@ final class WebsiteRenderer {
      */
     private static function renderStructuredSectionBody( string $type, array $content, array $context = [] ): string {
         if ( $type === 'heading' ) {
-            return self::renderStructuredHeadingSection( $content );
+            return self::renderStructuredHeadingSection( $content, $context );
         }
         if ( $type === 'text' ) {
             return self::renderStructuredTextSection( $content );
@@ -3653,7 +3662,7 @@ final class WebsiteRenderer {
             return self::renderStructuredButtonSection( $content );
         }
         if ( $type === 'hero' ) {
-            return self::renderStructuredHeroBlockSection( $content );
+            return self::renderStructuredHeroBlockSection( $content, $context );
         }
         if ( $type === 'html' ) {
             return self::renderStructuredHtmlSection( $content );
@@ -3753,8 +3762,9 @@ final class WebsiteRenderer {
 
     /**
      * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
      */
-    private static function renderStructuredHeadingSection( array $content ): string {
+    private static function renderStructuredHeadingSection( array $content, array $context = [] ): string {
         $text = trim( self::repairMojibakeText( (string) ( $content['text'] ?? '' ) ) );
         if ( $text === '' ) {
             return '';
@@ -3773,11 +3783,14 @@ final class WebsiteRenderer {
         }
         $variant = metis_key_clean( (string) ( $content['variant'] ?? 'default' ) );
         if ( $variant === 'section_header' ) {
-            $level = 'h1';
+            $level = 'h2';
             $align = 'center';
             $vertical_align = 'middle';
         } else {
             $variant = 'default';
+        }
+        if ( $level === 'h1' ) {
+            $level = 'h2';
         }
 
         return '<div class="metis-structured-heading-wrap is-valign-' . metis_escape_attr( $vertical_align ) . ( $variant === 'section_header' ? ' is-section-header' : '' ) . '"><' . $level . ' class="metis-structured-heading metis-structured-heading--' . metis_escape_attr( $level ) . ' is-align-' . metis_escape_attr( $align ) . '">'
@@ -3838,6 +3851,9 @@ final class WebsiteRenderer {
                     continue;
                 }
                 self::sanitizeRichTextAttributes( $child, $tag );
+                if ( self::shouldRemoveEmptyInlineEmphasis( $child ) ) {
+                    $node->removeChild( $child );
+                }
             }
         }
     }
@@ -4078,8 +4094,9 @@ final class WebsiteRenderer {
 
     /**
      * @param array<string,mixed> $content
+     * @param array<string,mixed> $context
      */
-    private static function renderStructuredHeroBlockSection( array $content ): string {
+    private static function renderStructuredHeroBlockSection( array $content, array $context = [] ): string {
         $title = trim( self::repairMojibakeText( (string) ( $content['title'] ?? '' ) ) );
         $subtitle = trim( self::repairMojibakeText( (string) ( $content['subtitle'] ?? '' ) ) );
         $cta_label = trim( self::repairMojibakeText( (string) ( $content['cta_label'] ?? '' ) ) );
@@ -4092,7 +4109,7 @@ final class WebsiteRenderer {
         $html = '<div class="metis-structured-hero-block">';
         $html .= '<div class="metis-structured-hero-block__copy">';
         if ( $title !== '' ) {
-            $html .= '<h1>' . metis_escape_html( $title ) . '</h1>';
+            $html .= '<h2>' . metis_escape_html( $title ) . '</h2>';
         }
         if ( $subtitle !== '' ) {
             $html .= '<p>' . metis_escape_html( $subtitle ) . '</p>';
@@ -4160,7 +4177,110 @@ final class WebsiteRenderer {
             $parts[ $index ] = self::repairPublicTextNode( $part );
         }
 
-        return implode( '', $parts );
+        return self::normalizePublicHtmlSemantics( implode( '', $parts ) );
+    }
+
+    private static function normalizePublicHtmlSemantics( string $html ): string {
+        $html = trim( $html );
+        if ( $html === '' ) {
+            return '';
+        }
+
+        if ( ! class_exists( \DOMDocument::class ) ) {
+            $html = preg_replace( '/<(\/?)h1(\b[^>]*)>/i', '<$1h2$2>', $html ) ?? $html;
+            do {
+                $previous = $html;
+                $html = preg_replace( '/<(strong|b)\b[^>]*>(?:\s|&nbsp;|&#160;|&#xA0;|&#xa0;)*<\/\1>/iu', '', $html ) ?? $html;
+            } while ( $html !== $previous );
+            return $html;
+        }
+
+        $previous = libxml_use_internal_errors( true );
+        $document = new \DOMDocument( '1.0', 'UTF-8' );
+        $document->loadHTML( '<?xml encoding="UTF-8"><div id="metis-semantic-root">' . $html . '</div>', LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED );
+        libxml_clear_errors();
+        libxml_use_internal_errors( $previous );
+
+        $root = $document->getElementById( 'metis-semantic-root' );
+        if ( ! $root instanceof \DOMElement ) {
+            return $html;
+        }
+
+        self::normalizePublicHtmlSemanticsNode( $root, $document );
+
+        $normalized = '';
+        foreach ( iterator_to_array( $root->childNodes ) as $child ) {
+            $normalized .= $document->saveHTML( $child ) ?: '';
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizePublicHtmlSemanticsNode( \DOMNode $node, \DOMDocument $document ): void {
+        foreach ( iterator_to_array( $node->childNodes ) as $child ) {
+            if ( ! $child instanceof \DOMElement ) {
+                continue;
+            }
+
+            self::normalizePublicHtmlSemanticsNode( $child, $document );
+
+            $tag = strtolower( $child->tagName );
+            if ( $tag === 'h1' ) {
+                $child = self::replaceElementTag( $child, 'h2', $document );
+                $tag = 'h2';
+            }
+
+            if ( in_array( $tag, [ 'strong', 'b' ], true ) && self::shouldRemoveEmptyInlineEmphasis( $child ) ) {
+                $node->removeChild( $child );
+            }
+        }
+    }
+
+    private static function replaceElementTag( \DOMElement $element, string $tag, \DOMDocument $document ): \DOMElement {
+        $replacement = $document->createElement( $tag );
+        foreach ( iterator_to_array( $element->attributes ) as $attribute ) {
+            if ( $attribute instanceof \DOMAttr ) {
+                $replacement->setAttribute( $attribute->nodeName, $attribute->nodeValue );
+            }
+        }
+        while ( $element->firstChild ) {
+            $replacement->appendChild( $element->firstChild );
+        }
+        $element->parentNode?->replaceChild( $replacement, $element );
+        return $replacement;
+    }
+
+    private static function shouldRemoveEmptyInlineEmphasis( \DOMElement $element ): bool {
+        if ( ! in_array( strtolower( $element->tagName ), [ 'strong', 'b' ], true ) ) {
+            return false;
+        }
+
+        foreach ( iterator_to_array( $element->childNodes ) as $child ) {
+            if ( $child instanceof \DOMText ) {
+                $text = html_entity_decode( $child->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+                $text = preg_replace( '/\x{00A0}/u', ' ', $text ) ?? $text;
+                if ( trim( $text ) !== '' ) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ( $child instanceof \DOMElement ) {
+                if ( self::shouldRemoveEmptyInlineEmphasis( $child ) ) {
+                    continue;
+                }
+                if ( trim( html_entity_decode( $child->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) !== '' ) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ( trim( $child->textContent ) !== '' ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function normalizeInlineEmojiMarkup( string $html ): string {
@@ -6298,6 +6418,7 @@ final class WebsiteRenderer {
             '.metis-shell-brand-org{font-size:12px;color:var(--metis-color-muted,#64748b);}',
             '.metis-skip-link{position:fixed;top:16px;left:16px;z-index:5000;padding:.8rem 1rem;border-radius:12px;background:var(--metis-color-surface,#fff);color:var(--metis-color-primary,#485bc7);font-weight:700;text-decoration:none;box-shadow:0 16px 34px rgba(15,23,42,.16);border:1px solid var(--metis-color-border,#d8deea);transform:translateY(-160%);opacity:0;pointer-events:none;transition:transform .18s ease,opacity .18s ease;}',
             '.metis-skip-link:focus,.metis-skip-link:focus-visible{transform:translateY(0);opacity:1;pointer-events:auto;outline:2px solid color-mix(in srgb,var(--metis-color-primary,#485bc7) 45%,#ffffff);outline-offset:2px;}',
+            '.metis-u-visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}',
             '.metis-shell-nav{display:flex;align-items:center;}',
             '.metis-shell-nav-toggle{display:none;align-items:center;justify-content:center;gap:8px;min-width:44px;min-height:44px;padding:8px 12px;border:1px solid var(--metis-color-border,#d8deea);border-radius:10px;background:var(--metis-color-surface,#fff);color:var(--metis-color-text,#1a1f2b);font-weight:700;cursor:pointer;box-shadow:none;}',
             '.metis-shell-nav-toggle-lines{display:inline-grid;gap:4px;width:20px;}',
@@ -6561,7 +6682,7 @@ final class WebsiteRenderer {
             '.metis-structured-button:hover{background:var(--metis-color-primary_dark,#3246a7);color:var(--metis-color-button_text,#fff) !important;text-decoration:none;}',
             '.metis-structured-hero-block{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(220px,.95fr);gap:24px;align-items:center;padding:26px;border:1px solid var(--metis-color-border,#dbe3ef);border-radius:16px;background:var(--metis-color-surface_alt,#f8fafc);}',
             '.metis-structured-hero-block__copy{display:grid;gap:12px;align-content:center;}',
-            '.metis-structured-hero-block__copy h1{margin:0;}',
+            '.metis-structured-hero-block__copy h2{margin:0;}',
             '.metis-structured-hero-block__copy p{margin:0;color:var(--metis-color-muted,#64748b);}',
             '.metis-structured-hero-block__media{margin:0;}',
             '.metis-structured-hero-block__media img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--metis-color-border,#dbe3ef);}',
