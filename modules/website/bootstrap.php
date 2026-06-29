@@ -166,6 +166,26 @@ metis_on( 'init', static function (): void {
         return $path === '' ? '/' : $path;
     };
 
+    $router->register(
+        'website.sitemap',
+        [ 'GET', 'HEAD' ],
+        static function ( \Metis_Http_Request $request ) use ( $normalize_public_path ): ?array {
+            return preg_match( '#^/sitemap\.xml$#i', $normalize_public_path( $request ) ) === 1 ? [] : null;
+        },
+        'metis_website_handle_sitemap_route',
+        [ 'route.security' ]
+    );
+
+    $router->register(
+        'website.robots',
+        [ 'GET', 'HEAD' ],
+        static function ( \Metis_Http_Request $request ) use ( $normalize_public_path ): ?array {
+            return preg_match( '#^/robots\.txt$#i', $normalize_public_path( $request ) ) === 1 ? [] : null;
+        },
+        'metis_website_handle_robots_route',
+        [ 'route.security' ]
+    );
+
     // Generated stylesheet endpoint for public website rendering.
     $router->register(
         'website.theme_css',

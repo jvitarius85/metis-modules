@@ -16,6 +16,7 @@ if ( ! defined( 'METIS_ROOT' ) ) {
 
 use Metis\Modules\Website\Services\WebsiteRenderer;
 use Metis\Modules\Website\Services\RedirectService;
+use Metis\Modules\Website\Services\SeoService;
 use Metis\Core\Error\ErrorPageRenderer;
 
 function metis_website_error_response( int $status, string $message, string $title = '' ): Metis_Http_Response {
@@ -103,6 +104,43 @@ function metis_website_public_html_headers( bool $cacheable = true ): array {
         'Pragma' => 'no-cache',
         'Expires' => '0',
     ];
+}
+
+function metis_website_cached_text_response(
+    Metis_Http_Request $request,
+    string $content,
+    string $content_type,
+    string $cache_control = 'public, max-age=300'
+): Metis_Http_Response {
+    $etag = '"' . sha1( $content ) . '"';
+    $if_none_match = trim( (string) $request->header( 'if-none-match', '' ) );
+    if ( $if_none_match !== '' ) {
+        foreach ( array_map( 'trim', explode( ',', $if_none_match ) ) as $candidate ) {
+            if ( $candidate === '*' || $candidate === $etag ) {
+                return new Metis_Http_Response(
+                    304,
+                    [
+                        'Content-Type' => $content_type,
+                        'Cache-Control' => $cache_control,
+                        'ETag' => $etag,
+                        'X-Content-Type-Options' => 'nosniff',
+                    ],
+                    ''
+                );
+            }
+        }
+    }
+
+    return new Metis_Http_Response(
+        200,
+        [
+            'Content-Type' => $content_type,
+            'Cache-Control' => $cache_control,
+            'ETag' => $etag,
+            'X-Content-Type-Options' => 'nosniff',
+        ],
+        $content
+    );
 }
 
 function metis_website_normalize_public_path( ?string $path, string $fallback_slug = '' ): string {
@@ -217,6 +255,28 @@ function metis_website_handle_theme_css_route( Metis_Http_Request $request ): Me
         ],
         $css
     );
+}
+
+function metis_website_handle_sitemap_route( Metis_Http_Request $request ): Metis_Http_Response {
+    try {
+        $xml = SeoService::renderSitemapXml();
+    } catch ( \Throwable $e ) {
+        metis_website_log_route_exception( 'sitemap', $e, $request );
+        return new Metis_Http_Response( 500, [ 'Content-Type' => 'application/xml; charset=utf-8' ], '' );
+    }
+
+    return metis_website_cached_text_response( $request, $xml, 'application/xml; charset=utf-8' );
+}
+
+function metis_website_handle_robots_route( Metis_Http_Request $request ): Metis_Http_Response {
+    try {
+        $robots = SeoService::renderRobotsTxt();
+    } catch ( \Throwable $e ) {
+        metis_website_log_route_exception( 'robots', $e, $request );
+        return new Metis_Http_Response( 500, [ 'Content-Type' => 'text/plain; charset=utf-8' ], '' );
+    }
+
+    return metis_website_cached_text_response( $request, $robots, 'text/plain; charset=utf-8' );
 }
 
 function metis_website_handle_people_profile_route( Metis_Http_Request $request ): Metis_Http_Response {

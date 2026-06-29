@@ -12,6 +12,7 @@ use Metis\Modules\Website\Entities\Page;
 use Metis\Modules\Website\Entities\Post;
 use Metis\Modules\Website\Services\LayoutProfileService;
 use Metis\Modules\Website\Services\MenuService;
+use Metis\Modules\Website\Services\SeoService;
 use Metis\Modules\Website\Services\TemplateService;
 /**
  * Website Renderer
@@ -324,6 +325,7 @@ final class WebsiteRenderer {
                 'slug' => (string) $page->slug,
                 'title' => (string) ( $page->title ?? '' ),
                 'page_type' => (string) ( $page->page_type ?? '' ),
+                'updated_at' => (string) ( $page->updated_at ?? '' ),
             ],
             'layout_settings' => $layout_settings,
             'context'     => $context,
@@ -333,6 +335,7 @@ final class WebsiteRenderer {
                     'slug' => (string) $page->slug,
                     'title' => (string) ( $page->title ?? '' ),
                     'page_type' => (string) ( $page->page_type ?? '' ),
+                    'updated_at' => (string) ( $page->updated_at ?? '' ),
                 ],
                 'layout_settings' => $layout_settings,
             ],
@@ -464,6 +467,7 @@ final class WebsiteRenderer {
                 'featured_image_url' => self::mediaUrlById( (int) ( $post->featured_image_id ?? 0 ) ),
                 'featured_image_caption' => (string) ( $post->featured_image_caption ?? '' ),
                 'page_type' => 'post',
+                'updated_at' => (string) ( $post->updated_at ?? '' ),
             ],
             'layout_settings' => $layout_settings,
             'context'     => $context,
@@ -479,6 +483,7 @@ final class WebsiteRenderer {
                     'featured_image_url' => self::mediaUrlById( (int) ( $post->featured_image_id ?? 0 ) ),
                     'featured_image_caption' => (string) ( $post->featured_image_caption ?? '' ),
                     'page_type' => 'post',
+                    'updated_at' => (string) ( $post->updated_at ?? '' ),
                 ],
                 'layout_settings' => $layout_settings,
             ],
@@ -572,6 +577,8 @@ final class WebsiteRenderer {
             'path' => '/people/' . trim( (string) ( $person['public_slug'] ?? $slug ), '/' ) . '/',
             'slug' => trim( (string) ( $person['public_slug'] ?? $slug ), '/' ),
             'content_type' => 'public_person',
+            'seo_image' => $avatar,
+            'seo_updated_at' => (string) ( $person['public_updated_at'] ?? $person['updated_at'] ?? '' ),
         ] );
     }
 
@@ -1043,7 +1050,7 @@ final class WebsiteRenderer {
         if ( is_array( $resolved_hero ) ) {
             $hero = $resolved_hero;
         }
-        $seo = self::seoPayloadForRender( $input, $context, $page_data, $sections, $hero, $title, $description, $token_values );
+        $seo = SeoService::buildRenderPayload( $input, $context, $page_data, $sections, $hero, $title, $description, $token_values );
         $title = (string) ( $seo['title'] ?? $title );
         $description = (string) ( $seo['description'] ?? $description );
 
@@ -1208,28 +1215,7 @@ final class WebsiteRenderer {
             $head[] = '  <style data-metis-critical-typography="1">' . $critical_typography_css . '</style>';
         }
 
-        if ( $description !== '' ) {
-            $head[] = '  <meta name="description" content="' . metis_escape_attr( $description ) . '">';
-        }
-        if ( $canonical !== '' ) {
-            $head[] = '  <link rel="canonical" href="' . metis_escape_attr( $canonical ) . '">';
-        }
-        if ( $noindex ) {
-            $head[] = '  <meta name="robots" content="noindex, nofollow">';
-        }
-        if ( $og_title !== '' ) {
-            $head[] = '  <meta property="og:title" content="' . metis_escape_attr( $og_title ) . '">';
-        }
-        if ( $og_description !== '' ) {
-            $head[] = '  <meta property="og:description" content="' . metis_escape_attr( $og_description ) . '">';
-        }
-        if ( $og_url !== '' ) {
-            $head[] = '  <meta property="og:url" content="' . metis_escape_attr( $og_url ) . '">';
-        }
-        $head[] = '  <meta property="og:type" content="' . metis_escape_attr( metis_key_clean( (string) ( $context['content_type'] ?? '' ) ) === 'post' ? 'article' : 'website' ) . '">';
-        if ( $og_image !== '' ) {
-            $head[] = '  <meta property="og:image" content="' . metis_escape_attr( $og_image ) . '">';
-        }
+        $head = array_merge( $head, SeoService::buildHeadTags( $seo_data, $context ) );
         foreach ( $font_preloads as $font_preload ) {
             if ( ! is_array( $font_preload ) ) {
                 continue;
