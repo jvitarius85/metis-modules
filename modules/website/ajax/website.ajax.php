@@ -13,6 +13,7 @@ use Metis\Modules\Website\Services\PopupService;
 use Metis\Modules\Website\Services\ThemeService;
 use Metis\Modules\Website\Services\RedirectService;
 use Metis\Modules\Website\Services\PostCategoryService;
+use Metis\Modules\Website\Services\PostTagService;
 use Metis\Modules\Website\Services\LayoutProfileService;
 use Metis\Modules\Website\Services\HomepageService;
 use Metis\Modules\Website\Services\TemplateService;

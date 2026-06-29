@@ -199,24 +199,4 @@ final class EditorOptionsService {
         return $options;
     }
 
-    private static function usersTable(): string {
-        $db = \metis_db();
-        $prefix = $db->prefix();
-        $candidates = [];
-        if ( $prefix !== '' ) {
-            $prefixed = $prefix . 'users';
-            if ( $prefixed !== 'users' ) {
-                $candidates[] = $prefixed;
-            }
-        }
-        $candidates[] = 'users';
-        foreach ( array_unique( $candidates ) as $candidate ) {
-            $found = $db->scalar( 'SHOW TABLES LIKE %s', [ $candidate ] );
-            if ( is_string( $found ) && $found === $candidate ) {
-                return $candidate;
-            }
-        }
-
-        return 'users';
-    }
 }
