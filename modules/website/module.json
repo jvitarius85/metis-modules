@@ -2,7 +2,7 @@
   "slug": "website",
   "name": "website",
   "label": "Website",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "website",
