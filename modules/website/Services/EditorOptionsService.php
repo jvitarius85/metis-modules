@@ -11,36 +11,29 @@ final class EditorOptionsService {
      * @return array<int,array{value:string,label:string}>
      */
     public static function authorOptions(): array {
-        $db = \metis_db();
-        $table = self::usersTable();
-        $rows = $db->fetchAll(
-            "SELECT ID, user_login, display_name, first_name, last_name, user_email
-             FROM {$table}
-             ORDER BY COALESCE(NULLIF(display_name,''), user_login) ASC
-             LIMIT 250"
-        ) ?: [];
+        $rows = self::authAuthorRows();
+        if ( $rows === [] ) {
+            $rows = self::legacyAuthorRows();
+        }
 
         $options = [];
+        $seen = [];
         foreach ( $rows as $row ) {
             if ( ! is_array( $row ) ) {
                 continue;
             }
-            $id = (int) ( $row['ID'] ?? 0 );
+            $id = (int) ( $row['id'] ?? $row['ID'] ?? 0 );
             if ( $id < 1 ) {
                 continue;
             }
-            $first = trim( (string) ( $row['first_name'] ?? '' ) );
-            $last = trim( (string) ( $row['last_name'] ?? '' ) );
-            $full = trim( $first . ' ' . $last );
-            if ( $full === '' ) {
-                $full = trim( (string) ( $row['display_name'] ?? '' ) );
+            if ( isset( $seen[ $id ] ) ) {
+                continue;
             }
-            if ( $full === '' ) {
-                $full = trim( (string) ( $row['user_login'] ?? '' ) );
-            }
+            $full = self::authorLabelFromRow( $row );
             if ( $full === '' ) {
                 continue;
             }
+            $seen[ $id ] = true;
             $options[] = [
                 'value' => (string) $id,
                 'label' => $full,
@@ -48,6 +41,152 @@ final class EditorOptionsService {
         }
 
         return $options;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function authAuthorRows(): array {
+        if ( ! function_exists( 'metis_auth_table' ) ) {
+            return [];
+        }
+
+        $table = trim( (string) \metis_auth_table() );
+        if ( $table === '' || ! self::tableExists( $table ) ) {
+            return [];
+        }
+
+        $db = \metis_db();
+        $rows = $db->fetchAll(
+            "SELECT id, person_id, user_login, user_email, display_name, first_name, last_name, is_active
+             FROM {$table}
+             WHERE is_active = 1
+             ORDER BY COALESCE(NULLIF(display_name,''), NULLIF(CONCAT(TRIM(first_name), ' ', TRIM(last_name)), ''), user_login) ASC
+             LIMIT 500"
+        ) ?: [];
+        if ( ! is_array( $rows ) || $rows === [] ) {
+            return [];
+        }
+
+        $people = self::peopleRowsById( $rows );
+        foreach ( $rows as $index => $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $person_id = (int) ( $row['person_id'] ?? 0 );
+            if ( $person_id > 0 && isset( $people[ $person_id ] ) ) {
+                $person = $people[ $person_id ];
+                $row['person_first_name'] = (string) ( $person['first_name'] ?? '' );
+                $row['person_last_name'] = (string) ( $person['last_name'] ?? '' );
+                $row['person_display_name'] = (string) ( $person['display_name'] ?? '' );
+                $row['person_email'] = (string) ( $person['email'] ?? '' );
+                $row['person_status'] = (string) ( $person['status'] ?? '' );
+            }
+            $rows[ $index ] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function legacyAuthorRows(): array {
+        $db = \metis_db();
+        $table = self::usersTable();
+        return $db->fetchAll(
+            "SELECT ID, user_login, display_name, first_name, last_name, user_email
+             FROM {$table}
+             ORDER BY COALESCE(NULLIF(display_name,''), user_login) ASC
+             LIMIT 250"
+        ) ?: [];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $auth_rows
+     * @return array<int,array<string,mixed>>
+     */
+    private static function peopleRowsById( array $auth_rows ): array {
+        if ( ! class_exists( '\Metis_Tables' ) || ! \Metis_Tables::has( 'people' ) ) {
+            return [];
+        }
+
+        $people_table = \Metis_Tables::get( 'people' );
+        if ( $people_table === '' || ! self::tableExists( $people_table ) ) {
+            return [];
+        }
+
+        $person_ids = [];
+        foreach ( $auth_rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $person_id = (int) ( $row['person_id'] ?? 0 );
+            if ( $person_id > 0 ) {
+                $person_ids[ $person_id ] = true;
+            }
+        }
+
+        if ( $person_ids === [] ) {
+            return [];
+        }
+
+        $db = \metis_db();
+        $id_list = implode( ',', array_map( 'intval', array_keys( $person_ids ) ) );
+        $rows = $db->fetchAll(
+            "SELECT id, first_name, last_name, display_name, email, status
+             FROM {$people_table}
+             WHERE id IN ({$id_list})"
+        ) ?: [];
+
+        $people = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $id = (int) ( $row['id'] ?? 0 );
+            if ( $id > 0 ) {
+                $people[ $id ] = $row;
+            }
+        }
+
+        return $people;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function authorLabelFromRow( array $row ): string {
+        $full = trim(
+            (string) ( $row['person_first_name'] ?? $row['first_name'] ?? '' )
+            . ' '
+            . (string) ( $row['person_last_name'] ?? $row['last_name'] ?? '' )
+        );
+        if ( $full !== '' ) {
+            return $full;
+        }
+
+        $display = trim( (string) ( $row['person_display_name'] ?? $row['display_name'] ?? '' ) );
+        if ( $display !== '' ) {
+            return $display;
+        }
+
+        $login = trim( (string) ( $row['user_login'] ?? '' ) );
+        if ( $login !== '' ) {
+            return $login;
+        }
+
+        return trim( (string) ( $row['person_email'] ?? $row['user_email'] ?? '' ) );
+    }
+
+    private static function tableExists( string $table ): bool {
+        $table = trim( $table );
+        if ( $table === '' ) {
+            return false;
+        }
+
+        $found = \metis_db()->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
+        return is_string( $found ) && $found === $table;
     }
 
     /**
