@@ -30,6 +30,7 @@ use Metis\Modules\Website\BlockRegistry;
 use Metis\Core\Editor\EditorAutosaveService;
 use Metis\Core\Editor\EditorVersionService;
 use Metis\Core\Editor\EditorManager;
+use Metis\Modules\People\PeopleDirectoryService;
 
 if ( function_exists( 'metis_ajax_register_controller' ) ) {
     $metis_website_ajax_permissions = [
@@ -148,6 +149,20 @@ function metis_website_ajax_author_full_name( int $user_id ): string {
         return '';
     }
 
+    if ( class_exists( PeopleDirectoryService::class ) ) {
+        $person = PeopleDirectoryService::resolvePersonByAuthUserId( $user_id );
+        if ( is_array( $person ) ) {
+            $full = trim( (string) ( $person['first_name'] ?? '' ) . ' ' . (string) ( $person['last_name'] ?? '' ) );
+            if ( $full !== '' ) {
+                return $full;
+            }
+            $display = trim( (string) ( $person['display_name'] ?? '' ) );
+            if ( $display !== '' ) {
+                return $display;
+            }
+        }
+    }
+
     if ( function_exists( 'metis_auth_find_user' ) ) {
         $auth_user = metis_auth_find_user( 'id', $user_id );
         if ( is_array( $auth_user ) ) {
@@ -235,6 +250,16 @@ function metis_website_ajax_post_has_live_version( $post ): bool {
  */
 function metis_website_ajax_author_options(): array {
     return EditorOptionsService::authorOptions();
+}
+
+function metis_website_ajax_post_author_person_id( array $row ): int {
+    $author_source_id = metis_website_ajax_post_author_source_id( $row );
+    if ( $author_source_id < 1 || ! class_exists( PeopleDirectoryService::class ) ) {
+        return 0;
+    }
+
+    $person = PeopleDirectoryService::resolvePersonByAuthUserId( $author_source_id );
+    return is_array( $person ) ? (int) ( $person['id'] ?? 0 ) : 0;
 }
 
 function metis_website_ajax_post_author_source_id( array $row ): int {
@@ -2035,6 +2060,7 @@ metis_ajax_register_handler( 'metis_website_page_get', function (): void {
         $author_source_id = (int) ( $payload['updated_by'] ?? 0 );
     }
     $payload['author_id'] = $author_source_id;
+    $payload['author_person_id'] = metis_website_ajax_post_author_person_id( $payload );
     $payload['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $payload['last_edit'] = (string) ( $payload['updated_at'] ?? '' );
     $payload['published_date'] = (string) ( $payload['published_at'] ?? '' );
@@ -2164,6 +2190,7 @@ metis_ajax_register_handler( 'metis_website_page_create', function (): void {
         $author_source_id = (int) ( $row['updated_by'] ?? 0 );
     }
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
@@ -2384,6 +2411,7 @@ metis_ajax_register_handler( 'metis_website_page_save', function (): void {
         $author_source_id = (int) ( $row['updated_by'] ?? 0 );
     }
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
@@ -2429,6 +2457,7 @@ metis_ajax_register_handler( 'metis_website_homepage_set', function (): void {
         $author_source_id = (int) ( $row['updated_by'] ?? 0 );
     }
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
@@ -2467,6 +2496,7 @@ metis_ajax_register_handler( 'metis_website_page_publish', function (): void {
         $author_source_id = (int) ( $row['updated_by'] ?? 0 );
     }
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
@@ -2501,6 +2531,7 @@ metis_ajax_register_handler( 'metis_website_page_unpublish', function (): void {
         $author_source_id = (int) ( $row['updated_by'] ?? 0 );
     }
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['published_at'] ?? '' );
@@ -2575,6 +2606,7 @@ metis_ajax_register_handler( 'metis_website_post_get', function (): void {
     $payload = $post->toArray();
     $author_source_id = metis_website_ajax_post_author_source_id( $payload );
     $payload['author_id'] = $author_source_id;
+    $payload['author_person_id'] = metis_website_ajax_post_author_person_id( $payload );
     $payload['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $payload['last_edit'] = (string) ( $payload['updated_at'] ?? '' );
     $payload['published_date'] = (string) ( $payload['publish_date'] ?? '' );
@@ -2609,7 +2641,13 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
     $autosave = ! empty( metis_request_post()['autosave'] );
     $post_category_ids = metis_website_ajax_post_category_ids_with_default( metis_website_ajax_post_category_ids_input() );
     $post_tag_ids = metis_website_ajax_post_tag_ids_merged_with_names( metis_website_ajax_post_tag_ids_input() );
-    $author_id = isset( metis_request_post()['author_id'] ) ? (int) metis_request_post()['author_id'] : 0;
+    $author_person_id = isset( metis_request_post()['author_id'] ) ? (int) metis_request_post()['author_id'] : 0;
+    $author_id = $author_person_id > 0 && class_exists( PeopleDirectoryService::class )
+        ? PeopleDirectoryService::resolveAuthUserIdForPerson( $author_person_id )
+        : 0;
+    if ( $author_person_id > 0 && $author_id < 1 ) {
+        metis_runtime_send_json_error( 'Selected author could not be resolved to a login account.', 400 );
+    }
     $post_category_id = $post_category_ids !== []
         ? (int) $post_category_ids[0]
         : ( isset( metis_request_post()['post_category_id'] ) ? (int) metis_request_post()['post_category_id'] : ( isset( metis_request_post()['category_id'] ) ? (int) metis_request_post()['category_id'] : 0 ) );
@@ -2716,6 +2754,7 @@ metis_ajax_register_handler( 'metis_website_post_create', function (): void {
     $row = $post->toArray();
     $author_source_id = metis_website_ajax_post_author_source_id( $row );
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['publish_date'] ?? '' );
@@ -2760,7 +2799,13 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
     $autosave = ! empty( metis_request_post()['autosave'] );
     $post_category_ids = metis_website_ajax_post_category_ids_with_default( metis_website_ajax_post_category_ids_input() );
     $post_tag_ids = metis_website_ajax_post_tag_ids_merged_with_names( metis_website_ajax_post_tag_ids_input() );
-    $author_id = isset( metis_request_post()['author_id'] ) ? (int) metis_request_post()['author_id'] : 0;
+    $author_person_id = isset( metis_request_post()['author_id'] ) ? (int) metis_request_post()['author_id'] : 0;
+    $author_id = $author_person_id > 0 && class_exists( PeopleDirectoryService::class )
+        ? PeopleDirectoryService::resolveAuthUserIdForPerson( $author_person_id )
+        : 0;
+    if ( $author_person_id > 0 && $author_id < 1 ) {
+        metis_runtime_send_json_error( 'Selected author could not be resolved to a login account.', 400 );
+    }
     $post_category_id = $post_category_ids !== []
         ? (int) $post_category_ids[0]
         : ( isset( metis_request_post()['post_category_id'] ) ? (int) metis_request_post()['post_category_id'] : ( isset( metis_request_post()['category_id'] ) ? (int) metis_request_post()['category_id'] : 0 ) );
@@ -2948,6 +2993,7 @@ metis_ajax_register_handler( 'metis_website_post_save', function (): void {
     $row = $post->toArray();
     $author_source_id = metis_website_ajax_post_author_source_id( $row );
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['publish_date'] ?? '' );
@@ -2992,6 +3038,7 @@ metis_ajax_register_handler( 'metis_website_post_publish', function (): void {
     $row = $post->toArray();
     $author_source_id = metis_website_ajax_post_author_source_id( $row );
     $row['author_id'] = $author_source_id;
+    $row['author_person_id'] = metis_website_ajax_post_author_person_id( $row );
     $row['author_name'] = metis_website_ajax_author_full_name( $author_source_id );
     $row['last_edit'] = (string) ( $row['updated_at'] ?? '' );
     $row['published_date'] = (string) ( $row['publish_date'] ?? '' );

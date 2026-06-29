@@ -5,157 +5,19 @@ namespace Metis\Modules\Website\Services;
 
 use Metis\Modules\Donations\CampaignService;
 use Metis\Modules\Media\MediaLibraryService;
+use Metis\Modules\People\PeopleDirectoryService;
 
 final class EditorOptionsService {
     /**
      * @return array<int,array{value:string,label:string}>
      */
     public static function authorOptions(): array {
-        $rows = self::personAuthorRows();
-        $options = [];
-        $seen = [];
-        foreach ( $rows as $row ) {
-            if ( ! is_array( $row ) ) {
-                continue;
-            }
-            $id = (int) ( $row['auth_user_id'] ?? 0 );
-            if ( $id < 1 ) {
-                continue;
-            }
-            if ( isset( $seen[ $id ] ) ) {
-                continue;
-            }
-            $full = self::personAuthorLabelFromRow( $row );
-            if ( $full === '' ) {
-                continue;
-            }
-            $seen[ $id ] = true;
-            $options[] = [
-                'value' => (string) $id,
-                'label' => $full,
-            ];
-        }
-
-        return $options;
-    }
-
-    /**
-     * @return array<int,array<string,mixed>>
-     */
-    private static function personAuthorRows(): array {
-        if ( ! class_exists( '\Metis_Tables' ) || ! \Metis_Tables::has( 'people' ) ) {
-            return self::legacyAuthorRows();
-        }
-
-        $people_table = \Metis_Tables::get( 'people' );
-        if ( $people_table === '' || ! self::tableExists( $people_table ) ) {
-            return self::legacyAuthorRows();
-        }
-
-        $db = \metis_db();
-        $rows = $db->fetchAll(
-            "SELECT id, pid, email, first_name, last_name, display_name, status
-             FROM {$people_table}
-             ORDER BY display_name ASC, email ASC
-             LIMIT 500"
-        ) ?: [];
-        if ( ! is_array( $rows ) || $rows === [] ) {
-            return [];
-        }
-
-        foreach ( $rows as $index => $row ) {
-            if ( ! is_array( $row ) ) {
-                continue;
-            }
-
-            $person_id = (int) ( $row['id'] ?? 0 );
-            if ( $person_id < 1 ) {
-                continue;
-            }
-
-            $auth_user = self::authUserForPerson( $row );
-            $row['auth_user_id'] = is_array( $auth_user ) ? (int) ( $auth_user['id'] ?? 0 ) : 0;
-            $rows[ $index ] = $row;
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @return array<int,array<string,mixed>>
-     */
-    private static function legacyAuthorRows(): array {
-        $db = \metis_db();
-        $table = self::usersTable();
-        return $db->fetchAll(
-            "SELECT ID, user_login, display_name, first_name, last_name, user_email
-             FROM {$table}
-             ORDER BY COALESCE(NULLIF(display_name,''), user_login) ASC
-             LIMIT 250"
-        ) ?: [];
-    }
-
-    /**
-     * @param array<string,mixed> $person
-     */
-    private static function authUserForPerson( array $person ): ?array {
-        $person_id = (int) ( $person['id'] ?? 0 );
-        if ( $person_id < 1 || ! function_exists( 'metis_auth_find_user' ) ) {
-            return null;
-        }
-
-        $auth_user = \metis_auth_find_user( 'person_id', $person_id );
-        if ( is_array( $auth_user ) ) {
-            return $auth_user;
-        }
-
-        $email = strtolower( trim( (string) ( $person['email'] ?? '' ) ) );
-        if ( $email !== '' ) {
-            $auth_user = \metis_auth_find_user( 'email', $email );
-            if ( is_array( $auth_user ) ) {
-                return $auth_user;
-            }
-        }
-
-        if ( function_exists( 'metis_auth_upsert_user_from_person' ) ) {
-            $created = \metis_auth_upsert_user_from_person( $person );
-            if ( is_array( $created ) ) {
-                return $created;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array<string,mixed> $row
-     */
-    private static function personAuthorLabelFromRow( array $row ): string {
-        $full = trim(
-            (string) ( $row['first_name'] ?? '' )
-            . ' '
-            . (string) ( $row['last_name'] ?? '' )
-        );
-        if ( $full !== '' ) {
-            return $full;
-        }
-
-        $display = trim( (string) ( $row['display_name'] ?? '' ) );
-        if ( $display !== '' ) {
-            return $display;
-        }
-
-        return trim( (string) ( $row['email'] ?? '' ) );
-    }
-
-    private static function tableExists( string $table ): bool {
-        $table = trim( $table );
-        if ( $table === '' ) {
-            return false;
-        }
-
-        $found = \metis_db()->scalar( 'SHOW TABLES LIKE %s', [ $table ] );
-        return is_string( $found ) && $found === $table;
+        return PeopleDirectoryService::options( [
+            'status' => 'active',
+            'sort' => 'display_name_asc',
+            'limit' => 500,
+            'value_field' => 'id',
+        ] );
     }
 
     /**

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-06-29T15:43:31Z",
+  "generated_at": "2026-06-29T17:15:52Z",
   "modules": {
     "board": {
       "latest": "1.1.2",
@@ -514,12 +514,17 @@
       }
     },
     "website": {
-      "latest": "1.4.2",
+      "latest": "1.4.3",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/website.1.4.2.tar.gz",
-      "sha256": "1280d61a236724d11ebbae270a0b8fa5a10b990433c4450cc8d685ee8b44ebbf",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/website.1.4.3.tar.gz",
+      "sha256": "6f94b914ed222b40d210e8a72277db2eebb61bc4d695b0049a40fd67b27d7e5b",
       "previous_versions": [
+        {
+          "version": "1.4.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/previous-versions/website.1.4.2.tar.gz",
+          "sha256": "1280d61a236724d11ebbae270a0b8fa5a10b990433c4450cc8d685ee8b44ebbf"
+        },
         {
           "version": "1.4.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/previous-versions/website.1.4.1.tar.gz",
