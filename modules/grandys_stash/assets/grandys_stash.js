@@ -1185,14 +1185,16 @@
 
   function submitReportPdfExport() {
     if (!ajax.ajax_url) return;
+    const action = 'metis_grandys_stash_export';
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = ajax.ajax_url;
     form.style.display = 'none';
 
     Object.entries(Object.assign({}, buildReportRequestPayload(1), {
-      action: 'metis_grandys_stash_export',
+      action: action,
       nonce: ajax.nonce || '',
+      metis_action_nonce: actionNonce(action),
       format: 'pdf'
     })).forEach(function (entry) {
       const input = document.createElement('input');
@@ -1972,8 +1974,24 @@
     });
   }
 
+  function actionNonce(action) {
+    const resolvedAction = String(action || '').trim();
+    const fallback = String(ajax.nonce || '');
+    if (window.Metis && Metis.ajax && typeof Metis.ajax.nonceFor === 'function') {
+      return String(Metis.ajax.nonceFor(resolvedAction, fallback) || fallback);
+    }
+    const actionNonces = ajax.action_nonces && typeof ajax.action_nonces === 'object'
+      ? ajax.action_nonces
+      : {};
+    return String(actionNonces[resolvedAction] || fallback);
+  }
+
   function request(action, body) {
-    const params = new URLSearchParams({ action: action, nonce: ajax.nonce || '' });
+    const params = new URLSearchParams({
+      action: action,
+      nonce: ajax.nonce || '',
+      metis_action_nonce: actionNonce(action)
+    });
     Object.entries(body || {}).forEach(function (entry) {
       params.append(entry[0], entry[1]);
     });

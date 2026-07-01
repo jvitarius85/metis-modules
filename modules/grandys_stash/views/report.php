@@ -16,7 +16,41 @@ $report_page = \Metis\Modules\GrandyStash\GrandyStashRepository::reportTicketPag
     'per_page' => 25,
 ] );
 $report_options = \Metis\Modules\GrandyStash\GrandyStashRepository::reportBuilderOptions( $from, $to );
-$summary = $report['summary'] ?? [];
+$report = is_array( $report ) ? $report : [];
+$report += [
+    'summary'              => [],
+    'people_served'        => 0,
+    'items_fulfilled'      => 0,
+    'avg_days_to_complete' => '—',
+    'by_category'          => [],
+    'monthly'              => [],
+    'by_urgency'           => [],
+    'by_source'            => [],
+    'by_organization'      => [],
+    'by_person'            => [],
+    'by_equipment'         => [],
+];
+$report['summary'] = is_array( $report['summary'] ) ? $report['summary'] : [];
+$report_page = is_array( $report_page ) ? $report_page : [];
+$report_page += [
+    'rows' => [],
+    'pagination' => [
+        'page'        => 1,
+        'per_page'    => 25,
+        'total'       => 0,
+        'total_pages' => 1,
+        'has_prev'    => false,
+        'has_next'    => false,
+    ],
+];
+$report_options = is_array( $report_options ) ? $report_options : [];
+$report_options += [
+    'assigned'      => [],
+    'organizations' => [],
+    'people'        => [],
+    'items'         => [],
+];
+$summary = $report['summary'];
 $can_export = function_exists( 'metis_grandys_stash_can_export' ) && metis_grandys_stash_can_export();
 $display_label = static function ( string $value, string $fallback = 'Other' ): string {
     $value = trim( $value );
@@ -78,7 +112,7 @@ $range_text = ( $from !== '' || $to !== '' )
                 </nav>
             </div>
         <?php },
-        'content' => static function () use ( $report, $range_text, $display_label ) { ?>
+        'content' => static function () use ( $report, $range_text, $display_label, $can_export ) { ?>
 
     <div id="metis-stash-report-content">
         <section class="metis-stash-report-range-card">
