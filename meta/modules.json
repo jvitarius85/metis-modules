@@ -1,14 +1,20 @@
 {
   "schema": 1,
-  "generated_at": "2026-07-10T01:28:19Z",
+  "generated_at": "2026-07-10T01:43:31Z",
   "modules": {
     "board": {
-      "latest": "1.1.3",
+      "latest": "1.1.4",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/board.1.1.3.tar.gz",
-      "sha256": "72cf7a27774212d3b915746d0c797c7c943b1ae9093e44fcd630868c533fafca",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/board.1.1.4.tar.gz",
+      "sha256": "58af8f3ddbb531c1f0f4d9a3ccbef367b4eb0bca2f98f10bfab108e182b620cf",
+      "source_fingerprint": "188867c7d4a96bb5f79d59e991bc3c8ce922520a7512160a46895278de49026f",
       "previous_versions": [
+        {
+          "version": "1.1.3",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/previous-versions/board.1.1.3.tar.gz",
+          "sha256": "72cf7a27774212d3b915746d0c797c7c943b1ae9093e44fcd630868c533fafca"
+        },
         {
           "version": "1.1.2",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/previous-versions/board.1.1.2.tar.gz",
@@ -193,12 +199,18 @@
       ]
     },
     "finance": {
-      "latest": "2.1.2",
+      "latest": "2.1.3",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
-      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/finance.2.1.2.tar.gz",
-      "sha256": "db925dda2d5c15471e1c8ef3626f3d62fdb770b559c3f6e37d95bdd138764807",
+      "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/finance.2.1.3.tar.gz",
+      "sha256": "5669135a8de61156d562f2a0f359c805975f389cfa46533c044b7da97e2f3174",
+      "source_fingerprint": "f585b43a669883278c29d111583e255090143413bf5eda602f879162344cb05e",
       "previous_versions": [
+        {
+          "version": "2.1.2",
+          "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/previous-versions/finance.2.1.2.tar.gz",
+          "sha256": "db925dda2d5c15471e1c8ef3626f3d62fdb770b559c3f6e37d95bdd138764807"
+        },
         {
           "version": "2.1.1",
           "download_url": "https://raw.githubusercontent.com/jvitarius85/metis-modules/main/module-releases/previous-versions/finance.2.1.1.tar.gz",
