@@ -15,11 +15,11 @@ final class MediaModule {
     }
 
     public static function canView(): bool {
-        return function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'media.view' );
+        return \Metis\Modules\Media\Policies\MediaPolicy::canView();
     }
 
     public static function canManage(): bool {
-        return function_exists( 'metis_security_user_can' ) && metis_security_user_can( 'media.edit' );
+        return \Metis\Modules\Media\Policies\MediaPolicy::canManage();
     }
 
     public static function baseUrl(): string {

@@ -142,11 +142,30 @@ function initMetisCalendar(context) {
         showAlert(label + ': ' + message, 'error');
     }
 
+    let securityReloadQueued = false;
+
+    function isSecurityFailure(error) {
+        const message = String(error && error.message || '').toLowerCase();
+        return message.indexOf('security check failed') >= 0
+            || message.indexOf('request rejected') >= 0
+            || message.indexOf('invalid request nonce') >= 0
+            || message.indexOf('cross-site request rejected') >= 0;
+    }
+
+    function queueSecurityReload(error) {
+        if (!isSecurityFailure(error) || securityReloadQueued) {
+            return false;
+        }
+        securityReloadQueued = true;
+        showAlert('Your session token expired. Reloading Calendar...', 'error');
+        window.setTimeout(function () {
+            window.location.reload();
+        }, 120);
+        return true;
+    }
+
     function post(action, payload) {
         const formData = new FormData();
-        formData.set('action', action);
-        formData.set('metis_action_nonce', Metis.ajax.nonceFor(action, ajax.nonce));
-        formData.set('nonce', ajax.nonce);
         Object.keys(payload || {}).forEach(function (key) {
             const value = payload[key];
             if (Array.isArray(value)) {
@@ -157,23 +176,16 @@ function initMetisCalendar(context) {
             }
             formData.set(key, value == null ? '' : String(value));
         });
-        return fetch(ajax.ajax_url, {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: formData
-        }).then(function (res) {
-            return Metis.ajax.parseJson(res);
-        }).then(function (json) {
-            if (!json || !json.success) throw new Error(Metis.ajax.message(json));
-            return json.data;
+        return Metis.request.postForm(ajax, action, formData, 'Calendar AJAX not configured.').catch(function (error) {
+            if (queueSecurityReload(error)) {
+                throw new Error('Refreshing Calendar...');
+            }
+            throw error;
         });
     }
 
     function triggerSync(forceSync) {
         const formData = new FormData();
-        formData.set('action', 'metis_calendar_sync_worker');
-        formData.set('metis_action_nonce', Metis.ajax.nonceFor('metis_calendar_sync_worker', ajax.nonce));
-        formData.set('nonce', ajax.nonce);
         visibleCalendarIds.forEach(function (id) {
             formData.append('calendar_ids[]', id);
         });
@@ -181,10 +193,11 @@ function initMetisCalendar(context) {
             formData.set('force', '1');
         }
 
-        fetch(ajax.ajax_url, {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: formData
+        Metis.request.postForm(ajax, 'metis_calendar_sync_worker', formData, 'Calendar AJAX not configured.').catch(function (error) {
+            if (queueSecurityReload(error)) {
+                return;
+            }
+            throw error;
         }).catch(function () {
             // Best-effort background sync only.
         });

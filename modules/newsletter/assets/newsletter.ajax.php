@@ -412,6 +412,22 @@ function metis_newsletter_apply_editor_body_to_doc(string $doc_json_raw, string 
 }
 
 function metis_newsletter_register_ajax_controllers(): void {
+    $secure = static function (string $action, string $permission, array $schema = []): array {
+        return [
+            'module' => 'newsletter',
+            'permission' => $permission,
+            'nonce_action' => metis_ajax_nonce_action($action),
+            'allow_additional_fields' => false,
+            'schema' => array_merge(
+                [
+                    'nonce' => [ 'type' => 'string', 'required' => false ],
+                    'metis_action_nonce' => [ 'type' => 'string', 'required' => false ],
+                ],
+                $schema
+            ),
+        ];
+    };
+
     $actions = [
         'metis_newsletter_save_defaults' => 'edit',
         'metis_newsletter_save_template' => 'edit',
@@ -445,11 +461,69 @@ function metis_newsletter_register_ajax_controllers(): void {
     ];
 
     foreach ($actions as $action => $permission) {
-        metis_ajax_register_controller($action, [
+        $definition = [
             'module' => 'newsletter',
             'permission' => $permission,
             'nonce_action' => metis_ajax_nonce_action($action),
-        ]);
+        ];
+
+        if ($action === 'metis_newsletter_save_defaults') {
+            $definition = $secure($action, $permission, [
+                'from_name' => [ 'type' => 'string', 'required' => false ],
+                'sender_name' => [ 'type' => 'string', 'required' => false ],
+                'from_email' => [ 'type' => 'string', 'required' => false ],
+                'sender_email' => [ 'type' => 'string', 'required' => false ],
+                'reply_to' => [ 'type' => 'string', 'required' => false ],
+            ]);
+        } elseif ($action === 'metis_newsletter_layout_profile_save') {
+            $definition = $secure($action, $permission, [
+                'newsletter_layout_profile' => [ 'type' => 'string', 'required' => false ],
+            ]);
+        } elseif ($action === 'metis_newsletter_save_theme_defaults') {
+            $definition = $secure($action, $permission, [
+                'header_html' => [ 'type' => 'string', 'required' => false ],
+                'personalized_html' => [ 'type' => 'string', 'required' => false ],
+                'closing_html' => [ 'type' => 'string', 'required' => false ],
+                'footer_html' => [ 'type' => 'string', 'required' => false ],
+                'canvas_bg' => [ 'type' => 'string', 'required' => false ],
+                'text_color' => [ 'type' => 'string', 'required' => false ],
+                'font_size' => [ 'type' => 'integer', 'required' => false ],
+                'content_width' => [ 'type' => 'integer', 'required' => false ],
+                'content_width_mode' => [ 'type' => 'string', 'required' => false ],
+                'divider_color' => [ 'type' => 'string', 'required' => false ],
+                'divider_style' => [ 'type' => 'string', 'required' => false ],
+                'divider_weight' => [ 'type' => 'integer', 'required' => false ],
+                'header_bg' => [ 'type' => 'string', 'required' => false ],
+                'header_text_color' => [ 'type' => 'string', 'required' => false ],
+                'header_padding' => [ 'type' => 'string', 'required' => false ],
+                'personalized_bg' => [ 'type' => 'string', 'required' => false ],
+                'personalized_text_color' => [ 'type' => 'string', 'required' => false ],
+                'personalized_padding' => [ 'type' => 'string', 'required' => false ],
+                'closing_bg' => [ 'type' => 'string', 'required' => false ],
+                'closing_text_color' => [ 'type' => 'string', 'required' => false ],
+                'closing_padding' => [ 'type' => 'string', 'required' => false ],
+                'footer_bg' => [ 'type' => 'string', 'required' => false ],
+                'footer_text_color' => [ 'type' => 'string', 'required' => false ],
+                'footer_padding' => [ 'type' => 'string', 'required' => false ],
+            ]);
+        } elseif ($action === 'metis_newsletter_campaign_status') {
+            $definition = $secure($action, $permission, [
+                'campaign_id' => [ 'type' => 'integer', 'required' => true ],
+            ]);
+        } elseif ($action === 'metis_newsletter_search_contacts') {
+            $definition = $secure($action, $permission, [
+                'query' => [ 'type' => 'string', 'required' => false ],
+            ]);
+        } elseif ($action === 'metis_newsletter_list_contacts') {
+            $definition = $secure($action, $permission, [
+                'list_id' => [ 'type' => 'integer', 'required' => false ],
+                'query' => [ 'type' => 'string', 'required' => false ],
+                'page' => [ 'type' => 'integer', 'required' => false ],
+                'per_page' => [ 'type' => 'integer', 'required' => false ],
+            ]);
+        }
+
+        metis_ajax_register_controller($action, $definition);
     }
 }
 

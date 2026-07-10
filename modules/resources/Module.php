@@ -39,15 +39,15 @@ final class ResourcesModule {
     }
 
     public static function canView(): bool {
-        return Support::canView();
+        return \Metis\Modules\Resources\Policies\ResourcesPolicy::canView();
     }
 
     public static function canManage(): bool {
-        return Support::canManage();
+        return \Metis\Modules\Resources\Policies\ResourcesPolicy::canManage();
     }
 
     public static function canDelete(): bool {
-        return Support::canDelete();
+        return \Metis\Modules\Resources\Policies\ResourcesPolicy::canDelete();
     }
 
     public static function baseUrl(): string {
@@ -93,25 +93,6 @@ final class ResourcesModule {
     }
 
     public static function handlePublicRoute( Request $request ): Response {
-        $type = \metis_slug_clean( (string) $request->attribute( 'type', '' ) );
-        $category = \metis_slug_clean( (string) $request->attribute( 'category', '' ) );
-        $resource = \metis_slug_clean( (string) $request->attribute( 'resource', '' ) );
-
-        $html = Repository::renderPublicRoute(
-            $type,
-            $category,
-            $resource,
-            (array) $request->query()
-        );
-
-        if ( $html === null ) {
-            return new Response(
-                404,
-                [ 'Content-Type' => 'text/html; charset=utf-8' ],
-                '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found</title></head><body><main><h1>Not Found</h1><p>The requested resource could not be found.</p></main></body></html>'
-            );
-        }
-
-        return new Response( 200, [ 'Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'public, max-age=300' ], $html );
+        return \Metis\Modules\Resources\Controllers\PublicRouteController::handle( $request );
     }
 }

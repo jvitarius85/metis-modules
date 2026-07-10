@@ -337,9 +337,13 @@ final class SeoService {
     private static function sitemapEntries(): array {
         $entries = [];
         $seen = [];
+        $pageRows = self::publishedPageRows();
+        $pagePaths = self::buildPublishedPagePathMap( $pageRows );
+        $categoryPaths = self::buildPostCategoryPathMap();
 
-        foreach ( self::publishedPageRows() as $row ) {
-            $path = PageService::publishedPathById( (int) ( $row['id'] ?? 0 ) );
+        foreach ( $pageRows as $row ) {
+            $pageId = (int) ( $row['id'] ?? 0 );
+            $path = (string) ( $pagePaths[ $pageId ] ?? '' );
             $url = self::canonicalSitemapUrl( $path, (string) ( $row['seo_meta_json'] ?? '' ) );
             if ( $url === '' || isset( $seen[ $url ] ) || self::seoMetaNoindex( (string) ( $row['seo_meta_json'] ?? '' ) ) ) {
                 continue;
@@ -354,11 +358,7 @@ final class SeoService {
         }
 
         foreach ( self::publishedPostRows() as $row ) {
-            $path = '';
-            $post = PostService::getById( (int) ( $row['id'] ?? 0 ) );
-            if ( $post !== null ) {
-                $path = (string) PostService::publicPath( $post );
-            }
+            $path = self::publishedPostPathFromRow( $row, $categoryPaths );
             $url = self::canonicalSitemapUrl( $path, (string) ( $row['seo_meta_json'] ?? '' ) );
             if ( $url === '' || isset( $seen[ $url ] ) || self::seoMetaNoindex( (string) ( $row['seo_meta_json'] ?? '' ) ) ) {
                 continue;
@@ -405,7 +405,7 @@ final class SeoService {
         $db = self::db();
         $table = \Metis_Tables::get( 'website_pages' );
         $rows = $db->fetchAll(
-            "SELECT id, page_type, seo_meta_json, published_at, updated_at
+            "SELECT id, parent_id, slug, page_type, status, seo_meta_json, published_at, updated_at
              FROM {$table}
              WHERE status = 'published'
              ORDER BY menu_order ASC, title ASC"
@@ -421,13 +421,172 @@ final class SeoService {
         $db = self::db();
         $table = \Metis_Tables::get( 'website_posts' );
         $rows = $db->fetchAll(
-            "SELECT id, seo_meta_json, publish_date, created_at, updated_at
+            "SELECT id, slug, post_category_id, seo_meta_json, publish_date, created_at, updated_at
              FROM {$table}
              WHERE status = 'published'
              ORDER BY publish_date DESC, created_at DESC"
         );
 
         return is_array( $rows ) ? $rows : [];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,string>
+     */
+    private static function buildPublishedPagePathMap( array $rows ): array {
+        $map = [];
+        $byId = [];
+
+        foreach ( $rows as $row ) {
+            $id = (int) ( $row['id'] ?? 0 );
+            if ( $id > 0 ) {
+                $map[ $id ] = '';
+                $byId[ $id ] = is_array( $row ) ? $row : [];
+            }
+        }
+
+        $resolver = static function ( int $id ) use ( &$resolver, &$map, $byId ): string {
+            if ( $id < 1 || ! array_key_exists( $id, $map ) || ! isset( $byId[ $id ] ) ) {
+                return '';
+            }
+
+            if ( $map[ $id ] !== '' ) {
+                return $map[ $id ];
+            }
+
+            $row = $byId[ $id ];
+            if ( (string) ( $row['status'] ?? '' ) !== 'published' ) {
+                return '';
+            }
+
+            if ( metis_key_clean( (string) ( $row['page_type'] ?? '' ) ) === 'homepage' ) {
+                $map[ $id ] = '/';
+                return '/';
+            }
+
+            $slug = metis_slug_clean( (string) ( $row['slug'] ?? '' ) );
+            if ( $slug === '' ) {
+                return '';
+            }
+
+            $parentId = (int) ( $row['parent_id'] ?? 0 );
+            $path = '/' . $slug;
+            if ( $parentId > 0 ) {
+                $parentPath = $resolver( $parentId );
+                if ( $parentPath === '' ) {
+                    return '';
+                }
+
+                $path = rtrim( $parentPath, '/' ) . '/' . $slug;
+            }
+
+            $map[ $id ] = $path;
+            return $path;
+        };
+
+        foreach ( array_keys( $map ) as $id ) {
+            $resolver( (int) $id );
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return array<int,array<int,string>>
+     */
+    private static function buildPostCategoryPathMap(): array {
+        $db = self::db();
+        $table = \Metis_Tables::get( 'website_post_categories' );
+        $rows = $db->fetchAll(
+            "SELECT id, parent_id, slug, name
+             FROM {$table}
+             ORDER BY parent_id ASC, name ASC"
+        );
+
+        $byId = [];
+        foreach ( is_array( $rows ) ? $rows : [] as $row ) {
+            $id = (int) ( $row['id'] ?? 0 );
+            if ( $id > 0 ) {
+                $byId[ $id ] = is_array( $row ) ? $row : [];
+            }
+        }
+
+        $resolved = [];
+        $resolver = static function ( int $id ) use ( &$resolver, &$resolved, $byId ): array {
+            if ( $id < 1 || ! isset( $byId[ $id ] ) ) {
+                return [];
+            }
+
+            if ( isset( $resolved[ $id ] ) ) {
+                return $resolved[ $id ];
+            }
+
+            $row = $byId[ $id ];
+            $slug = metis_slug_clean( (string) ( $row['slug'] ?? '' ) );
+            if ( $slug === '' ) {
+                $slug = metis_slug_clean( (string) ( $row['name'] ?? '' ) );
+            }
+            if ( $slug === '' ) {
+                return [];
+            }
+
+            $parentId = (int) ( $row['parent_id'] ?? 0 );
+            $segments = [ $slug ];
+            if ( $parentId > 0 ) {
+                $parentSegments = $resolver( $parentId );
+                if ( $parentSegments !== [] ) {
+                    $segments = array_merge( $parentSegments, [ $slug ] );
+                }
+            }
+
+            $resolved[ $id ] = $segments;
+            return $segments;
+        };
+
+        foreach ( array_keys( $byId ) as $id ) {
+            $resolver( (int) $id );
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<int,array<int,string>> $categoryPaths
+     */
+    private static function publishedPostPathFromRow( array $row, array $categoryPaths ): string {
+        $slug = ltrim( (string) ( $row['slug'] ?? '' ), '/' );
+        if ( $slug === '' ) {
+            return '';
+        }
+
+        $categoryId = (int) ( $row['post_category_id'] ?? 0 );
+        $segments = $categoryId > 0 ? (array) ( $categoryPaths[ $categoryId ] ?? [] ) : [];
+        $segments = array_values( array_filter( array_map( 'metis_slug_clean', $segments ), static fn ( string $segment ): bool => $segment !== '' ) );
+        if ( $segments === [] ) {
+            return '';
+        }
+
+        $timestamp = 0;
+        foreach ( [ 'publish_date', 'created_at', 'updated_at' ] as $field ) {
+            $raw = trim( (string) ( $row[ $field ] ?? '' ) );
+            if ( $raw === '' ) {
+                continue;
+            }
+
+            $candidate = strtotime( $raw );
+            if ( $candidate !== false && $candidate > 0 ) {
+                $timestamp = (int) $candidate;
+                break;
+            }
+        }
+
+        if ( $timestamp < 1 ) {
+            return '';
+        }
+
+        return '/' . implode( '/', array_merge( $segments, [ gmdate( 'Y', $timestamp ), $slug ] ) );
     }
 
     /**

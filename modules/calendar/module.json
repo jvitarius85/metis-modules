@@ -2,7 +2,7 @@
   "slug": "calendar",
   "name": "calendar",
   "label": "Calendar",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "calendar",
@@ -88,9 +88,7 @@
   "entry": "Module.php",
   "routes": [],
   "services": [],
-  "maximum_metis": "26.6.99",
   "compatible_core": {
-    "minimum": "26.6.0",
-    "maximum": "26.6.99"
+    "minimum": "26.6.0"
   }
 }

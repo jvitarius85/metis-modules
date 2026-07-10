@@ -597,9 +597,10 @@ final class BlockRenderer {
             );
         }
 
-        $offset = isset( $_GET['metis_events_offset'] ) ? (int) $_GET['metis_events_offset'] : 0;
+        $request_get = function_exists( 'metis_request_get' ) ? metis_request_get() : [];
+        $offset = isset( $request_get['metis_events_offset'] ) ? (int) $request_get['metis_events_offset'] : 0;
         $offset = max( -24, min( 24, $offset ) );
-        $cursor_raw = trim( (string) ( $_GET['metis_events_cursor'] ?? '' ) );
+        $cursor_raw = trim( (string) ( $request_get['metis_events_cursor'] ?? '' ) );
         $cursor_ts = $cursor_raw !== '' ? ( strtotime( $cursor_raw ) ?: 0 ) : 0;
         $nav_html = '';
 

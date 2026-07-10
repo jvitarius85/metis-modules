@@ -144,16 +144,52 @@ function metis_finance_register_ajax_controllers(): void {
         return;
     }
 
+    $secure = static function ( array $config, array $schema = [] ): array {
+        $config['allow_additional_fields'] = false;
+        $config['schema'] = array_merge(
+            [
+                'nonce' => [ 'type' => 'string', 'required' => false ],
+                'metis_action_nonce' => [ 'type' => 'string', 'required' => false ],
+            ],
+            $schema
+        );
+
+        return $config;
+    };
+
     $actions = [
         'metis_finance_mode_switch_schedule' => [ 'permission' => 'edit', 'nonce_action' => metis_ajax_nonce_action( 'metis_finance_mode_switch_schedule' ) ],
         'metis_finance_mode_switch_status' => [ 'permission' => 'view', 'nonce_action' => metis_ajax_nonce_action( 'metis_finance_mode_switch_status' ) ],
         'metis_finance_mode_status' => [ 'permission' => 'view', 'nonce_action' => metis_ajax_nonce_action( 'metis_finance_mode_status' ) ],
 
         'metis_finance_v2_bootstrap' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
-        'metis_finance_v2_gl_entries_list' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
-        'metis_finance_v2_gl_create' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_gl_create' ],
+        'metis_finance_v2_gl_entries_list' => $secure(
+            [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
+            [
+                'limit' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
+        'metis_finance_v2_gl_create' => $secure(
+            [ 'permission' => 'create', 'nonce_action' => 'metis_finance_v2_gl_create' ],
+            [
+                'entry_date' => [ 'type' => 'string', 'required' => true ],
+                'account_code' => [ 'type' => 'string', 'required' => true ],
+                'description' => [ 'type' => 'string', 'required' => true ],
+                'amount' => [ 'type' => 'string', 'required' => true ],
+                'dc_type' => [ 'type' => 'string', 'required' => true ],
+                'category_code' => [ 'type' => 'string', 'required' => false ],
+            ]
+        ),
         'metis_finance_v2_categories_list' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
-        'metis_finance_v2_category_save' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_category_save' ],
+        'metis_finance_v2_category_save' => $secure(
+            [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_category_save' ],
+            [
+                'category_name' => [ 'type' => 'string', 'required' => true ],
+                'category_code' => [ 'type' => 'string', 'required' => true ],
+                'is_active' => [ 'type' => 'integer', 'required' => false ],
+                'sort_order' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
 
         'metis_finance_v2_recon_import' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_recon_import' ],
         'metis_finance_v2_recon_workflow' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
@@ -173,22 +209,59 @@ function metis_finance_register_ajax_controllers(): void {
         'metis_finance_v2_invoices_list' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_invoice_create' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_invoice_create' ],
         'metis_finance_v2_invoice_send' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_invoice_send' ],
-        'metis_finance_v2_invoice_paid' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_invoice_paid' ],
+        'metis_finance_v2_invoice_paid' => $secure(
+            [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_invoice_paid' ],
+            [
+                'invoice_id' => [ 'type' => 'integer', 'required' => true ],
+                'paid_date' => [ 'type' => 'string', 'required' => true ],
+                'stripe_payment_intent_id' => [ 'type' => 'string', 'required' => false ],
+            ]
+        ),
 
         'metis_finance_v2_fiscal_settings_get' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_fiscal_settings' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_fiscal_settings' ],
         'metis_finance_v2_fiscal_migrate' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_fiscal_migrate' ],
 
         'metis_finance_v2_reports_snapshot' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
-        'metis_finance_v2_report_render' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance_v2_report_render' ],
-        'metis_finance_v2_report_pdf' => [ 'permission' => 'export', 'nonce_action' => 'metis_finance_v2_report_pdf' ],
+        'metis_finance_v2_report_render' => $secure(
+            [ 'permission' => 'view', 'nonce_action' => 'metis_finance_v2_report_render' ],
+            [
+                'report_type' => [ 'type' => 'string', 'required' => true ],
+                'period_code' => [ 'type' => 'string', 'required' => true ],
+                'include_previous_month' => [ 'type' => 'boolean', 'required' => false ],
+            ]
+        ),
+        'metis_finance_v2_report_pdf' => $secure(
+            [ 'permission' => 'export', 'nonce_action' => 'metis_finance_v2_report_pdf' ],
+            [
+                'report_type' => [ 'type' => 'string', 'required' => true ],
+                'period_code' => [ 'type' => 'string', 'required' => true ],
+                'orientation' => [ 'type' => 'string', 'required' => false ],
+                'include_previous_month' => [ 'type' => 'boolean', 'required' => false ],
+            ]
+        ),
 
         'metis_finance_v2_stripe_overview' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_stripe_event' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_event' ],
         'metis_finance_v2_stripe_payout' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_payout' ],
-        'metis_finance_v2_bank_line' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_bank_line' ],
-        'metis_finance_v2_stripe_match' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_match' ],
-        'metis_finance_v2_stripe_auto_match' => [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_match' ],
+        'metis_finance_v2_bank_line' => $secure(
+            [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_bank_line' ],
+            [
+                'line_date' => [ 'type' => 'string', 'required' => true ],
+                'description' => [ 'type' => 'string', 'required' => true ],
+                'amount_signed' => [ 'type' => 'string', 'required' => true ],
+            ]
+        ),
+        'metis_finance_v2_stripe_match' => $secure(
+            [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_match' ],
+            [
+                'payout_record_id' => [ 'type' => 'integer', 'required' => true ],
+                'bank_line_id' => [ 'type' => 'integer', 'required' => true ],
+            ]
+        ),
+        'metis_finance_v2_stripe_auto_match' => $secure(
+            [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_stripe_match' ]
+        ),
     ];
 
     foreach ( $actions as $action => $config ) {

@@ -35,15 +35,15 @@ final class TestimoniesModule {
     }
 
     public static function canView(): bool {
-        return Support::canView();
+        return \Metis\Modules\Testimonies\Policies\TestimoniesPolicy::canView();
     }
 
     public static function canManage(): bool {
-        return Support::canManage();
+        return \Metis\Modules\Testimonies\Policies\TestimoniesPolicy::canManage();
     }
 
     public static function canDelete(): bool {
-        return Support::canDelete();
+        return \Metis\Modules\Testimonies\Policies\TestimoniesPolicy::canDelete();
     }
 
     public static function baseUrl(): string {

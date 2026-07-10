@@ -117,15 +117,15 @@ function metis_forms_register_ajax_controllers(): void {
     }
 
     $actions = [
-        'metis_forms_list' => [ 'permission' => 'view' ],
-        'metis_forms_get' => [ 'permission' => 'view' ],
-        'metis_forms_save' => [ 'permission' => 'edit' ],
-        'metis_forms_publish' => [ 'permission' => 'publish' ],
-        'metis_forms_duplicate' => [ 'permission' => 'edit' ],
-        'metis_forms_delete' => [ 'permission' => 'delete' ],
-        'metis_forms_entries' => [ 'permission' => 'view' ],
-        'metis_forms_export' => [ 'permission' => 'export' ],
-        'metis_forms_dynamic_options' => [ 'permission' => 'view' ],
+        'metis_forms_list' => [ 'permission' => 'view', 'schema' => [] ],
+        'metis_forms_get' => [ 'permission' => 'view', 'schema' => [ 'form_id' => [ 'type' => 'integer', 'required' => false ] ] ],
+        'metis_forms_save' => [ 'permission' => 'edit', 'schema' => [ 'form' => [ 'type' => 'json', 'required' => true ] ] ],
+        'metis_forms_publish' => [ 'permission' => 'publish', 'schema' => [ 'form' => [ 'type' => 'json', 'required' => false ], 'form_id' => [ 'type' => 'integer', 'required' => false ] ] ],
+        'metis_forms_duplicate' => [ 'permission' => 'edit', 'schema' => [ 'form_id' => [ 'type' => 'integer', 'required' => true ] ] ],
+        'metis_forms_delete' => [ 'permission' => 'delete', 'schema' => [ 'form_id' => [ 'type' => 'integer', 'required' => true ] ] ],
+        'metis_forms_entries' => [ 'permission' => 'view', 'schema' => [ 'form_id' => [ 'type' => 'integer', 'required' => true ] ] ],
+        'metis_forms_export' => [ 'permission' => 'export', 'schema' => [ 'form_id' => [ 'type' => 'integer', 'required' => true ] ] ],
+        'metis_forms_dynamic_options' => [ 'permission' => 'view', 'schema' => [ 'source' => [ 'type' => 'json', 'required' => false ], 'parent_value' => [ 'type' => 'string', 'required' => false ] ] ],
     ];
 
     foreach ( $actions as $action => $config ) {
@@ -137,6 +137,8 @@ function metis_forms_register_ajax_controllers(): void {
                 'nonce_action' => function_exists( 'metis_ajax_nonce_action' )
                     ? metis_ajax_nonce_action( $action )
                     : $action,
+                'allow_additional_fields' => false,
+                'schema' => (array) ( $config['schema'] ?? [] ),
             ]
         );
     }

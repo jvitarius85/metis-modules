@@ -34,6 +34,22 @@ use Metis\Core\Editor\EditorManager;
 use Metis\Modules\People\PeopleDirectoryService;
 
 if ( function_exists( 'metis_ajax_register_controller' ) ) {
+    $metis_website_secure_controller = static function ( string $permission, array $schema = [] ): array {
+        return [
+            'module' => 'website',
+            'permission' => $permission,
+            'nonce_action' => 'metis_website',
+            'allow_additional_fields' => false,
+            'schema' => array_merge(
+                [
+                    'nonce' => [ 'type' => 'string', 'required' => false ],
+                    'metis_action_nonce' => [ 'type' => 'string', 'required' => false ],
+                ],
+                $schema
+            ),
+        ];
+    };
+
     $metis_website_ajax_permissions = [
         'metis_website_block_registry' => 'view',
         'metis_website_pages_list' => 'view',
@@ -93,10 +109,48 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
     ];
 
     foreach ( $metis_website_ajax_permissions as $action => $permission ) {
-        metis_ajax_register_controller( $action, [
+        $definition = [
             'module' => 'website',
             'permission' => $permission,
-        ] );
+            'nonce_action' => 'metis_website',
+        ];
+
+        if ( $action === 'metis_website_theme_save' ) {
+            $definition = $metis_website_secure_controller(
+                $permission,
+                [
+                    'id' => [ 'type' => 'integer', 'required' => false ],
+                    'theme_save_mode' => [ 'type' => 'string', 'required' => false ],
+                    'global_styles_json' => [ 'type' => 'string', 'required' => false ],
+                    'typography_json' => [ 'type' => 'string', 'required' => false ],
+                    'color_palette_json' => [ 'type' => 'string', 'required' => false ],
+                    'spacing_json' => [ 'type' => 'string', 'required' => false ],
+                    'custom_tokens_json' => [ 'type' => 'string', 'required' => false ],
+                    'theme_patch_json' => [ 'type' => 'string', 'required' => false ],
+                    'theme_patch_paths' => [ 'type' => 'string', 'required' => false ],
+                ]
+            );
+        } elseif ( $action === 'metis_website_launch_status' ) {
+            $definition = $metis_website_secure_controller( $permission );
+        } elseif ( $action === 'metis_website_launch_enable' ) {
+            $definition = $metis_website_secure_controller(
+                $permission,
+                [
+                    'force' => [ 'type' => 'boolean', 'required' => false ],
+                ]
+            );
+        } elseif ( $action === 'metis_website_launch_disable' ) {
+            $definition = $metis_website_secure_controller( $permission );
+        } elseif ( $action === 'metis_website_layout_profile_save' ) {
+            $definition = $metis_website_secure_controller(
+                $permission,
+                [
+                    'site_layout_profile' => [ 'type' => 'string', 'required' => false ],
+                ]
+            );
+        }
+
+        metis_ajax_register_controller( $action, $definition );
     }
 }
 
@@ -571,7 +625,36 @@ function metis_website_ajax_normalize_post_parent_page_id( int $parent_page_id, 
  * @return array<int,array{value:string,label:string}>
  */
 function metis_website_ajax_form_options(): array {
-    return function_exists( 'metis_forms_published_options' ) ? metis_forms_published_options() : [];
+    if ( ! class_exists( \Metis\Modules\Forms\Repository::class ) ) {
+        return function_exists( 'metis_forms_published_options' ) ? metis_forms_published_options() : [];
+    }
+
+    $options = [];
+    foreach ( \Metis\Modules\Forms\Repository::listForms() as $row ) {
+        if ( ! is_array( $row ) ) {
+            continue;
+        }
+
+        $id = (int) ( $row['id'] ?? 0 );
+        if ( $id < 1 ) {
+            continue;
+        }
+
+        if ( (string) ( $row['status'] ?? 'draft' ) !== 'published' ) {
+            continue;
+        }
+
+        $name = trim( (string) ( $row['name'] ?? '' ) );
+        $slug = trim( (string) ( $row['slug'] ?? '' ) );
+        $label = $name !== '' ? $name : ( $slug !== '' ? $slug : ( 'Form #' . $id ) );
+
+        $options[] = [
+            'value' => (string) $id,
+            'label' => $label,
+        ];
+    }
+
+    return $options;
 }
 
 /**

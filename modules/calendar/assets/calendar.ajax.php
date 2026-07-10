@@ -89,19 +89,64 @@ function metis_calendar_quick_action_event_form( array $action = [] ): array {
     ];
 }
 
+function metis_calendar_ajax_controller_schema(array $fields): array {
+    return array_merge([
+        'nonce' => [ 'type' => 'string', 'required' => true ],
+        'metis_action_nonce' => [ 'type' => 'string', 'required' => false ],
+        'metis_csrf_action' => [ 'type' => 'string', 'required' => false ],
+        'csrf_token' => [ 'type' => 'string', 'required' => false ],
+        'security' => [ 'type' => 'string', 'required' => false ],
+    ], $fields);
+}
+
 function metis_calendar_register_ajax_controllers(): void {
     $actions = [
-        'metis_calendar_list_events' => 'view',
-        'metis_calendar_sync_worker' => 'view',
-        'metis_calendar_save_event' => 'edit',
-        'metis_calendar_delete_event' => 'delete',
+        'metis_calendar_list_events' => [
+            'permission' => 'view',
+            'schema' => metis_calendar_ajax_controller_schema([
+                'search' => [ 'type' => 'string', 'required' => false ],
+                'start' => [ 'type' => 'string', 'required' => false ],
+                'end' => [ 'type' => 'string', 'required' => false ],
+                'calendar_ids' => [ 'type' => 'array', 'required' => false ],
+            ]),
+        ],
+        'metis_calendar_sync_worker' => [
+            'permission' => 'view',
+            'schema' => metis_calendar_ajax_controller_schema([
+                'calendar_ids' => [ 'type' => 'array', 'required' => false ],
+                'force' => [ 'type' => 'boolean', 'required' => false ],
+            ]),
+        ],
+        'metis_calendar_save_event' => [
+            'permission' => 'edit',
+            'schema' => metis_calendar_ajax_controller_schema([
+                'calendar_id' => [ 'type' => 'string', 'required' => false ],
+                'event_id' => [ 'type' => 'string', 'required' => false ],
+                'summary' => [ 'type' => 'string', 'required' => false ],
+                'start_dt' => [ 'type' => 'string', 'required' => false ],
+                'end_dt' => [ 'type' => 'string', 'required' => false ],
+                'event_type' => [ 'type' => 'string', 'required' => false ],
+                'event_module' => [ 'type' => 'string', 'required' => false ],
+                'location' => [ 'type' => 'string', 'required' => false ],
+                'description' => [ 'type' => 'string', 'required' => false ],
+            ]),
+        ],
+        'metis_calendar_delete_event' => [
+            'permission' => 'delete',
+            'schema' => metis_calendar_ajax_controller_schema([
+                'calendar_id' => [ 'type' => 'string', 'required' => false ],
+                'event_id' => [ 'type' => 'string', 'required' => true ],
+            ]),
+        ],
     ];
 
-    foreach ($actions as $action => $permission) {
+    foreach ($actions as $action => $config) {
         metis_ajax_register_controller($action, [
             'module' => 'calendar',
-            'permission' => $permission,
+            'permission' => (string) ($config['permission'] ?? 'view'),
             'nonce_action' => metis_ajax_nonce_action($action),
+            'allow_additional_fields' => false,
+            'schema' => (array) ($config['schema'] ?? []),
         ]);
     }
 }

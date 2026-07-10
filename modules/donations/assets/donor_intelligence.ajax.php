@@ -21,6 +21,13 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'module' => 'donations',
         'permission' => 'view',
         'nonce_action' => metis_ajax_nonce_action( 'metis_donations_donor_intelligence' ),
+        'allow_additional_fields' => false,
+        'schema' => [
+            'filters' => [ 'type' => 'json', 'required' => false ],
+            'lifetime' => [ 'type' => 'boolean', 'required' => false ],
+            'start' => [ 'type' => 'string', 'required' => false ],
+            'end' => [ 'type' => 'string', 'required' => false ],
+        ],
     ] );
 }
 

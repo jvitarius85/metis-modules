@@ -208,10 +208,64 @@ function metis_board_fetch_bylaws_action_item(int $action_item_id): array {
 }
 
 function metis_board_register_ajax_controllers(): void {
+    $secure = static function (string $permission, array $schema = []): array {
+        return [
+            'module' => 'board',
+            'permission' => $permission,
+            'nonce_action' => '',
+            'allow_additional_fields' => false,
+            'schema' => array_merge(
+                [
+                    'nonce' => [ 'type' => 'string', 'required' => false ],
+                    'metis_action_nonce' => [ 'type' => 'string', 'required' => false ],
+                ],
+                $schema
+            ),
+        ];
+    };
+
     $actions = [
-        'metis_board_save_committee' => 'edit',
-        'metis_board_save_meeting' => 'edit',
-        'metis_board_save_decision' => 'edit',
+        'metis_board_save_committee' => $secure(
+            'edit',
+            [
+                'committee_id' => [ 'type' => 'integer', 'required' => false ],
+                'name' => [ 'type' => 'string', 'required' => true ],
+                'description' => [ 'type' => 'string', 'required' => false ],
+                'chair_person_id' => [ 'type' => 'integer', 'required' => false ],
+                'newsletter_list_id' => [ 'type' => 'integer', 'required' => false ],
+                'is_active' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
+        'metis_board_save_meeting' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => false ],
+                'title' => [ 'type' => 'string', 'required' => true ],
+                'committee_id' => [ 'type' => 'integer', 'required' => false ],
+                'meeting_date' => [ 'type' => 'string', 'required' => true ],
+                'meeting_type' => [ 'type' => 'string', 'required' => false ],
+                'location' => [ 'type' => 'string', 'required' => false ],
+                'status' => [ 'type' => 'string', 'required' => false ],
+                'google_calendar_event_id' => [ 'type' => 'string', 'required' => false ],
+                'google_drive_folder_id' => [ 'type' => 'string', 'required' => false ],
+                'agenda_json' => [ 'type' => 'json', 'required' => false ],
+                'minutes_html' => [ 'type' => 'string', 'required' => false ],
+            ]
+        ),
+        'metis_board_save_decision' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+                'title' => [ 'type' => 'string', 'required' => true ],
+                'agenda_section_title' => [ 'type' => 'string', 'required' => false ],
+                'agenda_item_title' => [ 'type' => 'string', 'required' => false ],
+                'decision_text' => [ 'type' => 'string', 'required' => false ],
+                'outcome' => [ 'type' => 'string', 'required' => false ],
+                'votes_for' => [ 'type' => 'integer', 'required' => false ],
+                'votes_against' => [ 'type' => 'integer', 'required' => false ],
+                'votes_abstain' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
         'metis_board_save_action_item' => 'edit',
         'metis_board_resolve_action_item' => 'view',
         'metis_board_save_announcement' => 'edit',
@@ -228,31 +282,111 @@ function metis_board_register_ajax_controllers(): void {
         'metis_board_save_decision_template' => 'edit',
         'metis_board_delete_decision_template' => 'delete',
         'metis_board_drive_list' => 'view',
-        'metis_board_drive_create_folder' => 'edit',
+        'metis_board_drive_create_folder' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => false ],
+                'parent_id' => [ 'type' => 'string', 'required' => false ],
+                'folder_name' => [ 'type' => 'string', 'required' => true ],
+                'set_as_meeting' => [ 'type' => 'boolean', 'required' => false ],
+            ]
+        ),
         'metis_board_drive_upload' => 'edit',
-        'metis_board_drive_set_meeting_folder' => 'edit',
-        'metis_board_drive_link_document' => 'edit',
-        'metis_board_drive_unlink_document' => 'edit',
-        'metis_board_drive_delete_file' => 'delete',
-        'metis_board_get_meeting_documents' => 'view',
-        'metis_board_get_workspace_links_summary' => 'view',
-        'metis_board_list_calendar_events' => 'view',
-        'metis_board_list_drive_folders' => 'view',
-        'metis_board_assign_calendar_event' => 'edit',
-        'metis_board_generate_calendar_event' => 'edit',
+        'metis_board_drive_set_meeting_folder' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+                'folder_id' => [ 'type' => 'string', 'required' => true ],
+                'folder_name' => [ 'type' => 'string', 'required' => false ],
+            ]
+        ),
+        'metis_board_drive_link_document' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+                'file_id' => [ 'type' => 'string', 'required' => true ],
+                'title' => [ 'type' => 'string', 'required' => false ],
+                'doc_type' => [ 'type' => 'string', 'required' => false ],
+                'mime_type' => [ 'type' => 'string', 'required' => false ],
+                'web_view_link' => [ 'type' => 'string', 'required' => false ],
+                'size' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
+        'metis_board_drive_unlink_document' => $secure(
+            'edit',
+            [
+                'document_id' => [ 'type' => 'integer', 'required' => true ],
+            ]
+        ),
+        'metis_board_drive_delete_file' => $secure(
+            'delete',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => false ],
+                'file_id' => [ 'type' => 'string', 'required' => true ],
+            ]
+        ),
+        'metis_board_get_meeting_documents' => $secure(
+            'view',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+            ]
+        ),
+        'metis_board_get_workspace_links_summary' => $secure(
+            'view',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
+        'metis_board_list_calendar_events' => $secure(
+            'view',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
+        'metis_board_list_drive_folders' => $secure(
+            'view',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
+        'metis_board_assign_calendar_event' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+                'event_id' => [ 'type' => 'string', 'required' => true ],
+                'event_name' => [ 'type' => 'string', 'required' => false ],
+            ]
+        ),
+        'metis_board_generate_calendar_event' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+            ]
+        ),
         'metis_board_sync_decision_points' => 'edit',
         'metis_board_update_meeting_detail' => 'edit',
-        'metis_board_resend_packet_email' => 'edit',
+        'metis_board_resend_packet_email' => $secure(
+            'edit',
+            [
+                'meeting_id' => [ 'type' => 'integer', 'required' => true ],
+            ]
+        ),
         'metis_board_update_decision' => 'edit',
         'metis_board_upsert_attendance' => 'edit',
     ];
 
-    foreach ($actions as $action => $permission) {
-        metis_ajax_register_controller($action, [
-            'module' => 'board',
-            'permission' => $permission,
-            'nonce_action' => metis_ajax_nonce_action($action),
-        ]);
+    foreach ($actions as $action => $config) {
+        if (is_string($config)) {
+            $config = [
+                'module' => 'board',
+                'permission' => $config,
+                'nonce_action' => metis_ajax_nonce_action($action),
+            ];
+        } else {
+            $config['nonce_action'] = metis_ajax_nonce_action($action);
+        }
+
+        metis_ajax_register_controller($action, $config);
     }
 }
 

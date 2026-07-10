@@ -8,11 +8,29 @@ if ( function_exists( 'metis_ajax_register_controller' ) ) {
         'module' => 'donations',
         'permission' => 'view',
         'nonce_action' => metis_ajax_nonce_action( 'metis_donations_lookup_donors' ),
+        'allow_additional_fields' => false,
+        'schema' => [
+            'q' => [ 'type' => 'string', 'required' => false ],
+        ],
     ] );
     metis_ajax_register_controller( 'metis_donations_record_offline_donation', [
         'module' => 'donations',
         'permission' => 'edit',
         'nonce_action' => metis_ajax_nonce_action( 'metis_donations_record_offline_donation' ),
+        'allow_additional_fields' => false,
+        'schema' => [
+            'donor_did' => [ 'type' => 'string', 'required' => false ],
+            'tran_date' => [ 'type' => 'string', 'required' => false ],
+            'amount' => [ 'type' => 'string', 'required' => false ],
+            'campaign_code' => [ 'type' => 'string', 'required' => false ],
+            'payment_method' => [ 'type' => 'string', 'required' => false ],
+            'chk_num' => [ 'type' => 'string', 'required' => false ],
+            'first_name' => [ 'type' => 'string', 'required' => false ],
+            'last_name' => [ 'type' => 'string', 'required' => false ],
+            'email' => [ 'type' => 'string', 'required' => false ],
+            'phone' => [ 'type' => 'string', 'required' => false ],
+            'notes' => [ 'type' => 'string', 'required' => false ],
+        ],
     ] );
 }
 

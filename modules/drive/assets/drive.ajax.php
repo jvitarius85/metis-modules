@@ -238,26 +238,38 @@ function metis_drive_ajax_guard_target_folder(array $cfg, string $folder_id): ar
     ];
 }
 
+function metis_drive_ajax_controller_schema(array $fields): array {
+    return array_merge([
+        'nonce' => [ 'type' => 'string', 'required' => true ],
+        'metis_action_nonce' => [ 'type' => 'string', 'required' => false ],
+        'metis_csrf_action' => [ 'type' => 'string', 'required' => false ],
+        'csrf_token' => [ 'type' => 'string', 'required' => false ],
+        'security' => [ 'type' => 'string', 'required' => false ],
+    ], $fields);
+}
+
 function metis_drive_register_ajax_controllers(): void {
     $actions = [
-        'metis_drive_list' => 'view',
-        'metis_drive_my_folder' => 'view',
-        'metis_drive_tree_children' => 'view',
-        'metis_drive_sync_worker' => 'view',
-        'metis_drive_create_folder' => 'edit',
-        'metis_drive_upload_file' => 'edit',
-        'metis_drive_create_google_file' => 'edit',
-        'metis_drive_move_item' => 'edit',
-        'metis_drive_copy_item' => 'edit',
-        'metis_drive_rename' => 'edit',
-        'metis_drive_trash' => 'edit',
+        'metis_drive_list' => [ 'permission' => 'view', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'folder_id' => [ 'type' => 'string', 'required' => false ], 'search' => [ 'type' => 'string', 'required' => false ] ]) ],
+        'metis_drive_my_folder' => [ 'permission' => 'view', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ] ]) ],
+        'metis_drive_tree_children' => [ 'permission' => 'view', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'folder_id' => [ 'type' => 'string', 'required' => false ] ]) ],
+        'metis_drive_sync_worker' => [ 'permission' => 'view', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'folder_id' => [ 'type' => 'string', 'required' => false ], 'force' => [ 'type' => 'boolean', 'required' => false ], 'depth' => [ 'type' => 'integer', 'required' => false ] ]) ],
+        'metis_drive_create_folder' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'parent_id' => [ 'type' => 'string', 'required' => false ], 'folder_name' => [ 'type' => 'string', 'required' => true ] ]) ],
+        'metis_drive_upload_file' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'parent_id' => [ 'type' => 'string', 'required' => false ] ]) ],
+        'metis_drive_create_google_file' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'parent_id' => [ 'type' => 'string', 'required' => false ], 'name' => [ 'type' => 'string', 'required' => false ], 'google_type' => [ 'type' => 'string', 'required' => true ] ]) ],
+        'metis_drive_move_item' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'file_id' => [ 'type' => 'string', 'required' => true ], 'target_parent_id' => [ 'type' => 'string', 'required' => false ] ]) ],
+        'metis_drive_copy_item' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'file_id' => [ 'type' => 'string', 'required' => true ], 'target_parent_id' => [ 'type' => 'string', 'required' => false ], 'name' => [ 'type' => 'string', 'required' => false ] ]) ],
+        'metis_drive_rename' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'file_id' => [ 'type' => 'string', 'required' => true ], 'name' => [ 'type' => 'string', 'required' => true ] ]) ],
+        'metis_drive_trash' => [ 'permission' => 'edit', 'schema' => metis_drive_ajax_controller_schema([ 'drive_id' => [ 'type' => 'string', 'required' => false ], 'file_id' => [ 'type' => 'string', 'required' => true ] ]) ],
     ];
 
-    foreach ($actions as $action => $permission) {
+    foreach ($actions as $action => $config) {
         metis_ajax_register_controller($action, [
             'module' => 'drive',
-            'permission' => $permission,
+            'permission' => (string) ($config['permission'] ?? 'view'),
             'nonce_action' => metis_ajax_nonce_action($action),
+            'allow_additional_fields' => false,
+            'schema' => (array) ($config['schema'] ?? []),
         ]);
     }
 }

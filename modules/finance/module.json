@@ -2,7 +2,7 @@
   "slug": "finance",
   "name": "finance",
   "label": "Finance",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "minimum_metis": "26.6.0",
   "release_channel": "stable",
   "domain": "finance",
@@ -83,7 +83,7 @@
       "handler": "metis_finance_quick_action_gl_entry_form",
       "submit_action": "metis_finance_v2_gl_create",
       "submit_label": "Save Entry",
-      "permission": "finance.edit",
+      "permission": "finance.create",
       "group": "finance"
     }
   ],
@@ -91,9 +91,7 @@
   "entry": "Module.php",
   "routes": [],
   "services": [],
-  "maximum_metis": "26.6.99",
   "compatible_core": {
-    "minimum": "26.6.0",
-    "maximum": "26.6.99"
+    "minimum": "26.6.0"
   }
 }

@@ -495,32 +495,58 @@ document.addEventListener('DOMContentLoaded', function () {
         Object.keys(payload || {}).forEach(function (key) {
             form.set(key, payload[key] == null ? '' : String(payload[key]));
         });
-        return Metis.request.postForm(ajax, action, form, 'Drive AJAX not configured.');
+        return Metis.request.postForm(ajax, action, form, 'Drive AJAX not configured.').catch(function (error) {
+            if (queueSecurityReload(error)) {
+                throw new Error('Refreshing Drive...');
+            }
+            throw error;
+        });
+    }
+
+    let securityReloadQueued = false;
+
+    function isSecurityFailure(error) {
+        const message = String(error && error.message || '').toLowerCase();
+        return message.indexOf('security check failed') >= 0
+            || message.indexOf('request rejected') >= 0
+            || message.indexOf('invalid request nonce') >= 0
+            || message.indexOf('cross-site request rejected') >= 0;
+    }
+
+    function queueSecurityReload(error) {
+        if (!isSecurityFailure(error) || securityReloadQueued) {
+            return false;
+        }
+        securityReloadQueued = true;
+        notify('Your session token expired. Reloading Drive...', 'error');
+        window.setTimeout(function () {
+            window.location.reload();
+        }, 120);
+        return true;
     }
 
     function postForm(action, fd) {
         if (!fd.has('drive_id') && currentDriveId) fd.set('drive_id', currentDriveId);
-        return Metis.request.postForm(ajax, action, fd, 'Drive AJAX not configured.');
+        return Metis.request.postForm(ajax, action, fd, 'Drive AJAX not configured.').catch(function (error) {
+            if (queueSecurityReload(error)) {
+                throw new Error('Refreshing Drive...');
+            }
+            throw error;
+        });
     }
 
     function triggerSync(driveId, targetFolderId, force, depth) {
         const form = new FormData();
-        form.set('action', 'metis_drive_sync_worker');
-        form.set('metis_action_nonce', Metis.ajax.nonceFor('metis_drive_sync_worker', ajax.nonce));
-        form.set('nonce', ajax.nonce);
         form.set('drive_id', String(driveId || currentDriveId || sharedDriveId || ''));
         form.set('folder_id', String(targetFolderId || folderId || currentDriveId || sharedDriveId || ''));
         form.set('depth', String(Math.max(0, parseInt(String(depth == null ? 0 : depth), 10) || 0)));
         if (force) form.set('force', '1');
 
-        return fetch(ajax.ajax_url, {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: form
-        }).then(function (response) {
-            return response.json().catch(function () {
+        return Metis.request.postForm(ajax, 'metis_drive_sync_worker', form, 'Drive AJAX not configured.').catch(function (error) {
+            if (queueSecurityReload(error)) {
                 return null;
-            });
+            }
+            return null;
         }).catch(function () {
             return null;
         });
