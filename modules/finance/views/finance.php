@@ -552,34 +552,26 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
             <?php endif; ?>
 
             <?php if ( $current_section === 'settings' ) : ?>
-                <section class="metis-settings-card metis-finance-v2-settings-hero">
-                    <div class="metis-settings-header"><h2>Finance Setup</h2></div>
-                    <div class="metis-settings-body">
-                        <div class="metis-finance-v2-settings-intro">
-                            <div>
-                                <p class="metis-finance-v2-settings-eyebrow">Low-friction setup</p>
-                                <h3>Keep the chart of accounts, categories, and fiscal calendar tidy.</h3>
-                                <p>Each area is separated below so users can make one clean change at a time without hunting through a long stack of forms.</p>
-                            </div>
-                            <div class="metis-finance-v2-settings-checklist">
-                                <span>1. Add or deactivate accounts</span>
-                                <span>2. Keep entry categories short and clear</span>
-                                <span>3. Set the fiscal start month</span>
-                                <span>4. Open the next fiscal period only when needed</span>
-                            </div>
+                <section class="metis-settings-card metis-finance-v2-settings-shell metis-tab-scope">
+                    <div class="metis-settings-header">
+                        <div>
+                            <h2>Finance Setup</h2>
+                            <p class="metis-finance-v2-settings-copy">Open one setup area at a time to keep the screen focused and easier to scan.</p>
                         </div>
                     </div>
-                </section>
-
-                <div class="metis-finance-v2-settings-grid">
-                    <section class="metis-settings-card metis-finance-v2-settings-panel">
-                        <div class="metis-settings-header">
-                            <div>
-                                <h2>Accounts</h2>
-                                <p class="metis-finance-v2-settings-copy">These appear in GL entry and budget workflows.</p>
-                            </div>
+                    <div class="metis-settings-body">
+                        <div class="metis-tabs metis-finance-v2-settings-tabs" data-tab-group="finance-settings" role="tablist" aria-label="Finance settings sections">
+                            <button type="button" class="metis-tab is-active" data-tab="finance-settings-accounts" data-tab-group="finance-settings">Accounts</button>
+                            <button type="button" class="metis-tab" data-tab="finance-settings-categories" data-tab-group="finance-settings">Categories</button>
+                            <button type="button" class="metis-tab" data-tab="finance-settings-calendar" data-tab-group="finance-settings">Fiscal Calendar</button>
+                            <button type="button" class="metis-tab" data-tab="finance-settings-period" data-tab-group="finance-settings">Open New Period</button>
                         </div>
-                        <div class="metis-settings-body">
+
+                        <section id="finance-settings-accounts" class="metis-tab-panel metis-finance-v2-settings-panel is-active" data-tab-group="finance-settings">
+                            <div class="metis-finance-v2-settings-panel-head">
+                                <h3>Accounts</h3>
+                                <p>These appear in GL entry and budget workflows.</p>
+                            </div>
                             <form data-finance-account-form="1" class="metis-finance-v2-form">
                                 <div class="metis-finance-v2-form-grid">
                                     <div class="metis-field">
@@ -626,17 +618,13 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </section>
+                        </section>
 
-                    <section class="metis-settings-card metis-finance-v2-settings-panel">
-                        <div class="metis-settings-header">
-                            <div>
-                                <h2>Categories</h2>
-                                <p class="metis-finance-v2-settings-copy">Use short labels that make entry review and reporting easier.</p>
+                        <section id="finance-settings-categories" class="metis-tab-panel metis-finance-v2-settings-panel" data-tab-group="finance-settings">
+                            <div class="metis-finance-v2-settings-panel-head">
+                                <h3>Categories</h3>
+                                <p>Use short labels that make entry review and reporting easier.</p>
                             </div>
-                        </div>
-                        <div class="metis-settings-body">
                             <form data-finance-category-form="1" class="metis-finance-v2-form">
                                 <div class="metis-finance-v2-form-grid">
                                     <div class="metis-field">
@@ -666,19 +654,13 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </section>
-                </div>
+                        </section>
 
-                <div class="metis-finance-v2-settings-grid metis-finance-v2-settings-grid--secondary">
-                    <section class="metis-settings-card metis-finance-v2-settings-panel">
-                        <div class="metis-settings-header">
-                            <div>
-                                <h2>Fiscal Calendar</h2>
-                                <p class="metis-finance-v2-settings-copy">Choose the month your fiscal year starts and review active periods below.</p>
+                        <section id="finance-settings-calendar" class="metis-tab-panel metis-finance-v2-settings-panel" data-tab-group="finance-settings">
+                            <div class="metis-finance-v2-settings-panel-head">
+                                <h3>Fiscal Calendar</h3>
+                                <p>Choose the month your fiscal year starts and review active periods below.</p>
                             </div>
-                        </div>
-                        <div class="metis-settings-body">
                             <form data-finance-fiscal-settings-form="1" class="metis-finance-v2-form">
                                 <div class="metis-finance-v2-form-grid metis-finance-v2-form-grid--compact">
                                     <div class="metis-field">
@@ -710,17 +692,13 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </section>
+                        </section>
 
-                    <section class="metis-settings-card metis-finance-v2-settings-panel metis-finance-v2-settings-panel--caution">
-                        <div class="metis-settings-header">
-                            <div>
-                                <h2>Open New Fiscal Period</h2>
-                                <p class="metis-finance-v2-settings-copy">Use this only when you are ready to roll reporting and budgeting into the next period.</p>
+                        <section id="finance-settings-period" class="metis-tab-panel metis-finance-v2-settings-panel metis-finance-v2-settings-panel--caution" data-tab-group="finance-settings">
+                            <div class="metis-finance-v2-settings-panel-head">
+                                <h3>Open New Fiscal Period</h3>
+                                <p>Use this only when you are ready to roll reporting and budgeting into the next period.</p>
                             </div>
-                        </div>
-                        <div class="metis-settings-body">
                             <form data-finance-fiscal-migrate-form="1" class="metis-finance-v2-form">
                                 <div class="metis-finance-v2-form-grid">
                                     <div class="metis-field">
@@ -740,9 +718,9 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
                                     <button type="submit" class="metis-btn" data-finance-fiscal-migrate-submit="1">Migrate Fiscal Period</button>
                                 </div>
                             </form>
-                        </div>
-                    </section>
-                </div>
+                        </section>
+                    </div>
+                </section>
             <?php endif; ?>
 
             <?php if ( $current_section === 'invoicing' ) : ?>
