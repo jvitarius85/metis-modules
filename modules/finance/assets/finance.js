@@ -20,6 +20,7 @@ function initMetisFinanceApp(context) {
     var reconMappingSaveAction = String(root.getAttribute('data-action-recon-mapping-save') || '').trim();
     var reconReviewAction = String(root.getAttribute('data-action-recon-review') || '').trim();
     var reconMatchLineAction = String(root.getAttribute('data-action-recon-match-line') || '').trim();
+    var accountsSaveAction = String(root.getAttribute('data-action-accounts-save') || '').trim();
     var categoriesListAction = String(root.getAttribute('data-action-categories-list') || '').trim();
     var categoriesSaveAction = String(root.getAttribute('data-action-categories-save') || '').trim();
     var budgetSnapshotAction = String(root.getAttribute('data-action-budget-snapshot') || '').trim();
@@ -53,6 +54,7 @@ function initMetisFinanceApp(context) {
     var reconDeleteNonce = String(root.getAttribute('data-recon-delete-nonce') || '').trim();
     var reconMappingNonce = String(root.getAttribute('data-recon-mapping-nonce') || '').trim();
     var reconReviewNonce = String(root.getAttribute('data-recon-review-nonce') || '').trim();
+    var accountSaveNonce = String(root.getAttribute('data-account-save-nonce') || '').trim();
     var categorySaveNonce = String(root.getAttribute('data-category-save-nonce') || '').trim();
     var budgetVersionNonce = String(root.getAttribute('data-budget-version-nonce') || '').trim();
     var budgetLinesNonce = String(root.getAttribute('data-budget-lines-nonce') || '').trim();
@@ -90,6 +92,7 @@ function initMetisFinanceApp(context) {
     var bankLinesBody = root.querySelector('[data-finance-bank-lines="1"]');
     var stripeAutoMatchButton = root.querySelector('[data-finance-stripe-auto-match="1"]');
     var stripeRefreshButton = root.querySelector('[data-finance-stripe-refresh="1"]');
+    var accountsListBody = root.querySelector('[data-finance-accounts-list="1"]');
     var categoriesListBody = root.querySelector('[data-finance-categories-list="1"]');
 
     var accountSelect = root.querySelector('[data-finance-account-select="1"]');
@@ -102,6 +105,7 @@ function initMetisFinanceApp(context) {
     var glOpenButtons = root.querySelectorAll('[data-open-gl-modal="1"]');
     var reconForm = root.querySelector('[data-finance-recon-form="1"]');
     var reconMappingForm = root.querySelector('[data-finance-recon-mapping-form="1"]');
+    var accountForm = root.querySelector('[data-finance-account-form="1"]');
     var categoryForm = root.querySelector('[data-finance-category-form="1"]');
     var budgetQuickForm = root.querySelector('[data-finance-budget-quick-form="1"]');
     var budgetVersionForm = root.querySelector('[data-finance-budget-version-form="1"]');
@@ -480,12 +484,39 @@ function initMetisFinanceApp(context) {
     function renderAccounts(accounts) {
         if (!accountSelect) return;
         var rows = Array.isArray(accounts) ? accounts : [];
-        var options = rows.map(function (row) {
+        var options = ['<option value="">Select account</option>'];
+        rows.forEach(function (row) {
             var code = String((row && row.account_code) || '');
+            if (!code) return;
             var name = String((row && row.account_name) || code);
-            return '<option value="' + esc(code) + '">' + esc(name) + '</option>';
+            options.push('<option value="' + esc(code) + '">' + esc(code + ' - ' + name) + '</option>');
+        });
+        accountSelect.innerHTML = options.length > 1 ? options.join('') : '<option value="">No accounts</option>';
+        syncGlRowSelectOptions('account_code', accountSelect.innerHTML);
+    }
+
+    function renderAccountsList(accounts) {
+        if (!accountsListBody) return;
+        var rows = Array.isArray(accounts) ? accounts : [];
+        if (!rows.length) {
+            accountsListBody.innerHTML = '<tr><td colspan="5" class="metis-finance-v2-empty">No accounts yet.</td></tr>';
+            return;
+        }
+
+        accountsListBody.innerHTML = rows.map(function (row) {
+            var statusLabel = Number((row && row.is_active) || 0) === 1 ? 'Active' : 'Inactive';
+            var actionLabel = Number((row && row.is_active) || 0) === 1 ? 'Deactivate' : 'Activate';
+            var nextState = Number((row && row.is_active) || 0) === 1 ? '0' : '1';
+            return [
+                '<tr>',
+                '  <td><code>' + esc(row.account_code || '') + '</code></td>',
+                '  <td>' + esc(row.account_name || '') + '</td>',
+                '  <td>' + esc(String(row.account_type || '').replace(/^\w/, function (c) { return c.toUpperCase(); })) + '</td>',
+                '  <td>' + esc(statusLabel) + '</td>',
+                '  <td><button type="button" class="metis-btn metis-btn-xs metis-btn-ghost" data-finance-account-toggle="1" data-account-code="' + esc(row.account_code || '') + '" data-account-name="' + esc(row.account_name || '') + '" data-account-type="' + esc(row.account_type || '') + '" data-account-sort-order="' + esc(row.sort_order || 0) + '" data-account-active="' + esc(nextState) + '">' + esc(actionLabel) + '</button></td>',
+                '</tr>'
+            ].join('');
         }).join('');
-        accountSelect.innerHTML = options || '<option value="">No accounts</option>';
     }
 
     function renderCategories(categories) {
@@ -498,6 +529,7 @@ function initMetisFinanceApp(context) {
             options.push('<option value="' + esc(code) + '">' + esc(name) + '</option>');
         });
         categorySelect.innerHTML = options.join('');
+        syncGlRowSelectOptions('category_code', categorySelect.innerHTML);
     }
 
     function renderCategoriesList(categories) {
@@ -537,6 +569,20 @@ function initMetisFinanceApp(context) {
                 '</tr>'
             ].join('');
         }).join('');
+    }
+
+    function syncGlRowSelectOptions(fieldName, optionsHtml) {
+        if (!glQuickRows) return;
+        var selects = glQuickRows.querySelectorAll('select[name="' + fieldName + '"]');
+        if (!selects.length) return;
+
+        selects.forEach(function (select) {
+            var current = String(select.value || '');
+            select.innerHTML = optionsHtml;
+            if (current) {
+                select.value = current;
+            }
+        });
     }
 
     function renderRuns(runs) {
@@ -1109,6 +1155,7 @@ function initMetisFinanceApp(context) {
         var payload = data && typeof data === 'object' ? data : {};
         applySummary(payload.summary || {});
         renderAccounts(payload.accounts || []);
+        renderAccountsList(payload.accounts_all || payload.accounts || []);
         renderCategories(payload.categories || []);
         renderCategoriesList(payload.categories_all || payload.categories || []);
         renderEntries(payload.entries || []);
@@ -1275,8 +1322,8 @@ function initMetisFinanceApp(context) {
 
     if (glForm) {
         function glRowTemplate() {
-            var accountOptions = accountSelect ? accountSelect.innerHTML : '<option value="">No accounts</option>';
-            var categoryOptions = categorySelect ? categorySelect.innerHTML : '<option value="">None</option>';
+            var accountOptions = accountSelect && accountSelect.innerHTML ? accountSelect.innerHTML : '<option value="">No accounts</option>';
+            var categoryOptions = categorySelect && categorySelect.innerHTML ? categorySelect.innerHTML : '<option value="">None</option>';
             var now = new Date();
             var dateDefault = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
             return [
@@ -1316,6 +1363,43 @@ function initMetisFinanceApp(context) {
         }
 
         root.addEventListener('click', function (event) {
+            var accountToggleButton = event.target.closest('[data-finance-account-toggle="1"]');
+            if (accountToggleButton) {
+                var accountCode = String(accountToggleButton.getAttribute('data-account-code') || '').trim();
+                var accountName = String(accountToggleButton.getAttribute('data-account-name') || '').trim();
+                var accountType = String(accountToggleButton.getAttribute('data-account-type') || '').trim();
+                var sortOrder = String(accountToggleButton.getAttribute('data-account-sort-order') || '0').trim();
+                var isActive = Number(accountToggleButton.getAttribute('data-account-active') || '0') === 1 ? 1 : 0;
+                if (!accountCode || !accountName || !accountType) {
+                    toast('error', 'Account details are incomplete.');
+                    return;
+                }
+
+                var originalLabel = accountToggleButton.textContent;
+                accountToggleButton.disabled = true;
+                accountToggleButton.textContent = isActive === 1 ? 'Activating...' : 'Deactivating...';
+
+                apiRequest('POST', accountsSaveAction, {
+                    account_name: accountName,
+                    account_code: accountCode,
+                    account_type: accountType,
+                    sort_order: sortOrder,
+                    is_active: isActive,
+                    nonce: accountSaveNonce,
+                    metis_action_nonce: accountSaveNonce
+                }, accountSaveNonce).then(function (data) {
+                    renderAccounts(data.accounts || []);
+                    renderAccountsList(data.accounts_all || data.accounts || []);
+                    toast('success', isActive === 1 ? 'Account activated.' : 'Account deactivated.');
+                }).catch(function (error) {
+                    toast('error', error && error.message ? error.message : 'Failed to update account.');
+                }).finally(function () {
+                    accountToggleButton.disabled = false;
+                    accountToggleButton.textContent = originalLabel;
+                });
+                return;
+            }
+
             var addBtn = event.target.closest('[data-gl-add-row="1"]');
             if (addBtn && glQuickRows) {
                 glQuickRows.insertAdjacentHTML('beforeend', glRowTemplate());
@@ -1518,6 +1602,46 @@ function initMetisFinanceApp(context) {
                 toast('success', 'Category saved.');
             }).catch(function (error) {
                 toast('error', error && error.message ? error.message : 'Failed to save category.');
+            }).finally(function () {
+                if (submit) {
+                    submit.disabled = false;
+                    submit.textContent = original;
+                }
+            });
+        });
+    }
+
+    if (accountForm) {
+        accountForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var submit = accountForm.querySelector('[data-finance-account-submit="1"]');
+            var original = submit ? submit.textContent : 'Save Account';
+            var formData = new FormData(accountForm);
+
+            if (submit) {
+                submit.disabled = true;
+                submit.textContent = 'Saving...';
+            }
+
+            apiRequest('POST', accountsSaveAction, {
+                account_name: String(formData.get('account_name') || ''),
+                account_code: String(formData.get('account_code') || ''),
+                account_type: String(formData.get('account_type') || ''),
+                sort_order: String(formData.get('sort_order') || '0'),
+                is_active: 1,
+                nonce: accountSaveNonce,
+                metis_action_nonce: accountSaveNonce
+            }, accountSaveNonce).then(function (data) {
+                renderAccounts(data.accounts || []);
+                renderAccountsList(data.accounts_all || data.accounts || []);
+                accountForm.reset();
+                var accountTypeInput = accountForm.querySelector('[name="account_type"]');
+                var sortOrderInput = accountForm.querySelector('[name="sort_order"]');
+                if (accountTypeInput) accountTypeInput.value = 'asset';
+                if (sortOrderInput) sortOrderInput.value = '0';
+                toast('success', 'Account saved.');
+            }).catch(function (error) {
+                toast('error', error && error.message ? error.message : 'Failed to save account.');
             }).finally(function () {
                 if (submit) {
                     submit.disabled = false;

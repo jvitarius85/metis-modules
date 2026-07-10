@@ -40,6 +40,7 @@ $gl_create_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) me
 $recon_import_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_recon_import' ) : $finance_nonce;
 $recon_mapping_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_recon_mapping' ) : $finance_nonce;
 $recon_review_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_recon_review' ) : $finance_nonce;
+$account_save_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_account_save' ) : $finance_nonce;
 $category_save_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_category_save' ) : $finance_nonce;
 $budget_version_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_budget_version' ) : $finance_nonce;
 $budget_lines_nonce = function_exists( 'metis_runtime_create_nonce' ) ? (string) metis_runtime_create_nonce( 'metis_finance_v2_budget_lines' ) : $finance_nonce;
@@ -77,6 +78,8 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
     data-action-recon-mapping-save="metis_finance_v2_recon_mapping"
     data-action-recon-review="metis_finance_v2_recon_review"
     data-action-recon-match-line="metis_finance_v2_recon_match_line"
+    data-action-accounts-list="metis_finance_v2_accounts_list"
+    data-action-accounts-save="metis_finance_v2_account_save"
     data-action-categories-list="metis_finance_v2_categories_list"
     data-action-categories-save="metis_finance_v2_category_save"
     data-action-budget-snapshot="metis_finance_v2_budget_snapshot"
@@ -109,6 +112,7 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
     data-recon-delete-nonce="<?php echo metis_escape_attr( $recon_review_nonce ); ?>"
     data-recon-mapping-nonce="<?php echo metis_escape_attr( $recon_mapping_nonce ); ?>"
     data-recon-review-nonce="<?php echo metis_escape_attr( $recon_review_nonce ); ?>"
+    data-account-save-nonce="<?php echo metis_escape_attr( $account_save_nonce ); ?>"
     data-category-save-nonce="<?php echo metis_escape_attr( $category_save_nonce ); ?>"
     data-budget-version-nonce="<?php echo metis_escape_attr( $budget_version_nonce ); ?>"
     data-budget-lines-nonce="<?php echo metis_escape_attr( $budget_lines_nonce ); ?>"
@@ -551,6 +555,54 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
                 <section class="metis-settings-card">
         <div class="metis-settings-header"><h2>Fiscal Settings</h2></div>
         <div class="metis-settings-body">
+                <form data-finance-account-form="1" class="metis-finance-v2-form">
+                    <h3 class="metis-finance-v2-subhead">Accounts</h3>
+                    <div class="metis-finance-v2-form-grid">
+                        <div class="metis-field">
+                            <label for="finance_account_name">Account Name</label>
+                            <input id="finance_account_name" name="account_name" type="text" class="metis-input" placeholder="Operating Cash" required>
+                        </div>
+                        <div class="metis-field">
+                            <label for="finance_account_code">Code (optional)</label>
+                            <input id="finance_account_code" name="account_code" type="text" class="metis-input" placeholder="operating_cash">
+                        </div>
+                        <div class="metis-field">
+                            <label for="finance_account_type">Type</label>
+                            <select id="finance_account_type" name="account_type" class="metis-input" required>
+                                <option value="asset">Asset</option>
+                                <option value="liability">Liability</option>
+                                <option value="equity">Equity</option>
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+                        </div>
+                        <div class="metis-field">
+                            <label for="finance_account_sort_order">Sort Order</label>
+                            <input id="finance_account_sort_order" name="sort_order" type="number" class="metis-input" value="0">
+                        </div>
+                    </div>
+                    <div class="metis-settings-actions" style="padding:0;">
+                        <button type="submit" class="metis-btn" data-finance-account-submit="1">Save Account</button>
+                    </div>
+                </form>
+
+            <div class="metis-finance-v2-table-wrap">
+                <table class="metis-finance-v2-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody data-finance-accounts-list="1">
+                        <tr><td colspan="5" class="metis-finance-v2-empty">No accounts yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
                 <form data-finance-category-form="1" class="metis-finance-v2-form">
                     <h3 class="metis-finance-v2-subhead">Categories</h3>
                     <div class="metis-finance-v2-form-grid">

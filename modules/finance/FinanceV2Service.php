@@ -12,6 +12,7 @@ final class FinanceV2Service {
             'switch' => ModeService::switchStatus(),
             'summary' => self::summary(),
             'accounts' => self::accounts(),
+            'accounts_all' => self::accounts( true ),
             'categories' => self::categories(),
             'categories_all' => self::categories( true ),
             'entries' => self::entries( max( 1, min( 100, $entriesLimit ) ) ),
@@ -198,13 +199,14 @@ final class FinanceV2Service {
         ];
     }
 
-    public static function accounts(): array {
+    public static function accounts( bool $includeInactive = false ): array {
         $db = \metis_db();
         $table = \Metis_Tables::get( 'finance_v2_accounts' );
+        $where = $includeInactive ? 'org_id = %d' : 'org_id = %d AND is_active = 1';
         $rows = $db->fetchAll(
-            "SELECT account_code, account_name, account_type
+            "SELECT account_code, account_name, account_type, is_active, sort_order
              FROM {$table}
-             WHERE org_id = %d AND is_active = 1
+             WHERE {$where}
              ORDER BY sort_order ASC, account_name ASC",
             [ ModeService::orgId() ]
         );
@@ -214,9 +216,84 @@ final class FinanceV2Service {
                 'account_code' => (string) ( $row['account_code'] ?? '' ),
                 'account_name' => (string) ( $row['account_name'] ?? '' ),
                 'account_type' => (string) ( $row['account_type'] ?? '' ),
+                'is_active' => (int) ( $row['is_active'] ?? 0 ),
+                'sort_order' => (int) ( $row['sort_order'] ?? 0 ),
             ],
             $rows
         );
+    }
+
+    public static function saveAccount( array $input, int $requestedBy = 0 ): array {
+        unset( $requestedBy );
+
+        SchemaManager::ensureSchema();
+
+        $db = \metis_db();
+        $table = \Metis_Tables::get( 'finance_v2_accounts' );
+        $orgId = ModeService::orgId();
+
+        $accountName = metis_text_clean( (string) ( $input['account_name'] ?? '' ) );
+        if ( $accountName === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Account name is required.' ];
+        }
+
+        $accountCode = metis_key_clean( (string) ( $input['account_code'] ?? '' ) );
+        if ( $accountCode === '' ) {
+            $accountCode = metis_key_clean( strtolower( preg_replace( '/[^a-z0-9]+/i', '_', $accountName ) ?? '' ) );
+        }
+        if ( $accountCode === '' ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Account code is invalid.' ];
+        }
+
+        $accountType = metis_key_clean( (string) ( $input['account_type'] ?? '' ) );
+        if ( ! in_array( $accountType, [ 'asset', 'liability', 'equity', 'income', 'expense' ], true ) ) {
+            return [ 'ok' => false, 'status' => 422, 'message' => 'Account type is invalid.' ];
+        }
+
+        $isActive = isset( $input['is_active'] ) ? ( (int) $input['is_active'] === 1 ? 1 : 0 ) : 1;
+        $sortOrder = isset( $input['sort_order'] ) ? (int) $input['sort_order'] : 0;
+
+        $existing = $db->fetchOne(
+            "SELECT id FROM {$table} WHERE org_id = %d AND account_code = %s LIMIT 1",
+            [ $orgId, $accountCode ]
+        );
+
+        if ( is_array( $existing ) && (int) ( $existing['id'] ?? 0 ) > 0 ) {
+            $db->update(
+                $table,
+                [
+                    'account_name' => $accountName,
+                    'account_type' => $accountType,
+                    'is_active' => $isActive,
+                    'sort_order' => $sortOrder,
+                    'updated_at' => Support::now(),
+                ],
+                [ 'id' => (int) $existing['id'], 'org_id' => $orgId ],
+                [ '%s', '%s', '%d', '%d', '%s' ],
+                [ '%d', '%d' ]
+            );
+        } else {
+            $db->insert(
+                $table,
+                [
+                    'org_id' => $orgId,
+                    'account_code' => $accountCode,
+                    'account_name' => $accountName,
+                    'account_type' => $accountType,
+                    'is_active' => $isActive,
+                    'sort_order' => $sortOrder,
+                    'created_at' => Support::now(),
+                    'updated_at' => Support::now(),
+                ],
+                [ '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s' ]
+            );
+        }
+
+        return [
+            'ok' => true,
+            'accounts' => self::accounts(),
+            'accounts_all' => self::accounts( true ),
+        ];
     }
 
     public static function categories( bool $includeInactive = false ): array {

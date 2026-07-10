@@ -180,6 +180,17 @@ function metis_finance_register_ajax_controllers(): void {
                 'category_code' => [ 'type' => 'string', 'required' => false ],
             ]
         ),
+        'metis_finance_v2_accounts_list' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
+        'metis_finance_v2_account_save' => $secure(
+            [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_account_save' ],
+            [
+                'account_name' => [ 'type' => 'string', 'required' => true ],
+                'account_code' => [ 'type' => 'string', 'required' => false ],
+                'account_type' => [ 'type' => 'string', 'required' => true ],
+                'is_active' => [ 'type' => 'integer', 'required' => false ],
+                'sort_order' => [ 'type' => 'integer', 'required' => false ],
+            ]
+        ),
         'metis_finance_v2_categories_list' => [ 'permission' => 'view', 'nonce_action' => 'metis_finance' ],
         'metis_finance_v2_category_save' => $secure(
             [ 'permission' => 'edit', 'nonce_action' => 'metis_finance_v2_category_save' ],
@@ -339,6 +350,31 @@ metis_ajax_register_handler( 'metis_finance_v2_gl_create', static function (): v
     ];
 
     $result = \Metis\Modules\Finance\FinanceV2Service::createEntry( $input, metis_finance_ajax_current_user_id() );
+    metis_finance_ajax_send_service_result( $result );
+} );
+
+metis_ajax_register_handler( 'metis_finance_v2_accounts_list', static function (): void {
+    metis_finance_ajax_verify_nonce( [ 'metis_finance', 'metis_core' ] );
+    metis_finance_ajax_require_view();
+    metis_runtime_send_json_success( [
+        'accounts' => \Metis\Modules\Finance\FinanceV2Service::accounts(),
+        'accounts_all' => \Metis\Modules\Finance\FinanceV2Service::accounts( true ),
+    ] );
+} );
+
+metis_ajax_register_handler( 'metis_finance_v2_account_save', static function (): void {
+    metis_finance_ajax_verify_nonce( [ 'metis_finance_v2_account_save', 'metis_finance', 'metis_core' ] );
+    metis_finance_ajax_require_manage();
+
+    $input = [
+        'account_name' => metis_text_clean( (string) metis_finance_ajax_post_value( 'account_name', '' ) ),
+        'account_code' => metis_key_clean( (string) metis_finance_ajax_post_value( 'account_code', '' ) ),
+        'account_type' => metis_key_clean( (string) metis_finance_ajax_post_value( 'account_type', '' ) ),
+        'is_active' => (int) metis_finance_ajax_post_value( 'is_active', 1 ),
+        'sort_order' => (int) metis_finance_ajax_post_value( 'sort_order', 0 ),
+    ];
+
+    $result = \Metis\Modules\Finance\FinanceV2Service::saveAccount( $input, metis_finance_ajax_current_user_id() );
     metis_finance_ajax_send_service_result( $result );
 } );
 
