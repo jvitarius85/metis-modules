@@ -172,6 +172,106 @@
     letter-spacing: .04em;
 }
 
+.metis-finance-v2-settings-hero .metis-settings-body {
+    padding-top: 4px;
+}
+
+.metis-finance-v2-settings-intro {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, .9fr);
+    align-items: start;
+}
+
+.metis-finance-v2-settings-eyebrow {
+    margin: 0 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--metis-primary-dark);
+}
+
+.metis-finance-v2-settings-intro h3 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    line-height: 1.25;
+    color: var(--metis-text);
+}
+
+.metis-finance-v2-settings-intro p {
+    margin: 0;
+    max-width: 68ch;
+    color: var(--metis-text-muted);
+}
+
+.metis-finance-v2-settings-checklist {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    padding: 14px;
+    border: 1px solid var(--metis-border);
+    border-radius: calc(var(--metis-radius) + 2px);
+    background: linear-gradient(180deg, #f8fbff 0%, #f4f7ff 100%);
+}
+
+.metis-finance-v2-settings-checklist span {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--metis-text);
+}
+
+.metis-finance-v2-settings-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 16px;
+}
+
+.metis-finance-v2-settings-grid--secondary {
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+}
+
+.metis-finance-v2-settings-panel {
+    height: 100%;
+}
+
+.metis-finance-v2-settings-panel .metis-settings-header h2 {
+    margin-bottom: 4px;
+}
+
+.metis-finance-v2-settings-copy {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--metis-text-muted);
+}
+
+.metis-finance-v2-settings-panel .metis-settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.metis-finance-v2-settings-panel .metis-finance-v2-form {
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid var(--metis-border);
+    border-radius: calc(var(--metis-radius) + 2px);
+    background: #fbfcfe;
+}
+
+.metis-finance-v2-settings-panel--caution .metis-finance-v2-form {
+    background: #fffaf5;
+    border-color: #f0d7b8;
+}
+
+.metis-finance-v2-table-wrap--soft {
+    margin-top: 0;
+    padding: 4px 0 0;
+}
+
 .metis-finance-v2-stripe-kpis {
     display: grid;
     gap: 10px;
@@ -374,6 +474,12 @@
     }
 
     .metis-finance-v2-grid--three {
+        grid-template-columns: 1fr;
+    }
+
+    .metis-finance-v2-settings-intro,
+    .metis-finance-v2-settings-grid,
+    .metis-finance-v2-settings-grid--secondary {
         grid-template-columns: 1fr;
     }
 

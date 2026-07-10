@@ -552,142 +552,197 @@ $can_export = function_exists( 'metis_finance_can_export' ) && metis_finance_can
             <?php endif; ?>
 
             <?php if ( $current_section === 'settings' ) : ?>
-                <section class="metis-settings-card">
-        <div class="metis-settings-header"><h2>Fiscal Settings</h2></div>
-        <div class="metis-settings-body">
-                <form data-finance-account-form="1" class="metis-finance-v2-form">
-                    <h3 class="metis-finance-v2-subhead">Accounts</h3>
-                    <div class="metis-finance-v2-form-grid">
-                        <div class="metis-field">
-                            <label for="finance_account_name">Account Name</label>
-                            <input id="finance_account_name" name="account_name" type="text" class="metis-input" placeholder="Operating Cash" required>
-                        </div>
-                        <div class="metis-field">
-                            <label for="finance_account_code">Code (optional)</label>
-                            <input id="finance_account_code" name="account_code" type="text" class="metis-input" placeholder="operating_cash">
-                        </div>
-                        <div class="metis-field">
-                            <label for="finance_account_type">Type</label>
-                            <select id="finance_account_type" name="account_type" class="metis-input" required>
-                                <option value="asset">Asset</option>
-                                <option value="liability">Liability</option>
-                                <option value="equity">Equity</option>
-                                <option value="income">Income</option>
-                                <option value="expense">Expense</option>
-                            </select>
-                        </div>
-                        <div class="metis-field">
-                            <label for="finance_account_sort_order">Sort Order</label>
-                            <input id="finance_account_sort_order" name="sort_order" type="number" class="metis-input" value="0">
+                <section class="metis-settings-card metis-finance-v2-settings-hero">
+                    <div class="metis-settings-header"><h2>Finance Setup</h2></div>
+                    <div class="metis-settings-body">
+                        <div class="metis-finance-v2-settings-intro">
+                            <div>
+                                <p class="metis-finance-v2-settings-eyebrow">Low-friction setup</p>
+                                <h3>Keep the chart of accounts, categories, and fiscal calendar tidy.</h3>
+                                <p>Each area is separated below so users can make one clean change at a time without hunting through a long stack of forms.</p>
+                            </div>
+                            <div class="metis-finance-v2-settings-checklist">
+                                <span>1. Add or deactivate accounts</span>
+                                <span>2. Keep entry categories short and clear</span>
+                                <span>3. Set the fiscal start month</span>
+                                <span>4. Open the next fiscal period only when needed</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="metis-settings-actions" style="padding:0;">
-                        <button type="submit" class="metis-btn" data-finance-account-submit="1">Save Account</button>
-                    </div>
-                </form>
-
-            <div class="metis-finance-v2-table-wrap">
-                <table class="metis-finance-v2-table">
-                    <thead>
-                        <tr>
-                            <th>Code</th>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody data-finance-accounts-list="1">
-                        <tr><td colspan="5" class="metis-finance-v2-empty">No accounts yet.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-                <form data-finance-category-form="1" class="metis-finance-v2-form">
-                    <h3 class="metis-finance-v2-subhead">Categories</h3>
-                    <div class="metis-finance-v2-form-grid">
-                        <div class="metis-field">
-                            <label for="finance_category_name">Category Name</label>
-                            <input id="finance_category_name" name="category_name" type="text" class="metis-input" placeholder="Programs" required>
-                        </div>
-                        <div class="metis-field">
-                            <label for="finance_category_code">Code (optional)</label>
-                            <input id="finance_category_code" name="category_code" type="text" class="metis-input" placeholder="programs">
-                        </div>
-                    </div>
-                    <div class="metis-settings-actions" style="padding:0;">
-                        <button type="submit" class="metis-btn" data-finance-category-submit="1">Save Category</button>
-                    </div>
-                </form>
-
-            <div class="metis-finance-v2-table-wrap">
-                <table class="metis-finance-v2-table">
-                    <thead>
-                        <tr>
-                            <th>Code</th>
-                            <th>Name</th>
-                        </tr>
-                    </thead>
-                    <tbody data-finance-categories-list="1">
-                        <tr><td colspan="2" class="metis-finance-v2-empty">No categories yet.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-                <form data-finance-fiscal-settings-form="1" class="metis-finance-v2-form">
-                    <div class="metis-finance-v2-form-grid">
-                        <div class="metis-field">
-                            <label for="finance_fiscal_start_month">Fiscal Year Start Month</label>
-                            <select id="finance_fiscal_start_month" name="fiscal_year_start_month" class="metis-input">
-                                <?php for ( $m = 1; $m <= 12; $m++ ) : ?>
-                                    <option value="<?php echo (int) $m; ?>"><?php echo metis_escape_html( gmdate( 'F', gmmktime( 0, 0, 0, $m, 1, 2026 ) ) ); ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="metis-settings-actions" style="padding:0;">
-                        <button type="submit" class="metis-btn" data-finance-fiscal-settings-submit="1">Save Fiscal Settings</button>
-                    </div>
-                </form>
-
-                <form data-finance-fiscal-migrate-form="1" class="metis-finance-v2-form">
-                    <h3 class="metis-finance-v2-subhead">Migrate To New Fiscal Period</h3>
-                    <div class="metis-finance-v2-form-grid">
-                        <div class="metis-field">
-                            <label for="finance_fiscal_period_label">Label</label>
-                            <input id="finance_fiscal_period_label" name="label" type="text" class="metis-input" placeholder="FY 2027" required>
-                        </div>
-                        <div class="metis-field">
-                            <label for="finance_fiscal_period_start">Start Date</label>
-                            <input id="finance_fiscal_period_start" name="start_date" type="date" class="metis-input" required>
-                        </div>
-                        <div class="metis-field">
-                            <label for="finance_fiscal_period_end">End Date</label>
-                            <input id="finance_fiscal_period_end" name="end_date" type="date" class="metis-input" required>
-                        </div>
-                    </div>
-                    <div class="metis-settings-actions" style="padding:0;">
-                        <button type="submit" class="metis-btn" data-finance-fiscal-migrate-submit="1">Migrate Fiscal Period</button>
-                    </div>
-                </form>
-
-            <div class="metis-finance-v2-table-wrap">
-                <table class="metis-finance-v2-table">
-                    <thead>
-                        <tr>
-                            <th>Label</th>
-                            <th>Start</th>
-                            <th>End</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody data-finance-fiscal-periods="1">
-                        <tr><td colspan="4" class="metis-finance-v2-empty">No fiscal periods yet.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
                 </section>
+
+                <div class="metis-finance-v2-settings-grid">
+                    <section class="metis-settings-card metis-finance-v2-settings-panel">
+                        <div class="metis-settings-header">
+                            <div>
+                                <h2>Accounts</h2>
+                                <p class="metis-finance-v2-settings-copy">These appear in GL entry and budget workflows.</p>
+                            </div>
+                        </div>
+                        <div class="metis-settings-body">
+                            <form data-finance-account-form="1" class="metis-finance-v2-form">
+                                <div class="metis-finance-v2-form-grid">
+                                    <div class="metis-field">
+                                        <label for="finance_account_name">Account Name</label>
+                                        <input id="finance_account_name" name="account_name" type="text" class="metis-input" placeholder="Operating Cash" required>
+                                    </div>
+                                    <div class="metis-field">
+                                        <label for="finance_account_code">Code (optional)</label>
+                                        <input id="finance_account_code" name="account_code" type="text" class="metis-input" placeholder="operating_cash">
+                                    </div>
+                                    <div class="metis-field">
+                                        <label for="finance_account_type">Type</label>
+                                        <select id="finance_account_type" name="account_type" class="metis-input" required>
+                                            <option value="asset">Asset</option>
+                                            <option value="liability">Liability</option>
+                                            <option value="equity">Equity</option>
+                                            <option value="income">Income</option>
+                                            <option value="expense">Expense</option>
+                                        </select>
+                                    </div>
+                                    <div class="metis-field">
+                                        <label for="finance_account_sort_order">Sort Order</label>
+                                        <input id="finance_account_sort_order" name="sort_order" type="number" class="metis-input" value="0">
+                                    </div>
+                                </div>
+                                <div class="metis-settings-actions" style="padding:0;">
+                                    <button type="submit" class="metis-btn" data-finance-account-submit="1">Save Account</button>
+                                </div>
+                            </form>
+
+                            <div class="metis-finance-v2-table-wrap metis-finance-v2-table-wrap--soft">
+                                <table class="metis-finance-v2-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Name</th>
+                                            <th>Type</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-finance-accounts-list="1">
+                                        <tr><td colspan="5" class="metis-finance-v2-empty">No accounts yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="metis-settings-card metis-finance-v2-settings-panel">
+                        <div class="metis-settings-header">
+                            <div>
+                                <h2>Categories</h2>
+                                <p class="metis-finance-v2-settings-copy">Use short labels that make entry review and reporting easier.</p>
+                            </div>
+                        </div>
+                        <div class="metis-settings-body">
+                            <form data-finance-category-form="1" class="metis-finance-v2-form">
+                                <div class="metis-finance-v2-form-grid">
+                                    <div class="metis-field">
+                                        <label for="finance_category_name">Category Name</label>
+                                        <input id="finance_category_name" name="category_name" type="text" class="metis-input" placeholder="Programs" required>
+                                    </div>
+                                    <div class="metis-field">
+                                        <label for="finance_category_code">Code (optional)</label>
+                                        <input id="finance_category_code" name="category_code" type="text" class="metis-input" placeholder="programs">
+                                    </div>
+                                </div>
+                                <div class="metis-settings-actions" style="padding:0;">
+                                    <button type="submit" class="metis-btn" data-finance-category-submit="1">Save Category</button>
+                                </div>
+                            </form>
+
+                            <div class="metis-finance-v2-table-wrap metis-finance-v2-table-wrap--soft">
+                                <table class="metis-finance-v2-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Name</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-finance-categories-list="1">
+                                        <tr><td colspan="2" class="metis-finance-v2-empty">No categories yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="metis-finance-v2-settings-grid metis-finance-v2-settings-grid--secondary">
+                    <section class="metis-settings-card metis-finance-v2-settings-panel">
+                        <div class="metis-settings-header">
+                            <div>
+                                <h2>Fiscal Calendar</h2>
+                                <p class="metis-finance-v2-settings-copy">Choose the month your fiscal year starts and review active periods below.</p>
+                            </div>
+                        </div>
+                        <div class="metis-settings-body">
+                            <form data-finance-fiscal-settings-form="1" class="metis-finance-v2-form">
+                                <div class="metis-finance-v2-form-grid metis-finance-v2-form-grid--compact">
+                                    <div class="metis-field">
+                                        <label for="finance_fiscal_start_month">Fiscal Year Start Month</label>
+                                        <select id="finance_fiscal_start_month" name="fiscal_year_start_month" class="metis-input">
+                                            <?php for ( $m = 1; $m <= 12; $m++ ) : ?>
+                                                <option value="<?php echo (int) $m; ?>"><?php echo metis_escape_html( gmdate( 'F', gmmktime( 0, 0, 0, $m, 1, 2026 ) ) ); ?></option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="metis-settings-actions" style="padding:0;">
+                                    <button type="submit" class="metis-btn" data-finance-fiscal-settings-submit="1">Save Fiscal Settings</button>
+                                </div>
+                            </form>
+
+                            <div class="metis-finance-v2-table-wrap metis-finance-v2-table-wrap--soft">
+                                <table class="metis-finance-v2-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Label</th>
+                                            <th>Start</th>
+                                            <th>End</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-finance-fiscal-periods="1">
+                                        <tr><td colspan="4" class="metis-finance-v2-empty">No fiscal periods yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="metis-settings-card metis-finance-v2-settings-panel metis-finance-v2-settings-panel--caution">
+                        <div class="metis-settings-header">
+                            <div>
+                                <h2>Open New Fiscal Period</h2>
+                                <p class="metis-finance-v2-settings-copy">Use this only when you are ready to roll reporting and budgeting into the next period.</p>
+                            </div>
+                        </div>
+                        <div class="metis-settings-body">
+                            <form data-finance-fiscal-migrate-form="1" class="metis-finance-v2-form">
+                                <div class="metis-finance-v2-form-grid">
+                                    <div class="metis-field">
+                                        <label for="finance_fiscal_period_label">Label</label>
+                                        <input id="finance_fiscal_period_label" name="label" type="text" class="metis-input" placeholder="FY 2027" required>
+                                    </div>
+                                    <div class="metis-field">
+                                        <label for="finance_fiscal_period_start">Start Date</label>
+                                        <input id="finance_fiscal_period_start" name="start_date" type="date" class="metis-input" required>
+                                    </div>
+                                    <div class="metis-field">
+                                        <label for="finance_fiscal_period_end">End Date</label>
+                                        <input id="finance_fiscal_period_end" name="end_date" type="date" class="metis-input" required>
+                                    </div>
+                                </div>
+                                <div class="metis-settings-actions" style="padding:0;">
+                                    <button type="submit" class="metis-btn" data-finance-fiscal-migrate-submit="1">Migrate Fiscal Period</button>
+                                </div>
+                            </form>
+                        </div>
+                    </section>
+                </div>
             <?php endif; ?>
 
             <?php if ( $current_section === 'invoicing' ) : ?>
