@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-07-12T15:03:53Z",
+  "generated_at": "2026-07-12T15:10:31Z",
   "modules": {
     "board": {
       "latest": "1.1.4",
@@ -513,12 +513,12 @@
       "source_fingerprint": "69bd35e868125e92a1a5c472a9cce68e3a7924e515b031f8ae3868231e11056d"
     },
     "website": {
-      "latest": "1.4.6",
+      "latest": "1.4.7",
       "minimum_metis": "26.6.0",
       "release_channel": "stable",
       "download_url": "",
       "sha256": "",
-      "source_fingerprint": "563d9ef70676c0b6b6dd34895409848b12a553f92abb920edc4646a7f148ce4e",
+      "source_fingerprint": "dc20391741fcc443f822578ff68d122c2c98f78dcdce448b379d878d461e669b",
       "previous_versions": [
         {
           "version": "1.4.4",
