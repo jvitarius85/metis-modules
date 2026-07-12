@@ -4703,7 +4703,7 @@ final class WebsiteRenderer {
     }
 
     private static function isTranscriptIntroSpeaker( string $speaker ): bool {
-        return in_array( strtolower( trim( $speaker ) ), [ 'introduction', 'intro', 'opening' ], true );
+        return in_array( strtolower( trim( $speaker ) ), [ 'quote','announcer','introduction', 'intro', 'opening' ], true );
     }
 
     private static function transformTranscriptTables( string $html ): string {
