@@ -345,7 +345,7 @@ final class StructuredWebsiteBuilderService {
             $transition = metis_key_clean( (string) ( $content['transition'] ?? 'slide' ) );
             return [
                 'height' => max( 160, min( 1200, (int) ( $content['height'] ?? 420 ) ) ),
-                'transition' => in_array( $transition, [ 'slide', 'fade', 'cinematic' ], true ) ? $transition : 'slide',
+                'transition' => in_array( $transition, [ 'slide', 'fade', 'crossfade', 'ken_burns', 'reveal', 'cinematic' ], true ) ? $transition : 'slide',
                 'transition_duration_ms' => max( 100, min( 2000, (int) ( $content['transition_duration_ms'] ?? 450 ) ) ),
                 'slides' => self::normalizeCarouselSlides( $content['slides'] ?? [] ),
             ];
