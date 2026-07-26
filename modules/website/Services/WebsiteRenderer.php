@@ -3677,6 +3677,9 @@ final class WebsiteRenderer {
         if ( $type === 'image' ) {
             return self::renderStructuredImageSection( $content );
         }
+        if ( $type === 'image_carousel' ) {
+            return self::renderStructuredBlockModule( 'image_carousel', $content, $context );
+        }
         if ( $type === 'button' ) {
             return self::renderStructuredButtonSection( $content );
         }

@@ -11,10 +11,10 @@ final class StructuredWebsiteBuilderService {
     private const PAGE_TYPES = [ 'homepage', 'page' ];
 
     /** @var array<int,string> */
-    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html' ];
+    private const PAGE_SECTION_TYPES = [ 'heading', 'text', 'image', 'image_carousel', 'button', 'columns', 'hero', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html' ];
 
     /** @var array<int,string> */
-    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html', 'transcript' ];
+    private const POST_SECTION_TYPES = [ 'heading', 'text', 'image', 'image_carousel', 'button', 'columns', 'feature_grid', 'card_grid', 'cta', 'events', 'form', 'donation_form', 'donation_progress', 'campaign_summary', 'testimonials', 'people_directory', 'divider', 'spacer', 'posts_list', 'newsletter_signup', 'newsletter_archive', 'html', 'transcript' ];
 
     /** @var array<int,string> */
     private const TEMPLATE_KEYS = [
@@ -338,6 +338,15 @@ final class StructuredWebsiteBuilderService {
                 'height' => self::sanitizeImageDimension( $content['height'] ?? '' ),
                 'mode' => $mode,
                 'align' => $align,
+            ];
+        }
+
+        if ( $type === 'image_carousel' ) {
+            return [
+                'height' => max( 160, min( 1200, (int) ( $content['height'] ?? 420 ) ) ),
+                'transition' => in_array( metis_key_clean( (string) ( $content['transition'] ?? 'slide' ) ), [ 'slide', 'fade' ], true ) ? metis_key_clean( (string) ( $content['transition'] ?? 'slide' ) ) : 'slide',
+                'transition_duration_ms' => max( 100, min( 2000, (int) ( $content['transition_duration_ms'] ?? 450 ) ) ),
+                'slides' => self::normalizeCarouselSlides( $content['slides'] ?? [] ),
             ];
         }
 
@@ -1043,6 +1052,21 @@ final class StructuredWebsiteBuilderService {
                     'align' => (string) ( $content['align'] ?? 'left' ),
                     'vertical_align' => (string) ( $content['vertical_align'] ?? 'top' ),
                     'variant' => (string) ( $content['variant'] ?? 'default' ),
+                ],
+                'style' => [],
+            ];
+            return $modules;
+        }
+
+        if ( $type === 'image_carousel' ) {
+            $modules[] = [
+                'id' => $section_id . '_image_carousel',
+                'type' => 'image_carousel',
+                'data' => [
+                    'height' => max( 160, min( 1200, (int) ( $content['height'] ?? 420 ) ) ),
+                    'transition' => (string) ( $content['transition'] ?? 'slide' ),
+                    'transition_duration_ms' => max( 100, min( 2000, (int) ( $content['transition_duration_ms'] ?? 450 ) ) ),
+                    'slides' => self::normalizeCarouselSlides( $content['slides'] ?? [] ),
                 ],
                 'style' => [],
             ];
@@ -2009,6 +2033,36 @@ final class StructuredWebsiteBuilderService {
             return '';
         }
         return self::normalizeUrl( $url );
+    }
+
+    /**
+     * @return array<int,array{src:string,media_id:int,alt:string,action_type:string,url:string,popup_id:int,duration_ms:int}>
+     */
+    private static function normalizeCarouselSlides( mixed $raw_slides ): array {
+        $rows = is_array( $raw_slides ) ? $raw_slides : [];
+        $slides = [];
+        foreach ( $rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+            $action_type = metis_key_clean( (string) ( $row['action_type'] ?? 'url' ) );
+            if ( ! in_array( $action_type, [ 'url', 'popup' ], true ) ) {
+                $action_type = 'url';
+            }
+            $slides[] = [
+                'src' => self::normalizeOptionalUrl( (string) ( $row['src'] ?? '' ) ),
+                'media_id' => max( 0, (int) ( $row['media_id'] ?? 0 ) ),
+                'alt' => self::sanitizeText( (string) ( $row['alt'] ?? '' ) ),
+                'action_type' => $action_type,
+                'url' => $action_type === 'url' ? self::normalizeOptionalUrl( (string) ( $row['url'] ?? '' ) ) : '',
+                'popup_id' => $action_type === 'popup' ? max( 0, (int) ( $row['popup_id'] ?? 0 ) ) : 0,
+                'duration_ms' => max( 1000, min( 60000, (int) ( $row['duration_ms'] ?? 5000 ) ) ),
+            ];
+            if ( count( $slides ) >= 12 ) {
+                break;
+            }
+        }
+        return $slides;
     }
 
     private static function closestAllowedWidth( float $ratio, float $ratio_total ): string {

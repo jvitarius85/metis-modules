@@ -18,6 +18,7 @@ use Metis\Modules\Website\Services\EditorContextPolicy;
  */
 final class BlockRenderer {
     private static int $testimonyRotatorSequence = 0;
+    private static int $imageCarouselSequence = 0;
 
     public static function render( array $block, array $context = [] ): string {
         $block = self::normalizeIncomingBlock( $block );
@@ -230,6 +231,70 @@ final class BlockRenderer {
             metis_escape_attr( self::buildClasses( 'metis-block-image is-mode-' . str_replace( '_', '-', $mode ) . ' is-align-' . $align, $style ) ),
             self::buildInlineStyle( $style ),
             $img );
+    }
+
+    private static function renderImageCarousel( array $data, array $style, array $context ): string {
+        $slides = isset( $data['slides'] ) && is_array( $data['slides'] ) ? $data['slides'] : [];
+        $normalized = [];
+        foreach ( $slides as $slide ) {
+            if ( ! is_array( $slide ) ) {
+                continue;
+            }
+            $src = trim( (string) ( $slide['src'] ?? '' ) );
+            if ( $src === '' ) {
+                continue;
+            }
+            $action_type = metis_key_clean( (string) ( $slide['action_type'] ?? 'url' ) );
+            if ( ! in_array( $action_type, [ 'url', 'popup' ], true ) ) {
+                $action_type = 'url';
+            }
+            $normalized[] = [
+                'src' => $src,
+                'alt' => (string) ( $slide['alt'] ?? '' ),
+                'action_type' => $action_type,
+                'url' => trim( (string) ( $slide['url'] ?? '' ) ),
+                'popup_id' => max( 0, (int) ( $slide['popup_id'] ?? 0 ) ),
+                'duration_ms' => max( 1000, min( 60000, (int) ( $slide['duration_ms'] ?? 5000 ) ) ),
+            ];
+            if ( count( $normalized ) >= 12 ) {
+                break;
+            }
+        }
+        if ( $normalized === [] ) {
+            return (string) ( $context['path'] ?? '' ) === '/editor/preview'
+                ? '<div class="metis-block-image-carousel-placeholder">Add carousel images</div>'
+                : '';
+        }
+
+        $height = max( 160, min( 1200, (int) ( $data['height'] ?? 420 ) ) );
+        $transition = metis_key_clean( (string) ( $data['transition'] ?? 'slide' ) );
+        $transition = in_array( $transition, [ 'slide', 'fade' ], true ) ? $transition : 'slide';
+        $transition_duration = max( 100, min( 2000, (int) ( $data['transition_duration_ms'] ?? 450 ) ) );
+        $id = 'metis-image-carousel-' . (string) ++self::$imageCarouselSequence;
+        $classes = self::buildClasses( 'metis-block-image-carousel is-transition-' . $transition, $style );
+        $html = '<div id="' . metis_escape_attr( $id ) . '" class="' . metis_escape_attr( $classes ) . '"' . self::buildInlineStyle( $style ) . ' data-transition-ms="' . $transition_duration . '" role="region" aria-roledescription="carousel" aria-label="Image carousel">';
+        $html .= '<div class="metis-block-image-carousel__viewport" style="height:' . $height . 'px">';
+        foreach ( $normalized as $index => $slide ) {
+            $active = $index === 0;
+            $image = '<img src="' . metis_escape_url( $slide['src'] ) . '" alt="' . metis_escape_attr( $slide['alt'] ) . '" loading="' . ( $active ? 'eager' : 'lazy' ) . '">';
+            if ( $slide['action_type'] === 'popup' && $slide['popup_id'] > 0 ) {
+                $image = '<button type="button" class="metis-block-image-carousel__action" data-metis-popup="' . $slide['popup_id'] . '" aria-label="Open ' . metis_escape_attr( $slide['alt'] !== '' ? $slide['alt'] : 'popup' ) . '">' . $image . '</button>';
+            } elseif ( $slide['action_type'] === 'url' && $slide['url'] !== '' ) {
+                $image = '<a class="metis-block-image-carousel__action" href="' . metis_escape_url( $slide['url'] ) . '">' . $image . '</a>';
+            }
+            $html .= '<div class="metis-block-image-carousel__slide' . ( $active ? ' is-active' : '' ) . '" data-duration-ms="' . $slide['duration_ms'] . '"' . ( $active ? '' : ' aria-hidden="true" inert' ) . '>' . $image . '</div>';
+        }
+        if ( count( $normalized ) > 1 ) {
+            $html .= '<button type="button" class="metis-block-image-carousel__control is-prev" aria-label="Previous image">&#8249;</button><button type="button" class="metis-block-image-carousel__control is-next" aria-label="Next image">&#8250;</button><div class="metis-block-image-carousel__dots" aria-label="Choose image">';
+            foreach ( $normalized as $index => $slide ) {
+                $html .= '<button type="button" class="metis-block-image-carousel__dot' . ( $index === 0 ? ' is-active' : '' ) . '" data-slide-index="' . $index . '" aria-label="Show image ' . ( $index + 1 ) . '"' . ( $index === 0 ? ' aria-current="true"' : '' ) . '></button>';
+            }
+            $html .= '</div>';
+        }
+        $html .= '</div></div>';
+        $html .= '<style>#' . $id . '{position:relative;overflow:hidden}#' . $id . ' .metis-block-image-carousel__viewport{position:relative;overflow:hidden;background:#eef2f7}#' . $id . ' .metis-block-image-carousel__slide{position:absolute;inset:0;opacity:0;pointer-events:none;transform:translateX(8%);transition:opacity ' . $transition_duration . 'ms ease,transform ' . $transition_duration . 'ms ease}#' . $id . '.is-transition-fade .metis-block-image-carousel__slide{transform:none}#' . $id . ' .metis-block-image-carousel__slide.is-active{opacity:1;pointer-events:auto;transform:translateX(0)}#' . $id . ' img,#' . $id . ' .metis-block-image-carousel__action{display:block;width:100%;height:100%}#' . $id . ' img{object-fit:cover}#' . $id . ' .metis-block-image-carousel__action{border:0;padding:0;background:none;cursor:pointer}#' . $id . ' .metis-block-image-carousel__control{position:absolute;top:50%;z-index:2;transform:translateY(-50%);border:0;border-radius:999px;width:42px;height:42px;background:rgba(15,23,42,.68);color:#fff;font-size:34px;line-height:1;cursor:pointer}#' . $id . ' .is-prev{left:14px}#' . $id . ' .is-next{right:14px}#' . $id . ' .metis-block-image-carousel__dots{position:absolute;z-index:2;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px}#' . $id . ' .metis-block-image-carousel__dot{width:10px;height:10px;border:0;border-radius:50%;padding:0;background:rgba(255,255,255,.55);cursor:pointer}#' . $id . ' .metis-block-image-carousel__dot.is-active{background:#fff}@media (prefers-reduced-motion:reduce){#' . $id . ' .metis-block-image-carousel__slide{transition:none}}</style>';
+        $html .= '<script>(function(){var root=document.getElementById(' . json_encode( $id ) . ');if(!root){return;}var slides=[].slice.call(root.querySelectorAll(".metis-block-image-carousel__slide"));if(slides.length<2||window.matchMedia("(prefers-reduced-motion: reduce)").matches){return;}var dots=[].slice.call(root.querySelectorAll(".metis-block-image-carousel__dot")),current=0,timer=null,paused=false;function show(next){current=(next+slides.length)%slides.length;slides.forEach(function(slide,index){var on=index===current;slide.classList.toggle("is-active",on);slide.setAttribute("aria-hidden",on?"false":"true");slide.inert=!on;if(dots[index]){dots[index].classList.toggle("is-active",on);if(on){dots[index].setAttribute("aria-current","true");}else{dots[index].removeAttribute("aria-current");}}});schedule();}function schedule(){if(timer){clearTimeout(timer);}if(paused){return;}timer=setTimeout(function(){show(current+1);},Number(slides[current].getAttribute("data-duration-ms")||5000));}root.querySelector(".is-prev")&&root.querySelector(".is-prev").addEventListener("click",function(){show(current-1);});root.querySelector(".is-next")&&root.querySelector(".is-next").addEventListener("click",function(){show(current+1);});dots.forEach(function(dot,index){dot.addEventListener("click",function(){show(index);});});root.addEventListener("mouseenter",function(){paused=true;if(timer){clearTimeout(timer);}});root.addEventListener("mouseleave",function(){paused=false;schedule();});root.addEventListener("focusin",function(){paused=true;if(timer){clearTimeout(timer);}});root.addEventListener("focusout",function(){paused=false;schedule();});root.addEventListener("keydown",function(event){if(event.key==="ArrowLeft"){event.preventDefault();show(current-1);}if(event.key==="ArrowRight"){event.preventDefault();show(current+1);}});root.tabIndex=0;schedule();})();</script>';
+        return $html;
     }
 
     private static function renderButton( array $data, array $style, array $context ): string {
